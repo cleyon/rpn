@@ -2,7 +2,8 @@
 
 import ply.lex as lex
 
-literals = "|"
+# literals = ['!', ':', '|', '~', ';', ',', '(', ')', '@', '[', ']']
+literals = [ '|' ]
 
 reserved_words = {
     '+loop'  : 'PLUS_LOOP',
@@ -10,6 +11,7 @@ reserved_words = {
     'again'  : 'AGAIN',
     'begin'  : 'BEGIN',
     'do'     : 'DO',
+    'doc:"'  : 'DOC_STR',
     'else'   : 'ELSE',
     'help'   : 'HELP',
     'if'     : 'IF',
@@ -26,7 +28,7 @@ tokens = [
     'CLOSE_PAREN',
     'COLON',
     'COMMA',
-    'EXCLAMATION',
+    'EXCLAM',
     'FLOAT',
     'IDENTIFIER',
     'INTEGER',
@@ -34,42 +36,86 @@ tokens = [
     'OPEN_PAREN',
     'SEMICOLON',
     'STRING',
-    'BAR',
+    'TILDE',
+    'VBAR',
 ] + list(reserved_words.values())
 
 t_ignore = ' \t'
 
-t_AT_SIGN           = r'@'
-t_BAR               = r'\|'
-t_CLOSE_BRACKET     = r']'
-t_CLOSE_PAREN       = r'\)'
-t_COLON             = r':'
-t_COMMA             = r','
 t_ignore_COMMENT    = r'\\.*'
-t_EXCLAMATION       = r'!'
-t_OPEN_PAREN        = r'\('
-t_OPEN_BRACKET      = r'\['
-t_SEMICOLON         = r';'
 t_STRING            = r'\"([^\\\n]|(\\.))*?\"'
 
 
+def t_AT_SIGN(t):
+    r'@'
+    t.type = 'AT_SIGN'
+    return t
+
+def t_CLOSE_BRACKET(t):
+    r'\]'
+    t.type = 'CLOSE_BRACKET'
+    return t
+
+def t_CLOSE_PAREN(t):
+    r'\)'
+    t.type = 'CLOSE_PAREN'
+    return t
+
+def t_COLON(t):
+    r':'
+    t.type = 'COLON'
+    return t
+
+def t_COMMA(t):
+    r','
+    t.type = 'COMMA'
+    return t
+
+def t_EXCLAM(t):
+    r'!'
+    t.type = 'EXCLAM'
+    return t
+
+def t_OPEN_PAREN(t):
+    r'\('
+    t.type = 'OPEN_PAREN'
+    return t
+
+def t_SEMICOLON(t):
+    r';'
+    t.type = 'SEMICOLON'
+    return t
+
+def t_TILDE(t):
+    r'~'
+    t.type = 'TILDE'
+    return t
+
+def t_VBAR(t):
+    r'\|'
+    t.type = 'VBAR'
+    return t
+
 def t_MINUS_ROT(t):
     r'-rot'
-    t.type = "IDENTIFIER"
+    t.type = 'IDENTIFIER'
     return t
 
 def t_MINUS(t):
     r'-'
-    t.type = "IDENTIFIER"
+    t.type = 'IDENTIFIER'
     return t
 
 def t_ZERO_EQUALS(t):
     r'0='
-    t.type = "IDENTIFIER"
+    t.type = 'IDENTIFIER'
+    return t
+
+def t_DOC_STR(t):
+    r'doc:\"([^\\\n]|(\\.))*?\"'
     return t
 
 def t_DOT_QUOTE(t):
-    #t_DOT_QUOTE = r'.\"([^\\\n]|(\\.))*?\"'
     r'.\"([^\\\n]|(\\.))*?\"'
     return t
 
@@ -84,17 +130,19 @@ def t_INTEGER(t):
     t.value = int(t.value)
     return t
 
-def t_IDENTIFIER(t):
-    r'[0-9a-zA-Z_+.$?=][a-zA-Z0-9_+.$!?=]*'
-    t.type = reserved_words.get(t.value, 'IDENTIFIER')
-    return t
-
 def t_newline(t):
     r'\n+'
     t.lexer.lineno += len(t.value)
 
+def t_IDENTIFIER(t):
+    r'[$%*+./0-9<=>A-Z^a-z]+'
+    t.type = reserved_words.get(t.value, 'IDENTIFIER')
+    return t
+
 def t_error(t):
+    global parse_error
     print("Illegal character '%s'" % t.value[0])
+    parse_error = True
     t.lexer.skip(1)
 
 
