@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import cmath
+import inspect
 import math
 import numpy    as np
 import os
@@ -12,74 +13,8 @@ import sys
 from fractions  import Fraction
 from rpn_lex    import tokens
 
-
-
-#############################################################################
-#
-#       G R A M M A R
-#
-#############################################################################
-start = 'exe_seq'
-
-"""
-# Names of the form "XXX_seq" can be empty; names like "numbers"
-# or "vectors" must have at least one element.
-
-empty :
-exe_seq : empty
-        | exe exe_seq
-exe : begin_again
-    | begin_until
-    | begin_while
-    | colon
-    | do_loop
-    | do_plusloop
-    | dot_quote
-    | help
-    | if_then
-    | if_else_then
-    | stackable
-    | store_var
-    | word
-
-begin_again     : BEGIN exe_seq AGAIN
-begin_until     : BEGIN exe_seq UNTIL
-begin_while     : BEGIN exe_seq WHILE exe_seq REPEAT
-colon           : COLON IDENTIFIER                exe_seq SEMICOLON
-                | COLON IDENTIFIER BAR id_seq BAR exe_seq SEMICOLON
-do_loop         : DO exe_seq LOOP
-do_plusloop     : DO exe_seq PLUS_LOOP
-dot_quote       : DOT_QUOTE
-help            : HELP IDENTIFIER
-if_then         : IF exe_seq THEN
-if_else_then    : IF exe_seq ELSE exe_seq THEN
-stackable       : number
-                | string
-                | vector
-                | matrix
-                | fetch_var
-store_var       : EXCLAMATION IDENTIFIER
-word            : IDENTIFIER
-
-complex         : OPEN_PAREN real COMMA real CLOSE_PAREN
-float           : FLOAT
-id_seq          : empty
-                | IDENTIFIER id_seq
-integer         : INTEGER
-matrix          : OPEN_BRACKET vectors CLOSE_BRACKET
-number          : real
-                | rational
-                | complex
-numbers         : number
-                | number numbers
-rational        : integer COLON integer
-real            : integer
-                | float
-string          : STRING
-vector          : OPEN_BRACKET numbers CLOSE_BRACKET
-vectors         : vector
-                | vector vectors
-"""
+rpn_version = 15.1
+parse_error = False
 
 
 
@@ -88,7 +23,34 @@ vectors         : vector
 #       S U P P O R T   C L A S S E S
 #
 #############################################################################
-class FatalError(Exception):
+class Rpn2Exception(Exception):
+    def __init__(self, msg=""):
+        self._message = msg
+    def __str__(self):
+        return str(self._message)
+
+class Rpn2Abort(Rpn2Exception):
+    """Rpn2Abort is raised by the ABORT and ABORT" words.
+It is caught in p_execute().  It clears the parameter and string stacks,"""
+    pass
+
+class Rpn2Exit (Rpn2Exception):
+    """Rpn2Exit is raised when there is no more input to parse, or
+the interrupt key is signaled.  It is caught in __main__, where processing
+is haltted, the exit routine prints the stack, and the program exits."""
+    pass
+
+class Rpn2Fatal(Rpn2Exception):
+    """Rpn2Fatal is raised whenever an internal error is detected that
+forces the program to abend.  It is caught in __main__ and causes an
+immediate program termination."""
+    pass
+
+class Rpn2Leave(Rpn2Exception):
+    """Rpn2Leave is raised by the LEAVE word.  This is caught by
+BEGIN or DO loops, and causes an immediate exit from the enclosing loop.
+If a loop is not currently executing, it is caught in p_execute() and
+an error message is printed."""
     pass
 
 
@@ -164,32 +126,6 @@ class Rpn2BeginWhile:
         return "BeginWhile[{},{}]".format(repr(self._seq1), repr(self._seq2))
 
 
-class Rpn2Colon:
-    def __init__(self, identifier, locals, seq):
-        lnwriteln("Rpn2Colon#__init__: identifier={}, locals={}, seq={}".format(identifier, repr(locals), repr(seq)))
-        self._name = identifier
-        self._locals = locals
-        self._seq = seq
-
-    def __call__(self):
-        # lnwriteln("Rpn2Colon#__call__: Defining word {} into scope {}".format(self.name, scope_stack.top()))
-        # scope_stack.top().set_word(self.name, self.seq)
-        #lnwriteln("Rpn2Colon#__call__: No op for the moment")
-        lnwriteln("Rpn2Colon#__call__")
-        self._seq.__call__()
-
-    def name(self):
-        return self._name
-
-    def __str__(self):
-        return ": {}  {}{} ;".format(self.name(),
-                                     "|" + str(self._locals) + "|  " if self._locals is not None else "",
-                                     self._seq)
-
-    def __repr__(self):
-        return "Colon[{},{},{}]".format(self.name(), repr(self._locals), repr(self._seq))
-
-
 class Rpn2Complex:
     def __init__(self, real=0.0, imag=0.0):
         self.set_real_imag(real, imag)
@@ -214,7 +150,7 @@ class Rpn2Complex:
         return self.real() == 0.0 and self.imag() == 0.0
 
     def __str__(self):
-        return "({},{})".format(self.real(), self.imag()) # sprintf?
+        return "({}, {})".format(self.real(), self.imag()) # sprintf?
 
     def __repr__(self):
         return "Complex[{}]".format(repr(self.value()))
@@ -306,7 +242,7 @@ class Rpn2DoPlusLoop:
 class Rpn2DotQuote:
     def __init__(self, val):
         if len(val) < 3 or val[0:2] != '."' or val[-1] != '"':
-            raise FatalError("Rpn2DotQuote#__init__: Malformed string: '{}'".format(val))
+            raise Rpn2Fatal("{}: Malformed string: '{}'".format(whoami(), val))
         self._str = val[2:-1]
 
     def stringval(self):
@@ -350,7 +286,7 @@ class Rpn2Exe:
 class Rpn2FetchVar:
     def __init__(self, id, var):
         if type(var) is not Rpn2Variable:
-            raise FatalError("Rpn2FetchVar#__init__: Variable {} is not an Rpn2Variable".format(id))
+            raise Rpn2Fatal("{}: Variable {} is not an Rpn2Variable".format(whoami(), id))
         self._identifier = id
         self._variable = var
 
@@ -364,7 +300,7 @@ class Rpn2FetchVar:
         return "@{}".format(self.identifier())
 
     def __repr__(self):
-        return "FetchVar[{}]".format(self.identifier())
+        return "Fetch[{}]".format(self.identifier())
 
 
 class Rpn2Float:
@@ -473,10 +409,6 @@ class Rpn2Integer:
         return "Integer[{}]".format(repr(self.value()))
 
 
-class Rpn2Leave(Exception):
-    pass
-
-
 class Rpn2List:
     def __init__(self, item=None, oldlist=None):
         if item is None and oldlist is None:
@@ -495,6 +427,7 @@ class Rpn2List:
 
     def __call__(self):
         for item in self.listval():
+            # lnwriteln("{}: {}.__call__()".format(whoami(), item))
             item.__call__()
 
     def items(self):
@@ -522,9 +455,9 @@ class Rpn2List:
 
 class Rpn2Matrix:
     def __init__(self, vals):
-        lnwriteln("Rpn2Matrix#__init__: vals={}".format(vals))
+        lnwriteln("{}: vals={}".format(whoami(), vals))
         self._vals = vals
-        self._rows = len(vals)
+        self._nrows = len(vals)
         cols = -1
         for x in vals.items():
             lnwriteln("x={}".format(repr(x)))
@@ -532,13 +465,19 @@ class Rpn2Matrix:
                 cols = x.size()
             else:
                 if x.size() != cols:
-                    lnwriteln("Rpn2Matrix#__init__: Number of columns is not consistent")
+                    lnwriteln("Number of columns is not consistent")
                     return      # # raise?
-        self._cols = cols
-        lnwriteln("{} rows x {} columns".format(self.rows, self.cols))
+        self._ncols = cols
+        lnwriteln("{} rows x {} columns".format(self.nrows(), self.ncols()))
 
     def value(self):
         raise RuntimeError("Need Rpn2Matrix#value()")
+
+    def nrows(self):
+        return self._nrows
+
+    def ncols(self):
+        return self._ncols
 
     def __str__(self):
         return "Matrix..."      # "[" + str(self.vals) + "]"
@@ -585,7 +524,7 @@ class Rpn2Rational:
         return self.numerator() == 0
 
     def __str__(self):
-        return "{}:{}".format(self.numerator(), self.denominator())
+        return "{}~{}".format(self.numerator(), self.denominator())
 
     def __repr__(self):
         return "Rational[{}]".format(repr(self.value()))
@@ -601,7 +540,7 @@ class Rpn2Scope:
 
     def set_word(self, identifier, word):
         if type(word) is not Rpn2Word:
-            raise FatalError("Rpn2Scope#set_word: Word {} is not an Rpn2Word".format(identifier))
+            raise Rpn2Fatal("{}: Word {} is not an Rpn2Word".format(whoami(), identifier))
         self._words[identifier] = word
 
     def word(self, identifier):
@@ -609,7 +548,7 @@ class Rpn2Scope:
 
     def set_variable(self, identifier, var):
         if type(var) is not Rpn2Variable:
-            raise FatalError("Rpn2Scope#set_variable: Variable {} is not an Rpn2Variable".format(identifier))
+            raise Rpn2Fatal("{}: Variable {} is not an Rpn2Variable".format(whoami(), identifier))
         self._variables[identifier] = var
 
     def variable(self, identifier):
@@ -620,6 +559,41 @@ class Rpn2Scope:
 
     def __repr__(self):
         return "Scope[{}]".format(hex(id(self)))
+
+
+class Rpn2Sequence:
+    def __init__(self, scope, in_vars, out_vars, exe_seq):
+        self._scope    = scope
+        self._in_vars  = in_vars
+        self._out_vars = out_vars
+        self._exe_seq  = exe_seq
+        # print("{}: scope={}, exe_seq={}".format(whoami(), repr(scope), repr(exe_seq)))
+
+    def __call__(self):
+        # check param_stack.size() vs len(in_vars)
+
+        # lnwriteln("{}: Push scope {}".format(whoami(), self.scope()))
+        scope_stack.push(self.scope())
+        try:
+            # lnwriteln("{}: exe_seq={}".format(whoami(), repr(self._exe_seq)))
+            self._exe_seq.__call__()
+        finally:
+            s = scope_stack.pop()
+            # lnwriteln("{}: Pop scope {}".format(whoami(), s))
+
+        # push out variables onto param_stack
+
+    def scope(self):
+        return self._scope
+
+    def exe_seq(self):
+        return self._exe_seq
+
+    def __str__(self):
+        s = "Scope+Seq"
+
+    def __repr__(self):
+        return "Sequence[Scope={}, Exe_Seq={}]".format(repr(self.scope()), repr(self.exe_seq()))
 
 
 class Rpn2Stack:
@@ -643,13 +617,13 @@ class Rpn2Stack:
 
     def pop(self):
         if self.empty():
-            raise FatalError("Rpn2Stack#pop: Empty stack")
+            raise Rpn2Fatal("{}: Empty stack".format(whoami()))
         self._nitems -= 1
         return self._stack.pop()
 
     def top(self):
         if self.empty():
-            raise FatalError("Rpn2Stack#top: Empty stack")
+            raise Rpn2Fatal("{}: Empty stack".format(whoami()))
         return self._stack[self.size() - 1]
 
     def items_bottom_to_top(self):
@@ -679,10 +653,12 @@ class Rpn2Stackable:
             string_stack.push(self.value())
         elif type(self.value()) is Rpn2FetchVar:
             var = self.value().variable()
-            if var.obj() is None:
+            if type(var) is not Rpn2Variable:
+                raise Rpn2Fatal("{}: Rpn2FetchVar.value().variable ({}) is not an Rpn2Variable".format(whoami(), self.value().identifier()))
+            elif var.obj() is None:
                 raise RuntimeError("{}: Fetch of undefined variable {}".format(whoami(), self.value()))
             else:
-                param_stack.push(var.obj().value())
+                param_stack.push(var.obj())
         else:
             raise TypeError("Rpn2Stackable#__call__: Unrecognized type: {}".format(type(self.value())))
 
@@ -696,7 +672,7 @@ class Rpn2Stackable:
 class Rpn2StoreVar:
     def __init__(self, id, var):
         if type(var) is not Rpn2Variable:
-            raise FatalError("!{}: Variable is not an Rpn2Variable".format(id))
+            raise Rpn2Fatal("!{}: Variable is not an Rpn2Variable".format(id))
         self._identifier = id
         self._variable = var
 
@@ -712,13 +688,13 @@ class Rpn2StoreVar:
         return "!{}".format(self.identifier())
 
     def __repr__(self):
-        return "StoreVar[{}]".format(self.identifier())
+        return "Store[{}]".format(self.identifier())
 
 
 class Rpn2String:
     def __init__(self, val):
         if len(val) < 2 or val[0] != '"' or val[-1] != '"':
-            raise FatalError("Rpn2String#__init__: Malformed string: '{}'".format(val))
+            raise Rpn2Fatal("{}: Malformed string: '{}'".format(whoami(), val))
         self._value = val[1:-1]
 
     def value(self):
@@ -787,6 +763,8 @@ class Rpn2Word:
         self._name     = name
         self._str_args = 0
 
+        if defn is None:
+            raise Rpn2Fatal("{}: defn is None".format(name))
         if kwargs.get("args"):
             self._args = kwargs['args']
             del kwargs["args"]
@@ -798,7 +776,7 @@ class Rpn2Word:
             del kwargs["str_args"]
         if len(kwargs) > 0:
             for (key, val) in kwargs.items():
-                print("{}: Unrecognized keyword '{}' ({}) in defword".format(name, key, val))
+                lnwriteln("{}: Unrecognized keyword '{}' ({}) in defword".format(name, key, val))
             sys.exit(1)
 
     def __call__(self):
@@ -834,217 +812,335 @@ class Rpn2Word:
 #       P A R S E   F U N C T I O N S
 #
 #############################################################################
-def p_begin_again(p):
-    '''begin_again : BEGIN exe_seq AGAIN'''
-    p[0] = Rpn2BeginAgain(p[2])
+start = 'interpret'
+
+def p_interpret(p):
+    '''interpret : cmd
+                 | cmd interpret'''
+
+    p[0] = Rpn2NoOp()
 
 
-def p_begin_until(p):
-    '''begin_until : BEGIN exe_seq UNTIL'''
-    p[0] = Rpn2BeginUntil(p[2])
+def p_cmd(p):
+    '''cmd :  executable  execute'''
+
+    # Don't need to return anything since `execute' does all the work
+    p[0] = Rpn2NoOp()
 
 
-def p_begin_while(p):
-    '''begin_while : BEGIN exe_seq WHILE exe_seq REPEAT'''
-    p[0] = Rpn2BeginWhile(p[2], p[4])
+def p_execute(p):
+    '''execute : empty'''
+
+    executable = p[-1]
+    try:
+        executable.__call__()
+    except KeyboardInterrupt:
+        # CTRL/C while executing returns to top level prompt
+        pass
+    except Rpn2Abort as e:
+        if len(e._message) > 0:
+            lnwriteln("{}".format(e))
+        param_stack.clear()
+        string_stack.clear()
+    except Rpn2Leave:
+        lnwriteln("leave: Cannot be used outside of a BEGIN or DO loop")
+    except RuntimeError as e:
+        lnwriteln("{}".format(e))
+    except TypeError as e:
+        lnwriteln("{}".format(e))
+        w_dot_s()
+    except ValueError as e:
+        lnwriteln("{}".format(e))
+
+    p[0] = Rpn2NoOp()
 
 
-def p_locals_seq(p):
-    '''locals_seq : empty
-                  | BAR id_seq BAR'''
-    s = Rpn2Scope()
-    scope_stack.push(s)
-    #lnwriteln("p_locals_seq: pushing new scope {}".format(s))
+def p_sequence(p):
+    '''sequence : locals_opt executables_opt'''
 
-    # lnwriteln("p_locals_seq: len={}".format(len(p)))
+    # `locals_opt' is a Scope; `executables_opt' is a List
+    p[0] = Rpn2Sequence(p[1], [], [], p[2])
+
+
+def p_locals_opt(p):
+    '''locals_opt :  empty
+                  |  VBAR  ids_opt  VBAR'''
+
+    scope = Rpn2Scope()
+
+    # lnwriteln("{}: len={}".format(whoami(), len(p)))
+    if len(p) == 4:
+        for varname in p[2].items():
+            var = Rpn2Variable(varname)
+            #lnwriteln("{}: Defining variable {} in scope {}".format(whoami(), varname, scope_stack.top()))
+            scope.set_variable(varname, var)
+
+    # lnwriteln("{}: Push new scope {}".format(whoami(), scope))
+    scope_stack.push(scope)
+    p[0] = scope
+
+
+def p_executables_opt(p):
+    '''executables_opt :  empty
+                       |  executable  executables_opt'''
+
     if len(p) == 2:
         p[0] = Rpn2List()
-    elif len(p) == 4:
-        for varname in p[2].items():
-            # lnwriteln(varname)
-            var = Rpn2Variable(varname)
-            #lnwriteln("p_locals_seq: Defining variable {} in scope {}".format(varname, scope_stack.top()))
-            scope_stack.top().set_variable(varname, var)
-        p[0] = p[2]
+    elif len(p) == 3:
+        p[0] = Rpn2List(p[1], p[2])
+    # lnwriteln("{}: Returning {}".format(whoami(), p[0])))
+
+
+def p_colon_def(p):
+    '''colon_def :  COLON  IDENTIFIER  docstr_opt  sequence  SEMICOLON  define_word'''
+
+    # This returns a NoOp because `define_word' does all the work
+    p[0] = Rpn2NoOp()
+
+
+def p_colon_def_error(p):
+    '''colon_def :  COLON  IDENTIFIER  docstr_opt  error  SEMICOLON '''
+
+    s = scope_stack.pop()
+    #lnwriteln("{}: Pop scope {}".format(whoami(), s))
+    p[0] = Rpn2Error("{}: Syntax error in definition".format(p[2]))
 
 
 def p_define_word(p):
     '''define_word : empty'''
+
+    sequence   = p[-2]
+    doc_str    = p[-3]
     identifier = p[-4]
-    locals_seq = p[-3]
-    exe_seq    = p[-2]
-    #lnwriteln("p_define_word: IN identifier={}  locals=|{}|  exe_seq={}".format(identifier, locals_seq, exe_seq))
+    # lnwriteln("{}: identifier={}  doc_str={}  sequence={}".format(whoami(), identifier, repr(doc_str), repr(sequence)))
 
+    global parse_error
+    if parse_error:
+        lnwriteln("{}: Syntax error in definition".format(identifier))
+        scope_stack.pop()
+        p[0] = Rpn2NoOp()
+        return
+
+    kwargs = dict()
+    if doc_str is not None:
+        if len(doc_str) < 6 or doc_str[0:5] != 'doc:"' or doc_str[-1] != '"':
+            raise Rpn2Fatal("{}: Malformed doc_str: '{}'".format(whoami(), doc_str))
+        doc_str = doc_str[5:-1]
+        kwargs['doc'] = doc_str
+
+    # The local variables have been defined in the scope associated with
+    # the new word.  Now pop the scope stack so that the word is defined
+    # in the parent scope.  (This is often, but not necessarily, the
+    # global scope.)
     s = scope_stack.pop()
-    #lnwriteln("p_define_word: Popped scope {}".format(s))
+    # lnwriteln("{}: Pop scope {}".format(whoami(), s))
 
-    #new_word = Rpn2Colon(identifier, locals_seq, exe_seq)
-    new_word = Rpn2Word(identifier, exe_seq)
-    #lnwriteln("p_define_word: Defining word {}={} into scope {}".format(identifier, repr(new_word), scope_stack.top()))
+    new_word = Rpn2Word(identifier, sequence, **kwargs)
+    #lnwriteln("{}: Defining word {}={} into scope {}".format(whoami(), identifier, repr(new_word), scope_stack.top()))
     scope_stack.top().set_word(identifier, new_word)
 
     p[0] = new_word
-    #lnwriteln("p_define_word: Returning {}".format(p[0]))
+    #lnwriteln("{}: Returning {}".format(whoami(), p[0]))
 
 
-# The parsing of a colon executable can create a new scope if local
-# variables are specified.  "newScope" creates the scope and pushes it
-# onto the scope stack.  The "locals" is merely a list of strings.  The
-# Rpn2Colon creates actual Rpn2Variables for each of those names and
-# stores them in the top-most scope.  As the colon word is parsed,
-# references to variables (store & fetch) will be resolved by examining
-# the scope stack entries.  This is done at parse time, not run time, so
-# lexical scoping should be effectuated.  [The scope is also stored in
-# the newly-created colon word object so the variables will not be
-# garbage-collected.  (Is this really necessary?)]
-def p_colon(p):
-    '''colon : COLON IDENTIFIER locals_seq exe_seq SEMICOLON define_word'''
-    # lnwriteln("p_colon: len={}".format(len(p)))
-    # lnwriteln("p_colon: IDENTIFIER={}".format(p[2]))
-    # lnwriteln("p_colon: locals_seq={}".format(p[3]))
-    # lnwriteln("p_colon: exe_seq   ={}".format(p[4]))
-    # p[0] = Rpn2Colon(p[2], p[3], p[4])
-    # s = scope_stack.pop()
-    # lnwriteln("p_colon: Popped scope {}".format(s))
-    #p[0] = Rpn2NoOp()
-    # word = lookup_word(p[2])
-    # if word is None:
-    #     lnwriteln("p_colon: {} not found".format(p[2]))
-    #     raise SyntaxError
+def p_begin_again(p):
+    '''begin_again :  BEGIN  sequence  AGAIN'''
 
-    p[0] = Rpn2NoOp()
-    #lnwriteln("p_colon: Returning {}".format(p[0]))
+    p[0] = Rpn2BeginAgain(p[2])
 
 
-def p_colon_error(p):
-    '''colon : COLON IDENTIFIER locals_seq error SEMICOLON'''
-    s = scope_stack.pop()
-    #lnwriteln("p_colon_error: Popped scope {}".format(s))
-    p[0] = Rpn2Error("{}: Error in colon definition".format(p[2]))
+def p_begin_until(p):
+    '''begin_until :  BEGIN  sequence  UNTIL'''
+
+    p[0] = Rpn2BeginUntil(p[2])
+
+
+def p_begin_while(p):
+    '''begin_while :  BEGIN  sequence  WHILE  sequence  REPEAT'''
+
+    p[0] = Rpn2BeginWhile(p[2], p[4])
+
+
+def p_docstr_opt(p):
+    '''docstr_opt :  empty
+                  |  DOC_STR'''
+
+    p[0] = p[1]
+
+
+# def p_case(p):
+#     # Not implemented yet
+# """
+# n CASE
+#   x OF ... ENDOF
+#   y OF ... ENDOF
+#   z OF ... ENDOF
+#   OTHERWISE ...
+# ENDCASE
+# """
 
 
 def p_complex(p):
-    '''complex : OPEN_PAREN real COMMA real CLOSE_PAREN'''
+    '''complex :  OPEN_PAREN  real  COMMA  real  CLOSE_PAREN '''
     p[0] = Rpn2Complex(p[2].value(), p[4].value())
 
 
 def p_do_loop(p):
-    '''do_loop : DO exe_seq LOOP'''
+    '''do_loop :  DO  sequence  LOOP'''
+
     p[0] = Rpn2DoLoop(p[2])
 
 
 def p_do_plusloop(p):
-    '''do_plusloop : DO exe_seq PLUS_LOOP'''
+    '''do_plusloop :  DO  sequence  PLUS_LOOP'''
+
     p[0] = Rpn2DoPlusLoop(p[2])
 
 
 def p_dot_quote(p):
-    '''dot_quote : DOT_QUOTE'''
+    '''dot_quote :  DOT_QUOTE'''
+
     p[0] = Rpn2DotQuote(p[1])
 
 
 def p_empty(p):
     '''empty :'''
+
     pass
 
 
 def p_error(p):
+    global parse_error
     if p is None:
-        lnwriteln("p_error(None): End of file")
-        return
+        #lnwriteln("{}(None): End of file".format(whoami()))
+        parser.restart()
+    else:
+        #lnwriteln("{}({})".format(whoami(), p))
+        lnwriteln("{}: Not valid".format(p.value))
+        parse_error = True
+        parser.restart()
 
-    lnwriteln("p_error({})".format(p))
     # What to do?
-    # - parser.restart()
-    # - parser.errok()
+    #parser.restart()
+    #parser.errok()
 
 
+def p_executable(p):
+    '''executable :  begin_again
+                  |  begin_until
+                  |  begin_while
+                  |  colon_def
+                  |  do_loop
+                  |  do_plusloop
+                  |  dot_quote
+                  |  help
+                  |  if_then
+                  |  if_else_then
+                  |  stackable
+                  |  store_var
+                  |  word'''
 
-def p_exe(p):
-    '''exe : begin_again
-           | begin_until
-           | begin_while
-           | colon
-           | do_loop
-           | do_plusloop
-           | dot_quote
-           | help
-           | if_then
-           | if_else_then
-           | stackable
-           | store_var
-           | word'''
+    # A "word" is not just an identifier, a word is something that is
+    # findable somewhere in the scope_stack.  It is a syntax error if
+    # the identifier is not found.
     p[0] = Rpn2Exe(p[1])
 
 
 def p_fetch_var(p):
-    '''fetch_var : AT_SIGN IDENTIFIER'''
+    '''fetch_var :  AT_SIGN  IDENTIFIER'''
+
+    global parse_error
     id = p[2]
-    # lnwriteln("p_fetch_var: Looking up {}".format(id))
+    # lnwriteln("{}: Looking up {}".format(whoami(), id))
     var = lookup_variable(id)
     if var is None:
-        lnwriteln("{}: Failed to find variable {}".format(whoami(), id))
+        lnwriteln("@{}: Variable not found".format(id))
+        parse_error = True
         raise SyntaxError
     p[0] = Rpn2FetchVar(id, var)
 
 
 def p_float(p):
-    '''float : FLOAT'''
+    '''float :  FLOAT'''
+
     p[0] = Rpn2Float(p[1])
 
 
 def p_help(p):
-    '''help : HELP IDENTIFIER'''
+    '''help :  HELP  IDENTIFIER
+            |  HELP  PLUS_LOOP
+            |  HELP  DOT_QUOTE
+            |  HELP  AGAIN
+            |  HELP  BEGIN
+            |  HELP  DO
+            |  HELP  ELSE
+            |  HELP  HELP
+            |  HELP  IF
+            |  HELP  LOOP
+            |  HELP  REPEAT
+            |  HELP  THEN
+            |  HELP  UNTIL
+            |  HELP  WHILE'''
+
+    global parse_error
     name = p[2]
     word = lookup_word(name)
     if word is None:
         # throw a parse error
-        lnwriteln("help: Word '{}' not found".format(name))
+        lnwriteln("help: '{}' not found".format(name))
+        parse_error = True
         raise SyntaxError
     else:
         p[0] = Rpn2Help(name, word.doc() if len(word.doc()) > 0 \
                         else "No help available for '{}'".format(name))
 
 
-def p_id_seq(p):
-    '''id_seq : empty
-              | IDENTIFIER id_seq'''
+def p_ids_opt(p):
+    '''ids_opt :  empty
+              |  IDENTIFIER  ids_opt'''
+
     if len(p) == 2:
         p[0] = Rpn2List()
     elif len(p) == 3:
         p[0] = Rpn2List(p[1], p[2])
 
 
-def p_if_else_then(p):
-    '''if_else_then : IF exe_seq ELSE exe_seq THEN'''
-    p[0] = Rpn2IfElse(p[2], p[4])
-
-
 def p_if_then(p):
-    '''if_then : IF exe_seq THEN'''
+    '''if_then :  IF  sequence  THEN'''
+
     p[0] = Rpn2If(p[2])
 
 
+def p_if_else_then(p):
+    '''if_else_then :  IF  sequence  ELSE  sequence  THEN'''
+
+    p[0] = Rpn2IfElse(p[2], p[4])
+
+
 def p_integer(p):
-    '''integer : INTEGER'''
+    '''integer :  INTEGER'''
+
     p[0] = Rpn2Integer(p[1])
-    #lnwriteln("p_integer: Returning {}".format(repr(p[0])))
+
 
 def p_matrix(p):
-    '''matrix : OPEN_BRACKET vectors CLOSE_BRACKET'''
+    '''matrix :  OPEN_BRACKET  vectors  CLOSE_BRACKET'''
+
     p[0] = Rpn2Matrix(p[2])
 
 
 def p_number(p):
-    '''number : real
-              | rational
-              | complex'''
+    '''number :  real
+              |  rational
+              |  complex'''
+
     p[0] = p[1]
 
 
 def p_numbers(p):
-    '''numbers : number
-               | number numbers'''
+    '''numbers :  number
+               |  number  numbers'''
+
     if len(p) == 2:
         p[0] = Rpn2List(p[1])
     elif len(p) == 3:
@@ -1052,60 +1148,59 @@ def p_numbers(p):
 
 
 def p_rational(p):
-    '''rational : integer COLON integer'''
+    '''rational :  integer  TILDE  integer'''
+
     p[0] = Rpn2Rational(p[1].value(), p[3].value())
 
 
 def p_real(p):
-    '''real : integer
-            | float'''
+    '''real :  integer
+            |  float'''
+
     p[0] = p[1]
 
 
-def p_exe_seq(p):
-    '''exe_seq : empty
-               | exe exe_seq'''
-    if len(p) == 2:
-        p[0] = Rpn2List()
-    elif len(p) == 3:
-        p[0] = Rpn2List(p[1], p[2])
-    # lnwriteln("p_exe_seq: Returning {}".format(p[0]))
-
-
 def p_stackable(p):
-    '''stackable : number
-                 | string
-                 | vector
-                 | matrix
-                 | fetch_var'''
+    '''stackable :  number
+                 |  string
+                 |  vector
+                 |  matrix
+                 |  fetch_var'''
+
     p[0] = Rpn2Stackable(p[1])
 
 
 def p_store_var(p):
-    '''store_var : EXCLAMATION IDENTIFIER'''
+    '''store_var :  EXCLAM  IDENTIFIER'''
+
+    global parse_error
     id = p[2]
-    lnwriteln("p_store_var: Looking up {}".format(id))
+    #lnwriteln("{}: Looking up {}".format(whoami(), id))
     var = lookup_variable(id)
     if var is None:
-        lnwriteln("{}: Failed to find variable {}".format(whoami(), id))
+        lnwriteln("!{}: Variable not found".format(id))
+        parse_error = True
         raise SyntaxError
     p[0] = Rpn2StoreVar(id, var)
 
 
 def p_string(p):
-    '''string : STRING'''
+    '''string :  STRING'''
+
     p[0] = Rpn2String(p[1])
 
 
 def p_vector(p):
-    '''vector : OPEN_BRACKET numbers CLOSE_BRACKET'''
+    '''vector :  OPEN_BRACKET  numbers  CLOSE_BRACKET'''
+
     p[0] = Rpn2Vector(p[2])
 
 
 def p_vectors(p):
-    '''vectors : vector
-               | vector vectors'''
-    lnwriteln("p_vectors: len={}".format(len(p)))
+    '''vectors :  vector
+               |  vector  vectors'''
+
+    lnwriteln("{}: len={}".format(whoami(), len(p)))
     if len(p) == 2:
         p[0] = Rpn2List(p[1])
     elif len(p) == 3:
@@ -1113,12 +1208,16 @@ def p_vectors(p):
 
 
 def p_word(p):
-    '''word : IDENTIFIER'''
+    '''word :  IDENTIFIER'''
+
+    global parse_error
     name = p[1]
     word = lookup_word(name)
     if word is None:
         # throw a parse error
-        lnwriteln("Word '{}' not found".format(name))
+        #lnwriteln("{}: Word '{}' not found".format(whoami(), name))
+        lnwriteln("{}: Word not found".format(name))
+        parse_error = True
         raise SyntaxError
     else:
         p[0] = word
@@ -1131,6 +1230,10 @@ def p_word(p):
 #       W O R D   D E F I N I T I O N S
 #
 #############################################################################
+def w_abort():
+    raise Rpn2Abort()
+
+
 def w_chs():
     x = param_stack.pop()
     if type(x) is Rpn2Integer:
@@ -1167,6 +1270,15 @@ def w_cr():
     writeln()
 
 
+def w_debug():
+    global rpn_debug
+    if rpn_debug:
+        rpn_debug = False
+    else:
+        rpn_debug = True
+    lnwriteln("debug: Debugging is now {}".format(rpn_debug))
+
+
 def w_deg():
     global angle_mode
     angle_mode = "d"
@@ -1186,12 +1298,12 @@ def w_dollar_dot_bang():
 
 def w_dollar_dot_s():
     for (i, item) in string_stack.items_bottom_to_top():
-        lnwritelnln("{}: {}".format(i, item.value()))
+        lnwriteln("{}: {}".format(i, item.value()))
 
 
 def w_dollar_dot_s_bang():
     for (i, item) in string_stack.items_bottom_to_top():
-        lnwritelnln("{}: {}".format(i, repr(item)))
+        lnwriteln("{}: {}".format(i, repr(item)))
 
 
 def w_dot():
@@ -1199,7 +1311,7 @@ def w_dot():
 
 
 def w_dot_bang():
-    lnwritelnln(repr(param_stack.top()))
+    lnwriteln(repr(param_stack.top()))
 
 
 def w_drop():
@@ -1228,6 +1340,38 @@ def w_emit():
         param_stack.push(x)
         raise TypeError("emit: Type error ({})".format(type(x)))
     write(chr(x.value()))
+
+
+def w_equal():
+    """\
+|----------+----------+---------+----------+---------+--------+--------|
+| Integer  |   xxxx   |  xxx    |  xxxx    | xxxx    |        |        |
+| Float    |   xxxxx  |  xxx    |   xxxx   | xxx     |        |        |
+| Rational |   xxxx   |  xxx    |  xxxxx   | xxxx    |        |        |
+| Complex  |    xxxx  |  xxx    |   xxx    | xxx     |        |        |
+| Vector   |          |         |          |         |        |        |
+| Matrix   |          |         |          |         |        |        |
+|----------+----------+---------+----------+---------+--------+--------|
+| ^ Y  X > | Integer  | Float   | Rational | Complex | Vector | Matrix |"""
+
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if type(x) is Rpn2Integer and type(y) is Rpn2Integer:
+        flag = y.value() == x.value()
+    elif    type(x) is Rpn2Float and type(y) in [Rpn2Integer, Rpn2Float, Rpn2Rational] \
+         or type(y) is Rpn2Float and type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
+        flag = float(y.value()) == float(x.value()) # Beware floating point equality lossage
+    elif    type(x) is Rpn2Rational and type(y) in [Rpn2Integer, Rpn2Rational] \
+         or type(y) is Rpn2Rational and type(x) in [Rpn2Integer, Rpn2Rational]:
+        flag = Fraction(y.value()) == Fraction(x.value())
+    elif    type(x) is Rpn2Complex and type(y) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex] \
+         or type(y) is Rpn2Complex and type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex]:
+        flag = complex(y.value()) == complex(x.value())
+    else:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("=: Type error ({}, {})".format(type(y), type(x)))
+    param_stack.push(Rpn2Integer(1 if flag else 0))
 
 
 def w_eval():
@@ -1284,16 +1428,21 @@ def w_minus():
     x = param_stack.pop()
     y = param_stack.pop()
     if type(x) is Rpn2Integer and type(y) is Rpn2Integer:
-        difference = Rpn2Integer(y.value() - x.value())
-    elif    type(x) is Rpn2Float   and type(y) is Rpn2Integer \
-         or type(x) is Rpn2Integer and type(y) is Rpn2Float \
-         or type(x) is Rpn2Float   and type(y) is Rpn2Float:
-        difference = Rpn2Float(y.value() - x.value())
+        result = Rpn2Integer(y.value() - x.value())
+    elif    type(x) is Rpn2Float and type(y) in [Rpn2Integer, Rpn2Float, Rpn2Rational] \
+         or type(y) is Rpn2Float and type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
+        result = Rpn2Float(float(y.value()) - float(x.value()))
+    elif    type(x) is Rpn2Rational and type(y) in [Rpn2Integer, Rpn2Rational] \
+         or type(y) is Rpn2Rational and type(x) in [Rpn2Integer, Rpn2Rational]:
+        result = Rpn2Rational.from_Fraction(y.value() - x.value())
+    elif    type(x) is Rpn2Complex and type(y) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex] \
+         or type(y) is Rpn2Complex and type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex]:
+        result = Rpn2Complex.from_complex(complex(y.value()) - complex(x.value()))
     else:
         param_stack.push(y)
         param_stack.push(x)
         raise TypeError("-: Type error ({}, {})".format(type(y), type(x)))
-    param_stack.push(difference)
+    param_stack.push(result)
 
 
 def w_minus_rot():
@@ -1396,6 +1545,20 @@ def w_rot():
     param_stack.push(z)
 
 
+def w_scopes():
+    for (i, item) in scope_stack.items_bottom_to_top():
+        lnwriteln("{}: {}".format(i, item))
+
+
+def w_show():
+    s = string_stack.pop()
+    what = lookup_word(s.value())
+    if what is None:
+        lnwriteln("Could not find word '{}'".format(s))
+    else:
+        lnwriteln("show: {}".format(what))
+        lnwriteln("show: {}".format(repr(what)))
+
 def w_sqrt():
     x = param_stack.pop()
     if x.zerop():
@@ -1423,6 +1586,38 @@ def w_swap():
     y = param_stack.pop()
     param_stack.push(x)
     param_stack.push(y)
+
+
+def w_times():
+    """\
+|----------+----------+---------+----------+---------+--------+--------|
+| Integer  | Integer  | Float   | Rational | Complex |        |        |
+| Float    | Float    | Float   | Float    | Complex |        |        |
+| Rational | Rational | Float   | Rational | Complex |        |        |
+| Complex  | Complex  | Complex | Complex  | Complex |        |        |
+| Vector   |          |         |          |         |        |        |
+| Matrix   |          |         |          |         |        |        |
+|----------+----------+---------+----------+---------+--------+--------|
+| ^ Y  X > | Integer  | Float   | Rational | Complex | Vector | Matrix |"""
+
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if type(x) is Rpn2Integer and type(y) is Rpn2Integer:
+        result = Rpn2Integer(y.value() * x.value())
+    elif    type(x) is Rpn2Float and type(y) in [Rpn2Integer, Rpn2Float, Rpn2Rational] \
+         or type(y) is Rpn2Float and type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
+        result = Rpn2Float(float(y.value()) * float(x.value()))
+    elif    type(x) is Rpn2Rational and type(y) in [Rpn2Integer, Rpn2Rational] \
+         or type(y) is Rpn2Rational and type(x) in [Rpn2Integer, Rpn2Rational]:
+        result = Rpn2Rational.from_Fraction(y.value() * x.value())
+    elif    type(x) is Rpn2Complex and type(y) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex] \
+         or type(y) is Rpn2Complex and type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex]:
+        result = Rpn2Complex.from_complex(complex(y.value()) * complex(x.value()))
+    else:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("+: Type error ({}, {})".format(type(y), type(x)))
+    param_stack.push(result)
 
 
 def w_tuck():
@@ -1490,7 +1685,7 @@ def choose_helper(n, r):
 def defvar(name, value, **kwargs):
     if len(kwargs) > 0:
         for (key, val) in kwargs.items():
-            print("{}: Unrecognized keyword '{}' ({}) in defvar".format(name, key, val))
+            lnwriteln("{}: Unrecognized keyword '{}' ({}) in defvar".format(name, key, val))
         sys.exit(1)
     global_scope.set_variable(name, Rpn2Variable(name, value))
 
@@ -1502,7 +1697,7 @@ def defword(name, defn, **kwargs):
 def eval_string(s):
     local_parser = yacc.yacc()
     result = local_parser.parse(s)
-    result.__call__()
+    #result.__call__()
 
 
 def load_file(filename):
@@ -1513,25 +1708,25 @@ def load_file(filename):
 
 def lookup_variable(name):
     for (_, scope) in scope_stack.items_top_to_bottom():
-        #lnwriteln("lookup_variable: Looking for variable {} in {}...".format(name, scope))
+        #lnwriteln("{}: Looking for variable {} in {}...".format(whoami(), name, scope))
         #lnwriteln("{} has variables: {}".format(scope, scope.variables))
         var = scope.variable(name)
         if var is not None:
-            # lnwriteln("lookup_variable: Found variable {} in scope {}: {}".format(name, scope, var))
+            # lnwriteln("{}: Found variable {} in scope {}: {}".format(whoami(), name, scope, var))
             return var
-    #lnwriteln("lookup_variable: Variable {} not found".format(name))
+    #lnwriteln("{}: Variable {} not found".format(whoami(), name))
     return None
 
 
 def lookup_word(name):
     for (_, scope) in scope_stack.items_top_to_bottom():
-        #lnwriteln("lookup_word: Looking for word {} in {}...".format(name, scope))
+        #lnwriteln("{}: Looking for word {} in {}...".format(whoami(), name, scope))
         #lnwriteln("{} has words: {}".format(scope, scope.words))
         word = scope.word(name)
         if word is not None:
-            #lnwriteln("lookup_word: Found word {} in scope {}: {}".format(name, scope, word))
+            #lnwriteln("{}: Found word {} in scope {}: {}".format(whoami(), name, scope, word))
             return word
-    #lnwriteln("lookup_word: Word {} not found".format(name))
+    #lnwriteln("{}: Word {} not found".format(whoami(), name))
     return None
 
 
@@ -1548,7 +1743,7 @@ def sigwinch_handler(signum, frame):
         return
 
     tty_rows, tty_columns = stty_size
-    #print("{} x {}".format(tty_rows, tty_columns))
+    #lnwriteln("{} x {}".format(tty_rows, tty_columns))
     if int(tty_columns) == 0:
         env_cols = os.getenv("COLUMNS")
         tty_columns = int(env_cols) if env_cols is not None else 80
@@ -1560,7 +1755,12 @@ def sigwinch_handler(signum, frame):
 
 
 def whoami():
-    return "{}".format(sys._getframe(1).f_code.co_name)
+    whoami = ""
+    previous_frame = inspect.currentframe().f_back
+    if "self" in previous_frame.f_locals:
+        whoami += previous_frame.f_locals["self"].__class__.__name__ + "#"
+    whoami += previous_frame.f_code.co_name
+    return whoami
 
 
 def write(s):
@@ -1593,7 +1793,7 @@ def lnwriteln(s):
 
 #############################################################################
 #
-#       P R I M A R Y   F U N C T I O N S
+#       P R I M A R Y   W O R D S   &   F U N C T I O N S
 #
 #############################################################################
 def initialize():
@@ -1605,51 +1805,132 @@ def initialize():
     defvar('trace', Rpn2Integer(0))
     defvar('VER',   Rpn2Float(rpn_version))
 
-    defword('$.',     w_dollar_dot, str_args=1)
+    defword('$.',     w_dollar_dot, str_args=1, doc="""\
+Print top item from string stack  [ str -- ]
+No extraneous white space is printed.""")
     defword('$.!',    w_dollar_dot_bang, str_args=1)
-    defword('$.s',    w_dollar_dot_s)
+    defword('$.s',    w_dollar_dot_s, doc="""\
+Display string stack.""")
     defword('$.s!',   w_dollar_dot_s_bang)
-    defword('+',      w_plus, args=2)
-    defword('-',      w_minus, args=2)
-    defword('-rot',   w_minus_rot, args=3, doc="""Push top stack element to third spot, pulling others down  ( z y x -- x z y )
+    defword('*',      w_times, args=2, doc="""\
+Multiplication  ( y x -- y*x )""")
+    defword('+',      w_plus, args=2, doc="""\
+Addition  ( y x -- y+x )""")
+    defword('-',      w_minus, args=2, doc="""\
+Subtraction  ( y x -- y-x )""")
+    defword('-rot',   w_minus_rot, args=3, doc="""\
+Push top stack element to third spot, pulling others down  ( z y x -- x z y )
 Equivalent to ROT ROT""")
     defword('.',      w_dot, args=1)
     defword('.!',     w_dot_bang, args=1)
     defword('.s',     w_dot_s)
     defword('.s!',    w_dot_s_bang)
     defword('0=',     w_zero_equals, args=1)
-    defword('?dup',   w_query_dup, args=1, doc="""Duplicate top stack element if non-zero  ( x -- x x | 0 )""")
+    defword(':',      Rpn2NoOp(), doc="""\
+Define a new word.
+: WORD  [def ...] ;
+
+Define WORD with the specified definition.  Terminate the definition with a
+semi-colon.""")
+    defword('=',      w_equal, args=2)
+    defword('?dup',   w_query_dup, args=1, doc="""\
+Duplicate top stack element if non-zero  ( x -- x x | 0 )""")
+    defword('abort',  w_abort, doc="""\
+Abort execution and return to top level""")
+    defword('begin',  Rpn2NoOp(), doc="""\
+Execute an indefinite loop as long as a condition is satisfied.
+BEGIN xxx AGAIN
+BEGIN xxx <flag> UNTIL
+BEGIN xxx <flag> WHILE yyy REPEAT
+
+LEAVE will exit the loop early.  Note that the effect of the test in
+BEGIN...WHILE is opposite that in BEGIN...UNTIL.  The loop repeats
+while something is true, rather than until it becomes true.
+
+Do not confuse this with the BEG command, which sets "begin mode" for
+TVM calculations.
+
+qv AGAIN, LEAVE, REPEAT, UNTIL, WHILE""")
     defword('chs',    w_chs, args=1)
-    defword('clear',  w_clear, doc="Clear the stack")
-    defword('comb',   w_comb, args=2)
+    defword('clear',  w_clear, doc="""\
+Clear the stack""")
+    defword('comb',   w_comb, args=2, doc="""\
+Combinations  ( n r -- nCr )
+
+DEFINITION:
+          n!
+nCr = -----------
+      r! * (n-r)!""")
     defword('cr',     w_cr)
-    defword('deg',    w_deg)
-    defword('depth',  w_depth)
-    defword('drop',   w_drop, args=1, doc="""Remove top stack element  ( x -- )""")
-    defword('dup',    w_dup, args=1,doc="""Duplicate top stack element  ( x -- x x )
+    defword('debug',  w_debug)
+    defword('deg',    w_deg, doc="""\
+Set angular mode to degrees""")
+    defword('depth',  w_depth, doc="""\
+Return current number of elements on stack  ( -- n )""")
+    defword('do',     Rpn2NoOp(), doc="""\
+Execute a definite loop.
+<limit> <initial> DO xxx     LOOP
+<limit> <initial> DO xxx <n> +LOOP
+
+The iteration counter is available via I.  LEAVE will exit the loop early.
+
+Example: 10 0 do I . loop
+prints 0 1 2 3 4 5 6 7 8 9
+
+qv I, LEAVE, LOOP, +LOOP""")
+    defword('drop',   w_drop, args=1, doc="""\
+Remove top stack element  ( x -- )""")
+    defword('dup',    w_dup, args=1, doc="""\
+Duplicate top stack element  ( x -- x x )
 Equivalent to 0 PICK""")
     defword('emit',   w_emit, args=1)
     defword('eval',   w_eval, str_args=1)
     defword('exp',    w_exp, args=1)
+    defword('if',     Rpn2NoOp(), args=1, doc="""\
+Execute a conditional test.  xxx is executed if <flag> is non-zero.
+<flag> IF xxx [ ELSE yyy ] THEN
+
+qv ELSE, THEN""")
     defword('leave',  w_leave)
-    defword('load',   w_load, str_args=1)
-    defword('ln',     w_ln, args=1)
-    defword('nip',    w_nip, args=2, doc="""Drop second stack element  ( y x -- x )
+    defword('load',   w_load, str_args=1, doc="""\
+Load file specified on string stack  [ file -- ]""")
+    defword('ln',     w_ln, args=1, doc="""\
+Natural logarithm [base e]  ( x -- ln )
+Use "log" for the common (base 10) logarithm.""")
+    defword('nip',    w_nip, args=2, doc="""\
+Drop second stack element  ( y x -- x )
 Equivalent to SWAP DROP.  J.V. Noble calls this PLUCK.""")
-    defword('over',   w_over, args=2, doc="""Duplicate second stack element  ( y x -- y x y )
+    defword('over',   w_over, args=2, doc="""\
+Duplicate second stack element  ( y x -- y x y )
 Equivalent to 1 PICK""")
-    defword('perm',   w_perm, args=2)
+    defword('perm',   w_perm, args=2, doc="""\
+Permutations  ( n r -- nPr )
+
+DEFINITION:
+        n!
+nPr = ------
+      (n-r)!""")
     defword('rad',    w_rad)
-    defword('rot',    w_rot, args=3, doc="""Pull third stack element to the top, rolling others up  ( z y x -- y x z )
+    defword('rot',    w_rot, args=3, doc="""\
+Pull third stack element to the top, rolling others up  ( z y x -- y x z )
 Equivalent to 2 ROLL""")
-    defword('sqrt',   w_sqrt, args=1)
-    defword('swap',   w_swap, args=2, doc="""Exchange top two stack elements  ( y x -- x y )
+    defword('scopes', w_scopes)
+    defword('show',   w_show, str_args=1)
+    defword('sqrt',   w_sqrt, args=1, doc="""
+Square root  ( x -- sqrt(x) )
+Negative X returns a complex number""")
+    defword('swap',   w_swap, args=2, doc="""\
+Exchange top two stack elements  ( y x -- x y )
 Equivalent to 1 ROLL""")
-    defword('tuck',   w_tuck, args=2, doc="""Duplicate top stack element into third position  ( y x -- x y x )
+    defword('tuck',   w_tuck, args=2, doc="""\
+Duplicate top stack element into third position  ( y x -- x y x )
 Equivalent to SWAP OVER.  J.V. Noble calls this UNDER.""")
-    defword('vars',   w_vars)
+    defword('vars',   w_vars, doc="""\
+List variables and their values""")
     defword('vars!',  w_vars_bang)
-    defword('ver',    w_ver)
+    defword('ver',    w_ver, doc="""\
+Display the current RPN version.
+Also available as @VER""")
     defword('words',  w_words)
     defword('words!', w_words_bang)
 
@@ -1661,51 +1942,59 @@ Equivalent to SWAP OVER.  J.V. Noble calls this UNDER.""")
         load_file(init_file)
 
 
+def define_secondary_words():
+    eval_string("""
+
+: BL  doc:"BL  ( -- 32 )   ASCII code for a space character"
+      32 ;
+: space  doc:"space   Display one space character"
+         BL emit ;
+: spaces  doc:"spaces  ( n -- )   Display N space characters"
+          0 do space loop ;
+
+""")
+
+
 def main_loop():
+    global rpn_debug
+    global parse_error
+
     while True:
+        if global_scope.variable('#OUT').obj().value() != 0:
+            writeln()
+        write(prompt_string())
         try:
-            if global_scope.variable('#OUT').obj().value() != 0:
-                writeln()
-            write(prompt_string())
             s = input() + " "
-            global_scope.variable('#OUT').set_obj(Rpn2Integer(0))
         except EOFError:
-            break
+            raise Rpn2Exit()
         except KeyboardInterrupt:
             # CTRL/C on input exits program
-            break
+            raise Rpn2Exit()
+        global_scope.variable('#OUT').set_obj(Rpn2Integer(0))
 
-        if not s:
+        if not s or s == " ":
             continue
-        result = parser.parse(s,debug=0)
-        while result is None:
+
+        parse_error = False
+        result = parser.parse(s, debug=rpn_debug)
+        #print("A:parse({}) => result={} (parse_error={})".format(s, repr(result), parse_error))
+        while result is None and not parse_error:
+            #print("In ..., parser.token() returns {}".format(parser.token()))
             write("... ")
-            t = input() + " "
+            try:
+                t = input() + " "
+            except EOFError:
+                raise Rpn2Exit()
+            except KeyboardInterrupt:
+                raise Rpn2Exit()
             global_scope.variable('#OUT').set_obj(Rpn2Integer(0))
             s += t
-            result = parser.parse(s)
+            result = parser.parse(s, debug=rpn_debug)
+            #print("B:parse({}) => result={} (parse_error={}".format(s, repr(result), parse_error))
         if global_scope.variable('trace').obj().value() >= 2:
             lnwriteln("trace={}".format(repr(result)))
         elif global_scope.variable('trace').obj().value() >= 1:
             lnwriteln("trace={}".format(str(result)))
-
-        try:
-            result.__call__()
-        except KeyboardInterrupt:
-            # CTRL/C while executing returns to top level prompt
-            pass
-        except Rpn2Leave:
-            lnwriteln("leave: Cannot be used outside of a begin or do loop")
-        except RuntimeError as e:
-            lnwriteln("{}".format(e))
-            continue
-        except TypeError as e:
-            lnwriteln("{}".format(e))
-            w_dot_s()
-            continue
-        except ValueError as e:
-            lnwriteln("{}".format(e))
-            continue
 
 
 def do_exit():
@@ -1725,7 +2014,7 @@ def do_exit():
 #       M A I N
 #
 #############################################################################
-rpn_version = 15.0
+rpn_debug = False
 angle_mode  = "r"               # r=radians, d=degrees, g=grads
 
 parser = yacc.yacc()
@@ -1736,11 +2025,20 @@ scope_stack  = Rpn2Stack()
 string_stack = Rpn2Stack()
 
 global_scope = Rpn2Scope()
+#print("main: Push global scope {}".format(global_scope))
 scope_stack.push(global_scope)
 
 if __name__ == "__main__":
     signal.signal(signal.SIGWINCH, sigwinch_handler)
     initialize()
+    define_secondary_words()
     w_ver()
-    main_loop()
+    try:
+        main_loop()
+    except Rpn2Exit:
+        pass
+    except Rpn2Fatal as e:
+        if len(e._message) > 0:
+            lnwriteln("{}".format(e))
+        sys.exit(1)
     do_exit()
