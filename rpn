@@ -13,7 +13,7 @@ import sys
 from fractions  import Fraction
 from rpn_lex    import tokens
 
-rpn_version = 15.1
+rpn_version = 15.2
 parse_error = False
 
 
@@ -572,14 +572,12 @@ class Rpn2Sequence:
     def __call__(self):
         # check param_stack.size() vs len(in_vars)
 
-        # lnwriteln("{}: Push scope {}".format(whoami(), self.scope()))
-        scope_stack.push(self.scope())
+        push_scope(self.scope(), "Calling sequence {}".format(self.exe_seq))
         try:
             # lnwriteln("{}: exe_seq={}".format(whoami(), repr(self._exe_seq)))
             self._exe_seq.__call__()
         finally:
-            s = scope_stack.pop()
-            # lnwriteln("{}: Pop scope {}".format(whoami(), s))
+            s = pop_scope("Sequence {} is done".format(self.exe_seq))
 
         # push out variables onto param_stack
 
@@ -859,6 +857,7 @@ def p_sequence(p):
     '''sequence : locals_opt executables_opt'''
 
     # `locals_opt' is a Scope; `executables_opt' is a List
+    scope = pop_scope("p_sequence() is finishing")
     p[0] = Rpn2Sequence(p[1], [], [], p[2])
 
 
@@ -867,16 +866,17 @@ def p_locals_opt(p):
                   |  VBAR  ids_opt  VBAR'''
 
     scope = Rpn2Scope()
+    #print("{}: Creating new scope {}".format(whoami(), scope))
+    variables = Rpn2List()
 
-    # lnwriteln("{}: len={}".format(whoami(), len(p)))
     if len(p) == 4:
-        for varname in p[2].items():
+        variables = p[2]
+        for varname in variables.items():
             var = Rpn2Variable(varname)
-            #lnwriteln("{}: Defining variable {} in scope {}".format(whoami(), varname, scope_stack.top()))
+            #lnwriteln("{}: Defining variable {} in scope {}".format(whoami(), varname, scope))
             scope.set_variable(varname, var)
 
-    # lnwriteln("{}: Push new scope {}".format(whoami(), scope))
-    scope_stack.push(scope)
+    push_scope(scope, "New sequence (locals={})".format(variables))
     p[0] = scope
 
 
@@ -901,8 +901,7 @@ def p_colon_def(p):
 def p_colon_def_error(p):
     '''colon_def :  COLON  IDENTIFIER  docstr_opt  error  SEMICOLON '''
 
-    s = scope_stack.pop()
-    #lnwriteln("{}: Pop scope {}".format(whoami(), s))
+    pop_scope("Syntax error in colon_def")
     p[0] = Rpn2Error("{}: Syntax error in definition".format(p[2]))
 
 
@@ -917,7 +916,7 @@ def p_define_word(p):
     global parse_error
     if parse_error:
         lnwriteln("{}: Syntax error in definition".format(identifier))
-        scope_stack.pop()
+        pop_scope("Syntax error in definition of {}".format(identifier))
         p[0] = Rpn2NoOp()
         return
 
@@ -928,15 +927,10 @@ def p_define_word(p):
         doc_str = doc_str[5:-1]
         kwargs['doc'] = doc_str
 
-    # The local variables have been defined in the scope associated with
-    # the new word.  Now pop the scope stack so that the word is defined
-    # in the parent scope.  (This is often, but not necessarily, the
-    # global scope.)
-    s = scope_stack.pop()
-    # lnwriteln("{}: Pop scope {}".format(whoami(), s))
-
+    # p_sequence() has already popped the scope for this word, so
+    # creating it now in scope_stack.top() will be correct.
     new_word = Rpn2Word(identifier, sequence, **kwargs)
-    #lnwriteln("{}: Defining word {}={} into scope {}".format(whoami(), identifier, repr(new_word), scope_stack.top()))
+    #lnwriteln("{}: Defining word {}={} in scope {}".format(whoami(), identifier, repr(new_word), scope_stack.top()))
     scope_stack.top().set_word(identifier, new_word)
 
     p[0] = new_word
@@ -1735,6 +1729,17 @@ def prompt_string():
     return "[{}{}] ".format(angle_mode, param_stack.size())
 
 
+def push_scope(scope, why):
+    #print("Pushing scope {} due to {}".format(scope, why))
+    scope_stack.push(scope)
+
+def pop_scope(why):
+    scope = scope_stack.pop()
+    if scope == global_scope:
+        raise Rpn2Fatal("Attempting to pop Global scope!")
+    #print("Popped scope {} due to {}".format(scope, why))
+
+
 # Simple SIGWINCH handler can become overwhelmed and crash if window
 # changes come too fast.  Consider using shutil.get_terminal_size()
 def sigwinch_handler(signum, frame):
@@ -2025,8 +2030,8 @@ scope_stack  = Rpn2Stack()
 string_stack = Rpn2Stack()
 
 global_scope = Rpn2Scope()
-#print("main: Push global scope {}".format(global_scope))
-scope_stack.push(global_scope)
+#print("Creating Global scope {}".format(global_scope))
+push_scope(global_scope, "Global scope")
 
 if __name__ == "__main__":
     signal.signal(signal.SIGWINCH, sigwinch_handler)
@@ -2039,6 +2044,6 @@ if __name__ == "__main__":
         pass
     except Rpn2Fatal as e:
         if len(e._message) > 0:
-            lnwriteln("{}".format(e))
+            lnwriteln("Fatal error: {}".format(e))
         sys.exit(1)
     do_exit()
