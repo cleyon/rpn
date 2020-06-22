@@ -4,6 +4,8 @@ RPN calculator and interpreter
 
 ## Requirements
 
+- Python 3
+
 - numpy
 
 ``` shell

@@ -8,6 +8,7 @@ literals = [ '|' ]
 reserved_words = {
     '+loop'  : 'PLUS_LOOP',
     '."'     : 'DOT_QUOTE',
+    'abort"' : 'ABORT_QUOTE',
     'again'  : 'AGAIN',
     'begin'  : 'BEGIN',
     'do'     : 'DO',
@@ -45,6 +46,10 @@ t_ignore = ' \t'
 t_ignore_COMMENT    = r'\\.*'
 t_STRING            = r'\"([^\\\n]|(\\.))*?\"'
 
+
+def t_ABORT_QUOTE(t):
+    r'abort\"([^\\\n]|(\\.))*?\"'
+    return t
 
 def t_AT_SIGN(t):
     r'@'
@@ -111,6 +116,11 @@ def t_ZERO_EQUALS(t):
     t.type = 'IDENTIFIER'
     return t
 
+def t_WORDS_BANG(t):
+    r'words!'
+    t.type = 'IDENTIFIER'
+    return t
+
 def t_DOC_STR(t):
     r'doc:\"([^\\\n]|(\\.))*?\"'
     return t
@@ -135,7 +145,7 @@ def t_newline(t):
     t.lexer.lineno += len(t.value)
 
 def t_IDENTIFIER(t):
-    r'[$%*+./0-9<=>A-Z^a-z]+'
+    r'[$%*+./0-9<=>A-Z^a-z][!$%*+./0-9<=>?A-Z^a-z]*'
     t.type = reserved_words.get(t.value, 'IDENTIFIER')
     return t
 
