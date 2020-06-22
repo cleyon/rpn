@@ -81,6 +81,11 @@ def t_EXCLAM(t):
     t.type = 'EXCLAM'
     return t
 
+def t_OPEN_BRACKET(t):
+    r'\['
+    t.type = 'OPEN_BRACKET'
+    return t
+
 def t_OPEN_PAREN(t):
     r'\('
     t.type = 'OPEN_PAREN'

@@ -761,6 +761,8 @@ class Rpn2Variable:
 
 class Rpn2Vector:
     def __init__(self, vals):
+        if type(vals) is not Rpn2List:
+            raise Rpn2Fatal("{}: vals is not an Rpn2List ({})".format(whoami(), repr(vals)))
         self._vals = vals
         np_list = []
         for item in vals.items():
@@ -1279,7 +1281,7 @@ def w_add():
 | Vector   |          |         |          |         |        |        |
 | Matrix   |          |         |          |         |        |        |
 |----------+----------+---------+----------+---------+--------+--------|
-| ^ Y  X > | Integer  | Float   | Rational | Complex | Vector | Matrix |"""
+| ^Y    X> | Integer  | Float   | Rational | Complex | Vector | Matrix |"""
 
     x = param_stack.pop()
     y = param_stack.pop()
@@ -1336,11 +1338,24 @@ def w_comb():
     x = param_stack.pop()
     y = param_stack.pop()
     if type(x) is Rpn2Integer and type(y) is Rpn2Integer:
+        # Python 3.8 has math.comb()
         result = Rpn2Integer(choose_helper(y.value(), x.value()))
     else:
         param_stack.push(y)
         param_stack.push(x)
         raise TypeError("comb: Type mismatch ({}, {})".format(type(y), type(x)))
+    param_stack.push(result)
+
+
+def w_cos():
+    x = param_stack.pop()
+    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
+        result = Rpn2Float(math.cos(convert_current_to_radians(float(x.value()))))
+    elif type(x) is Rpn2Complex:
+        result = Rpn2Complex.from_complex(cmath.cos(x.value()))
+    else:
+        param_stack.push(x)
+        raise TypeError("cos: Type error ({})".format(type(x)))
     param_stack.push(result)
 
 
@@ -1371,9 +1386,30 @@ def w_depth():
     param_stack.push(Rpn2Integer(param_stack.size()))
 
 
+def w_dim():
+    x = param_stack.pop()
+    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
+        result = Rpn2Integer(0)
+    elif type(x) is Rpn2Complex:
+        result = Rpn2Integer(2)
+    elif type(x) is Rpn2Vector:
+        result = Rpn2Vector(Rpn2List(Rpn2Integer(x.size()))) # [ len(x) ]
+    elif type(x) is Rpn2Matrix:
+        # Pretty ugly.  Need a better method to append items.  Ugh,
+        # things get added at the beginning of the list, so we have to
+        # add the cols, THEN the rows in order to end up with
+        # [ rows cols ].
+        l = Rpn2List(Rpn2Integer(x.ncols()))
+        l2 = Rpn2List(Rpn2Integer(x.nrows()), l)
+        result = Rpn2Vector(l2) # [ rows cols ]
+    else:
+        param_stack.push(x)
+        raise TypeError("dim: Type error ({})".format(type(x)))
+    param_stack.push(result)
+
+
 def w_divide():
     """\
-| Y     X> | Integer  | Float   | Rational | Complex | Vector | Matrix |
 |----------+----------+---------+----------+---------+--------+--------|
 | Integer  | Float    | Float   | Rational | Complex |        |        |
 | Float    | Float    | Float   | Float    | Complex |        |        |
@@ -1381,7 +1417,8 @@ def w_divide():
 | Complex  | Complex  | Complex | Complex  | Complex |        |        |
 | Vector   |          |         |          |         |        |        |
 | Matrix   |          |         |          |         |        |        |
-|----------+----------+---------+----------+---------+--------+--------|"""
+|----------+----------+---------+----------+---------+--------+--------|
+| ^Y    X> | Integer  | Float   | Rational | Complex | Vector | Matrix |"""
     x = param_stack.pop()
     y = param_stack.pop()
     if    type(x) is Rpn2Rational and type(y) in [Rpn2Integer, Rpn2Rational] \
@@ -1469,7 +1506,7 @@ def w_equal():
 | Vector   |          |         |          |         |        |        |
 | Matrix   |          |         |          |         |        |        |
 |----------+----------+---------+----------+---------+--------+--------|
-| ^ Y  X > | Integer  | Float   | Rational | Complex | Vector | Matrix |"""
+| ^Y    X> | Integer  | Float   | Rational | Complex | Vector | Matrix |"""
 
     x = param_stack.pop()
     y = param_stack.pop()
@@ -1498,9 +1535,9 @@ def w_eval():
 
 def w_exp():
     x = param_stack.pop()
-    if    type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
+    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
         result = Rpn2Float(math.exp(float(x.value())))
-    elif    type(x) is Rpn2Complex:
+    elif type(x) is Rpn2Complex:
         result = Rpn2Complex.from_complex(cmath.exp(complex(x.value())))
     else:
         param_stack.push(x)
@@ -1577,6 +1614,27 @@ def w_load():
         load_file(filename)
 
 
+def w_log():
+    x = param_stack.pop()
+    if     type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex] \
+       and x.zerop():
+        raise ValueError("log: Argument cannot be zero")
+
+    if    type(x) is Rpn2Integer  and x.value() > 0 \
+       or type(x) is Rpn2Float    and x.value() > 0.0 \
+       or type(x) is Rpn2Rational and x.value() > 0:
+        result = Rpn2Float(math.log10(float(x.value())))
+    elif    type(x) is Rpn2Complex \
+         or type(x) is Rpn2Integer  and x.value() < 0 \
+         or type(x) is Rpn2Float    and x.value() < 0.0 \
+         or type(x) is Rpn2Rational and x.value() < 0:
+        result = Rpn2Complex.from_complex(cmath.log10(complex(x.value())))
+    else:
+        param_stack.push(x)
+        raise TypeError("log: Type error ({})".format(type(x)))
+    param_stack.push(result)
+
+
 def w_minus_rot():
     x = param_stack.pop()
     y = param_stack.pop()
@@ -1596,7 +1654,7 @@ def w_multiply():
 | Vector   |          |         |          |         |        |        |
 | Matrix   |          |         |          |         |        |        |
 |----------+----------+---------+----------+---------+--------+--------|
-| ^ Y  X > | Integer  | Float   | Rational | Complex | Vector | Matrix |"""
+| ^Y    X> | Integer  | Float   | Rational | Complex | Vector | Matrix |"""
 
     x = param_stack.pop()
     y = param_stack.pop()
@@ -1636,6 +1694,7 @@ def w_perm():
     x = param_stack.pop()
     y = param_stack.pop()
     if type(y) is Rpn2Integer and type(x) is Rpn2Integer:
+        # Python 3.8 has math.perm()
         n = y.value()
         r = x.value()
         if r > n or r < 0:
@@ -2199,6 +2258,8 @@ DEFINITION:
           n!
 nCr = -----------
       r! * (n-r)!""")
+    defword('cos',    w_cos, args=1, doc="""\
+Cosine  ( angle -- sine )""")
     defword('cr',     w_cr)
     defword('debug',  w_debug)
     defword('deg',    w_deg, doc="""\
@@ -2206,6 +2267,13 @@ Set angular mode to degrees""")
     defword('deg?',   w_rad_query)
     defword('depth',  w_depth, doc="""\
 Return current number of elements on stack  ( -- n )""")
+    defword('dim',    w_dim, args=1, doc="""\
+Dimension(s) of X.
+
+For integers, floats, and rationals (scalars), return 0.
+For complex numbers, return 2.
+For vectors of length N, return a vector [ N ].
+For an M-row by N-col matrix, return a vector [ M N ].""")
     defword('do',     Rpn2NoOp(), doc="""\
 Execute a definite loop.
 <limit> <initial> DO xxx     LOOP
@@ -2253,6 +2321,10 @@ X canot be zero.
 Use "log" for the common (base 10) logarithm.""")
     defword('load',   w_load, str_args=1, doc="""\
 Load file specified on string stack  [ file -- ]""")
+    defword('log',    w_log, args=1, doc="""\
+Common logarithm [base 10]  ( x -- log )
+X canot be zero.
+Use "ln" for the natural (base e) logarithm.""")
     defword('loop',   Rpn2NoOp(), doc="""\
 Execute a definite loop.
 <limit> <initial> DO xxx     LOOP
