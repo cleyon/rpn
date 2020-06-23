@@ -137,11 +137,11 @@ class Rpn2BeginWhile:
             while True:
                 self._seq1.__call__()
                 if param_stack.empty():
-                    raise RuntimeError("until: Insufficient parameters (1 required)")
+                    raise RuntimeError("while: Insufficient parameters (1 required)")
                 flag = param_stack.pop()
                 if type(flag) is not Rpn2Integer:
                     param_stack.push(flag)
-                    raise TypeError("until: Flag must be an integer")
+                    raise TypeError("while: Flag must be an integer")
                 if flag.value() == 0:
                     break
                 self._seq2.__call__()
@@ -724,7 +724,7 @@ class Rpn2Stackable:
             else:
                 param_stack.push(var.obj())
         else:
-            raise TypeError("Rpn2Stackable#__call__: Unrecognized type: {}".format(type(self.value())))
+            raise TypeError("{}: Unrecognized type: {}".format(whoami(), type(self.value().__name__)))
 
     def __str__(self):
         return str(self.value())
@@ -1353,8 +1353,38 @@ def w_abort():
     raise Rpn2Abort()
 
 
+def w_abs():
+    x = param_stack.pop()
+    if type(x) is Rpn2Integer:
+        result = Rpn2Integer(abs(x.value()))
+    elif type(x) in [Rpn2Float, Rpn2Complex]:
+        result = Rpn2Float(abs(x.value()))
+    elif type(x) is Rpn2Rational:
+        result = Rpn2Rational.from_Fraction(abs(x.value()))
+    else:
+        param_stack.push(x)
+        raise TypeError("abs: Type error ({})".format(type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
 def w_bye():
     raise Rpn2Exit()
+
+
+def w_ceil():
+    x = param_stack.pop()
+    if type(x) is Rpn2Integer:
+        result = x
+    elif type(x) in [Rpn2Float, Rpn2Rational]:
+        result = Rpn2Integer(math.ceil(x.value()))
+    else:
+        param_stack.push(x)
+        raise TypeError("ceil: Type error ({})".format(type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
 
 
 def w_chs():
@@ -1369,7 +1399,7 @@ def w_chs():
         result = Rpn2Complex(-1.0*x.real(), -1.0*x.imag())
     else:
         param_stack.push(x)
-        raise TypeError("chs: Type error ({})".format(type(x)))
+        raise TypeError("chs: Type error ({})".format(type(x).__name__))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -1388,7 +1418,7 @@ def w_cf():
         flag_clear(x.value())
     else:
         param_stack.push(x)
-        raise TypeError("cf: Type mismatch ({})".format(type(x)))
+        raise TypeError("cf: Type error ({})".format(type(x).__name__))
 
 
 def w_clflag():
@@ -1405,7 +1435,7 @@ def w_comb():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("comb: Type mismatch ({}, {})".format(type(y), type(x)))
+        raise TypeError("comb: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -1419,7 +1449,7 @@ def w_cos():
         result = Rpn2Complex.from_complex(cmath.cos(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("cos: Type error ({})".format(type(x)))
+        raise TypeError("cos: Type error ({})".format(type(x).__name__))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -1435,7 +1465,7 @@ def w_d_to_r():
         result = Rpn2Float(convert_mode_to_radians(float(x.value()), "d"))
     else:
         param_stack.push(x)
-        raise TypeError("d->r: Type error ({})".format(type(x)))
+        raise TypeError("d->r: Type error ({})".format(type(x).__name__))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -1486,7 +1516,7 @@ def w_dim():
         result = Rpn2Vector(l2) # [ rows cols ]
     else:
         param_stack.push(x)
-        raise TypeError("dim: Type error ({})".format(type(x)))
+        raise TypeError("dim: Type error ({})".format(type(x).__name__))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -1548,7 +1578,7 @@ def w_emit():
     x = param_stack.pop()
     if type(x) is not Rpn2Integer:
         param_stack.push(x)
-        raise TypeError("emit: Type error ({})".format(type(x)))
+        raise TypeError("emit: Type error ({})".format(type(x).__name__))
     write(chr(x.value()))
 
 
@@ -1580,7 +1610,7 @@ def w_equal():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("=: Type error ({}, {})".format(type(y), type(x)))
+        raise TypeError("=: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
     param_stack.push(Rpn2Integer(1 if flag else 0))
     global show_x
     show_x = True
@@ -1599,7 +1629,7 @@ def w_exp():
         result = Rpn2Complex.from_complex(cmath.exp(complex(x.value())))
     else:
         param_stack.push(x)
-        raise TypeError("exp: Type error ({})".format(type(x)))
+        raise TypeError("exp: Type error ({})".format(type(x).__name__))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -1614,7 +1644,7 @@ def w_fact():
         result = Rpn2Integer(fact_helper(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("fact: Type mismatch ({})".format(type(x)))
+        raise TypeError("fact: Type error ({})".format(type(x).__name__))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -1635,7 +1665,21 @@ def w_fc_query():
         result = Rpn2Integer(0 if flag_test(x.value()) else 1)
     else:
         param_stack.push(x)
-        raise TypeError("fc?: Type mismatch ({})".format(type(x)))
+        raise TypeError("fc?: Type error ({})".format(type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+def w_floor():
+    x = param_stack.pop()
+    if type(x) is Rpn2Integer:
+        result = x
+    elif type(x) in [Rpn2Float, Rpn2Rational]:
+        result = Rpn2Integer(math.floor(x.value()))
+    else:
+        param_stack.push(x)
+        raise TypeError("floor: Type error ({})".format(type(x).__name__))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -1650,7 +1694,7 @@ def w_fs_query():
         result = Rpn2Integer(1 if flag_test(x.value()) else 0)
     else:
         param_stack.push(x)
-        raise TypeError("fs?: Type mismatch ({})".format(type(x)))
+        raise TypeError("fs?: Type error ({})".format(type(x).__name__))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -1698,7 +1742,7 @@ def w_lg():
         result = Rpn2Complex.from_complex(cmath.log(complex(x.value()), 2))
     else:
         param_stack.push(x)
-        raise TypeError("lg: Type error ({})".format(type(x)))
+        raise TypeError("lg: Type error ({})".format(type(x).__name__))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -1722,7 +1766,7 @@ def w_ln():
         result = Rpn2Complex.from_complex(cmath.log(complex(x.value())))
     else:
         param_stack.push(x)
-        raise TypeError("ln: Type error ({})".format(type(x)))
+        raise TypeError("ln: Type error ({})".format(type(x).__name__))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -1758,7 +1802,7 @@ def w_log():
         result = Rpn2Complex.from_complex(cmath.log10(complex(x.value())))
     else:
         param_stack.push(x)
-        raise TypeError("log: Type error ({})".format(type(x)))
+        raise TypeError("log: Type error ({})".format(type(x).__name__))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -1781,7 +1825,7 @@ def w_minus():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("-: Type error ({}, {})".format(type(y), type(x)))
+        raise TypeError("-: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -1810,7 +1854,7 @@ def w_not():
         show_x = True
     else:
         param_stack.push(x)
-        raise RuntimeError("not: Type error ({})".format(type(x)))
+        raise RuntimeError("not: Type error ({})".format(type(x).__name__))
 
 
 def w_over():
@@ -1844,7 +1888,7 @@ def w_perm():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("perm: Type error ({}, {})".format(type(y), type(x)))
+        raise TypeError("perm: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -1884,7 +1928,7 @@ def w_plus():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("+: Type error ({}, {})".format(type(y), type(x)))
+        raise TypeError("+: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -1897,7 +1941,7 @@ def w_query_dup():
             w_dup()
     else:
         param_stack.push(x)
-        raise TypeError("?dup: Type error ({})".format(type(x)))
+        raise TypeError("?dup: Type error ({})".format(type(x).__name__))
 
 
 def w_r_clst():
@@ -1922,7 +1966,7 @@ def w_r_to_d():
         result = Rpn2Float(convert_radians_to_mode(float(x.value()), "d"))
     else:
         param_stack.push(x)
-        raise TypeError("r->d: Type error ({})".format(type(x)))
+        raise TypeError("r->d: Type error ({})".format(type(x).__name__))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -1969,7 +2013,7 @@ def w_sf():
         flag_set(x.value())
     else:
         param_stack.push(x)
-        raise TypeError("sf: Type mismatch ({})".format(type(x)))
+        raise TypeError("sf: Type error ({})".format(type(x).__name__))
 
 
 def w_shflag():
@@ -2003,7 +2047,7 @@ def w_sign():
         result = Rpn2Integer(r)
     else:
         param_stack.push(x)
-        raise TypeError("sign: Type error ({})".format(type(x)))
+        raise TypeError("sign: Type error ({})".format(type(x).__name__))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -2017,7 +2061,7 @@ def w_sin():
         result = Rpn2Complex.from_complex(cmath.sin(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("sin: Type error ({})".format(type(x)))
+        raise TypeError("sin: Type error ({})".format(type(x).__name__))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -2041,7 +2085,7 @@ def w_slash():
        and x.zerop():
         param_stack.push(y)
         param_stack.push(x)
-        raise ValueError("/: X cannot be zero")
+        raise ValueError("/: Argument cannot be zero")
 
     if    type(x) is Rpn2Rational and type(y) in [Rpn2Integer, Rpn2Rational] \
        or type(y) is Rpn2Rational and type(x) in [Rpn2Integer, Rpn2Rational]:
@@ -2060,7 +2104,7 @@ def w_slash():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("/: Type error ({}, {})".format(type(y), type(x)))
+        raise TypeError("/: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -2089,7 +2133,7 @@ def w_sqrt():
         result = Rpn2Complex.from_complex(cmath.sqrt(complex(x.value())))
     else:
         param_stack.push(x)
-        raise TypeError("sqrt: Type error ({})".format(type(x)))
+        raise TypeError("sqrt: Type error ({})".format(type(x).__name__))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -2123,7 +2167,7 @@ def w_star():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("+: Type error ({}, {})".format(type(y), type(x)))
+        raise TypeError("+: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -2134,6 +2178,20 @@ def w_swap():
     y = param_stack.pop()
     param_stack.push(x)
     param_stack.push(y)
+
+
+def w_tan():
+    x = param_stack.pop()
+    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
+        result = Rpn2Float(math.tan(convert_mode_to_radians(float(x.value()))))
+    elif type(x) is Rpn2Complex:
+        result = Rpn2Complex.from_complex(cmath.tan(x.value()))
+    else:
+        param_stack.push(x)
+        raise TypeError("tan: Type error ({})".format(type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
 
 
 def w_TAU():
@@ -2217,7 +2275,7 @@ def w_zero_equal():
         show_x = True
     else:
         param_stack.push(x)
-        raise RuntimeError("0=: Type error ({})".format(type(x)))
+        raise RuntimeError("0=: Type error ({})".format(type(x).__name__))
 
 
 
@@ -2602,6 +2660,11 @@ Conditionally abort execution  ( f -- )
 If flag is non-zero, abort execution and print a message
 (up to the closing quotation mark) and return to top level""")
 
+    defword('abs',    w_abs, doc="""\
+Absolute value  ( x -- abs )
+
+NOTE: For complex numbers, ABS return the modulus (float).""")
+
     defword('again',  Rpn2NoOp(), doc="""\
 Execute an indefinite loop forever.
 BEGIN xxx AGAIN
@@ -2627,6 +2690,9 @@ qv AGAIN, LEAVE, REPEAT, UNTIL, WHILE""")
 
     defword('bye',    w_bye, doc="""\
 Exit program""")
+
+    defword('ceil',   w_ceil, doc="""\
+Ceiling  ( x -- ceil )   Smallest integer greater than or equal to X""")
 
     defword('cf',     w_cf, args=1)
     defword('chs',    w_chs, args=1, doc="""\
@@ -2719,6 +2785,9 @@ X cannot be negative.""")
 
     defword('FALSE',  w_FALSE)
     defword('fc?',    w_fc_query, args=1)
+    defword('floor',  w_floor, doc="""\
+Floor  ( x -- floor )   Largest integer not greater than X""")
+
     defword('fs?',    w_fs_query, args=1)
     defword('i',      w_i, doc="""\
 Imaginary unit (0,1)  ( -- i )
@@ -2861,6 +2930,9 @@ Negative X returns a complex number""")
     defword('swap',   w_swap, args=2, doc="""\
 Exchange top two stack elements  ( y x -- x y )
 Equivalent to 1 ROLL""")
+
+    defword('tan',    w_tan, doc="""\
+Tangent  ( angle -- tangent )""")
 
     defword('TAU',    w_TAU, doc="""\
 Constant: Tau ( -- 6.28318... )

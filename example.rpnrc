@@ -1,5 +1,6 @@
 \ Convenient abbreviations
-: c  clst ;
-: d  drop ;
-: e  E ;
-: pi PI ;
+: c     clst ;
+: d     drop ;
+: e     E ;
+: pi    PI ;
+: s     SWAP ;
