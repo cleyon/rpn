@@ -1864,9 +1864,53 @@ def w_over():
     param_stack.push(y)
 
 
-# def w_percent():
-#     x = param_stack.pop()
-#     y = param_stack.pop()
+def w_percent():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if     type(x) in [Rpn2Integer, Rpn2Rational, Rpn2Float] \
+       and type(y) in [Rpn2Integer, Rpn2Rational, Rpn2Float]:
+        rate = float(x.value())
+        base = float(y.value())
+        r = base * rate / 100.0
+        if type(x) is Rpn2Integer and type(y) is Rpn2Integer and r.is_integer():
+            result = Rpn2Integer(r)
+        else:
+            result = Rpn2Float(r)
+    else:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("%: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+    param_stack.push(y)
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+def w_percent_ch():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if     type(x) in [Rpn2Integer, Rpn2Rational, Rpn2Float] \
+       and type(y) in [Rpn2Integer, Rpn2Rational, Rpn2Float]:
+        if y.zerop():
+            param_stack.push(y)
+            param_stack.push(x)
+            raise ValueError("%ch: Y cannot be zero")
+        else:
+            new = float(x.value())
+            old = float(y.value())
+            r = (new - old) * 100.0 / old
+            if type(x) is Rpn2Integer and type(y) is Rpn2Integer and r.is_integer():
+                result = Rpn2Integer(r)
+            else:
+                result = Rpn2Float(r)
+    else:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("%ch: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
 
 def w_perm():
     x = param_stack.pop()
@@ -2583,15 +2627,26 @@ No extraneous white space is printed.""")
 Display string stack.""")
 
     defword('$.s!',   w_dollar_dot_s_bang)
-#     defword('%',      w_percent, args=2, doc="""\
-# Percentage  ( base rate -- base percent )
-#
-# DEFINTION:
-#                  rate
-# percent = base * ----
-#                   100
-#
-# Base is maintained in Y.""")
+    defword('%',      w_percent, args=2, doc="""\
+Percentage  ( base rate -- base percent )
+
+DEFINTION:
+                 rate
+percent = base * ----
+                  100
+
+Base is maintained in Y.""")
+
+    defword('%ch',    w_percent_ch, args=2, doc="""\
+Percentage change  ( old new -- %change )
+
+DEFINITION:
+
+          new - old
+%change = --------- * 100
+             old
+
+old cannot be zero.""")
 
     defword('*',      w_star, args=2, doc="""\
 Multiplication  ( y x -- y*x )""")
