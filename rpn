@@ -349,7 +349,10 @@ class Rpn2Exe:
         self._exe = exe
 
     def __call__(self):
-        self._exe.__call__()
+        try:
+            self._exe.__call__()
+        except Rpn2Exit:
+            raise
 
     def __str__(self):
         return str(self._exe)
@@ -501,9 +504,16 @@ class Rpn2List:
         return self._list
 
     def __call__(self):
+        caught_exit = False
         for item in self.listval():
             # lnwriteln("{}: {}.__call__()".format(whoami(), item))
-            item.__call__()
+            try:
+                item.__call__()
+            except Rpn2Exit:
+                caught_exit = True
+                break
+        if caught_exit is True:
+            raise Rpn2Exit
 
     def items(self):
         for item in self.listval():
@@ -653,6 +663,8 @@ class Rpn2Sequence:
         try:
             # lnwriteln("{}: exe_seq={}".format(whoami(), repr(self._exe_seq)))
             self._exe_seq.__call__()
+        except Rpn2Exit:
+            raise
         finally:
             s = pop_scope("Sequence {} is done".format(self.exe_seq))
 
@@ -883,7 +895,11 @@ class Rpn2Word:
         if string_stack.size() < self.str_args():
             raise RuntimeError("{}: Insufficient string parameters ({} required)".format(self.name(), self.str_args()))
 
-        self._defn.__call__()
+        try:
+            self._defn.__call__()
+        except Rpn2Exit:
+            if self.name() == "exit":
+                raise
 
     def name(self):
         return self._name
@@ -947,6 +963,8 @@ def p_execute(p):
         param_stack.clear()
         string_stack.clear()
         show_x = False
+    except Rpn2Exit:
+        pass
     except Rpn2Leave:
         lnwriteln("leave: Cannot be used outside of a BEGIN or DO loop")
     except RuntimeError as e:
