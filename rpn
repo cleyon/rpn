@@ -35,10 +35,16 @@ class Rpn2Abort(Rpn2Exception):
 It is caught in p_execute().  It clears the parameter and string stacks,"""
     pass
 
-class Rpn2Exit (Rpn2Exception):
-    """Rpn2Exit is raised when there is no more input to parse, or
+class Rpn2EndProgram (Rpn2Exception):
+    """Rpn2EndProgram is raised when there is no more input to parse, or
 the interrupt key is signaled.  It is caught in __main__, where processing
-is haltted, the exit routine prints the stack, and the program exits."""
+is halted, the exit routine prints the stack, and the program exits."""
+    pass
+
+# XXX - where should this be caught?
+class Rpn2Exit(Rpn2Exception):
+    """Rpn2Exit is raised by the word EXIT and terminates execution
+of the current word."""
     pass
 
 class Rpn2Fatal(Rpn2Exception):
@@ -52,6 +58,11 @@ class Rpn2Leave(Rpn2Exception):
 BEGIN or DO loops, and causes an immediate exit from the enclosing loop.
 If a loop is not currently executing, it is caught in p_execute() and
 an error message is printed."""
+    pass
+
+class Rpn2TopLevel(Rpn2Exception):
+    """Rpn2TopLevel causes an immediate return to the top level prompt.
+It is caught in main_loop."""
     pass
 
 
@@ -605,8 +616,8 @@ class Rpn2Scope:
     def set_word(self, identifier, word):
         if type(word) is not Rpn2Word:
             raise Rpn2Fatal("{}: Word {} is not an Rpn2Word".format(whoami(), identifier))
-        # if word.doc() is None:
-        #     lnwriteln("Warning: Word '{}' has no documentation".format(identifier))
+        # if word.doc() is None and not word.hidden():
+        #     print("Warning: Word '{}' has no documentation".format(identifier))
         self._words[identifier] = word
 
     def word(self, identifier):
@@ -655,6 +666,7 @@ class Rpn2Sequence:
 
     def __str__(self):
         s = "Scope+Seq"
+        return s
 
     def __repr__(self):
         return "Sequence[Scope={}, Exe_Seq={}]".format(repr(self.scope()), repr(self.exe_seq()))
@@ -928,6 +940,7 @@ def p_execute(p):
     except KeyboardInterrupt:
         # CTRL/C while executing returns to top level prompt
         show_x = False
+        raise Rpn2TopLevel()
     except Rpn2Abort as e:
         if len(e._message) > 0:
             lnwriteln("{}".format(e))
@@ -1546,7 +1559,7 @@ prints 0 2 4 6 8
 
 qv DO, I, LEAVE, LOOP""")
 def w_plusloop():
-    pass        # Grammar rules handle this word
+    pass                        # Grammar rules handle this word
 
 
 @defword(name='-', args=2, doc="""\
@@ -1802,7 +1815,7 @@ def w_begin():
 @defword(name='bye', doc="""\
 Exit program""")
 def w_bye():
-    raise Rpn2Exit()
+    raise Rpn2EndProgram()
 
 
 @defword(name='case', doc="""\
@@ -2109,6 +2122,12 @@ def w_eval():
     eval_string(s)
 
 
+@defword(name='exit', doc="""\
+Terminate execution of current word""")
+def w_exit():
+    raise Rpn2Exit()
+
+
 @defword(name='exp', args=1, doc="""\
 Natural exponential ( x -- e^x )""")
 def w_exp():
@@ -2238,7 +2257,7 @@ Execute a conditional test.  xxx is executed if <flag> is non-zero.
 
 qv ELSE, THEN""")
 def w_if():
-    pass        # Grammar rules handle this word
+    pass                        # Grammar rules handle this word
 
 
 @defword(name='leave', doc="""\
@@ -2894,7 +2913,6 @@ def old_defword(name, defn, **kwargs):
 def eval_string(s):
     local_parser = yacc.yacc()
     result = local_parser.parse(s)
-    #result.__call__()
 
 
 @memoize
@@ -2981,11 +2999,9 @@ spacing : int
 
     # Transpose into rows, and return joined rows
     rows = list(itertools.zip_longest(*columns, fillvalue=''))
-    #return '\n'.join(
-    print('\n'.join(
-        ' ' * indent + (u' ' * spacing).join(row).rstrip()
-        for row in rows
-        ))
+    out = '\n'.join(' ' * indent + (u' ' * spacing).join(row).rstrip()
+                    for row in rows)
+    writeln(out)
 
 def load_file(filename):
     with open(filename, "r") as file:
@@ -3034,7 +3050,7 @@ def pop_scope(why):
 
 
 def sigquit_handler(signum, frame):
-    raise Rpn2Exit()
+    raise Rpn2EndProgram()
 
 
 # Simple SIGWINCH handler can become overwhelmed and crash if window
@@ -3150,17 +3166,21 @@ def main_loop():
         try:
             s = input() + " "
         except EOFError:
-            raise Rpn2Exit()
+            raise Rpn2EndProgram()
         except KeyboardInterrupt:
             # CTRL/C on input exits program
-            raise Rpn2Exit()
-        global_scope.variable('#OUT').set_obj(Rpn2Integer(0))
+            raise Rpn2EndProgram()
 
+        global_scope.variable('#OUT').set_obj(Rpn2Integer(0))
         if not s or s == " ":
             continue
 
         parse_error = False
-        result = parser.parse(s, debug=rpn_debug)
+        try:
+            result = parser.parse(s, debug=rpn_debug)
+        except Rpn2TopLevel:
+            continue
+
         #print("A:parse({}) => result={} (parse_error={})".format(s, repr(result), parse_error))
         while result is None and not parse_error:
             #print("In ..., parser.token() returns {}".format(parser.token()))
@@ -3241,7 +3261,7 @@ if __name__ == "__main__":
     w_ver()
     try:
         main_loop()
-    except Rpn2Exit:
+    except Rpn2EndProgram:
         pass
     except Rpn2Fatal as e:
         if len(e._message) > 0:
