@@ -154,6 +154,39 @@ class Rpn2BeginWhile:
         return "BeginWhile[{},{}]".format(repr(self._seq1), repr(self._seq2))
 
 
+class Rpn2Case:
+    def __init__(self, case_clauses, otherwise_seq):
+        self._case_clauses  = case_clauses
+        self._otherwise_seq = otherwise_seq
+    def __call__(self):
+        if param_stack.empty():
+            raise RuntimeError("case: Insufficient parameters (1 required)")
+        n = param_stack.pop()
+        if type(n) is not Rpn2Integer:
+            param_stack.push(n)
+            raise TypeError("case: BAD INT - fix msg")
+        nval = n.value()
+        ran = False
+        for clause in self._case_clauses.items():
+            ran = clause.attempt_call(nval)
+            if ran:
+                break
+        if not ran:
+            self._otherwise_seq.__call__()
+
+
+class Rpn2CaseClause:
+    def __init__(self, x, seq):
+        self._x = x             # x is a plain integer, not an Rpn2Integer
+        self._seq = seq
+    def attempt_call(self, n):
+        if n == self._x:
+            self._seq.__call__()
+            return True
+        else:
+            return False
+
+
 class Rpn2Complex:
     def __init__(self, real=0.0, imag=0.0):
         self.set_real_imag(real, imag)
@@ -187,6 +220,7 @@ class Rpn2Complex:
 class Rpn2DoLoop:
     def __init__(self, seq):
         self._seq = seq
+        seq.scope().set_variable('_I', Rpn2Variable('_I', None, hidden=True))
 
     def __call__(self):
         if param_stack.size() < 2:
@@ -197,19 +231,19 @@ class Rpn2DoLoop:
             param_stack.push(y)
             param_stack.push(x)
             raise TypeError("do: Loop control parameters must be integers")
+        _I = self._seq.scope().variable('_I')
         limit = y.value()
-        i = initial = x.value()
-        if initial == limit:
+        i = x.value()
+        _I.set_obj(x)
+        if i == limit:
             #lnwriteln("do: Not executing because initial == limit")
             return
-
-        # Create a new scope
-        # Define variable (word?) I
 
         try:
             while True:
                 self._seq.__call__()
                 i += 1
+                _I.set_obj(Rpn2Integer(i))
                 if i >= limit:
                     break
         except Rpn2Leave:
@@ -225,6 +259,7 @@ class Rpn2DoLoop:
 class Rpn2DoPlusLoop:
     def __init__(self, seq):
         self._seq = seq
+        seq.scope().set_variable('_I', Rpn2Variable('_I', None, hidden=True))
 
     def __call__(self):
         if param_stack.size() < 2:
@@ -235,14 +270,13 @@ class Rpn2DoPlusLoop:
             param_stack.push(y)
             param_stack.push(x)
             raise TypeError("do: Loop control parameters must be integers")
+        _I = self._seq.scope().variable('_I')
         limit = y.value()
-        i = initial = x.value()
-        if initial == limit:
+        i = x.value()
+        _I.set_obj(x)
+        if i == limit:
             #lnwriteln("do: Not executing because initial == limit")
             return
-
-        # Create a new scope
-        # Define variable (word?) I
 
         try:
             while True:
@@ -254,6 +288,7 @@ class Rpn2DoPlusLoop:
                     param_stack.push(incr)
                     raise TypeError("+loop: Increment must be integer")
                 i += incr.value()
+                _I.set_obj(Rpn2Integer(i))
                 if    incr.value() > 0 and i >= limit \
                    or incr.value() < 0 and i < limit:
                     break
@@ -739,9 +774,19 @@ class Rpn2String:
 
 
 class Rpn2Variable:
-    def __init__(self, name, obj=None):
+    def __init__(self, name, obj=None, **kwargs):
         self._name = name
+        self._hidden = False
         self._rpnobj = obj
+
+        if kwargs.get("hidden"):
+            self._hidden = kwargs["hidden"]
+            del kwargs["hidden"]
+
+        if len(kwargs) > 0:
+            for (key, val) in kwargs.items():
+                lnwriteln("{}: Unrecognized keyword '{}' ({}) in defvar".format(name, key, val))
+                sys.exit(1)
 
     def obj(self):
         return self._rpnobj
@@ -751,6 +796,12 @@ class Rpn2Variable:
 
     def name(self):
         return self._name
+
+    def defined(self):
+        return self.obj() is not None
+
+    def hidden(self):
+        return self._hidden
 
     def __str__(self):
         return str(self._name)
@@ -790,6 +841,7 @@ class Rpn2Word:
         self._args     = 0
         self._defn     = defn
         self._doc      = None
+        self._hidden   = False
         self._name     = name
         self._str_args = 0
 
@@ -801,6 +853,9 @@ class Rpn2Word:
         if kwargs.get("doc"):
             self._doc = kwargs["doc"]
             del kwargs["doc"]
+        if kwargs.get("hidden"):
+            self._hidden = kwargs["hidden"]
+            del kwargs["hidden"]
         if kwargs.get("str_args"):
             self._str_args = kwargs["str_args"]
             del kwargs["str_args"]
@@ -830,7 +885,7 @@ class Rpn2Word:
         return self._doc
 
     def hidden(self):
-        return False
+        return self._hidden
 
     def __str__(self):
         return str(self.name())
@@ -1003,17 +1058,35 @@ def p_docstr_opt(p):
     p[0] = p[1]
 
 
-# def p_case(p):
-#     # Not implemented yet
-# """
 # n CASE
 #   x OF ... ENDOF
 #   y OF ... ENDOF
 #   z OF ... ENDOF
 #   OTHERWISE ...
 # ENDCASE
-# """
+def p_case(p):
+    '''case :  CASE  case_clauses  otherwise_opt  ENDCASE'''
+    p[0] = Rpn2Case(p[2], p[3])
 
+def p_case_clause(p):
+    '''case_clause : INTEGER  OF  sequence  ENDOF'''
+    p[0] = Rpn2CaseClause(p[1], p[3])
+
+def p_case_clauses(p):
+    '''case_clauses :  case_clause
+                    |  case_clause  case_clauses'''
+    if len(p) == 2:
+        p[0] = Rpn2List(p[1])
+    else:
+        p[0] = Rpn2List(p[1], p[2])
+
+def p_otherwise_opt(p):
+    '''otherwise_opt : empty
+                     | OTHERWISE  sequence'''
+    if len(p) == 2:
+        p[0] = Rpn2List()
+    else:
+        p[0] = Rpn2List(p[2])
 
 def p_complex(p):
     '''complex :  OPEN_PAREN  real  COMMA  real  CLOSE_PAREN '''
@@ -1065,6 +1138,7 @@ def p_executable(p):
                   |  begin_again
                   |  begin_until
                   |  begin_while
+                  |  case
                   |  colon_def
                   |  do_loop
                   |  do_plusloop
@@ -1581,6 +1655,20 @@ def w_flag_set_p():
     param_stack.push(result)
 
 
+def w_i():
+    param_stack.push(Rpn2Complex(0,1))
+
+
+def w_I():
+    _I = lookup_variable('_I')
+    if _I is None:
+        raise RuntimeError("'I' not valid here, only in DO loops")
+    elif type(_I.obj()) is not Rpn2Integer:
+        raise TypeError("I is not an Rpn2Integer")
+    else:
+        param_stack.push(_I.obj())
+
+
 def w_leave():
     raise Rpn2Leave
 
@@ -1845,8 +1933,19 @@ def w_tuck():
 
 
 def w_vars():
-    scope = scope_stack.top()
-    lnwriteln("{} vars: {}".format(scope, scope.variables().keys()))
+    vars = dict()
+    for varname in global_scope.variables():
+        var = global_scope.variable(varname)
+        if var.hidden():
+            continue
+        vars[var.name()] = "{}:Undef".format(var.name()) if not var.defined() else \
+                           "{}={}".format(var.name(), var.obj().value())
+
+    sorted_vars = []
+    for key in sorted(vars, key=str.casefold):
+        sorted_vars.append(vars[key])
+    columns = global_scope.variable('COLS').obj().value()
+    list_in_columns(sorted_vars, columns - 1)
 
 
 def w_vars_bang():
@@ -1866,7 +1965,7 @@ def w_vlist():
             continue
         words[word.name()] = word.name()
     sorted_words = []
-    for key in sorted(words):
+    for key in sorted(words, key=str.casefold):
         sorted_words.append(words[key])
     columns = global_scope.variable('COLS').obj().value()
     list_in_columns(sorted_words, columns - 1)
@@ -1946,11 +2045,7 @@ def convert_radians_to_current(r):
 
 
 def defvar(name, value, **kwargs):
-    if len(kwargs) > 0:
-        for (key, val) in kwargs.items():
-            lnwriteln("{}: Unrecognized keyword '{}' ({}) in defvar".format(name, key, val))
-        sys.exit(1)
-    global_scope.set_variable(name, Rpn2Variable(name, value))
+    global_scope.set_variable(name, Rpn2Variable(name, value, **kwargs))
 
 
 def defword(name, defn, **kwargs):
@@ -2309,6 +2404,19 @@ x! = x * (x-1) * (x-2) ... * 2 * 1
 X cannot be negative.""")
     defword('fc?',    w_flag_clear_p, args=1)
     defword('fs?',    w_flag_set_p, args=1)
+    defword('i',      w_i, doc="""\
+Imaginary unit (0,1)  ( -- i )
+
+DEFINITION:
+i = sqrt(-1)
+
+Do not confuse this with the I command, which returns the index for a DO loop.""")
+    defword('I',      w_I, doc="""\
+Index of DO loop  ( -- x )
+
+Return the index of the most recent DO loop.
+
+Do not confuse this with the i command, which returns the complex number (0,1).""")
     defword('if',     Rpn2NoOp(), args=1, doc="""\
 Execute a conditional test.  xxx is executed if <flag> is non-zero.
 <flag> IF xxx [ ELSE yyy ] THEN
@@ -2426,7 +2534,7 @@ while something is true, rather than until it becomes true.
 
 qv AGAIN, BEGIN, LEAVE, REPEAT, UNTIL""")
     defword('words',  w_words)
-    defword('words!', w_words_bang)
+    defword('words!', w_words_bang, hidden=True)
 
     # Read & define ROWS and COLS via stty(1)
     sigwinch_handler(0, 0)
