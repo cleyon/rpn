@@ -81,6 +81,11 @@ def t_COMMA(t):
     t.type = 'COMMA'
     return t
 
+def t_D_TO_R(t):
+    r'd->r'
+    t.type = 'IDENTIFIER'
+    return t
+
 def t_EXCLAM(t):
     r'!'
     t.type = 'EXCLAM'
@@ -94,6 +99,16 @@ def t_OPEN_BRACKET(t):
 def t_OPEN_PAREN(t):
     r'\('
     t.type = 'OPEN_PAREN'
+    return t
+
+def t_R_FETCH(t):
+    r'r@'
+    t.type = 'IDENTIFIER'
+    return t
+
+def t_R_TO_D(t):
+    r'r->d'
+    t.type = 'IDENTIFIER'
     return t
 
 def t_SEMICOLON(t):
