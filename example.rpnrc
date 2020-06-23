@@ -1,0 +1,5 @@
+\ Convenient abbreviations
+: c  clst ;
+: d  drop ;
+: e  E ;
+: pi PI ;
