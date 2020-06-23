@@ -1064,12 +1064,6 @@ def p_docstr_opt(p):
     p[0] = p[1]
 
 
-# n CASE
-#   x OF ... ENDOF
-#   y OF ... ENDOF
-#   z OF ... ENDOF
-#   OTHERWISE ...
-# ENDCASE
 def p_case(p):
     '''case :  CASE  case_clauses  otherwise_opt  ENDCASE'''
     p[0] = Rpn2Case(p[2], p[3])
@@ -1185,14 +1179,19 @@ def p_float(p):
 def p_help(p):
     '''help :  HELP  AGAIN
             |  HELP  BEGIN
+            |  HELP  CASE
             |  HELP  COLON
             |  HELP  DO
             |  HELP  DOT_QUOTE
             |  HELP  ELSE
+            |  HELP  ENDCASE
+            |  HELP  ENDOF
             |  HELP  HELP
             |  HELP  IDENTIFIER
             |  HELP  IF
             |  HELP  LOOP
+            |  HELP  OF
+            |  HELP  OTHERWISE
             |  HELP  PLUS_LOOP
             |  HELP  REPEAT
             |  HELP  SEMICOLON
@@ -2575,12 +2574,6 @@ def define_variables():
 
 
 def define_primary_words():
-# CASE
-# ENDCASE
-# ENDOF
-# OF
-# OTHERWISE
-
     defword('$.',     w_dollar_dot, str_args=1, doc="""\
 Print top item from string stack  [ str -- ]
 No extraneous white space is printed.""")
@@ -2691,6 +2684,21 @@ qv AGAIN, LEAVE, REPEAT, UNTIL, WHILE""")
     defword('bye',    w_bye, doc="""\
 Exit program""")
 
+    defword('case', Rpn2NoOp(), doc="""\
+Execute a sequence of words based on stack value.  Once a match is
+executed, no other clauses are considered.  OTHERWISE is optional.
+<n> and OF labels must be integers.
+
+<n> CASE
+  <x> OF xxx ENDOF
+  <y> OF yyy ENDOF
+  <z> OF zzz ENDOF
+  [ OTHERWISE aaa ]
+ENDCASE
+
+qv ENDCASE, ENDOF, OF, OTHERWISE
+""")
+
     defword('ceil',   w_ceil, doc="""\
 Ceiling  ( x -- ceil )   Smallest integer greater than or equal to X""")
 
@@ -2770,6 +2778,36 @@ qv IF, THEN""")
     defword('emit',   w_emit, args=1, doc="""\
 emit  ( x -- )    Print a single ASCII character
 No space or newline is appended.""")
+
+    defword('endcase', Rpn2NoOp(), doc="""\
+Execute a sequence of words based on stack value.  Once a match is
+executed, no other clauses are considered.  OTHERWISE is optional.
+<n> and OF labels must be integers.
+
+<n> CASE
+  <x> OF xxx ENDOF
+  <y> OF yyy ENDOF
+  <z> OF zzz ENDOF
+  [ OTHERWISE aaa ]
+ENDCASE
+
+qv CASE, ENDOF, OF, OTHERWISE
+""")
+
+    defword('endof', Rpn2NoOp(), doc="""\
+Execute a sequence of words based on stack value.  Once a match is
+executed, no other clauses are considered.  OTHERWISE is optional.
+<n> and OF labels must be integers.
+
+<n> CASE
+  <x> OF xxx ENDOF
+  <y> OF yyy ENDOF
+  <z> OF zzz ENDOF
+  [ OTHERWISE aaa ]
+ENDCASE
+
+qv CASE, ENDCASE, OF, OTHERWISE
+""")
 
     defword('eval',   w_eval, str_args=1)
     defword('exp',    w_exp, args=1, doc="""\
@@ -2855,6 +2893,36 @@ as 0=, but NOT is intended for boolean manipulations and only is defined
 on integers; 0= is meant to compare a number to zero, and works for
 integers, reals, rationals, and complex numbers.  NOTE: This is not a
 bitwise not.""")
+
+    defword('of', Rpn2NoOp(), doc="""\
+Execute a sequence of words based on stack value.  Once a match is
+executed, no other clauses are considered.  OTHERWISE is optional.
+<n> and OF labels must be integers.
+
+<n> CASE
+  <x> OF xxx ENDOF
+  <y> OF yyy ENDOF
+  <z> OF zzz ENDOF
+  [ OTHERWISE aaa ]
+ENDCASE
+
+qv CASE, ENDCASE, ENDOF, OTHERWISE
+""")
+
+    defword('otherwise', Rpn2NoOp(), doc="""\
+Execute a sequence of words based on stack value.  Once a match is
+executed, no other clauses are considered.  OTHERWISE is optional.
+<n> and OF labels must be integers.
+
+<n> CASE
+  <x> OF xxx ENDOF
+  <y> OF yyy ENDOF
+  <z> OF zzz ENDOF
+  [ OTHERWISE aaa ]
+ENDCASE
+
+qv CASE, ENDCASE, ENDOF, OF
+""")
 
     defword('over',   w_over, args=2, doc="""\
 Duplicate second stack element  ( y x -- y x y )
@@ -3030,9 +3098,9 @@ def main_loop():
             try:
                 t = input() + " "
             except EOFError:
-                raise Rpn2Exit()
+                break
             except KeyboardInterrupt:
-                raise Rpn2Exit()
+                break
             global_scope.variable('#OUT').set_obj(Rpn2Integer(0))
             s += t
             result = parser.parse(s, debug=rpn_debug)
