@@ -862,7 +862,7 @@ class Rpn2Word:
             del kwargs["str_args"]
         if len(kwargs) > 0:
             for (key, val) in kwargs.items():
-                lnwriteln("{}: Unrecognized keyword '{}' ({}) in defword".format(name, key, val))
+                lnwriteln("{}: Unrecognized keyword '{}' ({}) in @defword".format(name, key, val))
             sys.exit(1)
 
     def __call__(self):
@@ -893,6 +893,7 @@ class Rpn2Word:
 
     def __repr__(self):
         return "Word[{}]".format(self.name())
+
 
 
 
@@ -1348,522 +1349,64 @@ def p_word(p):
 #       W O R D   D E F I N I T I O N S
 #
 #############################################################################
-def w_abort():
-    raise Rpn2Abort()
+global_scope = Rpn2Scope()
+
+class defword(object):
+    """Register the following word definition in the global scope"""
+
+    def __init__(self, **kwargs):
+        self._kwargs = kwargs
+
+    def __call__(self, f):
+        def wrapped_f(**kwargs):
+            #print("Decorator args: {}".format(self._kwargs))
+            f()
+        if "name" in self._kwargs and len(self._kwargs["name"]) > 0:
+            name = self._kwargs["name"]
+            del self._kwargs["name"]
+        else:
+            raise RuntimeError("Missing or invalid \"name\" attribute")
+        #print("name is {}".format(name))
+        word = Rpn2Word(name, wrapped_f, **self._kwargs)
+        global global_scope
+        global_scope.set_word(name, word)
+        return wrapped_f
 
 
-def w_abs():
-    x = param_stack.pop()
-    if type(x) is Rpn2Integer:
-        result = Rpn2Integer(abs(x.value()))
-    elif type(x) in [Rpn2Float, Rpn2Complex]:
-        result = Rpn2Float(abs(x.value()))
-    elif type(x) is Rpn2Rational:
-        result = Rpn2Rational.from_Fraction(abs(x.value()))
-    else:
-        param_stack.push(x)
-        raise TypeError("abs: Type error ({})".format(type(x).__name__))
-    param_stack.push(result)
-    global show_x
-    show_x = True
-
-
-def w_bye():
-    raise Rpn2Exit()
-
-
-def w_ceil():
-    x = param_stack.pop()
-    if type(x) is Rpn2Integer:
-        result = x
-    elif type(x) in [Rpn2Float, Rpn2Rational]:
-        result = Rpn2Integer(math.ceil(x.value()))
-    else:
-        param_stack.push(x)
-        raise TypeError("ceil: Type error ({})".format(type(x).__name__))
-    param_stack.push(result)
-    global show_x
-    show_x = True
-
-
-def w_chs():
-    x = param_stack.pop()
-    if type(x) is Rpn2Integer:
-        result = Rpn2Integer(-1 * x.value())
-    elif type(x) is Rpn2Float:
-        result = Rpn2Float(-1.0 * x.value())
-    elif type(x) is Rpn2Rational:
-        result = Rpn2Rational.from_Fraction(Fraction(-1,1) * x.value())
-    elif type(x) is Rpn2Complex:
-        result = Rpn2Complex(-1.0*x.real(), -1.0*x.imag())
-    else:
-        param_stack.push(x)
-        raise TypeError("chs: Type error ({})".format(type(x).__name__))
-    param_stack.push(result)
-    global show_x
-    show_x = True
-
-
-def w_clst():
-    param_stack.clear()
-
-
-def w_cf():
-    x = param_stack.pop()
-    if type(x) is Rpn2Integer:
-        if x.value() < 0 or x.value() >= flag_max:
-            param_stack.push(x)
-            raise ValueError("cf: Argument out of range (0..{} expected)".format(flag_max))
-        flag_clear(x.value())
-    else:
-        param_stack.push(x)
-        raise TypeError("cf: Type error ({})".format(type(x).__name__))
-
-
-def w_clflag():
-    global flags_vec
-    flags_vec = 0
-
-
-def w_comb():
-    x = param_stack.pop()
-    y = param_stack.pop()
-    if type(x) is Rpn2Integer and type(y) is Rpn2Integer:
-        # Python 3.8 has math.comb()
-        result = Rpn2Integer(choose_helper(y.value(), x.value()))
-    else:
-        param_stack.push(y)
-        param_stack.push(x)
-        raise TypeError("comb: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
-    param_stack.push(result)
-    global show_x
-    show_x = True
-
-
-def w_cos():
-    x = param_stack.pop()
-    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
-        result = Rpn2Float(math.cos(convert_mode_to_radians(float(x.value()))))
-    elif type(x) is Rpn2Complex:
-        result = Rpn2Complex.from_complex(cmath.cos(x.value()))
-    else:
-        param_stack.push(x)
-        raise TypeError("cos: Type error ({})".format(type(x).__name__))
-    param_stack.push(result)
-    global show_x
-    show_x = True
-
-
-def w_cr():
-    writeln()
-
-
-def w_d_to_r():
-    x = param_stack.pop()
-    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
-        result = Rpn2Float(convert_mode_to_radians(float(x.value()), "d"))
-    else:
-        param_stack.push(x)
-        raise TypeError("d->r: Type error ({})".format(type(x).__name__))
-    param_stack.push(result)
-    global show_x
-    show_x = True
-
-
-def w_debug():
-    global rpn_debug
-    if rpn_debug:
-        rpn_debug = False
-    else:
-        rpn_debug = True
-    lnwriteln("debug: Debugging is now {}".format(rpn_debug))
-
-
-def w_deg():
-    global angle_mode
-    angle_mode = "d"
-
-
-def w_deg_query():
-    global angle_mode
-    param_stack.push(Rpn2Integer(1 if angle_mode == "d" else 0))
-    global show_x
-    show_x = True
-
-
-def w_depth():
-    param_stack.push(Rpn2Integer(param_stack.size()))
-    global show_x
-    show_x = True
-
-
-def w_dim():
-    x = param_stack.pop()
-    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
-        result = Rpn2Integer(0)
-    elif type(x) is Rpn2Complex:
-        result = Rpn2Integer(2)
-    elif type(x) is Rpn2Vector:
-        result = Rpn2Vector(Rpn2List(Rpn2Integer(x.size()))) # [ len(x) ]
-    elif type(x) is Rpn2Matrix:
-        # Pretty ugly.  Need a better method to append items.  Ugh,
-        # things get added at the beginning of the list, so we have to
-        # add the cols, THEN the rows in order to end up with
-        # [ rows cols ].
-        l = Rpn2List(Rpn2Integer(x.ncols()))
-        l2 = Rpn2List(Rpn2Integer(x.nrows()), l)
-        result = Rpn2Vector(l2) # [ rows cols ]
-    else:
-        param_stack.push(x)
-        raise TypeError("dim: Type error ({})".format(type(x).__name__))
-    param_stack.push(result)
-    global show_x
-    show_x = True
-
-
+@defword(name='$.', str_args=1, doc="""\
+Print top item from string stack  [ str -- ]
+No extraneous white space is printed.""")
 def w_dollar_dot():
     write(string_stack.pop().value())
 
 
+@defword(name='$.!', str_args=1)
 def w_dollar_dot_bang():
     lnwriteln(repr(string_stack.top()))
 
 
+@defword(name='$.s', doc="""\
+Display string stack.""")
 def w_dollar_dot_s():
     for (i, item) in string_stack.items_bottom_to_top():
         lnwriteln("{}: {}".format(i, item.value()))
 
 
+@defword(name='$.s!')
 def w_dollar_dot_s_bang():
     for (i, item) in string_stack.items_bottom_to_top():
         lnwriteln("{}: {}".format(i, repr(item)))
 
 
-def w_dot():
-    write("{} ".format(str(param_stack.pop())))
+@defword(name='%', args=2, doc="""\
+Percentage  ( base rate -- base percent )
 
+Base is maintained in Y.
 
-def w_dot_bang():
-    lnwriteln(repr(param_stack.top()))
-
-
-def w_drop():
-    param_stack.pop()
-
-
-def w_dot_s():
-    for (i, item) in param_stack.items_bottom_to_top():
-        lnwriteln("{}: {}".format(i, item))
-
-
-def w_dot_s_bang():
-    for (i, item) in param_stack.items_bottom_to_top():
-        lnwriteln("{}: {}".format(i, repr(item)))
-
-
-def w_dup():
-    x = param_stack.pop()
-    param_stack.push(x)
-    param_stack.push(x)
-
-
-def w_E():
-    param_stack.push(Rpn2Float(E))
-    global show_x
-    show_x = True
-
-
-def w_emit():
-    x = param_stack.pop()
-    if type(x) is not Rpn2Integer:
-        param_stack.push(x)
-        raise TypeError("emit: Type error ({})".format(type(x).__name__))
-    write(chr(x.value()))
-
-
-def w_equal():
-    """\
-|----------+----------+---------+----------+---------+--------+--------|
-| Integer  |   xxxx   |  xxx    |  xxxx    | xxxx    |        |        |
-| Float    |   xxxxx  |  xxx    |   xxxx   | xxx     |        |        |
-| Rational |   xxxx   |  xxx    |  xxxxx   | xxxx    |        |        |
-| Complex  |    xxxx  |  xxx    |   xxx    | xxx     |        |        |
-| Vector   |          |         |          |         |        |        |
-| Matrix   |          |         |          |         |        |        |
-|----------+----------+---------+----------+---------+--------+--------|
-| ^Y    X> | Integer  | Float   | Rational | Complex | Vector | Matrix |"""
-
-    x = param_stack.pop()
-    y = param_stack.pop()
-    if type(x) is Rpn2Integer and type(y) is Rpn2Integer:
-        flag = y.value() == x.value()
-    elif    type(x) is Rpn2Float and type(y) in [Rpn2Integer, Rpn2Float, Rpn2Rational] \
-         or type(y) is Rpn2Float and type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
-        flag = float(y.value()) == float(x.value()) # Beware floating point equality lossage
-    elif    type(x) is Rpn2Rational and type(y) in [Rpn2Integer, Rpn2Rational] \
-         or type(y) is Rpn2Rational and type(x) in [Rpn2Integer, Rpn2Rational]:
-        flag = Fraction(y.value()) == Fraction(x.value())
-    elif    type(x) is Rpn2Complex and type(y) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex] \
-         or type(y) is Rpn2Complex and type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex]:
-        flag = complex(y.value()) == complex(x.value())
-    else:
-        param_stack.push(y)
-        param_stack.push(x)
-        raise TypeError("=: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
-    param_stack.push(Rpn2Integer(1 if flag else 0))
-    global show_x
-    show_x = True
-
-
-def w_eval():
-    s = string_stack.pop().value()
-    eval_string(s)
-
-
-def w_exp():
-    x = param_stack.pop()
-    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
-        result = Rpn2Float(math.exp(float(x.value())))
-    elif type(x) is Rpn2Complex:
-        result = Rpn2Complex.from_complex(cmath.exp(complex(x.value())))
-    else:
-        param_stack.push(x)
-        raise TypeError("exp: Type error ({})".format(type(x).__name__))
-    param_stack.push(result)
-    global show_x
-    show_x = True
-
-
-def w_fact():
-    x = param_stack.pop()
-    if type(x) is Rpn2Integer:
-        if x.value() < 0:
-            param_stack.push(x)
-            raise ValueError("fact: Argument cannot be negative")
-        result = Rpn2Integer(fact_helper(x.value()))
-    else:
-        param_stack.push(x)
-        raise TypeError("fact: Type error ({})".format(type(x).__name__))
-    param_stack.push(result)
-    global show_x
-    show_x = True
-
-
-def w_FALSE():
-    param_stack.push(Rpn2Integer(0))
-    global show_x
-    show_x = True
-
-
-def w_fc_query():
-    x = param_stack.pop()
-    if type(x) is Rpn2Integer:
-        if x.value() < 0 or x.value() >= flag_max:
-            param_stack.push(x)
-            raise ValueError("fc?: Argument out of range (0..{} expected)".format(flag_max))
-        result = Rpn2Integer(0 if flag_test(x.value()) else 1)
-    else:
-        param_stack.push(x)
-        raise TypeError("fc?: Type error ({})".format(type(x).__name__))
-    param_stack.push(result)
-    global show_x
-    show_x = True
-
-
-def w_floor():
-    x = param_stack.pop()
-    if type(x) is Rpn2Integer:
-        result = x
-    elif type(x) in [Rpn2Float, Rpn2Rational]:
-        result = Rpn2Integer(math.floor(x.value()))
-    else:
-        param_stack.push(x)
-        raise TypeError("floor: Type error ({})".format(type(x).__name__))
-    param_stack.push(result)
-    global show_x
-    show_x = True
-
-
-def w_fs_query():
-    x = param_stack.pop()
-    if type(x) is Rpn2Integer:
-        if x.value() < 0 or x.value() >= flag_max:
-            param_stack.push(x)
-            raise ValueError("fs?: Argument out of range (0..{} expected)".format(flag_max))
-        result = Rpn2Integer(1 if flag_test(x.value()) else 0)
-    else:
-        param_stack.push(x)
-        raise TypeError("fs?: Type error ({})".format(type(x).__name__))
-    param_stack.push(result)
-    global show_x
-    show_x = True
-
-
-def w_i():
-    param_stack.push(Rpn2Complex(0,1))
-    global show_x
-    show_x = True
-
-
-def w_I():
-    _I = lookup_variable('_I')
-    if _I is None:
-        raise RuntimeError("'I' not valid here, only in DO loops")
-    elif type(_I.obj()) is not Rpn2Integer:
-        raise FatalError("I is not an Rpn2Integer")
-    else:
-        param_stack.push(_I.obj())
-
-
-def w_leave():
-    raise Rpn2Leave
-
-
-def w_lg():
-    x = param_stack.pop()
-    if     type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex] \
-       and x.zerop():
-        param_stack.push(x)
-        raise ValueError("lg: Argument cannot be zero")
-
-    if    type(x) is Rpn2Integer  and x.value() > 0 \
-       or type(x) is Rpn2Float    and x.value() > 0.0 \
-       or type(x) is Rpn2Rational and x.value() > 0:
-        r = Rpn2Float(math.log2(float(x.value())))
-        if type(x) is Rpn2Integer and r.is_integer():
-            result = Rpn2Integer(r)
-        else:
-            result = Rpn2Float(r)
-    elif    type(x) is Rpn2Complex \
-         or type(x) is Rpn2Integer  and x.value() < 0 \
-         or type(x) is Rpn2Float    and x.value() < 0.0 \
-         or type(x) is Rpn2Rational and x.value() < 0:
-        result = Rpn2Complex.from_complex(cmath.log(complex(x.value()), 2))
-    else:
-        param_stack.push(x)
-        raise TypeError("lg: Type error ({})".format(type(x).__name__))
-    param_stack.push(result)
-    global show_x
-    show_x = True
-
-
-def w_ln():
-    x = param_stack.pop()
-    if     type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex] \
-       and x.zerop():
-        param_stack.push(x)
-        raise ValueError("ln: Argument cannot be zero")
-
-    if    type(x) is Rpn2Integer  and x.value() > 0 \
-       or type(x) is Rpn2Float    and x.value() > 0.0 \
-       or type(x) is Rpn2Rational and x.value() > 0:
-        result = Rpn2Float(math.log(float(x.value())))
-    elif    type(x) is Rpn2Complex \
-         or type(x) is Rpn2Integer  and x.value() < 0 \
-         or type(x) is Rpn2Float    and x.value() < 0.0 \
-         or type(x) is Rpn2Rational and x.value() < 0:
-        result = Rpn2Complex.from_complex(cmath.log(complex(x.value())))
-    else:
-        param_stack.push(x)
-        raise TypeError("ln: Type error ({})".format(type(x).__name__))
-    param_stack.push(result)
-    global show_x
-    show_x = True
-
-
-def w_load():
-    filename = string_stack.pop().value()
-    if not os.path.isfile(filename):
-        lnwriteln("load: \"{}\" is not a valid file".format(filename))
-    else:
-        load_file(filename)
-
-
-def w_log():
-    x = param_stack.pop()
-    if     type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex] \
-       and x.zerop():
-        param_stack.push(x)
-        raise ValueError("log: Argument cannot be zero")
-
-    if    type(x) is Rpn2Integer  and x.value() > 0 \
-       or type(x) is Rpn2Float    and x.value() > 0.0 \
-       or type(x) is Rpn2Rational and x.value() > 0:
-        r = math.log10(float(x.value()))
-        if type(x) is Rpn2Integer and r.is_integer():
-            result = Rpn2Integer(r)
-        else:
-            result = Rpn2Float(r)
-    elif    type(x) is Rpn2Complex \
-         or type(x) is Rpn2Integer  and x.value() < 0 \
-         or type(x) is Rpn2Float    and x.value() < 0.0 \
-         or type(x) is Rpn2Rational and x.value() < 0:
-        result = Rpn2Complex.from_complex(cmath.log10(complex(x.value())))
-    else:
-        param_stack.push(x)
-        raise TypeError("log: Type error ({})".format(type(x).__name__))
-    param_stack.push(result)
-    global show_x
-    show_x = True
-
-
-def w_minus():
-    x = param_stack.pop()
-    y = param_stack.pop()
-    if type(x) is Rpn2Integer and type(y) is Rpn2Integer:
-        result = Rpn2Integer(y.value() - x.value())
-    elif    type(x) is Rpn2Float and type(y) in [Rpn2Integer, Rpn2Float, Rpn2Rational] \
-         or type(y) is Rpn2Float and type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
-        result = Rpn2Float(float(y.value()) - float(x.value()))
-    elif    type(x) is Rpn2Rational and type(y) in [Rpn2Integer, Rpn2Rational] \
-         or type(y) is Rpn2Rational and type(x) in [Rpn2Integer, Rpn2Rational]:
-        result = Rpn2Rational.from_Fraction(y.value() - x.value())
-    elif    type(x) is Rpn2Complex and type(y) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex] \
-         or type(y) is Rpn2Complex and type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex]:
-        result = Rpn2Complex.from_complex(complex(y.value()) - complex(x.value()))
-    else:
-        param_stack.push(y)
-        param_stack.push(x)
-        raise TypeError("-: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
-    param_stack.push(result)
-    global show_x
-    show_x = True
-
-
-def w_minus_rot():
-    x = param_stack.pop()
-    y = param_stack.pop()
-    z = param_stack.pop()
-    param_stack.push(x)
-    param_stack.push(z)
-    param_stack.push(y)
-
-
-def w_nip():
-    x = param_stack.pop()
-    y = param_stack.pop()
-    param_stack.push(x)
-
-
-def w_not():
-    x = param_stack.pop()
-    if type(x) is Rpn2Integer:
-        param_stack.push(Rpn2Integer(1 if x.zerop() else 0))
-        global show_x
-        show_x = True
-    else:
-        param_stack.push(x)
-        raise RuntimeError("not: Type error ({})".format(type(x).__name__))
-
-
-def w_over():
-    x = param_stack.pop()
-    y = param_stack.pop()
-    param_stack.push(y)
-    param_stack.push(x)
-    param_stack.push(y)
-
-
+DEFINTION:
+                 rate
+percent = base * ----
+                  100""")
 def w_percent():
     x = param_stack.pop()
     y = param_stack.pop()
@@ -1886,6 +1429,16 @@ def w_percent():
     show_x = True
 
 
+@defword(name='%ch', args=2, doc="""\
+Percentage change  ( old new -- %change )
+
+DEFINITION:
+
+          new - old
+%change = --------- * 100
+             old
+
+old cannot be zero.""")
 def w_percent_ch():
     x = param_stack.pop()
     y = param_stack.pop()
@@ -1912,37 +1465,43 @@ def w_percent_ch():
     show_x = True
 
 
-def w_perm():
+@defword(name='*', args=2, doc="""\
+Multiplication  ( y x -- y*x )""")
+def w_star():
+    """\
+|----------+----------+---------+----------+---------+--------+--------|
+| Integer  | Integer  | Float   | Rational | Complex |        |        |
+| Float    | Float    | Float   | Float    | Complex |        |        |
+| Rational | Rational | Float   | Rational | Complex |        |        |
+| Complex  | Complex  | Complex | Complex  | Complex |        |        |
+| Vector   |          |         |          |         |        |        |
+| Matrix   |          |         |          |         |        |        |
+|----------+----------+---------+----------+---------+--------+--------|
+| ^Y    X> | Integer  | Float   | Rational | Complex | Vector | Matrix |"""
     x = param_stack.pop()
     y = param_stack.pop()
-    if type(y) is Rpn2Integer and type(x) is Rpn2Integer:
-        # Python 3.8 has math.perm()
-        n = y.value()
-        r = x.value()
-        if r > n or r < 0:
-            result = Rpn2Integer(0)
-        else:
-            t = 1
-            while r > 0:
-                r -= 1
-                t *= n
-                n -= 1
-            result = Rpn2Integer(t)
+    if type(x) is Rpn2Integer and type(y) is Rpn2Integer:
+        result = Rpn2Integer(y.value() * x.value())
+    elif    type(x) is Rpn2Float and type(y) in [Rpn2Integer, Rpn2Float, Rpn2Rational] \
+         or type(y) is Rpn2Float and type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
+        result = Rpn2Float(float(y.value()) * float(x.value()))
+    elif    type(x) is Rpn2Rational and type(y) in [Rpn2Integer, Rpn2Rational] \
+         or type(y) is Rpn2Rational and type(x) in [Rpn2Integer, Rpn2Rational]:
+        result = Rpn2Rational.from_Fraction(y.value() * x.value())
+    elif    type(x) is Rpn2Complex and type(y) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex] \
+         or type(y) is Rpn2Complex and type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex]:
+        result = Rpn2Complex.from_complex(complex(y.value()) * complex(x.value()))
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("perm: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+        raise TypeError("+: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
     param_stack.push(result)
     global show_x
     show_x = True
 
 
-def w_PI():
-    param_stack.push(Rpn2Float(PI))
-    global show_x
-    show_x = True
-
-
+@defword(name='+', args=2, doc="""\
+Addition  ( y x -- y+x )""")
 def w_plus():
     """\
 |----------+----------+---------+----------+---------+--------+--------|
@@ -1954,7 +1513,6 @@ def w_plus():
 | Matrix   |          |         |          |         |        |        |
 |----------+----------+---------+----------+---------+--------+--------|
 | ^Y    X> | Integer  | Float   | Rational | Complex | Vector | Matrix |"""
-
     x = param_stack.pop()
     y = param_stack.pop()
     if type(x) is Rpn2Integer and type(y) is Rpn2Integer:
@@ -1977,139 +1535,83 @@ def w_plus():
     show_x = True
 
 
-def w_query_dup():
-    x = param_stack.top()
-    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex]:
-        if not x.zerop():
-            w_dup()
-    else:
-        param_stack.push(x)
-        raise TypeError("?dup: Type error ({})".format(type(x).__name__))
+@defword(name='+loop', doc="""\
+Execute a definite loop.
+<limit> <initial> DO xxx <incr> +LOOP
+
+The iteration counter is available via I.  LEAVE will exit the loop early.
+
+Example: 10 0 do I . 2 +loop
+prints 0 2 4 6 8
+
+qv DO, I, LEAVE, LOOP""")
+def w_plusloop():
+    pass        # Grammar rules handle this word
 
 
-def w_r_clst():
-    return_stack.clear()
-
-
-def w_r_fetch():
-    if return_stack.empty():
-        raise RuntimeError("r@: Empty return stack")
-    param_stack.push(return_stack.top())
-
-
-def w_r_from():
-    if return_stack.empty():
-        raise RuntimeError("r>: Empty return stack")
-    param_stack.push(return_stack.pop())
-
-
-def w_r_to_d():
+@defword(name='-', args=2, doc="""\
+Subtraction  ( y x -- y-x )""")
+def w_minus():
     x = param_stack.pop()
-    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
-        result = Rpn2Float(convert_radians_to_mode(float(x.value()), "d"))
+    y = param_stack.pop()
+    if type(x) is Rpn2Integer and type(y) is Rpn2Integer:
+        result = Rpn2Integer(y.value() - x.value())
+    elif    type(x) is Rpn2Float and type(y) in [Rpn2Integer, Rpn2Float, Rpn2Rational] \
+         or type(y) is Rpn2Float and type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
+        result = Rpn2Float(float(y.value()) - float(x.value()))
+    elif    type(x) is Rpn2Rational and type(y) in [Rpn2Integer, Rpn2Rational] \
+         or type(y) is Rpn2Rational and type(x) in [Rpn2Integer, Rpn2Rational]:
+        result = Rpn2Rational.from_Fraction(y.value() - x.value())
+    elif    type(x) is Rpn2Complex and type(y) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex] \
+         or type(y) is Rpn2Complex and type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex]:
+        result = Rpn2Complex.from_complex(complex(y.value()) - complex(x.value()))
     else:
+        param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("r->d: Type error ({})".format(type(x).__name__))
+        raise TypeError("-: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
     param_stack.push(result)
     global show_x
     show_x = True
 
 
-def w_rad():
-    global angle_mode
-    angle_mode = "r"
-
-
-def w_rad_query():
-    global angle_mode
-    param_stack.push(Rpn2Integer(1 if angle_mode == "r" else 0))
-    global show_x
-    show_x = True
-
-
-def w_rand():
-    param_stack.push(Rpn2Float(random.random()))
-    global show_x
-    show_x = True
-
-
-def w_rot():
+@defword(name='-rot', args=3, doc="""\
+Rotate back top stack element to third spot,
+pulling others down  ( z y x -- x z y )
+Equivalent to ROT ROT""")
+def w_minus_rot():
     x = param_stack.pop()
     y = param_stack.pop()
     z = param_stack.pop()
-    param_stack.push(y)
     param_stack.push(x)
     param_stack.push(z)
+    param_stack.push(y)
 
 
-def w_scopes():
-    for (i, item) in scope_stack.items_bottom_to_top():
+@defword(name='.', args=1)
+def w_dot():
+    write("{} ".format(str(param_stack.pop())))
+
+
+@defword(name='.!', args=1)
+def w_dot_bang():
+    lnwriteln(repr(param_stack.top()))
+
+
+@defword(name='.s')
+def w_dot_s():
+    for (i, item) in param_stack.items_bottom_to_top():
         lnwriteln("{}: {}".format(i, item))
 
 
-def w_sf():
-    x = param_stack.pop()
-    if type(x) is Rpn2Integer:
-        if x.value() < 0 or x.value() >= flag_max:
-            param_stack.push(x)
-            raise ValueError("sf: Argument out of range (0..{} expected)".format(flag_max))
-        flag_set(x.value())
-    else:
-        param_stack.push(x)
-        raise TypeError("sf: Type error ({})".format(type(x).__name__))
+@defword(name='.s!')
+def w_dot_s_bang():
+    for (i, item) in param_stack.items_bottom_to_top():
+        lnwriteln("{}: {}".format(i, repr(item)))
 
 
-def w_shflag():
-    flags = []
-    for f in range(flag_max):
-        flags.append("%02d:%s" % (f, "YES" if flag_test(f) else "no "))
-
-    columns = global_scope.variable('COLS').obj().value()
-    list_in_columns(flags, columns - 1)
-
-
-def w_show():
-    s = string_stack.pop()
-    what = lookup_word(s.value())
-    if what is None:
-        lnwriteln("Could not find word '{}'".format(s))
-    else:
-        lnwriteln("show: {}".format(what))
-        lnwriteln("show: {}".format(repr(what)))
-
-
-def w_sign():
-    x = param_stack.pop()
-    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
-        if x.value() < 0:
-            r = -1
-        elif x.value() > 0:
-            r = +1
-        else:
-            r = 0
-        result = Rpn2Integer(r)
-    else:
-        param_stack.push(x)
-        raise TypeError("sign: Type error ({})".format(type(x).__name__))
-    param_stack.push(result)
-    global show_x
-    show_x = True
-
-
-def w_sin():
-    x = param_stack.pop()
-    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
-        result = Rpn2Float(math.sin(convert_mode_to_radians(float(x.value()))))
-    elif type(x) is Rpn2Complex:
-        result = Rpn2Complex.from_complex(cmath.sin(x.value()))
-    else:
-        param_stack.push(x)
-        raise TypeError("sin: Type error ({})".format(type(x).__name__))
-    param_stack.push(result)
-    global show_x
-    show_x = True
-
-
+@defword(name='/', args=2, doc="""\
+Division  ( y x -- y/x )
+X cannot be zero.""")
 def w_slash():
     """\
 |----------+----------+---------+----------+---------+--------+--------|
@@ -2153,6 +1655,1001 @@ def w_slash():
     show_x = True
 
 
+@defword(name='0=', args=1)
+def w_zero_equal():
+    x = param_stack.pop()
+    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex]:
+        param_stack.push(Rpn2Integer(1 if x.zerop() else 0))
+        global show_x
+        show_x = True
+    else:
+        param_stack.push(x)
+        raise RuntimeError("0=: Type error ({})".format(type(x).__name__))
+
+
+@defword(name=':', doc="""\
+Define a new word  ( -- )
+: WORD  [def ...] ;
+
+Define WORD with the specified definition.
+Terminate the definition with a semi-colon.""")
+def w_colon():
+    pass                        # Grammar rules handle this word
+
+
+@defword(name=';', doc="""\
+Terminate WORD definition  ( -- )
+: WORD  [def ...] ;""")
+def w_semicolon():
+    pass                        # Grammar rules handle this word
+
+
+@defword(name='=', args=2)
+def w_equal():
+    """\
+|----------+----------+---------+----------+---------+--------+--------|
+| Integer  |   xxxx   |  xxx    |  xxxx    | xxxx    |        |        |
+| Float    |   xxxxx  |  xxx    |   xxxx   | xxx     |        |        |
+| Rational |   xxxx   |  xxx    |  xxxxx   | xxxx    |        |        |
+| Complex  |    xxxx  |  xxx    |   xxx    | xxx     |        |        |
+| Vector   |          |         |          |         |        |        |
+| Matrix   |          |         |          |         |        |        |
+|----------+----------+---------+----------+---------+--------+--------|
+| ^Y    X> | Integer  | Float   | Rational | Complex | Vector | Matrix |"""
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if type(x) is Rpn2Integer and type(y) is Rpn2Integer:
+        flag = y.value() == x.value()
+    elif    type(x) is Rpn2Float and type(y) in [Rpn2Integer, Rpn2Float, Rpn2Rational] \
+         or type(y) is Rpn2Float and type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
+        flag = float(y.value()) == float(x.value()) # Beware floating point equality lossage
+    elif    type(x) is Rpn2Rational and type(y) in [Rpn2Integer, Rpn2Rational] \
+         or type(y) is Rpn2Rational and type(x) in [Rpn2Integer, Rpn2Rational]:
+        flag = Fraction(y.value()) == Fraction(x.value())
+    elif    type(x) is Rpn2Complex and type(y) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex] \
+         or type(y) is Rpn2Complex and type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex]:
+        flag = complex(y.value()) == complex(x.value())
+    else:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("=: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+    param_stack.push(Rpn2Integer(1 if flag else 0))
+    global show_x
+    show_x = True
+
+
+@defword(name='>r', args=1, doc="""\
+Push X onto return stack  ( x -- )""")
+def w_to_r():
+    return_stack.push(param_stack.pop())
+
+
+@defword(name='?dup', args=1, doc="""\
+Duplicate top stack element if non-zero  ( x -- x x | 0 )""")
+def w_query_dup():
+    x = param_stack.top()
+    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex]:
+        if not x.zerop():
+            w_dup()
+    else:
+        param_stack.push(x)
+        raise TypeError("?dup: Type error ({})".format(type(x).__name__))
+
+
+@defword(name='abort', doc="""\
+Abort execution and return to top level""")
+def w_abort():
+    raise Rpn2Abort()
+
+
+@defword(name='abort"', doc="""\
+Conditionally abort execution  ( f -- )
+If flag is non-zero, abort execution and print a message
+(up to the closing quotation mark) and return to top level""")
+def w_abort_quote():
+    pass                        # Grammar rules handle this word
+
+
+@defword(name='abs', doc="""\
+Absolute value  ( x -- abs )
+
+NOTE: For complex numbers, ABS return the modulus (float).""")
+def w_abs():
+    x = param_stack.pop()
+    if type(x) is Rpn2Integer:
+        result = Rpn2Integer(abs(x.value()))
+    elif type(x) in [Rpn2Float, Rpn2Complex]:
+        result = Rpn2Float(abs(x.value()))
+    elif type(x) is Rpn2Rational:
+        result = Rpn2Rational.from_Fraction(abs(x.value()))
+    else:
+        param_stack.push(x)
+        raise TypeError("abs: Type error ({})".format(type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='again', doc="""\
+Execute an indefinite loop forever.
+BEGIN xxx AGAIN
+
+LEAVE will exit the loop early.
+
+qv BEGIN, LEAVE, REPEAT, UNTIL, WHILE""")
+def w_again():
+    pass                        # Grammar rules handle this word
+
+
+@defword(name='begin', doc="""\
+Execute an indefinite loop.
+BEGIN xxx AGAIN
+BEGIN xxx <flag> UNTIL
+BEGIN xxx <flag> WHILE yyy REPEAT
+
+LEAVE will exit the loop early.  Note that the effect of the test in
+BEGIN...WHILE is opposite that in BEGIN...UNTIL.  The loop repeats
+while something is true, rather than until it becomes true.
+
+Do not confuse this with the BEG command, which sets "begin mode" for
+Time Value of Money calculations.
+
+qv AGAIN, LEAVE, REPEAT, UNTIL, WHILE""")
+def w_begin():
+    pass                        # Grammar rules handle this word
+
+
+@defword(name='bye', doc="""\
+Exit program""")
+def w_bye():
+    raise Rpn2Exit()
+
+
+@defword(name='case', doc="""\
+Execute a sequence of words based on stack value.  Once a match is
+executed, no other clauses are considered.  OTHERWISE is optional.
+<n> and OF labels must be integers.
+
+<n> CASE
+  <x> OF xxx ENDOF
+  <y> OF yyy ENDOF
+  <z> OF zzz ENDOF
+  [ OTHERWISE aaa ]
+ENDCASE
+
+qv ENDCASE, ENDOF, OF, OTHERWISE
+""")
+def w_case():
+    pass                        # Grammar rules handle this word
+
+
+@defword(name='ceil', doc="""\
+Ceiling  ( x -- ceil )   Smallest integer greater than or equal to X""")
+def w_ceil():
+    x = param_stack.pop()
+    if type(x) is Rpn2Integer:
+        result = x
+    elif type(x) in [Rpn2Float, Rpn2Rational]:
+        result = Rpn2Integer(math.ceil(x.value()))
+    else:
+        param_stack.push(x)
+        raise TypeError("ceil: Type error ({})".format(type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='cf', args=1)
+def w_cf():
+    x = param_stack.pop()
+    if type(x) is Rpn2Integer:
+        if x.value() < 0 or x.value() >= flag_max:
+            param_stack.push(x)
+            raise ValueError("cf: Argument out of range (0..{} expected)".format(flag_max))
+        flag_clear(x.value())
+    else:
+        param_stack.push(x)
+        raise TypeError("cf: Type error ({})".format(type(x).__name__))
+
+
+@defword(name='chs', args=1, doc="""\
+Change sign  ( x -- -x )""")
+def w_chs():
+    x = param_stack.pop()
+    if type(x) is Rpn2Integer:
+        result = Rpn2Integer(-1 * x.value())
+    elif type(x) is Rpn2Float:
+        result = Rpn2Float(-1.0 * x.value())
+    elif type(x) is Rpn2Rational:
+        result = Rpn2Rational.from_Fraction(Fraction(-1,1) * x.value())
+    elif type(x) is Rpn2Complex:
+        result = Rpn2Complex(-1.0*x.real(), -1.0*x.imag())
+    else:
+        param_stack.push(x)
+        raise TypeError("chs: Type error ({})".format(type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='clflag', doc="""\
+Clear all flags  ( -- )""")
+def w_clflag():
+    global flags_vec
+    flags_vec = 0
+
+
+@defword(name='clst', doc="""\
+Clear the stack""")
+def w_clst():
+    param_stack.clear()
+
+
+@defword(name='comb', args=2, doc="""\
+Combinations  ( n r -- nCr )
+Choose from N objects R at a time, without regard to ordering.
+
+DEFINITION:
+          n!
+nCr = -----------
+      r! * (n-r)!""")
+def w_comb():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if type(x) is Rpn2Integer and type(y) is Rpn2Integer:
+        # Python 3.8 has math.comb()
+        result = Rpn2Integer(choose_helper(y.value(), x.value()))
+    else:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("comb: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='cos', args=1, doc="""\
+Cosine  ( angle -- cosine )""")
+def w_cos():
+    x = param_stack.pop()
+    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
+        result = Rpn2Float(math.cos(convert_mode_to_radians(float(x.value()))))
+    elif type(x) is Rpn2Complex:
+        result = Rpn2Complex.from_complex(cmath.cos(x.value()))
+    else:
+        param_stack.push(x)
+        raise TypeError("cos: Type error ({})".format(type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='cr', doc="""\
+Print a newline""")
+def w_cr():
+    writeln()
+
+
+@defword(name='d->r', args=1, doc="""\
+Convert degrees to radians ( deg -- rad )""")
+def w_d_to_r():
+    x = param_stack.pop()
+    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
+        result = Rpn2Float(convert_mode_to_radians(float(x.value()), "d"))
+    else:
+        param_stack.push(x)
+        raise TypeError("d->r: Type error ({})".format(type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='debug', hidden=True)
+def w_debug():
+    global rpn_debug
+    if rpn_debug:
+        rpn_debug = False
+    else:
+        rpn_debug = True
+    lnwriteln("debug: Debugging is now {}".format(rpn_debug))
+
+
+@defword(name='deg', doc="""\
+Set angular mode to degrees""")
+def w_deg():
+    global angle_mode
+    angle_mode = "d"
+
+
+@defword(name='deg?')
+def w_deg_query():
+    global angle_mode
+    param_stack.push(Rpn2Integer(1 if angle_mode == "d" else 0))
+    global show_x
+    show_x = True
+
+
+@defword(name='depth', doc="""\
+Return current number of elements on stack  ( -- n )""")
+def w_depth():
+    param_stack.push(Rpn2Integer(param_stack.size()))
+    global show_x
+    show_x = True
+
+
+@defword(name='dim', args=1, doc="""\
+Dimension(s) of X.
+
+For integers, floats, and rationals (scalars), return 0.
+For complex numbers, return 2.
+For vectors of length N, return a vector [ N ].
+For an M-row by N-col matrix, return a vector [ M N ].""")
+def w_dim():
+    x = param_stack.pop()
+    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
+        result = Rpn2Integer(0)
+    elif type(x) is Rpn2Complex:
+        result = Rpn2Integer(2)
+    elif type(x) is Rpn2Vector:
+        result = Rpn2Vector(Rpn2List(Rpn2Integer(x.size()))) # [ len(x) ]
+    elif type(x) is Rpn2Matrix:
+        # Pretty ugly.  Need a better method to append items.  Ugh,
+        # things get added at the beginning of the list, so we have to
+        # add the cols, THEN the rows in order to end up with
+        # [ rows cols ].
+        l = Rpn2List(Rpn2Integer(x.ncols()))
+        l2 = Rpn2List(Rpn2Integer(x.nrows()), l)
+        result = Rpn2Vector(l2) # [ rows cols ]
+    else:
+        param_stack.push(x)
+        raise TypeError("dim: Type error ({})".format(type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='do', doc="""\
+Execute a definite loop.
+<limit> <initial> DO xxx        LOOP
+<limit> <initial> DO xxx <incr> +LOOP
+
+The iteration counter is available via I.  LEAVE will exit the loop early.
+
+Example: 10 0 do I . loop
+prints 0 1 2 3 4 5 6 7 8 9
+
+qv I, LEAVE, LOOP, +LOOP""")
+def w_do():
+    pass                        # Grammar rules handle this word
+
+
+@defword(name='drop', args=1, doc="""\
+Remove top stack element  ( x -- )""")
+def w_drop():
+    param_stack.pop()
+
+
+@defword(name='dup', args=1, doc="""\
+Duplicate top stack element  ( x -- x x )
+Equivalent to 0 PICK""")
+def w_dup():
+    x = param_stack.pop()
+    param_stack.push(x)
+    param_stack.push(x)
+
+
+@defword(name='E', doc="""\
+Constant: Base of natural logarithms ( -- 2.71828... )""")
+def w_E():
+    param_stack.push(Rpn2Float(E))
+    global show_x
+    show_x = True
+
+
+@defword(name='else', args=1, doc="""\
+Execute a conditional test.  xxx is executed if <flag> is non-zero,
+otherwise yyy is executed.
+<flag> IF xxx [ ELSE yyy ] THEN
+
+qv IF, THEN""")
+def w_else():
+    pass                        # Grammar rules handle this word
+
+
+@defword(name='emit', args=1, doc="""\
+emit  ( x -- )    Print a single ASCII character
+No space or newline is appended.""")
+def w_emit():
+    x = param_stack.pop()
+    if type(x) is not Rpn2Integer:
+        param_stack.push(x)
+        raise TypeError("emit: Type error ({})".format(type(x).__name__))
+    write(chr(x.value()))
+
+
+@defword(name='endcase', doc="""\
+Execute a sequence of words based on stack value.  Once a match is
+executed, no other clauses are considered.  OTHERWISE is optional.
+<n> and OF labels must be integers.
+
+<n> CASE
+  <x> OF xxx ENDOF
+  <y> OF yyy ENDOF
+  <z> OF zzz ENDOF
+  [ OTHERWISE aaa ]
+ENDCASE
+
+qv CASE, ENDOF, OF, OTHERWISE
+""")
+def w_endcase():
+    pass                        # Grammar rules handle this word
+
+
+@defword(name='endof', doc="""\
+Execute a sequence of words based on stack value.  Once a match is
+executed, no other clauses are considered.  OTHERWISE is optional.
+<n> and OF labels must be integers.
+
+<n> CASE
+  <x> OF xxx ENDOF
+  <y> OF yyy ENDOF
+  <z> OF zzz ENDOF
+  [ OTHERWISE aaa ]
+ENDCASE
+
+qv CASE, ENDCASE, OF, OTHERWISE
+""")
+def w_endof():
+    pass                        # Grammar rules handle this word
+
+
+@defword(name='eval', str_args=1)
+def w_eval():
+    s = string_stack.pop().value()
+    eval_string(s)
+
+
+@defword(name='exp', args=1, doc="""\
+Natural exponential ( x -- e^x )""")
+def w_exp():
+    x = param_stack.pop()
+    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
+        result = Rpn2Float(math.exp(float(x.value())))
+    elif type(x) is Rpn2Complex:
+        result = Rpn2Complex.from_complex(cmath.exp(complex(x.value())))
+    else:
+        param_stack.push(x)
+        raise TypeError("exp: Type error ({})".format(type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='fact', args=1, doc="""\
+Factorial ( x -- x! )
+
+DEFINITION:
+x! = x * (x-1) * (x-2) ... * 2 * 1
+0! = 1
+X cannot be negative.""")
+def w_fact():
+    x = param_stack.pop()
+    if type(x) is Rpn2Integer:
+        if x.value() < 0:
+            param_stack.push(x)
+            raise ValueError("fact: Argument cannot be negative")
+        result = Rpn2Integer(fact_helper(x.value()))
+    else:
+        param_stack.push(x)
+        raise TypeError("fact: Type error ({})".format(type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='FALSE')
+def w_FALSE():
+    param_stack.push(Rpn2Integer(0))
+    global show_x
+    show_x = True
+
+
+@defword(name='fc?', args=1)
+def w_fc_query():
+    x = param_stack.pop()
+    if type(x) is Rpn2Integer:
+        if x.value() < 0 or x.value() >= flag_max:
+            param_stack.push(x)
+            raise ValueError("fc?: Argument out of range (0..{} expected)".format(flag_max))
+        result = Rpn2Integer(0 if flag_test(x.value()) else 1)
+    else:
+        param_stack.push(x)
+        raise TypeError("fc?: Type error ({})".format(type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='floor', doc="""\
+Floor  ( x -- floor )   Largest integer not greater than X""")
+def w_floor():
+    x = param_stack.pop()
+    if type(x) is Rpn2Integer:
+        result = x
+    elif type(x) in [Rpn2Float, Rpn2Rational]:
+        result = Rpn2Integer(math.floor(x.value()))
+    else:
+        param_stack.push(x)
+        raise TypeError("floor: Type error ({})".format(type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='fs?', args=1)
+def w_fs_query():
+    x = param_stack.pop()
+    if type(x) is Rpn2Integer:
+        if x.value() < 0 or x.value() >= flag_max:
+            param_stack.push(x)
+            raise ValueError("fs?: Argument out of range (0..{} expected)".format(flag_max))
+        result = Rpn2Integer(1 if flag_test(x.value()) else 0)
+    else:
+        param_stack.push(x)
+        raise TypeError("fs?: Type error ({})".format(type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='i', doc="""\
+Imaginary unit (0,1)  ( -- i )
+
+DEFINITION:
+i = sqrt(-1)
+
+Do not confuse this with the I command, which returns the index for a DO loop.""")
+def w_i():
+    param_stack.push(Rpn2Complex(0,1))
+    global show_x
+    show_x = True
+
+
+@defword(name='I', doc="""\
+Index of DO loop  ( -- x )
+
+Return the index of the most recent DO loop.
+
+Do not confuse this with the i command, which returns the complex number (0,1).""")
+def w_I():
+    _I = lookup_variable('_I')
+    if _I is None:
+        raise RuntimeError("'I' not valid here, only in DO loops")
+    elif type(_I.obj()) is not Rpn2Integer:
+        raise FatalError("I is not an Rpn2Integer")
+    else:
+        param_stack.push(_I.obj())
+
+
+@defword(name='if', args=1, doc="""\
+Test condition  ( f -- )
+Execute a conditional test.  xxx is executed if <flag> is non-zero.
+<flag> IF xxx [ ELSE yyy ] THEN
+
+qv ELSE, THEN""")
+def w_if():
+    pass        # Grammar rules handle this word
+
+
+@defword(name='leave', doc="""\
+Exit a DO or BEGIN loop immediately.""")
+def w_leave():
+    raise Rpn2Leave
+
+
+@defword(name='lg', args=1, doc="""\
+Logarithm [base 2]  ( x -- lg )
+X cannot be zero.
+Use "ln" for the natural logarithm, and "log" for the common logarithm.""")
+def w_lg():
+    x = param_stack.pop()
+    if     type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex] \
+       and x.zerop():
+        param_stack.push(x)
+        raise ValueError("lg: Argument cannot be zero")
+
+    if    type(x) is Rpn2Integer  and x.value() > 0 \
+       or type(x) is Rpn2Float    and x.value() > 0.0 \
+       or type(x) is Rpn2Rational and x.value() > 0:
+        r = Rpn2Float(math.log2(float(x.value())))
+        if type(x) is Rpn2Integer and r.is_integer():
+            result = Rpn2Integer(r)
+        else:
+            result = Rpn2Float(r)
+    elif    type(x) is Rpn2Complex \
+         or type(x) is Rpn2Integer  and x.value() < 0 \
+         or type(x) is Rpn2Float    and x.value() < 0.0 \
+         or type(x) is Rpn2Rational and x.value() < 0:
+        result = Rpn2Complex.from_complex(cmath.log(complex(x.value()), 2))
+    else:
+        param_stack.push(x)
+        raise TypeError("lg: Type error ({})".format(type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='ln', args=1, doc="""\
+Natural logarithm [base e]  ( x -- ln )
+X cannot be zero.
+Use "log" for the common (base 10) logarithm.""")
+def w_ln():
+    x = param_stack.pop()
+    if     type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex] \
+       and x.zerop():
+        param_stack.push(x)
+        raise ValueError("ln: Argument cannot be zero")
+
+    if    type(x) is Rpn2Integer  and x.value() > 0 \
+       or type(x) is Rpn2Float    and x.value() > 0.0 \
+       or type(x) is Rpn2Rational and x.value() > 0:
+        result = Rpn2Float(math.log(float(x.value())))
+    elif    type(x) is Rpn2Complex \
+         or type(x) is Rpn2Integer  and x.value() < 0 \
+         or type(x) is Rpn2Float    and x.value() < 0.0 \
+         or type(x) is Rpn2Rational and x.value() < 0:
+        result = Rpn2Complex.from_complex(cmath.log(complex(x.value())))
+    else:
+        param_stack.push(x)
+        raise TypeError("ln: Type error ({})".format(type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='load', str_args=1, doc="""\
+Load file specified on string stack  [ file -- ]""")
+def w_load():
+    filename = string_stack.pop().value()
+    if not os.path.isfile(filename):
+        lnwriteln("load: \"{}\" is not a valid file".format(filename))
+    else:
+        load_file(filename)
+
+
+@defword(name='log', args=1, doc="""\
+Common logarithm [base 10]  ( x -- log )
+X cannot be zero.
+Use "ln" for the natural (base e) logarithm.""")
+def w_log():
+    x = param_stack.pop()
+    if     type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex] \
+       and x.zerop():
+        param_stack.push(x)
+        raise ValueError("log: Argument cannot be zero")
+
+    if    type(x) is Rpn2Integer  and x.value() > 0 \
+       or type(x) is Rpn2Float    and x.value() > 0.0 \
+       or type(x) is Rpn2Rational and x.value() > 0:
+        r = math.log10(float(x.value()))
+        if type(x) is Rpn2Integer and r.is_integer():
+            result = Rpn2Integer(r)
+        else:
+            result = Rpn2Float(r)
+    elif    type(x) is Rpn2Complex \
+         or type(x) is Rpn2Integer  and x.value() < 0 \
+         or type(x) is Rpn2Float    and x.value() < 0.0 \
+         or type(x) is Rpn2Rational and x.value() < 0:
+        result = Rpn2Complex.from_complex(cmath.log10(complex(x.value())))
+    else:
+        param_stack.push(x)
+        raise TypeError("log: Type error ({})".format(type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='loop', doc="""\
+Execute a definite loop.
+<limit> <initial> DO xxx LOOP
+
+The iteration counter is available via I.  LEAVE will exit the loop early.
+
+Example: 10 0 do I . loop
+prints 0 1 2 3 4 5 6 7 8 9
+
+qv DO, I, LEAVE, +LOOP""")
+def w_loop():
+    pass                        # Grammar rules handle this word
+
+
+@defword(name='nip', args=2, doc="""\
+Drop second stack element  ( y x -- x )
+Equivalent to SWAP DROP.  J.V. Noble calls this PLUCK.""")
+def w_nip():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    param_stack.push(x)
+
+
+@defword(name='not', args=1, doc="""\
+Logical not  ( f -- !f )
+
+Return a TRUE (1) if x is zero, otherwise FALSE (0).  Logically the same
+as 0=, but NOT is intended for boolean manipulations and only is defined
+on integers; 0= is meant to compare a number to zero, and works for
+integers, reals, rationals, and complex numbers.  NOTE: This is not a
+bitwise not.""")
+def w_not():
+    x = param_stack.pop()
+    if type(x) is Rpn2Integer:
+        param_stack.push(Rpn2Integer(1 if x.zerop() else 0))
+        global show_x
+        show_x = True
+    else:
+        param_stack.push(x)
+        raise RuntimeError("not: Type error ({})".format(type(x).__name__))
+
+
+@defword(name='of', doc="""\
+Execute a sequence of words based on stack value.  Once a match is
+executed, no other clauses are considered.  OTHERWISE is optional.
+<n> and OF labels must be integers.
+
+<n> CASE
+  <x> OF xxx ENDOF
+  <y> OF yyy ENDOF
+  <z> OF zzz ENDOF
+  [ OTHERWISE aaa ]
+ENDCASE
+
+qv CASE, ENDCASE, ENDOF, OTHERWISE
+""")
+def w_of():
+    pass                        # Grammar rules handle this word
+
+
+@defword(name='otherwise',  doc="""\
+Execute a sequence of words based on stack value.  Once a match is
+executed, no other clauses are considered.  OTHERWISE is optional.
+<n> and OF labels must be integers.
+
+<n> CASE
+  <x> OF xxx ENDOF
+  <y> OF yyy ENDOF
+  <z> OF zzz ENDOF
+  [ OTHERWISE aaa ]
+ENDCASE
+
+qv CASE, ENDCASE, ENDOF, OF
+""")
+def w_otherwise():
+    pass                        # Grammar rules handle this word
+
+
+@defword(name='over', args=2, doc="""\
+Duplicate second stack element  ( y x -- y x y )
+Equivalent to 1 PICK""")
+def w_over():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    param_stack.push(y)
+    param_stack.push(x)
+    param_stack.push(y)
+
+
+@defword(name='perm', args=2, doc="""\
+Permutations  ( n r -- nPr )
+Choose from N objects R at a time, with regard to ordering.
+
+DEFINITION:
+        n!
+nPr = ------
+      (n-r)!""")
+def w_perm():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if type(y) is Rpn2Integer and type(x) is Rpn2Integer:
+        # Python 3.8 has math.perm()
+        n = y.value()
+        r = x.value()
+        if r > n or r < 0:
+            result = Rpn2Integer(0)
+        else:
+            t = 1
+            while r > 0:
+                r -= 1
+                t *= n
+                n -= 1
+            result = Rpn2Integer(t)
+    else:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("perm: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='PI', doc="""\
+Constant: Pi ( -- 3.14159... )
+
+DEFINITION:
+PI == TAU/2
+
+Consider using TAU instead of PI to simplify your equations.""")
+def w_PI():
+    param_stack.push(Rpn2Float(PI))
+    global show_x
+    show_x = True
+
+
+@defword(name='r->d', args=1, doc="""\
+Convert radians to degrees ( rad -- deg )""")
+def w_r_to_d():
+    x = param_stack.pop()
+    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
+        result = Rpn2Float(convert_radians_to_mode(float(x.value()), "d"))
+    else:
+        param_stack.push(x)
+        raise TypeError("r->d: Type error ({})".format(type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='r>', doc="""\
+Pop return stack onto parameter stack  ( -- x )""")
+def w_r_from():
+    if return_stack.empty():
+        raise RuntimeError("r>: Empty return stack")
+    param_stack.push(return_stack.pop())
+
+
+@defword(name='r@', doc="""\
+Copy top of return stack  ( -- x )""")
+def w_r_fetch():
+    if return_stack.empty():
+        raise RuntimeError("r@: Empty return stack")
+    param_stack.push(return_stack.top())
+
+
+@defword(name='rad')
+def w_rad():
+    global angle_mode
+    angle_mode = "r"
+
+
+@defword(name='rad?')
+def w_rad_query():
+    global angle_mode
+    param_stack.push(Rpn2Integer(1 if angle_mode == "r" else 0))
+    global show_x
+    show_x = True
+
+
+@defword(name='rand', doc="""\
+Random number  ( -- n )
+0 <= n < 1""")
+def w_rand():
+    param_stack.push(Rpn2Float(random.random()))
+    global show_x
+    show_x = True
+
+
+@defword(name='rclst', doc="""\
+Clear the return stack.
+Do not do this inside a DO loop!""")
+def w_rclst():
+    return_stack.clear()
+
+
+@defword(name='repeat', doc="""\
+Execute an indefinite loop while a condition is satisfied.
+BEGIN xxx <flag> WHILE yyy REPEAT
+
+LEAVE will exit the loop early.  Note that the effect of the test in
+BEGIN...WHILE is opposite that in BEGIN...UNTIL.  The loop repeats
+while something is true, rather than until it becomes true.
+
+qv BEGIN, AGAIN, LEAVE, UNTIL, WHILE""")
+def w_repeat():
+    pass                        # Grammar rules handle this word
+
+
+@defword(name='rot', args=3, doc="""\
+Rotate third stack element to the top, rolling others up  ( z y x -- y x z )
+Equivalent to 2 ROLL""")
+def w_rot():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    z = param_stack.pop()
+    param_stack.push(y)
+    param_stack.push(x)
+    param_stack.push(z)
+
+
+@defword(name='scopes')
+def w_scopes():
+    for (i, item) in scope_stack.items_bottom_to_top():
+        lnwriteln("{}: {}".format(i, item))
+
+
+@defword(name='sf', args=1)
+def w_sf():
+    x = param_stack.pop()
+    if type(x) is Rpn2Integer:
+        if x.value() < 0 or x.value() >= flag_max:
+            param_stack.push(x)
+            raise ValueError("sf: Argument out of range (0..{} expected)".format(flag_max))
+        flag_set(x.value())
+    else:
+        param_stack.push(x)
+        raise TypeError("sf: Type error ({})".format(type(x).__name__))
+
+
+@defword(name='shflag', doc="""\
+Show status of all flags ( -- )""")
+def w_shflag():
+    flags = []
+    for f in range(flag_max):
+        flags.append("%02d:%s" % (f, "YES" if flag_test(f) else "no "))
+
+    columns = global_scope.variable('COLS').obj().value()
+    list_in_columns(flags, columns - 1)
+
+
+@defword(name='show', str_args=1)
+def w_show():
+    s = string_stack.pop()
+    what = lookup_word(s.value())
+    if what is None:
+        lnwriteln("Could not find word '{}'".format(s))
+    else:
+        lnwriteln("show: {}".format(what))
+        lnwriteln("show: {}".format(repr(what)))
+
+
+@defword(name='sign', args=1, doc="""\
+Signum  ( n -- sign )
+Returns -1, 0, or 1.""")
+def w_sign():
+    x = param_stack.pop()
+    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
+        if x.value() < 0:
+            r = -1
+        elif x.value() > 0:
+            r = +1
+        else:
+            r = 0
+        result = Rpn2Integer(r)
+    else:
+        param_stack.push(x)
+        raise TypeError("sign: Type error ({})".format(type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='sin', args=1, doc="""\
+Sine  ( angle -- sine )""")
+def w_sin():
+    x = param_stack.pop()
+    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
+        result = Rpn2Float(math.sin(convert_mode_to_radians(float(x.value()))))
+    elif type(x) is Rpn2Complex:
+        result = Rpn2Complex.from_complex(cmath.sin(x.value()))
+    else:
+        param_stack.push(x)
+        raise TypeError("sin: Type error ({})".format(type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='sqrt', args=1, doc="""\
+Square root  ( x -- sqrt(x) )
+Negative X returns a complex number""")
 def w_sqrt():
     x = param_stack.pop()
     if type(x) is Rpn2Integer and x.zerop():
@@ -2182,40 +2679,9 @@ def w_sqrt():
     show_x = True
 
 
-def w_star():
-    """\
-|----------+----------+---------+----------+---------+--------+--------|
-| Integer  | Integer  | Float   | Rational | Complex |        |        |
-| Float    | Float    | Float   | Float    | Complex |        |        |
-| Rational | Rational | Float   | Rational | Complex |        |        |
-| Complex  | Complex  | Complex | Complex  | Complex |        |        |
-| Vector   |          |         |          |         |        |        |
-| Matrix   |          |         |          |         |        |        |
-|----------+----------+---------+----------+---------+--------+--------|
-| ^Y    X> | Integer  | Float   | Rational | Complex | Vector | Matrix |"""
-
-    x = param_stack.pop()
-    y = param_stack.pop()
-    if type(x) is Rpn2Integer and type(y) is Rpn2Integer:
-        result = Rpn2Integer(y.value() * x.value())
-    elif    type(x) is Rpn2Float and type(y) in [Rpn2Integer, Rpn2Float, Rpn2Rational] \
-         or type(y) is Rpn2Float and type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
-        result = Rpn2Float(float(y.value()) * float(x.value()))
-    elif    type(x) is Rpn2Rational and type(y) in [Rpn2Integer, Rpn2Rational] \
-         or type(y) is Rpn2Rational and type(x) in [Rpn2Integer, Rpn2Rational]:
-        result = Rpn2Rational.from_Fraction(y.value() * x.value())
-    elif    type(x) is Rpn2Complex and type(y) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex] \
-         or type(y) is Rpn2Complex and type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex]:
-        result = Rpn2Complex.from_complex(complex(y.value()) * complex(x.value()))
-    else:
-        param_stack.push(y)
-        param_stack.push(x)
-        raise TypeError("+: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
-    param_stack.push(result)
-    global show_x
-    show_x = True
-
-
+@defword(name='swap', args=2, doc="""\
+Exchange top two stack elements  ( y x -- x y )
+Equivalent to 1 ROLL""")
 def w_swap():
     x = param_stack.pop()
     y = param_stack.pop()
@@ -2223,6 +2689,8 @@ def w_swap():
     param_stack.push(y)
 
 
+@defword(name='tan', doc="""\
+Tangent  ( angle -- tangent )""")
 def w_tan():
     x = param_stack.pop()
     if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
@@ -2237,22 +2705,36 @@ def w_tan():
     show_x = True
 
 
+@defword(name='TAU', doc="""\
+Constant: Tau ( -- 6.28318... )
+
+DEFINITION:
+Number of radians in a circle.""")
 def w_TAU():
     param_stack.push(Rpn2Float(TAU))
     global show_x
     show_x = True
 
 
-def w_to_r():
-    return_stack.push(param_stack.pop())
+@defword(name='then', args=1, doc="""\
+Execute a conditional test.  xxx is executed if <flag> is non-zero.
+<flag> IF xxx [ ELSE yyy ] THEN
+
+qv ELSE, IF""")
+def w_then():
+    pass                        # Grammar rules handle this word
 
 
+@defword(name='TRUE')
 def w_TRUE():
     param_stack.push(Rpn2Integer(1))
     global show_x
     show_x = True
 
 
+@defword(name='tuck', args=2, doc="""\
+Duplicate top stack element into third position  ( y x -- x y x )
+Equivalent to SWAP OVER.  J.V. Noble calls this UNDER.""")
 def w_tuck():
     x = param_stack.pop()
     y = param_stack.pop()
@@ -2261,6 +2743,21 @@ def w_tuck():
     param_stack.push(x)
 
 
+@defword(name='until', doc="""\
+Execute an indefinite loop until a condition is satisfied.
+BEGIN xxx <flag> UNTIL
+
+LEAVE will exit the loop early.  Note that the effect of the test in
+BEGIN...WHILE is opposite that in BEGIN...UNTIL.  The loop repeats
+while something is true, rather than until it becomes true.
+
+qv AGAIN, BEGIN, LEAVE, REPEAT, WHILE""")
+def w_until():
+    pass                        # Grammar rules handle this word
+
+
+@defword(name='vars', doc="""\
+List variables and their values""")
 def w_vars():
     vars = dict()
     for varname in global_scope.variables():
@@ -2277,15 +2774,20 @@ def w_vars():
     list_in_columns(sorted_vars, columns - 1)
 
 
+@defword(name='vars!')
 def w_vars_bang():
     for (i, scope) in scope_stack.items_bottom_to_top():
         lnwriteln("{} vars: {}".format(scope, scope.variables().keys()))
 
 
+@defword(name='ver', doc="""\
+Display the current RPN version.
+Also available as @VER""")
 def w_ver():
     lnwriteln("RPN version {}".format(global_scope.variable('VER').obj().value()))
 
 
+@defword(name='vlist')
 def w_vlist():
     words = dict()
     for wordname in global_scope.words():
@@ -2300,25 +2802,29 @@ def w_vlist():
     list_in_columns(sorted_words, columns - 1)
 
 
+@defword(name='while', doc="""\
+Execute an indefinite loop while a condition is satisfied.
+BEGIN xxx <flag> WHILE yyy REPEAT
+
+LEAVE will exit the loop early.  Note that the effect of the test in
+BEGIN...WHILE is opposite that in BEGIN...UNTIL.  The loop repeats
+while something is true, rather than until it becomes true.
+
+qv AGAIN, BEGIN, LEAVE, REPEAT, UNTIL""")
+def w_while():
+    pass                        # Grammer rules handle this word
+
+
+@defword(name='words')
 def w_words():
     scope = scope_stack.top()
     lnwriteln("{} words: {}".format(scope, scope.words().keys()))
 
 
+@defword(name='words!', hidden=True)
 def w_words_bang():
     for (i, scope) in scope_stack.items_bottom_to_top():
         lnwriteln("{} words: {}".format(scope, scope.words().keys()))
-
-
-def w_zero_equal():
-    x = param_stack.pop()
-    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex]:
-        param_stack.push(Rpn2Integer(1 if x.zerop() else 0))
-        global show_x
-        show_x = True
-    else:
-        param_stack.push(x)
-        raise RuntimeError("0=: Type error ({})".format(type(x).__name__))
 
 
 
@@ -2381,7 +2887,7 @@ def defvar(name, value, **kwargs):
     global_scope.set_variable(name, Rpn2Variable(name, value, **kwargs))
 
 
-def defword(name, defn, **kwargs):
+def old_defword(name, defn, **kwargs):
     global_scope.set_word(name, Rpn2Word(name, defn, **kwargs))
 
 
@@ -2598,7 +3104,6 @@ def initialize():
     random.seed()
     w_clflag()
     define_variables()
-    define_primary_words()
     define_secondary_words()
 
     # Read & define ROWS and COLS via stty(1)
@@ -2615,496 +3120,6 @@ def define_variables():
     defvar('ROWS',  Rpn2Integer(0))
     defvar('trace', Rpn2Integer(0))
     defvar('VER',   Rpn2Float(rpn_version))
-
-
-def define_primary_words():
-    defword('$.',     w_dollar_dot, str_args=1, doc="""\
-Print top item from string stack  [ str -- ]
-No extraneous white space is printed.""")
-
-    defword('$.!',    w_dollar_dot_bang, str_args=1)
-    defword('$.s',    w_dollar_dot_s, doc="""\
-Display string stack.""")
-
-    defword('$.s!',   w_dollar_dot_s_bang)
-    defword('%',      w_percent, args=2, doc="""\
-Percentage  ( base rate -- base percent )
-
-DEFINTION:
-                 rate
-percent = base * ----
-                  100
-
-Base is maintained in Y.""")
-
-    defword('%ch',    w_percent_ch, args=2, doc="""\
-Percentage change  ( old new -- %change )
-
-DEFINITION:
-
-          new - old
-%change = --------- * 100
-             old
-
-old cannot be zero.""")
-
-    defword('*',      w_star, args=2, doc="""\
-Multiplication  ( y x -- y*x )""")
-
-    defword('+',      w_plus, args=2, doc="""\
-Addition  ( y x -- y+x )""")
-
-    defword('+loop',  Rpn2NoOp(), doc="""\
-Execute a definite loop.
-<limit> <initial> DO xxx <incr> +LOOP
-
-The iteration counter is available via I.  LEAVE will exit the loop early.
-
-Example: 10 0 do I . 2 +loop
-prints 0 2 4 6 8
-
-qv DO, I, LEAVE, LOOP""")
-
-    defword('-',      w_minus, args=2, doc="""\
-Subtraction  ( y x -- y-x )""")
-
-    defword('-rot',   w_minus_rot, args=3, doc="""\
-Rotate back top stack element to third spot,
-pulling others down  ( z y x -- x z y )
-Equivalent to ROT ROT""")
-
-    defword('.',      w_dot, args=1)
-    defword('.!',     w_dot_bang, args=1)
-    defword('.s',     w_dot_s)
-    defword('.s!',    w_dot_s_bang)
-    defword('/',      w_slash, args=2, doc="""\
-Division  ( y x -- y/x )
-X cannot be zero.""")
-
-    defword('0=',     w_zero_equal, args=1)
-    defword(':',      Rpn2NoOp(), doc="""\
-Define a new word  ( -- )
-: WORD  [def ...] ;
-
-Define WORD with the specified definition.
-Terminate the definition with a semi-colon.""")
-
-    defword(';',      Rpn2NoOp(), doc="""\
-Terminate WORD definition  ( -- )
-: WORD  [def ...] ;""")
-
-    defword('=',      w_equal, args=2)
-    defword('>r',     w_to_r, args=1, doc="""\
-Push X onto return stack  ( x -- )""")
-
-    defword('?dup',   w_query_dup, args=1, doc="""\
-Duplicate top stack element if non-zero  ( x -- x x | 0 )""")
-
-    defword('abort',  w_abort, doc="""\
-Abort execution and return to top level""")
-
-    defword('abort"', Rpn2NoOp(), doc="""\
-Conditionally abort execution  ( f -- )
-If flag is non-zero, abort execution and print a message
-(up to the closing quotation mark) and return to top level""")
-
-    defword('abs',    w_abs, doc="""\
-Absolute value  ( x -- abs )
-
-NOTE: For complex numbers, ABS return the modulus (float).""")
-
-    defword('again',  Rpn2NoOp(), doc="""\
-Execute an indefinite loop forever.
-BEGIN xxx AGAIN
-
-LEAVE will exit the loop early.
-
-qv BEGIN, LEAVE, REPEAT, UNTIL, WHILE""")
-
-    defword('begin',  Rpn2NoOp(), doc="""\
-Execute an indefinite loop.
-BEGIN xxx AGAIN
-BEGIN xxx <flag> UNTIL
-BEGIN xxx <flag> WHILE yyy REPEAT
-
-LEAVE will exit the loop early.  Note that the effect of the test in
-BEGIN...WHILE is opposite that in BEGIN...UNTIL.  The loop repeats
-while something is true, rather than until it becomes true.
-
-Do not confuse this with the BEG command, which sets "begin mode" for
-Time Value of Money calculations.
-
-qv AGAIN, LEAVE, REPEAT, UNTIL, WHILE""")
-
-    defword('bye',    w_bye, doc="""\
-Exit program""")
-
-    defword('case', Rpn2NoOp(), doc="""\
-Execute a sequence of words based on stack value.  Once a match is
-executed, no other clauses are considered.  OTHERWISE is optional.
-<n> and OF labels must be integers.
-
-<n> CASE
-  <x> OF xxx ENDOF
-  <y> OF yyy ENDOF
-  <z> OF zzz ENDOF
-  [ OTHERWISE aaa ]
-ENDCASE
-
-qv ENDCASE, ENDOF, OF, OTHERWISE
-""")
-
-    defword('ceil',   w_ceil, doc="""\
-Ceiling  ( x -- ceil )   Smallest integer greater than or equal to X""")
-
-    defword('cf',     w_cf, args=1)
-    defword('chs',    w_chs, args=1, doc="""\
-Change sign  ( x -- -x )""")
-
-    defword('clflag', w_clflag, doc="""\
-Clear all flags  ( -- )""")
-
-    defword('clst',   w_clst, doc="""\
-Clear the stack""")
-
-    defword('comb',   w_comb, args=2, doc="""\
-Combinations  ( n r -- nCr )
-Choose from N objects R at a time, without regard to ordering.
-
-DEFINITION:
-          n!
-nCr = -----------
-      r! * (n-r)!""")
-
-    defword('cos',    w_cos, args=1, doc="""\
-Cosine  ( angle -- cosine )""")
-
-    defword('cr',     w_cr, doc="""\
-Print a newline""")
-
-    defword('d->r',   w_d_to_r, args=1, doc="""\
-Convert degrees to radians ( deg -- rad )""")
-
-    defword('debug',  w_debug)
-    defword('deg',    w_deg, doc="""\
-Set angular mode to degrees""")
-
-    defword('deg?',   w_deg_query)
-    defword('depth',  w_depth, doc="""\
-Return current number of elements on stack  ( -- n )""")
-
-    defword('dim',    w_dim, args=1, doc="""\
-Dimension(s) of X.
-
-For integers, floats, and rationals (scalars), return 0.
-For complex numbers, return 2.
-For vectors of length N, return a vector [ N ].
-For an M-row by N-col matrix, return a vector [ M N ].""")
-
-    defword('do',     Rpn2NoOp(), doc="""\
-Execute a definite loop.
-<limit> <initial> DO xxx        LOOP
-<limit> <initial> DO xxx <incr> +LOOP
-
-The iteration counter is available via I.  LEAVE will exit the loop early.
-
-Example: 10 0 do I . loop
-prints 0 1 2 3 4 5 6 7 8 9
-
-qv I, LEAVE, LOOP, +LOOP""")
-
-    defword('drop',   w_drop, args=1, doc="""\
-Remove top stack element  ( x -- )""")
-
-    defword('dup',    w_dup, args=1, doc="""\
-Duplicate top stack element  ( x -- x x )
-Equivalent to 0 PICK""")
-
-    defword('E',      w_E, doc="""\
-Constant: Base of natural logarithms ( -- 2.71828... )""")
-
-    defword('else',   Rpn2NoOp(), args=1, doc="""\
-Execute a conditional test.  xxx is executed if <flag> is non-zero,
-otherwise yyy is executed.
-<flag> IF xxx [ ELSE yyy ] THEN
-
-qv IF, THEN""")
-
-    defword('emit',   w_emit, args=1, doc="""\
-emit  ( x -- )    Print a single ASCII character
-No space or newline is appended.""")
-
-    defword('endcase', Rpn2NoOp(), doc="""\
-Execute a sequence of words based on stack value.  Once a match is
-executed, no other clauses are considered.  OTHERWISE is optional.
-<n> and OF labels must be integers.
-
-<n> CASE
-  <x> OF xxx ENDOF
-  <y> OF yyy ENDOF
-  <z> OF zzz ENDOF
-  [ OTHERWISE aaa ]
-ENDCASE
-
-qv CASE, ENDOF, OF, OTHERWISE
-""")
-
-    defword('endof', Rpn2NoOp(), doc="""\
-Execute a sequence of words based on stack value.  Once a match is
-executed, no other clauses are considered.  OTHERWISE is optional.
-<n> and OF labels must be integers.
-
-<n> CASE
-  <x> OF xxx ENDOF
-  <y> OF yyy ENDOF
-  <z> OF zzz ENDOF
-  [ OTHERWISE aaa ]
-ENDCASE
-
-qv CASE, ENDCASE, OF, OTHERWISE
-""")
-
-    defword('eval',   w_eval, str_args=1)
-    defword('exp',    w_exp, args=1, doc="""\
-Natural exponential ( x -- e^x )""")
-
-    defword('fact',   w_fact, args=1, doc="""\
-Factorial ( x -- x! )
-
-DEFINITION:
-x! = x * (x-1) * (x-2) ... * 2 * 1
-0! = 1
-X cannot be negative.""")
-
-    defword('FALSE',  w_FALSE)
-    defword('fc?',    w_fc_query, args=1)
-    defword('floor',  w_floor, doc="""\
-Floor  ( x -- floor )   Largest integer not greater than X""")
-
-    defword('fs?',    w_fs_query, args=1)
-    defword('i',      w_i, doc="""\
-Imaginary unit (0,1)  ( -- i )
-
-DEFINITION:
-i = sqrt(-1)
-
-Do not confuse this with the I command, which returns the index for a DO loop.""")
-
-    defword('I',      w_I, doc="""\
-Index of DO loop  ( -- x )
-
-Return the index of the most recent DO loop.
-
-Do not confuse this with the i command, which returns the complex number (0,1).""")
-
-    defword('if',     Rpn2NoOp(), args=1, doc="""\
-Test condition  ( f -- )
-Execute a conditional test.  xxx is executed if <flag> is non-zero.
-<flag> IF xxx [ ELSE yyy ] THEN
-
-qv ELSE, THEN""")
-
-    defword('leave',  w_leave, doc="""\
-Exit a DO or BEGIN loop immediately.""")
-
-    defword('lg',     w_lg, args=1, doc="""\
-Logarithm [base 2]  ( x -- lg )
-X cannot be zero.
-Use "ln" for the natural logarithm, and "log" for the common logarithm.""")
-
-    defword('ln',     w_ln, args=1, doc="""\
-Natural logarithm [base e]  ( x -- ln )
-X cannot be zero.
-Use "log" for the common (base 10) logarithm.""")
-
-    defword('load',   w_load, str_args=1, doc="""\
-Load file specified on string stack  [ file -- ]""")
-
-    defword('log',    w_log, args=1, doc="""\
-Common logarithm [base 10]  ( x -- log )
-X cannot be zero.
-Use "ln" for the natural (base e) logarithm.""")
-
-    defword('loop',   Rpn2NoOp(), doc="""\
-Execute a definite loop.
-<limit> <initial> DO xxx LOOP
-
-The iteration counter is available via I.  LEAVE will exit the loop early.
-
-Example: 10 0 do I . loop
-prints 0 1 2 3 4 5 6 7 8 9
-
-qv DO, I, LEAVE, +LOOP""")
-
-    defword('nip',    w_nip, args=2, doc="""\
-Drop second stack element  ( y x -- x )
-Equivalent to SWAP DROP.  J.V. Noble calls this PLUCK.""")
-
-    defword('not',    w_not, args=1, doc="""\
-Logical not  ( f -- !f )
-
-Return a TRUE (1) if x is zero, otherwise FALSE (0).  Logically the same
-as 0=, but NOT is intended for boolean manipulations and only is defined
-on integers; 0= is meant to compare a number to zero, and works for
-integers, reals, rationals, and complex numbers.  NOTE: This is not a
-bitwise not.""")
-
-    defword('of', Rpn2NoOp(), doc="""\
-Execute a sequence of words based on stack value.  Once a match is
-executed, no other clauses are considered.  OTHERWISE is optional.
-<n> and OF labels must be integers.
-
-<n> CASE
-  <x> OF xxx ENDOF
-  <y> OF yyy ENDOF
-  <z> OF zzz ENDOF
-  [ OTHERWISE aaa ]
-ENDCASE
-
-qv CASE, ENDCASE, ENDOF, OTHERWISE
-""")
-
-    defword('otherwise', Rpn2NoOp(), doc="""\
-Execute a sequence of words based on stack value.  Once a match is
-executed, no other clauses are considered.  OTHERWISE is optional.
-<n> and OF labels must be integers.
-
-<n> CASE
-  <x> OF xxx ENDOF
-  <y> OF yyy ENDOF
-  <z> OF zzz ENDOF
-  [ OTHERWISE aaa ]
-ENDCASE
-
-qv CASE, ENDCASE, ENDOF, OF
-""")
-
-    defword('over',   w_over, args=2, doc="""\
-Duplicate second stack element  ( y x -- y x y )
-Equivalent to 1 PICK""")
-
-    defword('perm',   w_perm, args=2, doc="""\
-Permutations  ( n r -- nPr )
-Choose from N objects R at a time, with regard to ordering.
-
-DEFINITION:
-        n!
-nPr = ------
-      (n-r)!""")
-
-    defword('PI',     w_PI, doc="""\
-Constant: Pi ( -- 3.14159... )
-
-DEFINITION:
-PI == TAU/2
-
-Consider using TAU instead of PI to simplify your equations.""")
-
-    defword('r->d',   w_r_to_d, args=1, doc="""\
-Convert radians to degrees ( rad -- deg )""")
-
-    defword('r>',     w_r_from, doc="""\
-Pop return stack onto parameter stack  ( -- x )""")
-
-    defword('r@',     w_r_fetch, doc="""\
-Copy top of return stack  ( -- x )""")
-
-    defword('rad',    w_rad)
-    defword('rad?',   w_rad_query)
-    defword('rand',   w_rand, doc="""\
-Random number  ( -- n )
-0 <= n < 1""")
-
-    defword('rclst',  w_r_clst, doc="""\
-Clear the return stack.
-Do not do this inside a DO loop!""")
-
-    defword('repeat', Rpn2NoOp(), doc="""\
-Execute an indefinite loop while a condition is satisfied.
-BEGIN xxx <flag> WHILE yyy REPEAT
-
-LEAVE will exit the loop early.  Note that the effect of the test in
-BEGIN...WHILE is opposite that in BEGIN...UNTIL.  The loop repeats
-while something is true, rather than until it becomes true.
-
-qv BEGIN, AGAIN, LEAVE, UNTIL, WHILE""")
-
-    defword('rot',    w_rot, args=3, doc="""\
-Rotate third stack element to the top, rolling others up  ( z y x -- y x z )
-Equivalent to 2 ROLL""")
-
-    defword('scopes', w_scopes)
-    defword('sf',     w_sf, args=1)
-    defword('shflag', w_shflag, doc="""\
-Show status of all flags ( -- )""")
-
-    defword('show',   w_show, str_args=1)
-    defword('sign',   w_sign, args=1, doc="""\
-Signum  ( n -- sign )
-Returns -1, 0, or 1.""")
-
-    defword('sin',    w_sin, args=1, doc="""\
-Sine  ( angle -- sine )""")
-
-    defword('sqrt',   w_sqrt, args=1, doc="""\
-Square root  ( x -- sqrt(x) )
-Negative X returns a complex number""")
-
-    defword('swap',   w_swap, args=2, doc="""\
-Exchange top two stack elements  ( y x -- x y )
-Equivalent to 1 ROLL""")
-
-    defword('tan',    w_tan, doc="""\
-Tangent  ( angle -- tangent )""")
-
-    defword('TAU',    w_TAU, doc="""\
-Constant: Tau ( -- 6.28318... )
-
-DEFINITION:
-Number of radians in a circle.""")
-
-    defword('then',   Rpn2NoOp(), args=1, doc="""\
-Execute a conditional test.  xxx is executed if <flag> is non-zero.
-<flag> IF xxx [ ELSE yyy ] THEN
-
-qv ELSE, IF""")
-
-    defword('TRUE',   w_TRUE)
-    defword('tuck',   w_tuck, args=2, doc="""\
-Duplicate top stack element into third position  ( y x -- x y x )
-Equivalent to SWAP OVER.  J.V. Noble calls this UNDER.""")
-
-    defword('until',  Rpn2NoOp(), doc="""\
-Execute an indefinite loop until a condition is satisfied.
-BEGIN xxx <flag> UNTIL
-
-LEAVE will exit the loop early.  Note that the effect of the test in
-BEGIN...WHILE is opposite that in BEGIN...UNTIL.  The loop repeats
-while something is true, rather than until it becomes true.
-
-qv AGAIN, BEGIN, LEAVE, REPEAT, WHILE""")
-
-    defword('vars',   w_vars, doc="""\
-List variables and their values""")
-
-    defword('vars!',  w_vars_bang)
-    defword('ver',    w_ver, doc="""\
-Display the current RPN version.
-Also available as @VER""")
-
-    defword('vlist',  w_vlist)
-    defword('while',  Rpn2NoOp(), doc="""\
-Execute an indefinite loop while a condition is satisfied.
-BEGIN xxx <flag> WHILE yyy REPEAT
-
-LEAVE will exit the loop early.  Note that the effect of the test in
-BEGIN...WHILE is opposite that in BEGIN...UNTIL.  The loop repeats
-while something is true, rather than until it becomes true.
-
-qv AGAIN, BEGIN, LEAVE, REPEAT, UNTIL""")
-
-    defword('words',  w_words)
-    defword('words!', w_words_bang, hidden=True)
 
 
 def define_secondary_words():
@@ -3196,7 +3211,6 @@ return_stack = Rpn2Stack()
 scope_stack  = Rpn2Stack()
 string_stack = Rpn2Stack()
 
-global_scope = Rpn2Scope()
 #print("Creating Global scope {}".format(global_scope))
 push_scope(global_scope, "Global scope")
 
