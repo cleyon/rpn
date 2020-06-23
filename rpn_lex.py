@@ -6,21 +6,26 @@ import ply.lex as lex
 literals = [ '|' ]
 
 reserved_words = {
-    '+loop'  : 'PLUS_LOOP',
-    '."'     : 'DOT_QUOTE',
-    'abort"' : 'ABORT_QUOTE',
-    'again'  : 'AGAIN',
-    'begin'  : 'BEGIN',
-    'do'     : 'DO',
-    'doc:"'  : 'DOC_STR',
-    'else'   : 'ELSE',
-    'help'   : 'HELP',
-    'if'     : 'IF',
-    'loop'   : 'LOOP',
-    'repeat' : 'REPEAT',
-    'then'   : 'THEN',
-    'until'  : 'UNTIL',
-    'while'  : 'WHILE',
+    '+loop'     : 'PLUS_LOOP',
+    '."'        : 'DOT_QUOTE',
+    'abort"'    : 'ABORT_QUOTE',
+    'again'     : 'AGAIN',
+    'begin'     : 'BEGIN',
+    'case'      : 'CASE',
+    'do'        : 'DO',
+    'doc:"'     : 'DOC_STR',
+    'else'      : 'ELSE',
+    'endcase'   : 'ENDCASE',
+    'endof'     : 'ENDOF',
+    'help'      : 'HELP',
+    'if'        : 'IF',
+    'loop'      : 'LOOP',
+    'of'        : 'OF',
+    'otherwise' : 'OTHERWISE',
+    'repeat'    : 'REPEAT',
+    'then'      : 'THEN',
+    'until'     : 'UNTIL',
+    'while'     : 'WHILE',
 }
 
 tokens = [
@@ -76,14 +81,34 @@ def t_COMMA(t):
     t.type = 'COMMA'
     return t
 
+def t_D_TO_R(t):
+    r'd->r'
+    t.type = 'IDENTIFIER'
+    return t
+
 def t_EXCLAM(t):
     r'!'
     t.type = 'EXCLAM'
     return t
 
+def t_OPEN_BRACKET(t):
+    r'\['
+    t.type = 'OPEN_BRACKET'
+    return t
+
 def t_OPEN_PAREN(t):
     r'\('
     t.type = 'OPEN_PAREN'
+    return t
+
+def t_R_FETCH(t):
+    r'r@'
+    t.type = 'IDENTIFIER'
+    return t
+
+def t_R_TO_D(t):
+    r'r->d'
+    t.type = 'IDENTIFIER'
     return t
 
 def t_SEMICOLON(t):
