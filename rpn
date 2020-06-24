@@ -69,7 +69,6 @@ the interrupt key is signaled.  It is caught in __main__, where processing
 is halted, the exit routine prints the stack, and the program exits."""
     pass
 
-# XXX - where should this be caught?
 class Rpn_E_Exit(Rpn_Exception):
     """Rpn_E_Exit is raised by the word EXIT and terminates execution
 of the current word."""
@@ -296,7 +295,7 @@ class Rpn_Do_Loop:
         return "DoLoop[{}]".format(repr(self._seq))
 
 
-class Rpn_PlusLoop:
+class Rpn_Do_PlusLoop:
     def __init__(self, seq):
         self._seq = seq
         seq.scope().set_variable('_I', Rpn_Variable('_I', None, hidden=True))
@@ -1254,7 +1253,7 @@ def p_do_loop(p):
 def p_do_plusloop(p):
     '''do_plusloop :  DO  sequence  PLUS_LOOP'''
 
-    p[0] = Rpn_PlusLoop(p[2])
+    p[0] = Rpn_Do_PlusLoop(p[2])
 
 
 def p_dot_quote(p):
