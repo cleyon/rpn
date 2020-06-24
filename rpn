@@ -60,7 +60,7 @@ class Rpn_Exception(Exception):
 
 class Rpn_E_Abort(Rpn_Exception):
     """Rpn_E_Abort is raised by the ABORT and ABORT" words.
-It is caught in p_execute().  It clears the parameter and string stacks,"""
+It clears the parameter, return, and string stacks.  Caught in p_execute."""
     pass
 
 class Rpn_E_End_Program (Rpn_Exception):
@@ -1030,6 +1030,7 @@ def p_execute(p):
         if len(e._message) > 0:
             lnwriteln("{}".format(e))
         param_stack.clear()
+        return_stack.clear()
         string_stack.clear()
         show_x = False
     except Rpn_E_Exit:
@@ -1496,7 +1497,7 @@ def w_dollar_dot():
     write(string_stack.pop().value())
 
 
-@defword(name='$.!', str_args=1)
+@defword(name='$.!', hidden=True, str_args=1)
 def w_dollar_dot_bang():
     lnwriteln(repr(string_stack.top()))
 
@@ -1508,7 +1509,7 @@ def w_dollar_dot_s():
         lnwriteln("{}: {}".format(i, item.value()))
 
 
-@defword(name='$.s!')
+@defword(name='$.s!', hidden=True)
 def w_dollar_dot_s_bang():
     for (i, item) in string_stack.items_bottom_to_top():
         lnwriteln("{}: {}".format(i, repr(item)))
@@ -1528,8 +1529,8 @@ def w_percent():
     y = param_stack.pop()
     if     type(x) in [Rpn_t_Integer, Rpn_t_Rational, Rpn_t_Float] \
        and type(y) in [Rpn_t_Integer, Rpn_t_Rational, Rpn_t_Float]:
-        rate = float(x.value())
         base = float(y.value())
+        rate = float(x.value())
         r = base * rate / 100.0
         if type(x) is Rpn_t_Integer and type(y) is Rpn_t_Integer and r.is_integer():
             result = Rpn_t_Integer(r)
@@ -1565,8 +1566,8 @@ def w_percent_ch():
             param_stack.push(x)
             raise ValueError("%ch: Y cannot be zero")
         else:
-            new = float(x.value())
             old = float(y.value())
+            new = float(x.value())
             r = (new - old) * 100.0 / old
             if type(x) is Rpn_t_Integer and type(y) is Rpn_t_Integer and r.is_integer():
                 result = Rpn_t_Integer(r)
@@ -1576,6 +1577,44 @@ def w_percent_ch():
         param_stack.push(y)
         param_stack.push(x)
         raise TypeError("%ch: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+    # The HP-32SII preserves the Y value (like %) but we do not
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='%t', args=2, doc="""\
+Percent of total  ( total amount -- %tot )
+
+DEFINITION:
+
+         amount
+%Total = ------ * 100
+         total
+
+total cannot be zero.""")
+def w_percent_t():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if     type(x) in [Rpn_t_Integer, Rpn_t_Rational, Rpn_t_Float] \
+       and type(y) in [Rpn_t_Integer, Rpn_t_Rational, Rpn_t_Float]:
+        if y.zerop():
+            param_stack.push(y)
+            param_stack.push(x)
+            raise ValueError("%t: Y cannot be zero")
+        else:
+            total  = float(y.value())
+            amount = float(x.value())
+            r = amount * 100.0 / total
+            if type(x) is Rpn_t_Integer and type(y) is Rpn_t_Integer and r.is_integer():
+                result = Rpn_t_Integer(r)
+            else:
+                result = Rpn_t_Float(r)
+    else:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("%t: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+    # The HP-32SII preserves the Y value (like %) but we do not
     param_stack.push(result)
     global show_x
     show_x = True
@@ -1708,11 +1747,15 @@ Print top stack value  ( x -- )
 A space is also printed after the number, but no newline.""")
 def w_dot():
     write("{} ".format(str(param_stack.pop())))
+    global show_x
+    show_x = False
 
 
-@defword(name='.!', args=1)
+@defword(name='.!', hidden=True, args=1)
 def w_dot_bang():
     lnwriteln(repr(param_stack.top()))
+    global show_x
+    show_x = False
 
 
 @defword(name='.s', doc="""\
@@ -1720,6 +1763,8 @@ Print stack non-destructively""")
 def w_dot_s():
     for (i, item) in param_stack.items_bottom_to_top():
         lnwriteln("{}: {}".format(i, item))
+    global show_x
+    show_x = False
 
 
 @defword(name='.s!', hidden=True, doc="""\
@@ -1727,6 +1772,8 @@ Print stack non-destructively""")
 def w_dot_s_bang():
     for (i, item) in param_stack.items_bottom_to_top():
         lnwriteln("{}: {}".format(i, repr(item)))
+    global show_x
+    show_x = False
 
 
 @defword(name='/', args=2, doc="""\
@@ -1871,9 +1918,9 @@ def w_abort_quote():
 
 
 @defword(name='abs', doc="""\
-Absolute value  ( x -- abs )
+Absolute value  ( x -- |x| )
 
-NOTE: For complex numbers, ABS return the modulus (float).""")
+NOTE: For complex numbers, ABS return the modulus (as a float).""")
 def w_abs():
     x = param_stack.pop()
     if type(x) is Rpn_t_Integer:
@@ -1972,6 +2019,7 @@ def w_cf():
         raise TypeError("cf: Type error ({})".format(type(x).__name__))
 
 
+# Some HP calcs call this NEGATE, but why type 6 characters when 3 will do?
 @defword(name='chs', args=1, doc="""\
 Change sign  ( x -- -x )""")
 def w_chs():
@@ -2018,7 +2066,9 @@ def w_comb():
     y = param_stack.pop()
     if type(x) is Rpn_t_Integer and type(y) is Rpn_t_Integer:
         # Python 3.8 has math.comb()
-        result = Rpn_t_Integer(choose_helper(y.value(), x.value()))
+        n = y.value()
+        r = x.value()
+        result = Rpn_t_Integer(choose_helper(n, r))
     else:
         param_stack.push(y)
         param_stack.push(x)
@@ -2495,6 +2545,42 @@ def w_loop():
     pass                        # Grammar rules handle this word
 
 
+@defword(name='max', args=2, doc="""\
+Smaller of X or Y  ( y x -- max )""")
+def w_max():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if     type(x) in [Rpn_t_Integer, Rpn_t_Rational, Rpn_t_Float] \
+       and type(y) in [Rpn_t_Integer, Rpn_t_Rational, Rpn_t_Float]:
+        yval = float(y.value())
+        xval = float(x.value())
+        param_stack.push(x if xval > yval else y)
+    else:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("max: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+    global show_x
+    show_x = True
+
+
+@defword(name='min', args=2, doc="""\
+Smaller of X or Y  ( y x -- min )""")
+def w_min():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if     type(x) in [Rpn_t_Integer, Rpn_t_Rational, Rpn_t_Float] \
+       and type(y) in [Rpn_t_Integer, Rpn_t_Rational, Rpn_t_Float]:
+        yval = float(y.value())
+        xval = float(x.value())
+        param_stack.push(x if xval < yval else y)
+    else:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("min: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+    global show_x
+    show_x = True
+
+
 @defword(name='nip', args=2, doc="""\
 Drop second stack element  ( y x -- x )
 Equivalent to SWAP DROP.  J.V. Noble calls this PLUCK.""")
@@ -2906,7 +2992,7 @@ def w_vars():
     list_in_columns(sorted_vars, columns - 1)
 
 
-@defword(name='vars!')
+@defword(name='vars!', hidden=True)
 def w_vars_bang():
     for (i, scope) in scope_stack.items_bottom_to_top():
         lnwriteln("{} vars: {}".format(scope, scope.variables().keys()))
