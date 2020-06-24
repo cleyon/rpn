@@ -995,6 +995,12 @@ class Rpn_Word:
 #############################################################################
 start = 'interpret'
 
+def p_empty(p):
+    '''empty :'''
+
+    pass
+
+
 def p_interpret(p):
     '''interpret : cmd
                  | cmd interpret'''
@@ -1071,6 +1077,16 @@ def p_locals_opt(p):
     p[0] = scope
 
 
+def p_ids_opt(p):
+    '''ids_opt :  empty
+              |  IDENTIFIER  ids_opt'''
+
+    if len(p) == 2:
+        p[0] = Rpn_List()
+    elif len(p) == 3:
+        p[0] = Rpn_List(p[1], p[2])
+
+
 def p_executables_opt(p):
     '''executables_opt :  empty
                        |  executable  executables_opt'''
@@ -1082,19 +1098,111 @@ def p_executables_opt(p):
     # lnwriteln("{}: Returning {}".format(whoami(), p[0])))
 
 
+
+def p_error(p):
+    global parse_error
+    if p is None:
+        #lnwriteln("{}(None): End of file".format(whoami()))
+        parser.restart()
+    else:
+        #lnwriteln("{}({})".format(whoami(), p))
+        lnwriteln("'{}' not valid here".format(p.value))
+        parse_error = True
+        parser.restart()
+
+    # What to do?
+    #parser.restart()
+    #parser.errok()
+
+
+
+#
+##      Executables
+#
+def p_executable(p):
+    '''executable :  abort_quote
+                  |  begin_again
+                  |  begin_until
+                  |  begin_while
+                  |  case
+                  |  colon_def
+                  |  do_loop
+                  |  do_plusloop
+                  |  dot_quote
+                  |  forget
+                  |  help
+                  |  if_then
+                  |  if_else_then
+                  |  stackable
+                  |  store_var
+                  |  word'''
+
+    # A "word" is not just an identifier, a word is something that is
+    # findable somewhere in the scope_stack.  It is a syntax error if
+    # the identifier is not found.
+    p[0] = Rpn_Executable(p[1])
+
+
+def p_abort_quote(p):
+    '''abort_quote :  ABORT_QUOTE'''
+
+    p[0] = Rpn_Abort_Quote(p[1])
+
+
+def p_begin_again(p):
+    '''begin_again :  BEGIN  sequence  AGAIN'''
+
+    p[0] = Rpn_Begin_Again(p[2])
+
+
+def p_begin_until(p):
+    '''begin_until :  BEGIN  sequence  UNTIL'''
+
+    p[0] = Rpn_Begin_Until(p[2])
+
+
+def p_begin_while(p):
+    '''begin_while :  BEGIN  sequence  WHILE  sequence  REPEAT'''
+
+    p[0] = Rpn_Begin_While(p[2], p[4])
+
+
+def p_case(p):
+    '''case :  CASE  case_clauses  otherwise_opt  ENDCASE'''
+    p[0] = Rpn_Case(p[2], p[3])
+
+def p_case_clauses(p):
+    '''case_clauses :  case_clause
+                    |  case_clause  case_clauses'''
+    if len(p) == 2:
+        p[0] = Rpn_List(p[1])
+    else:
+        p[0] = Rpn_List(p[1], p[2])
+
+def p_case_clause(p):
+    '''case_clause : INTEGER  OF  sequence  ENDOF'''
+    p[0] = Rpn_Case_Clause(p[1], p[3])
+
+def p_otherwise_opt(p):
+    '''otherwise_opt : empty
+                     | OTHERWISE  sequence'''
+    if len(p) == 2:
+        p[0] = Rpn_List()
+    else:
+        p[0] = Rpn_List(p[2])
+
+
 def p_colon_def(p):
     '''colon_def :  COLON  IDENTIFIER  docstr_opt  sequence  SEMICOLON  define_word'''
 
     # This returns a NoOp because `define_word' does all the work
     p[0] = Rpn_No_Op()
 
-
 def p_colon_def_error(p):
     '''colon_def :  COLON  IDENTIFIER  docstr_opt  error  SEMICOLON '''
 
     pop_scope("Syntax error in colon_def")
     p[0] = Rpn_Error("{}: Syntax error in definition".format(p[2]))
-
 
 def p_define_word(p):
     '''define_word : empty'''
@@ -1127,65 +1235,11 @@ def p_define_word(p):
     p[0] = new_word
     #lnwriteln("{}: Returning {}".format(whoami(), p[0]))
 
-
-def p_abort_quote(p):
-    '''abort_quote :  ABORT_QUOTE'''
-
-    p[0] = Rpn_Abort_Quote(p[1])
-
-
-def p_begin_again(p):
-    '''begin_again :  BEGIN  sequence  AGAIN'''
-
-    p[0] = Rpn_Begin_Again(p[2])
-
-
-def p_begin_until(p):
-    '''begin_until :  BEGIN  sequence  UNTIL'''
-
-    p[0] = Rpn_Begin_Until(p[2])
-
-
-def p_begin_while(p):
-    '''begin_while :  BEGIN  sequence  WHILE  sequence  REPEAT'''
-
-    p[0] = Rpn_Begin_While(p[2], p[4])
-
-
 def p_docstr_opt(p):
     '''docstr_opt :  empty
                   |  DOC_STR'''
 
     p[0] = p[1]
-
-
-def p_case(p):
-    '''case :  CASE  case_clauses  otherwise_opt  ENDCASE'''
-    p[0] = Rpn_Case(p[2], p[3])
-
-def p_case_clause(p):
-    '''case_clause : INTEGER  OF  sequence  ENDOF'''
-    p[0] = Rpn_Case_Clause(p[1], p[3])
-
-def p_case_clauses(p):
-    '''case_clauses :  case_clause
-                    |  case_clause  case_clauses'''
-    if len(p) == 2:
-        p[0] = Rpn_List(p[1])
-    else:
-        p[0] = Rpn_List(p[1], p[2])
-
-def p_otherwise_opt(p):
-    '''otherwise_opt : empty
-                     | OTHERWISE  sequence'''
-    if len(p) == 2:
-        p[0] = Rpn_List()
-    else:
-        p[0] = Rpn_List(p[2])
-
-def p_complex(p):
-    '''complex :  OPEN_PAREN  real  COMMA  real  CLOSE_PAREN '''
-    p[0] = Rpn_t_Complex(p[2].value(), p[4].value())
 
 
 def p_do_loop(p):
@@ -1204,72 +1258,6 @@ def p_dot_quote(p):
     '''dot_quote :  DOT_QUOTE'''
 
     p[0] = Rpn_Dot_Quote(p[1])
-
-
-def p_empty(p):
-    '''empty :'''
-
-    pass
-
-
-def p_error(p):
-    global parse_error
-    if p is None:
-        #lnwriteln("{}(None): End of file".format(whoami()))
-        parser.restart()
-    else:
-        #lnwriteln("{}({})".format(whoami(), p))
-        lnwriteln("'{}' not valid here".format(p.value))
-        parse_error = True
-        parser.restart()
-
-    # What to do?
-    #parser.restart()
-    #parser.errok()
-
-
-def p_executable(p):
-    '''executable :  abort_quote
-                  |  begin_again
-                  |  begin_until
-                  |  begin_while
-                  |  case
-                  |  colon_def
-                  |  do_loop
-                  |  do_plusloop
-                  |  dot_quote
-                  |  forget
-                  |  help
-                  |  if_then
-                  |  if_else_then
-                  |  stackable
-                  |  store_var
-                  |  word'''
-
-    # A "word" is not just an identifier, a word is something that is
-    # findable somewhere in the scope_stack.  It is a syntax error if
-    # the identifier is not found.
-    p[0] = Rpn_Executable(p[1])
-
-
-def p_fetch_var(p):
-    '''fetch_var :  AT_SIGN  IDENTIFIER'''
-
-    global parse_error
-    id = p[2]
-    # lnwriteln("{}: Looking up {}".format(whoami(), id))
-    (var, _) = lookup_variable(id)
-    if var is None:
-        lnwriteln("@{}: Variable not found".format(id))
-        parse_error = True
-        raise SyntaxError
-    p[0] = Rpn_Fetch_Var(id, var)
-
-
-def p_float(p):
-    '''float :  FLOAT'''
-
-    p[0] = Rpn_t_Float(p[1])
 
 
 def p_forget(p):
@@ -1325,16 +1313,6 @@ def p_help(p):
                         else "No help available for '{}'".format(name))
 
 
-def p_ids_opt(p):
-    '''ids_opt :  empty
-              |  IDENTIFIER  ids_opt'''
-
-    if len(p) == 2:
-        p[0] = Rpn_List()
-    elif len(p) == 3:
-        p[0] = Rpn_List(p[1], p[2])
-
-
 def p_if_then(p):
     '''if_then :  IF  sequence  THEN'''
 
@@ -1345,59 +1323,6 @@ def p_if_else_then(p):
     '''if_else_then :  IF  sequence  ELSE  sequence  THEN'''
 
     p[0] = Rpn_If_Else(p[2], p[4])
-
-
-def p_integer(p):
-    '''integer :  INTEGER'''
-
-    p[0] = Rpn_t_Integer(p[1])
-
-
-def p_matrix(p):
-    '''matrix :  OPEN_BRACKET  vectors  CLOSE_BRACKET'''
-
-    p[0] = Rpn_t_Matrix(p[2])
-
-
-def p_number(p):
-    '''number :  real
-              |  rational
-              |  complex'''
-
-    p[0] = p[1]
-
-
-def p_numbers(p):
-    '''numbers :  number
-               |  number  numbers'''
-
-    if len(p) == 2:
-        p[0] = Rpn_List(p[1])
-    elif len(p) == 3:
-        p[0] = Rpn_List(p[1], p[2])
-
-
-def p_rational(p):
-    '''rational :  integer  TILDE  integer'''
-
-    p[0] = Rpn_t_Rational(p[1].value(), p[3].value())
-
-
-def p_real(p):
-    '''real :  integer
-            |  float'''
-
-    p[0] = p[1]
-
-
-def p_stackable(p):
-    '''stackable :  number
-                 |  string
-                 |  vector
-                 |  matrix
-                 |  fetch_var'''
-
-    p[0] = Rpn_Stackable(p[1])
 
 
 def p_store_var(p):
@@ -1412,29 +1337,6 @@ def p_store_var(p):
         parse_error = True
         raise SyntaxError
     p[0] = Rpn_Store_Var(id, var)
-
-
-def p_string(p):
-    '''string :  STRING'''
-
-    p[0] = Rpn_t_String(p[1])
-
-
-def p_vector(p):
-    '''vector :  OPEN_BRACKET  numbers  CLOSE_BRACKET'''
-
-    p[0] = Rpn_t_Vector(p[2])
-
-
-def p_vectors(p):
-    '''vectors :  vector
-               |  vector  vectors'''
-
-    lnwriteln("{}: len={}".format(whoami(), len(p)))
-    if len(p) == 2:
-        p[0] = Rpn_List(p[1])
-    elif len(p) == 3:
-        p[0] = Rpn_List(p[1], p[2])
 
 
 def p_word(p):
@@ -1452,6 +1354,109 @@ def p_word(p):
     else:
         p[0] = word
 
+
+#
+##      Stackables (numbers, mostly)
+#
+def p_stackable(p):
+    '''stackable :  number
+                 |  string
+                 |  vector
+                 |  matrix
+                 |  fetch_var'''
+
+    p[0] = Rpn_Stackable(p[1])
+
+
+def p_number(p):
+    '''number :  real
+              |  rational
+              |  complex'''
+
+    p[0] = p[1]
+
+
+def p_real(p):
+    '''real :  integer
+            |  float'''
+
+    p[0] = p[1]
+
+
+def p_integer(p):
+    '''integer :  INTEGER'''
+
+    p[0] = Rpn_t_Integer(p[1])
+
+
+def p_float(p):
+    '''float :  FLOAT'''
+
+    p[0] = Rpn_t_Float(p[1])
+
+
+def p_rational(p):
+    '''rational :  integer  TILDE  integer'''
+
+    p[0] = Rpn_t_Rational(p[1].value(), p[3].value())
+
+
+def p_complex(p):
+    '''complex :  OPEN_PAREN  real  COMMA  real  CLOSE_PAREN '''
+    p[0] = Rpn_t_Complex(p[2].value(), p[4].value())
+
+
+def p_string(p):
+    '''string :  STRING'''
+
+    p[0] = Rpn_t_String(p[1])
+
+
+def p_vector(p):
+    '''vector :  OPEN_BRACKET  numbers  CLOSE_BRACKET'''
+
+    p[0] = Rpn_t_Vector(p[2])
+
+
+def p_numbers(p):
+    '''numbers :  number
+               |  number  numbers'''
+
+    if len(p) == 2:
+        p[0] = Rpn_List(p[1])
+    elif len(p) == 3:
+        p[0] = Rpn_List(p[1], p[2])
+
+
+def p_matrix(p):
+    '''matrix :  OPEN_BRACKET  vectors  CLOSE_BRACKET'''
+
+    p[0] = Rpn_t_Matrix(p[2])
+
+
+def p_vectors(p):
+    '''vectors :  vector
+               |  vector  vectors'''
+
+    lnwriteln("{}: len={}".format(whoami(), len(p)))
+    if len(p) == 2:
+        p[0] = Rpn_List(p[1])
+    elif len(p) == 3:
+        p[0] = Rpn_List(p[1], p[2])
+
+
+def p_fetch_var(p):
+    '''fetch_var :  AT_SIGN  IDENTIFIER'''
+
+    global parse_error
+    id = p[2]
+    # lnwriteln("{}: Looking up {}".format(whoami(), id))
+    (var, _) = lookup_variable(id)
+    if var is None:
+        lnwriteln("@{}: Variable not found".format(id))
+        parse_error = True
+        raise SyntaxError
+    p[0] = Rpn_Fetch_Var(id, var)
 
 
 
@@ -3220,13 +3225,14 @@ def lnwriteln(s):
 
 #############################################################################
 #
-#       P R I M A R Y   W O R D S   &   F U N C T I O N S
+#       M A I N   L O O P   &   P R I M A R Y   F U N C T I O N S
 #
 #############################################################################
 def initialize():
     global rpn_version, default_protected
 
     random.seed()
+    push_scope(global_scope, "Global scope")
     w_clflag()
     define_variables()
     define_secondary_words()
@@ -3234,7 +3240,7 @@ def initialize():
     # Read & define ROWS and COLS via stty(1)
     sigwinch_handler(0, 0)
 
-    # User mode stuff
+    # Switch to user mode; words are no longer protected
     default_protected = False
 
     init_file = os.path.expanduser("~/.rpn2rc")
@@ -3253,12 +3259,14 @@ def define_variables():
 def define_secondary_words():
     eval_string("""
 
-: BL  doc:"BL  ( -- 32 )   ASCII code for a space character"
-      32 ;
-: space  doc:"space   Display one space character"
-         BL emit ;
-: spaces  doc:"spaces  ( n -- )   Display N space characters"
-          0 do space loop ;
+: BL            doc:"BL  ( -- 32 )   ASCII code for a space character"
+  32 ;
+
+: space         doc:"space   Display one space character"
+  BL emit ;
+
+: spaces        doc:"spaces  ( n -- )   Display N space characters"
+  0 do space loop ;
 
 """)
 
@@ -3336,9 +3344,6 @@ param_stack  = Rpn_Stack()
 return_stack = Rpn_Stack()
 scope_stack  = Rpn_Stack()
 string_stack = Rpn_Stack()
-
-#print("Creating Global scope {}".format(global_scope))
-push_scope(global_scope, "Global scope")
 
 if __name__ == "__main__":
     signal.signal(signal.SIGQUIT, sigquit_handler)
