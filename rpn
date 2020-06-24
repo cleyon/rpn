@@ -3,6 +3,7 @@
 rpn_version = 15.3
 
 import cmath
+import getopt
 import inspect
 import itertools
 import math
@@ -18,9 +19,11 @@ from fractions  import Fraction
 from rpn_lex    import tokens
 
 # Global variables
-angle_mode        = "r"  # r=radians, d=degrees, g=grads (not supported)
+angle_mode        = "d"  # r=radians, d=degrees, g=grads (not supported)
 default_protected = True
 flag_max          = 64
+force_interactive = False
+go_interactive    = True
 parse_error       = False
 rpn_debug         = False
 show_x            = False
@@ -3309,6 +3312,28 @@ def lookup_word(name):
     return (None, None)
 
 
+def parse_args():
+    try:
+        opts, argv = getopt.getopt(sys.argv[1:], "di")
+    except getopt.GetoptError as e:
+        print(str(e))
+        usage()
+        sys.exit(2)
+
+    for opt, arg in opts:
+        if opt == "-d":
+            global rpn_debug
+            rpn_debug = True
+        elif opt == "-i":
+            global force_interactive
+            force_interactive = True
+        else:
+            print("Unhandled option {}".format(opt))
+            sys.exit(2)
+
+    return argv
+
+
 def prompt_string():
     global angle_mode
     return "[{}{}] ".format(angle_mode, param_stack.size())
@@ -3390,6 +3415,14 @@ def lnwriteln(s):
 #       M A I N   L O O P   &   P R I M A R Y   F U N C T I O N S
 #
 #############################################################################
+def usage():
+    print("""
+Usage: rpn [-d] [-i] cmds...
+
+-d      Enable debugging
+-i      Force interactive mode""")
+
+
 def initialize():
     global rpn_version, default_protected
 
@@ -3399,15 +3432,29 @@ def initialize():
     define_variables()
     define_secondary_words()
 
-    # Read & define ROWS and COLS via stty(1)
-    sigwinch_handler(0, 0)
+    # Set up signal handling
+    signal.signal(signal.SIGQUIT, sigquit_handler)
+    signal.signal(signal.SIGWINCH, sigwinch_handler)
+    sigwinch_handler(0, 0)      # Read & define ROWS and COLS via stty(1)
 
     # Switch to user mode; words are no longer protected
     default_protected = False
 
-    init_file = os.path.expanduser("~/.rpn2rc")
+    # Attempt to load the user's init file
+    init_file = os.path.expanduser("~/.rpnrc")
     if os.path.isfile(init_file):
         load_file(init_file)
+
+    # Parse command line
+    argv = parse_args()
+
+    if len(argv) > 0:
+        global go_interactive
+        if not force_interactive:
+            go_interactive = False
+        for arg in argv:
+            #print("arg='{}'".format(arg))
+            eval_string(arg)
 
 
 def define_variables():
@@ -3437,6 +3484,7 @@ def main_loop():
     global rpn_debug
     global parse_error
     global show_x
+    show_x = False              # Reset, because some argv may have set it to True
 
     while True:
         if global_scope.variable('#OUT').obj().value() != 0:
@@ -3508,16 +3556,17 @@ scope_stack  = Rpn_Stack()
 string_stack = Rpn_Stack()
 
 if __name__ == "__main__":
-    signal.signal(signal.SIGQUIT, sigquit_handler)
-    signal.signal(signal.SIGWINCH, sigwinch_handler)
     initialize()
-    w_ver()
-    try:
-        main_loop()
-    except Rpn_E_End_Program:
-        pass
-    except Rpn_E_Fatal as e:
-        if len(e._message) > 0:
-            lnwriteln("Fatal error: {}".format(e))
-        sys.exit(1)
+    if go_interactive:
+        w_ver()
+        if not param_stack.empty():
+            w_dot_s()
+        try:
+            main_loop()
+        except Rpn_E_End_Program:
+            pass
+        except Rpn_E_Fatal as e:
+            if len(e._message) > 0:
+                lnwriteln("Fatal error: {}".format(e))
+            sys.exit(1)
     do_exit()
