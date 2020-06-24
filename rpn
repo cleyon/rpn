@@ -2,6 +2,7 @@
 
 rpn_version = 15.3
 
+import calendar
 import cmath
 import datetime
 import getopt
@@ -16,6 +17,7 @@ import re
 import signal
 import subprocess
 import sys
+import time
 
 from fractions  import Fraction
 from rpn_lex    import tokens
@@ -794,8 +796,7 @@ class Rpn_Sequence:
 
 class Rpn_Stack:
     def __init__(self):
-        self._stack = []
-        self._nitems = 0
+        self.clear()
 
     def clear(self):
         self._stack = []
@@ -817,6 +818,18 @@ class Rpn_Stack:
         self._nitems -= 1
         return self._stack.pop()
 
+    def pick(self, n):
+        if n < 0 or n >= self.size():
+            raise Rpn_E_Fatal("{}: Bad index".format(whoami()))
+        return self._stack[self.size() - 1 - n]
+
+    def roll(self, n):
+        if n < 0 or n >= self.size():
+            raise Rpn_E_Fatal("{}: Bad index".format(whoami()))
+        item = self._stack.pop(self.size() - 1 - n)
+        self._nitems -= 1
+        self.push(item)
+
     def top(self):
         if self.empty():
             raise Rpn_E_Fatal("{}: Empty stack".format(whoami()))
@@ -827,7 +840,7 @@ class Rpn_Stack:
         i = self._nitems + 1
         for item in self._stack:
             i -= 1
-            yield (i, item)
+            yield (i-1, item)
 
     def items_top_to_bottom(self):
         """Return stack items from top to bottom."""
@@ -1079,6 +1092,7 @@ def p_execute(p):
     except KeyboardInterrupt:
         # CTRL/C while executing returns to top level prompt
         show_x = False
+        writeln("[Interrupt]")
         raise Rpn_E_Top_Level()
     except Rpn_E_Abort as e:
         if len(e._message) > 0:
@@ -1877,7 +1891,8 @@ def w_slash():
     show_x = True
 
 
-@defword(name='0=', args=1)
+@defword(name='0=', args=1, doc="""\
+Return TRUE if X is equal to zero  ( x -- flag )""")
 def w_zero_equal():
     x = param_stack.pop()
     if type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex]:
@@ -1907,7 +1922,7 @@ def w_semicolon():
 
 
 @defword(name='<', args=2, doc="""\
-Return true flag if Y is less than X  ( y x -- flag )""")
+Return TRUE if Y is less than X  ( y x -- flag )""")
 def w_less_than():
     x = param_stack.pop()
     y = param_stack.pop()
@@ -1925,7 +1940,7 @@ def w_less_than():
 
 
 @defword(name='<=', args=2, doc="""\
-Return true flag if Y is less than or equal to X  ( y x -- flag )""")
+Return TRUE if Y is less than or equal to X  ( y x -- flag )""")
 def w_less_than_or_equal():
     x = param_stack.pop()
     y = param_stack.pop()
@@ -1943,7 +1958,7 @@ def w_less_than_or_equal():
 
 
 @defword(name='=', args=2, doc="""\
-Return true flag if Y is equal to X  ( y x -- flag )""")
+Return TRUE if Y is equal to X  ( y x -- flag )""")
 def w_equal():
     """\
 |----------+----------+---------+----------+---------+--------+--------|
@@ -1969,7 +1984,7 @@ def w_equal():
          or type(y) is Rpn_t_Complex and type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex]:
         flag = complex(y.value()) == complex(x.value())
     # XXX - it should be possible to compare vectors and matrices for equality:
-    # check dimensions and components match
+    # Check if dimensions and components match
     else:
         param_stack.push(y)
         param_stack.push(x)
@@ -1980,7 +1995,7 @@ def w_equal():
 
 
 @defword(name='>', args=2, doc="""\
-Return true flag if Y is greater than X  ( y x -- flag )""")
+Return TRUE if Y is greater than X  ( y x -- flag )""")
 def w_greater_than():
     x = param_stack.pop()
     y = param_stack.pop()
@@ -1998,7 +2013,7 @@ def w_greater_than():
 
 
 @defword(name='>=', args=2, doc="""\
-Return true flag if Y is greater than or equal to X  ( y x -- flag )""")
+Return TRUE if Y is greater than or equal to X  ( y x -- flag )""")
 def w_less_than_or_equal():
     x = param_stack.pop()
     y = param_stack.pop()
@@ -2034,15 +2049,19 @@ def w_query_dup():
 
 
 @defword(name='abort', doc="""\
-Abort execution and return to top level""")
+Abort execution and return to top level
+
+qv ABORT", EXIT, LEAVE""")
 def w_abort():
     raise Rpn_E_Abort()
 
 
 @defword(name='abort"', doc="""\
-Conditionally abort execution  ( f -- )
+Conditionally abort execution  ( flag -- )
 If flag is non-zero, abort execution and print a message
-(up to the closing quotation mark) and return to top level""")
+(up to the closing quotation mark) and return to top level
+
+qv ABORT, EXIT, LEAVE""")
 def w_abort_quote():
     pass                        # Grammar rules handle this word
 
@@ -2230,7 +2249,8 @@ def w_cr():
     writeln()
 
 
-@defword(name='d->jd', args=1)
+@defword(name='d->jd', args=1, doc="""\
+Convert date to Julian day number ( MM.DDYYYY -- julian )""")
 def w_d_to_jd():
     x = param_stack.pop()
     if type(x) is not Rpn_t_Float:
@@ -2261,7 +2281,8 @@ def w_d_to_r():
     show_x = True
 
 
-@defword(name='date')
+@defword(name='date', doc="""\
+Current date  ( -- MM.DDYYYY )""")
 def w_date():
     d = datetime.date.today().strftime("%m.%d%Y")
     param_stack.push(Rpn_t_Float(d))
@@ -2524,6 +2545,13 @@ def w_endof():
     pass                        # Grammar rules handle this word
 
 
+@defword(name='epoch', doc="""\
+Seconds since epoch  ( -- secs )""")
+def w_epoch():
+    now = calendar.timegm(time.gmtime())
+    param_stack.push(Rpn_t_Integer(now))
+
+
 @defword(name='eval', str_args=1)
 def w_eval():
     s = string_stack.pop().value()
@@ -2674,7 +2702,11 @@ def w_if():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='jd->d', args=1)
+@defword(name='jd->d', args=1, doc="""\
+Convert julian day number to date  ( julian -- MM.DDYYYY )
+
+EXAMPLE:
+2369915 jd->d  ==>  7.041776""")
 def w_jd_to_d():
     x = param_stack.pop()
     if type(x) is not Rpn_t_Integer:
@@ -2691,7 +2723,10 @@ def w_jd_to_d():
     global show_x
     show_x = True
 
-@defword(name='key')
+
+@defword(name='key', doc="""\
+Return ASCII code of single keystroke  ( -- key )
+KEY will block until input is provided.""")
 def w_key():
     k = _Getch()()
     val = ord(k) if k != '' else 0
@@ -2978,6 +3013,23 @@ def w_PI():
     show_x = True
 
 
+@defword(name='pick', args=1, doc="""\
+Pick an element from the stack  ( x -- )
+0 PICK ==> DUP, 1 PICK ==> OVER""")
+def w_pick():
+    x = param_stack.pop()
+    if type(x) is not Rpn_t_Integer:
+        param_stack.push(x)
+        raise TypeError("pick: Type error ({})".format(type(x).__name__))
+
+    if x.value() < 0 or x.value() >= param_stack.size():
+        param_stack.push(x)
+        raise ValueError("pick: Index out of range (0..{} expected)".format(param_stack.size()-2))
+
+    result = param_stack.pick(x.value())
+    param_stack.push(result)
+
+
 @defword(name='r->d', args=1, doc="""\
 Convert radians to degrees ( rad -- deg )""")
 def w_r_to_d():
@@ -2990,6 +3042,16 @@ def w_r_to_d():
     param_stack.push(result)
     global show_x
     show_x = True
+
+
+@defword(name='r.s', doc="""\
+Display return stack""")
+def w_r_dot_s():
+    for (i, item) in return_stack.items_bottom_to_top():
+        # Prefix with "r" to prevent confusion with .s
+        lnwriteln("r{}: {}".format(i, item))
+    global show_x
+    show_x = False
 
 
 @defword(name='r>', doc="""\
@@ -3008,13 +3070,15 @@ def w_r_fetch():
     param_stack.push(return_stack.top())
 
 
-@defword(name='rad')
+@defword(name='rad', doc="""\
+Set angular mode to radians""")
 def w_rad():
     global angle_mode
     angle_mode = "r"
 
 
-@defword(name='rad?')
+@defword(name='rad?', doc="""\
+Return TRUE if angular mode is radians  ( -- flag )""")
 def w_rad_query():
     global angle_mode
     param_stack.push(Rpn_t_Integer(1 if angle_mode == "r" else 0))
@@ -3031,6 +3095,7 @@ def w_rand():
     show_x = True
 
 
+# XXX - I do not like this name!
 @defword(name='rclst', doc="""\
 Clear the return stack.
 Do not do this inside a DO loop!""")
@@ -3049,6 +3114,22 @@ while something is true, rather than until it becomes true.
 qv BEGIN, AGAIN, LEAVE, UNTIL, WHILE""")
 def w_repeat():
     pass                        # Grammar rules handle this word
+
+
+@defword(name='roll', args=1, doc="""\
+Roll stack elements  ( x -- )
+1 ROLL ==> SWAP, 2 ROLL ==> ROT""")
+def w_roll():
+    x = param_stack.pop()
+    if type(x) is not Rpn_t_Integer:
+        param_stack.push(x)
+        raise TypeError("roll: Type error ({})".format(type(x).__name__))
+
+    if x.value() < 0 or x.value() >= param_stack.size():
+        param_stack.push(x)
+        raise ValueError("roll: Index out of range (0..{} expected)".format(param_stack.size()-2))
+
+    param_stack.roll(x.value())
 
 
 @defword(name='rot', args=3, doc="""\
@@ -3141,6 +3222,19 @@ def w_sin():
     show_x = True
 
 
+@defword(name='sleep', args=1, doc="""\
+Sleep for N seconds  ( n -- )
+N may be fractional.""")
+def w_sleep():
+    x = param_stack.pop()
+    if type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational]:
+        sleep_time = float(x.value())
+        time.sleep(sleep_time)
+    else:
+        param_stack.push(x)
+        raise TypeError("sleep: Type error ({})".format(type(x).__name__))
+
+
 @defword(name='sqrt', args=1, doc="""\
 Square root  ( x -- sqrt(x) )
 Negative X returns a complex number""")
@@ -3219,7 +3313,8 @@ def w_then():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='time')
+@defword(name='time', doc="""\
+Current time  ( -- HH.MMSS )""")
 def w_time():
     t = datetime.datetime.now().strftime("%H.%M%S")
     param_stack.push(Rpn_t_Float(t))
@@ -3227,7 +3322,8 @@ def w_time():
     show_x = True
 
 
-@defword(name='time!')
+@defword(name='time!', doc="""\
+High precision clock time  ( -- HH.MMSSsssss )""")
 def w_time_bang():
     t = datetime.datetime.now().strftime("%H.%M%S%f")
     param_stack.push(Rpn_t_Float(t))
@@ -3297,7 +3393,9 @@ def w_ver():
     lnwriteln("RPN version {}".format(global_scope.variable('VER').obj().value()))
 
 
-@defword(name='vlist')
+@defword(name='vlist', doc="""\
+Print the list of defined words.
+Only words in the global scope are shown.""")
 def w_vlist():
     words = dict()
     for wordname in global_scope.words():
@@ -3646,12 +3744,12 @@ def write(s):
         s = s[newline+1:]
         newline = s.find("\n")
     outval += len(s)
-    print(s, end='')
+    print(s, end='', flush=True)
     sharpout.set_obj(Rpn_t_Integer(outval))
 
 def writeln(s=""):
     sharpout = global_scope.variable('#OUT')
-    print(s)
+    print(s, flush=True)
     sharpout.set_obj(Rpn_t_Integer(0))
 
 def lnwriteln(s):
