@@ -1798,7 +1798,8 @@ def w_minus_rot():
 
 @defword(name='.', args=1, doc="""\
 Print top stack value  ( x -- )
-A space is also printed after the number, but no newline.""")
+A space is also printed after the number, but no newline.
+If you need a newline, call CR.""")
 def w_dot():
     write("{} ".format(str(param_stack.pop())))
     global show_x
@@ -2690,6 +2691,14 @@ def w_jd_to_d():
     global show_x
     show_x = True
 
+@defword(name='key')
+def w_key():
+    k = _Getch()()
+    val = ord(k) if k != '' else 0
+    #lnwriteln("You pressed <{}>, value={}".format(k, val))
+    param_stack.push(Rpn_t_Integer(val))
+
+
 @defword(name='leave', doc="""\
 Exit a DO or BEGIN loop immediately.""")
 def w_leave():
@@ -3210,6 +3219,22 @@ def w_then():
     pass                        # Grammar rules handle this word
 
 
+@defword(name='time')
+def w_time():
+    t = datetime.datetime.now().strftime("%H.%M%S")
+    param_stack.push(Rpn_t_Float(t))
+    global show_x
+    show_x = True
+
+
+@defword(name='time!')
+def w_time_bang():
+    t = datetime.datetime.now().strftime("%H.%M%S%f")
+    param_stack.push(Rpn_t_Float(t))
+    global show_x
+    show_x = True
+
+
 @defword(name='TRUE')
 def w_TRUE():
     param_stack.push(Rpn_t_Integer(1))
@@ -3407,6 +3432,46 @@ def flag_test(flag):
     if flag < 0 or flag > flag_max - 1:
         raise Rpn_E_Fatal("{}: Flag {} out of range".format(whoami(), flag))
     return True if flags_vec & 1<<flag != 0 else False
+
+
+# Helper routines for KEY
+class _Getch_Windows:
+    def __init__(self):
+        import msvcrt
+
+    def __call__(self):
+        import msvcrt
+        return msvcrt.getch()
+
+
+class _Getch_Unix:
+    def __init__(self):
+        # import termios now or else you'll get the Unix version on the Mac
+        import tty, sys, termios
+
+    def __call__(self):
+        import sys, tty, termios
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(sys.stdin.fileno())
+            ch = sys.stdin.read(1)
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        return ch
+
+
+class _Getch:
+    """Gets a single character from standard input.  Does not echo to the screen."""
+
+    def __init__(self):
+        try:
+            self.impl = _Getch_Windows()
+        except ImportError:
+            self.impl = _Getch_Unix()
+
+
+    def __call__(self): return self.impl()
 
 
 # Jeffrey Magedanz - https://stackoverflow.com/posts/42602689/revisions
