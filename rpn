@@ -479,6 +479,8 @@ class Rpn_If:
         if param_stack.empty():
             raise RuntimeError("if: Insufficient parameters (1 required)")
         flag = param_stack.pop()
+        # XXX - should any non-zero value be true?
+        # XXX - make sure Rpn_If_Else is consistent.
         if type(flag) is not Rpn_t_Integer:
             param_stack.push(flag)
             raise TypeError("if: Flag must be an integer")
@@ -1851,7 +1853,44 @@ def w_semicolon():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='=', args=2)
+@defword(name='<', args=2, doc="""\
+Return true flag if Y is less than X  ( y x -- flag )""")
+def w_less_than():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if     type(x) in [Rpn_t_Integer, Rpn_t_Rational, Rpn_t_Float] \
+       and type(y) in [Rpn_t_Integer, Rpn_t_Rational, Rpn_t_Float]:
+        yval = float(y.value())
+        xval = float(x.value())
+        param_stack.push(Rpn_t_Integer(1 if yval < xval else 0))
+    else:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("<: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+    global show_x
+    show_x = True
+
+
+@defword(name='<=', args=2, doc="""\
+Return true flag if Y is less than or equal to X  ( y x -- flag )""")
+def w_less_than_or_equal():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if     type(x) in [Rpn_t_Integer, Rpn_t_Rational, Rpn_t_Float] \
+       and type(y) in [Rpn_t_Integer, Rpn_t_Rational, Rpn_t_Float]:
+        yval = float(y.value())
+        xval = float(x.value())
+        param_stack.push(Rpn_t_Integer(1 if yval <= xval else 0))
+    else:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("<=: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+    global show_x
+    show_x = True
+
+
+@defword(name='=', args=2, doc="""\
+Return true flag if Y is equal to X  ( y x -- flag )""")
 def w_equal():
     """\
 |----------+----------+---------+----------+---------+--------+--------|
@@ -1876,11 +1915,49 @@ def w_equal():
     elif    type(x) is Rpn_t_Complex and type(y) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex] \
          or type(y) is Rpn_t_Complex and type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex]:
         flag = complex(y.value()) == complex(x.value())
+    # XXX - it should be possible to compare vectors and matrices for equality:
+    # check dimensions and components match
     else:
         param_stack.push(y)
         param_stack.push(x)
         raise TypeError("=: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
     param_stack.push(Rpn_t_Integer(1 if flag else 0))
+    global show_x
+    show_x = True
+
+
+@defword(name='>', args=2, doc="""\
+Return true flag if Y is greater than X  ( y x -- flag )""")
+def w_greater_than():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if     type(x) in [Rpn_t_Integer, Rpn_t_Rational, Rpn_t_Float] \
+       and type(y) in [Rpn_t_Integer, Rpn_t_Rational, Rpn_t_Float]:
+        yval = float(y.value())
+        xval = float(x.value())
+        param_stack.push(Rpn_t_Integer(1 if yval > xval else 0))
+    else:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError(">: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+    global show_x
+    show_x = True
+
+
+@defword(name='>=', args=2, doc="""\
+Return true flag if Y is greater than or equal to X  ( y x -- flag )""")
+def w_less_than_or_equal():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if     type(x) in [Rpn_t_Integer, Rpn_t_Rational, Rpn_t_Float] \
+       and type(y) in [Rpn_t_Integer, Rpn_t_Rational, Rpn_t_Float]:
+        yval = float(y.value())
+        xval = float(x.value())
+        param_stack.push(Rpn_t_Integer(1 if yval >= xval else 0))
+    else:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError(">=: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
     global show_x
     show_x = True
 
