@@ -1953,7 +1953,7 @@ def w_less_than_or_equal():
        and type(y) in [Rpn_t_Integer, Rpn_t_Rational, Rpn_t_Float]:
         yval = float(y.value())
         xval = float(x.value())
-        param_stack.push(Rpn_t_Integer(1 if yval >= xval else 0))
+        param_stack.push(Rpn_Integer(1 if yval >= xval else 0))
     else:
         param_stack.push(y)
         param_stack.push(x)
