@@ -102,6 +102,11 @@ def t_D_TO_R(t):
     t.type = 'IDENTIFIER'
     return t
 
+def t_DATE_MINUS(t):
+    r'date-'
+    t.type = 'IDENTIFIER'
+    return t
+
 def t_EXCLAM(t):
     r'!'
     t.type = 'EXCLAM'
@@ -124,6 +129,16 @@ def t_R_FETCH(t):
 
 def t_R_TO_D(t):
     r'r->d'
+    t.type = 'IDENTIFIER'
+    return t
+
+def t_JD_TO_D(t):
+    r'jd->d'
+    t.type = 'IDENTIFIER'
+    return t
+
+def t_D_TO_JD(t):
+    r'd->jd'
     t.type = 'IDENTIFIER'
     return t
 

@@ -3,6 +3,7 @@
 rpn_version = 15.3
 
 import cmath
+import datetime
 import getopt
 import inspect
 import itertools
@@ -11,6 +12,7 @@ import numpy    as np
 import os
 import ply.yacc as yacc
 import random
+import re
 import signal
 import subprocess
 import sys
@@ -423,6 +425,54 @@ class Rpn_t_Float:
 
     def zerop(self):
         return self.value() == 0.0
+
+    def date_info(self):
+        """A float in the form MM.DDYYYY might represent a date.
+Extract some information about a date formatted this way.
+Success:  (True, dateobj, julian)
+          dateobj is datetime.date, julian is an int
+Failure:  (False, None, None)"""
+
+        date_re = r'^(\d{1,2})\.(\d{2})(\d{4})$'
+        date_pat = re.compile(date_re)
+        match = date_pat.match("%.6f" % self.value())
+        if match is None:
+            return (False, None, None)
+
+        mm   = match.group(1)
+        dd   = match.group(2)
+        yyyy = match.group(3)
+        try:
+            dateobj = datetime.date(int(yyyy), int(mm), int(dd))
+        except ValueError:
+            return (False, None, None)
+
+        # date.toordinal() returns 1 for 0001-01-01, so compensate
+        julian = dateobj.toordinal() + 1721424
+        return (True, dateobj, julian)
+
+    def time_info(self):
+        """A float in the format HH.MMSSsss might represent a time.
+Extract some information about a time formatted this way.
+Note: This routine can unpack an arbitrary number of hours, potentially
+greater than 24, so there may not be a valid timeobj even if it parses okay.
+Success:  (True, HH, MM, SS, timeobj)
+Failure:  (False, None, None, None, None)"""
+
+        time_re = r'^(\d+)\.(\d{,2})(\d*)$'
+        time_pat = re.compile(time_re)
+        match = time_pat.match("%f" % self.value())
+        if match is None:
+            return (False, None, None, None, None)
+
+        hh = match.group(1)
+        mm = match.group(2)
+        ss = match.group(3)
+        try:
+            timeobj = datetime.time(int(hh), int(mm), int(ss))
+        except ValueError:
+            timeobj = None
+        return (True, hh, mm, ss, timeobj)
 
     def __str__(self):
         return "{}".format(self.value()) # sprintf
@@ -1801,7 +1851,7 @@ def w_slash():
        and x.zerop():
         param_stack.push(y)
         param_stack.push(x)
-        raise ValueError("/: Argument cannot be zero")
+        raise ValueError("/: X cannot be zero")
 
     if    type(x) is Rpn_t_Rational and type(y) in [Rpn_t_Integer, Rpn_t_Rational] \
        or type(y) is Rpn_t_Rational and type(x) in [Rpn_t_Integer, Rpn_t_Rational]:
@@ -2091,7 +2141,7 @@ def w_cf():
     if type(x) is Rpn_t_Integer:
         if x.value() < 0 or x.value() > flag_max - 1:
             param_stack.push(x)
-            raise ValueError("cf: Argument out of range (0..{} expected)".format(flag_max - 1))
+            raise ValueError("cf: Flag out of range (0..{} expected)".format(flag_max - 1))
         flag_clear(x.value())
     else:
         param_stack.push(x)
@@ -2179,6 +2229,23 @@ def w_cr():
     writeln()
 
 
+@defword(name='d->jd', args=1)
+def w_d_to_jd():
+    x = param_stack.pop()
+    if type(x) is not Rpn_t_Float:
+        param_stack.push(x)
+        raise TypeError("d->jd: Type error ({})".format(type(x).__name__))
+
+    (valid, dateobj, julian) = x.date_info()
+    if not valid:
+        param_stack.push(x)
+        raise ValueError("d->jd: {} is not a valid date".format(x.value()))
+
+    param_stack.push(Rpn_t_Integer(julian))
+    global show_x
+    show_x = True
+
+
 @defword(name='d->r', args=1, doc="""\
 Convert degrees to radians ( deg -- rad )""")
 def w_d_to_r():
@@ -2189,6 +2256,91 @@ def w_d_to_r():
         param_stack.push(x)
         raise TypeError("d->r: Type error ({})".format(type(x).__name__))
     param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='date')
+def w_date():
+    d = datetime.date.today().strftime("%m.%d%Y")
+    param_stack.push(Rpn_t_Float(d))
+    global show_x
+    show_x = True
+
+
+@defword(name='date+', args=2, doc="""\
+Add N days to date  ( date1 N -- date2 )""")
+def w_date_plus():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if type(x) is not Rpn_t_Integer or type(y) is not Rpn_t_Float:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("date+: Type error ({})".format(type(y).__name__, type(y).__name__))
+
+    (valid, dateobj, julian) = y.date_info()
+    if not valid:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise ValueError("date+: {} is not a valid date".format(y.value()))
+
+    new_julian = julian + x.value()
+    dateobj = datetime.date.fromordinal(new_julian - 1721424)
+    result = Rpn_t_Float("%d.%02d%04d" % (dateobj.month, dateobj.day, dateobj.year))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='date-', args=2, doc="""\
+Subtract N days from date  ( date1 N -- date2 )""")
+def w_date_minus():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if type(x) is not Rpn_t_Integer or type(y) is not Rpn_t_Float:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("date-: Type error ({})".format(type(y).__name__, type(y).__name__))
+
+    (valid, dateobj, julian) = y.date_info()
+    if not valid:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise ValueError("date-: {} is not a valid date".format(y.value()))
+
+    new_julian = julian - x.value()
+    dateobj = datetime.date.fromordinal(new_julian - 1721424)
+    result = Rpn_t_Float("%d.%02d%04d" % (dateobj.month, dateobj.day, dateobj.year))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='ddays', args=2, doc="""\
+Number of days between two dates  ( date1 date2 -- ddays )""")
+def w_ddays():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if type(x) is not Rpn_t_Float or type(y) is not Rpn_t_Float:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("ddays: Type error ({})".format(type(y).__name__, type(y).__name__))
+
+    (valid, dateobj, xjulian) = x.date_info()
+    if not valid:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise ValueError("ddays: {} is not a valid date".format(x.value()))
+
+    (valid, dateobj, yjulian) = y.date_info()
+    if not valid:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise ValueError("ddays: {} is not a valid date".format(y.value()))
+
+    # Y is expected to be earlier, so we subtract in this order to get a
+    # positive value for "later"
+    param_stack.push(Rpn_t_Integer(xjulian - yjulian))
     global show_x
     show_x = True
 
@@ -2270,6 +2422,25 @@ prints 0 1 2 3 4 5 6 7 8 9
 qv I, LEAVE, LOOP, +LOOP""")
 def w_do():
     pass                        # Grammar rules handle this word
+
+
+@defword(name='dow', args=1, doc="""\
+Day of week  ( mm.ddyyyy -- dow )
+1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 7=Sun""")
+def w_dow():
+    x = param_stack.pop()
+    if type(x) is not Rpn_t_Float:
+        param_stack.push(x)
+        raise TypeError("dow: Type error ({})".format(type(x).__name__))
+
+    (valid, dateobj, julian) = x.date_info()
+    if not valid:
+        param_stack.push(x)
+        raise ValueError("dow: {} is not a valid date".format(x.value()))
+
+    param_stack.push(Rpn_t_Integer(dateobj.isoweekday()))
+    global show_x
+    show_x = True
 
 
 @defword(name='drop', args=1, doc="""\
@@ -2392,7 +2563,7 @@ def w_fact():
     if type(x) is Rpn_t_Integer:
         if x.value() < 0:
             param_stack.push(x)
-            raise ValueError("fact: Argument cannot be negative")
+            raise ValueError("fact: X cannot be negative")
         result = Rpn_t_Integer(fact_helper(x.value()))
     else:
         param_stack.push(x)
@@ -2415,7 +2586,7 @@ def w_fc_query():
     if type(x) is Rpn_t_Integer:
         if x.value() < 0 or x.value() > flag_max - 1:
             param_stack.push(x)
-            raise ValueError("fc?: Argument out of range (0..{} expected)".format(flag_max - 1))
+            raise ValueError("fc?: Flag out of range (0..{} expected)".format(flag_max - 1))
         result = Rpn_t_Integer(0 if flag_test(x.value()) else 1)
     else:
         param_stack.push(x)
@@ -2453,7 +2624,7 @@ def w_fs_query():
     if type(x) is Rpn_t_Integer:
         if x.value() < 0 or x.value() > flag_max - 1:
             param_stack.push(x)
-            raise ValueError("fs?: Argument out of range (0..{} expected)".format(flag_max - 1))
+            raise ValueError("fs?: Flag out of range (0..{} expected)".format(flag_max - 1))
         result = Rpn_t_Integer(1 if flag_test(x.value()) else 0)
     else:
         param_stack.push(x)
@@ -2502,6 +2673,23 @@ def w_if():
     pass                        # Grammar rules handle this word
 
 
+@defword(name='jd->d', args=1)
+def w_jd_to_d():
+    x = param_stack.pop()
+    if type(x) is not Rpn_t_Integer:
+        param_stack.push(x)
+        raise TypeError("jd->d: Type error ({})".format(type(x).__name__))
+
+    if x.value() < 1 or x.value() > datetime.date.max.toordinal():
+        param_stack.push(x)
+        raise ValueError("jd->d: X out of range (1..{} expected)".format(date.max.toordinal()))
+
+    dateobj = datetime.date.fromordinal(x.value() - 1721424)
+    result = Rpn_t_Float("%d.%02d%04d" % (dateobj.month, dateobj.day, dateobj.year))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
 @defword(name='leave', doc="""\
 Exit a DO or BEGIN loop immediately.""")
 def w_leave():
@@ -2517,7 +2705,7 @@ def w_lg():
     if     type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex] \
        and x.zerop():
         param_stack.push(x)
-        raise ValueError("lg: Argument cannot be zero")
+        raise ValueError("lg: X cannot be zero")
 
     if    type(x) is Rpn_t_Integer  and x.value() > 0 \
        or type(x) is Rpn_t_Float    and x.value() > 0.0 \
@@ -2549,7 +2737,7 @@ def w_ln():
     if     type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex] \
        and x.zerop():
         param_stack.push(x)
-        raise ValueError("ln: Argument cannot be zero")
+        raise ValueError("ln: X cannot be zero")
 
     if    type(x) is Rpn_t_Integer  and x.value() > 0 \
        or type(x) is Rpn_t_Float    and x.value() > 0.0 \
@@ -2587,7 +2775,7 @@ def w_log():
     if     type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex] \
        and x.zerop():
         param_stack.push(x)
-        raise ValueError("log: Argument cannot be zero")
+        raise ValueError("log: X cannot be zero")
 
     if    type(x) is Rpn_t_Integer  and x.value() > 0 \
        or type(x) is Rpn_t_Float    and x.value() > 0.0 \
@@ -2878,7 +3066,7 @@ def w_sf():
     if type(x) is Rpn_t_Integer:
         if x.value() < 0 or x.value() > flag_max - 1:
             param_stack.push(x)
-            raise ValueError("sf: Argument out of range (0..{} expected)".format(flag_max - 1))
+            raise ValueError("sf: Flag out of range (0..{} expected)".format(flag_max - 1))
         flag_set(x.value())
     else:
         param_stack.push(x)
