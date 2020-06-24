@@ -53,6 +53,21 @@ t_ignore_COMMENT    = r'\\.*'
 t_STRING            = r'\"([^\\\n]|(\\.))*?\"'
 
 
+def t_FLOAT(t):
+    r'[-+]?(\d+(\.\d*[eE][-+]?\d+|[eE][-+]?\d+|\.\d*))|(\d*(\.\d+[eE][-+]?\d+|[eE][-+]?\d+|\.\d+))'
+    t.value = float(t.value)
+    t.type = 'FLOAT'
+    return t
+
+# Beware bad input - e.g., "0b177" is parsed as two token, "0b1" and "77".
+# Note a little Python magic: int(xxx, 0) will guess base and parse "0x", etc.
+# On the whole, the benefits outweigh the drawbacks.
+def t_INTEGER(t):
+    r'[-+]?((((0x)|(0X))[0-9a-fA-F]+)|(((0o)|(0O))[0-7]+)|(((0b)|(0B))[0-1]+)|(\d+))'
+    t.value = int(t.value, 0)
+    t.type = 'INTEGER'
+    return t
+
 def t_ABORT_QUOTE(t):
     r'abort\"([^\\\n]|(\\.))*?\"'
     return t
@@ -132,11 +147,6 @@ def t_MINUS_ROT(t):
     t.type = 'IDENTIFIER'
     return t
 
-def t_MINUS(t):
-    r'-'
-    t.type = 'IDENTIFIER'
-    return t
-
 def t_ZERO_EQUALS(t):
     r'0='
     t.type = 'IDENTIFIER'
@@ -155,20 +165,14 @@ def t_DOT_QUOTE(t):
     r'.\"([^\\\n]|(\\.))*?\"'
     return t
 
-def t_FLOAT(t):
-    # t_CPP_FLOAT = r'((\d+)(\.\d+)(e(\+|-)?(\d+))? | (\d+)e(\+|-)?(\d+))([lL]|[fF])?'
-    r'((\d+)(\.\d+)(e(\+|-)?(\d+))?|(\d+)e(\+|-)?(\d+))'
-    return t
-
-def t_INTEGER(t):
-    # r'(\d)+'
-    r'(((((0x)|(0X))[0-9a-fA-F]+)|(\d+)))'
-    t.value = int(t.value)
-    return t
-
 def t_newline(t):
     r'\n+'
     t.lexer.lineno += len(t.value)
+
+def t_MINUS(t):
+    r'-'
+    t.type = 'IDENTIFIER'
+    return t
 
 def t_IDENTIFIER(t):
     r'[$%*+./0-9<=>A-Z^a-z][!$%*+./0-9<=>?A-Z^a-z]*'
