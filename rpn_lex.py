@@ -17,6 +17,7 @@ reserved_words = {
     'else'      : 'ELSE',
     'endcase'   : 'ENDCASE',
     'endof'     : 'ENDOF',
+    'forget'    : 'FORGET',
     'help'      : 'HELP',
     'if'        : 'IF',
     'loop'      : 'LOOP',

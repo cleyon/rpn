@@ -17,6 +17,34 @@ import sys
 from fractions  import Fraction
 from rpn_lex    import tokens
 
+# Global variables
+angle_mode        = "r"  # r=radians, d=degrees, g=grads (not supported)
+default_protected = True
+flag_max          = 64
+parse_error       = False
+rpn_debug         = False
+show_x            = False
+
+# DEG_PER_RAD  = 360 / TAU
+# E            = Base of natural logarithms = exp(1.0)
+# GAMMA        = Euler-Mascheroni constant, approx: 1 - tanh(ln(1.57)) - 0.57/(9!)
+# GRAD_PER_RAD = 400 / TAU
+# LN_2         = ln(2)
+# LN_10        = ln(10)
+# PHI          = Golden ratio = (1 + sqrt(5)) / 2
+# PI           = TAU / 2
+# TAU          = Number of radians in a circle
+GAMMA        =  0.5772156649015328606065120900824024310421593359399235988057672348848677267776646709369470632917467495
+LN_2         =  0.6931471805599453094172321214581765680755001343602552541206900094933936219696947156058633269964186875
+PHI          =  1.6180339887498948482045868343656381177203091798057628621354486227052604628189024497072072041893911375
+LN_10        =  2.3025850929940456840179914546843642076011014886287729760333279009675726096773524802359972050895982983
+E            =  2.7182818284590452353602874713526624977572470936999595749669676277240766303535475945713821785251664274
+PI           =  3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170680
+TAU          =  6.2831853071795864769252867665590057683943387987502116419498891846156328125724179972560696506842341360
+DEG_PER_RAD  = 57.2957795130823208767981548141051703324054724665643215491602438612028471483245526324409689958511109442
+GRAD_PER_RAD = 63.6619772367581343075535053490057448137838582961825794990669376235587190536906140360455211065012343824
+
+
 
 
 #############################################################################
@@ -24,52 +52,52 @@ from rpn_lex    import tokens
 #       S U P P O R T   C L A S S E S
 #
 #############################################################################
-class Rpn2Exception(Exception):
+class Rpn_Exception(Exception):
     def __init__(self, msg=""):
         self._message = msg
     def __str__(self):
         return str(self._message)
 
-class Rpn2Abort(Rpn2Exception):
-    """Rpn2Abort is raised by the ABORT and ABORT" words.
+class Rpn_E_Abort(Rpn_Exception):
+    """Rpn_E_Abort is raised by the ABORT and ABORT" words.
 It is caught in p_execute().  It clears the parameter and string stacks,"""
     pass
 
-class Rpn2EndProgram (Rpn2Exception):
-    """Rpn2EndProgram is raised when there is no more input to parse, or
+class Rpn_E_End_Program (Rpn_Exception):
+    """Rpn_E_End_Program is raised when there is no more input to parse, or
 the interrupt key is signaled.  It is caught in __main__, where processing
 is halted, the exit routine prints the stack, and the program exits."""
     pass
 
 # XXX - where should this be caught?
-class Rpn2Exit(Rpn2Exception):
-    """Rpn2Exit is raised by the word EXIT and terminates execution
+class Rpn_E_Exit(Rpn_Exception):
+    """Rpn_E_Exit is raised by the word EXIT and terminates execution
 of the current word."""
     pass
 
-class Rpn2Fatal(Rpn2Exception):
-    """Rpn2Fatal is raised whenever an internal error is detected that
+class Rpn_E_Fatal(Rpn_Exception):
+    """Rpn_E_Fatal is raised whenever an internal error is detected that
 forces the program to abend.  It is caught in __main__ and causes an
 immediate program termination."""
     pass
 
-class Rpn2Leave(Rpn2Exception):
-    """Rpn2Leave is raised by the LEAVE word.  This is caught by
+class Rpn_E_Leave(Rpn_Exception):
+    """Rpn_E_Leave is raised by the LEAVE word.  This is caught by
 BEGIN or DO loops, and causes an immediate exit from the enclosing loop.
 If a loop is not currently executing, it is caught in p_execute() and
 an error message is printed."""
     pass
 
-class Rpn2TopLevel(Rpn2Exception):
-    """Rpn2TopLevel causes an immediate return to the top level prompt.
+class Rpn_E_Top_Level(Rpn_Exception):
+    """Rpn_E_Top_Level causes an immediate return to the top level prompt.
 It is caught in main_loop."""
     pass
 
 
-class Rpn2AbortQuote:
+class Rpn_Abort_Quote:
     def __init__(self, val):
         if len(val) < 7 or val[0:6] != 'abort"' or val[-1] != '"':
-            raise Rpn2Fatal("{}: Malformed string: '{}'".format(whoami(), val))
+            raise Rpn_E_Fatal("{}: Malformed string: '{}'".format(whoami(), val))
         self._str = val[6:-1]
 
     def stringval(self):
@@ -79,12 +107,12 @@ class Rpn2AbortQuote:
         if param_stack.empty():
             raise RuntimeError("abort\": Insufficient parameters (1 required)")
         flag = param_stack.pop()
-        if type(flag) is not Rpn2Integer:
+        if type(flag) is not Rpn_t_Integer:
             param_stack.push(flag)
             raise TypeError("abort\": Flag must be an integer")
         if flag.value() != 0:
             lnwriteln("{}".format(self.stringval()))
-            raise Rpn2Abort()
+            raise Rpn_E_Abort()
 
     def __str__(self):
         return "abort\"{}\"".format(self.stringval())
@@ -94,7 +122,7 @@ class Rpn2AbortQuote:
 
 
 
-class Rpn2BeginAgain:
+class Rpn_Begin_Again:
     def __init__(self, seq):
         self._seq = seq
 
@@ -102,7 +130,7 @@ class Rpn2BeginAgain:
         try:
             while True:
                 self._seq.__call__()
-        except Rpn2Leave:
+        except Rpn_E_Leave:
             pass
 
     def __str__(self):
@@ -112,7 +140,7 @@ class Rpn2BeginAgain:
         return "BeginAgain[{}]".format(repr(self._seq))
 
 
-class Rpn2BeginUntil:
+class Rpn_Begin_Until:
     def __init__(self, seq):
         self._seq = seq
 
@@ -123,12 +151,12 @@ class Rpn2BeginUntil:
                 if param_stack.empty():
                     raise RuntimeError("until: Insufficient parameters (1 required)")
                 flag = param_stack.pop()
-                if type(flag) is not Rpn2Integer:
+                if type(flag) is not Rpn_t_Integer:
                     param_stack.push(flag)
                     raise TypeError("until: Flag must be an integer")
                 if flag.value() != 0:
                     break
-        except Rpn2Leave:
+        except Rpn_E_Leave:
             pass
 
     def __str__(self):
@@ -138,7 +166,7 @@ class Rpn2BeginUntil:
         return "BeginUntil[{}]".format(repr(self._seq))
 
 
-class Rpn2BeginWhile:
+class Rpn_Begin_While:
     def __init__(self, seq1, seq2):
         self._seq1 = seq1
         self._seq2 = seq2
@@ -150,13 +178,13 @@ class Rpn2BeginWhile:
                 if param_stack.empty():
                     raise RuntimeError("while: Insufficient parameters (1 required)")
                 flag = param_stack.pop()
-                if type(flag) is not Rpn2Integer:
+                if type(flag) is not Rpn_t_Integer:
                     param_stack.push(flag)
                     raise TypeError("while: Flag must be an integer")
                 if flag.value() == 0:
                     break
                 self._seq2.__call__()
-        except Rpn2Leave:
+        except Rpn_E_Leave:
             pass
 
     def __str__(self):
@@ -166,7 +194,7 @@ class Rpn2BeginWhile:
         return "BeginWhile[{},{}]".format(repr(self._seq1), repr(self._seq2))
 
 
-class Rpn2Case:
+class Rpn_Case:
     def __init__(self, case_clauses, otherwise_seq):
         self._case_clauses  = case_clauses
         self._otherwise_seq = otherwise_seq
@@ -174,7 +202,7 @@ class Rpn2Case:
         if param_stack.empty():
             raise RuntimeError("case: Insufficient parameters (1 required)")
         n = param_stack.pop()
-        if type(n) is not Rpn2Integer:
+        if type(n) is not Rpn_t_Integer:
             param_stack.push(n)
             raise TypeError("case: Case control parameter must be an integer")
         nval = n.value()
@@ -187,9 +215,9 @@ class Rpn2Case:
             self._otherwise_seq.__call__()
 
 
-class Rpn2CaseClause:
+class Rpn_Case_Clause:
     def __init__(self, x, seq):
-        self._x = x             # x is a plain integer, not an Rpn2Integer
+        self._x = x             # x is a plain integer, not an Rpn_t_Integer
         self._seq = seq
     def attempt_call(self, n):
         if n == self._x:
@@ -199,7 +227,7 @@ class Rpn2CaseClause:
             return False
 
 
-class Rpn2Complex:
+class Rpn_t_Complex:
     def __init__(self, real=0.0, imag=0.0):
         self.set_real_imag(real, imag)
 
@@ -229,17 +257,17 @@ class Rpn2Complex:
         return "Complex[{}]".format(repr(self.value()))
 
 
-class Rpn2DoLoop:
+class Rpn_Do_Loop:
     def __init__(self, seq):
         self._seq = seq
-        seq.scope().set_variable('_I', Rpn2Variable('_I', None, hidden=True))
+        seq.scope().set_variable('_I', Rpn_Variable('_I', None, hidden=True))
 
     def __call__(self):
         if param_stack.size() < 2:
             raise RuntimeError("do: Insufficient parameters (2 required)")
         x = param_stack.pop()
         y = param_stack.pop()
-        if type(y) is not Rpn2Integer or type(x) is not Rpn2Integer:
+        if type(y) is not Rpn_t_Integer or type(x) is not Rpn_t_Integer:
             param_stack.push(y)
             param_stack.push(x)
             raise TypeError("do: Loop control parameters must be integers")
@@ -255,10 +283,10 @@ class Rpn2DoLoop:
             while True:
                 self._seq.__call__()
                 i += 1
-                _I.set_obj(Rpn2Integer(i))
+                _I.set_obj(Rpn_t_Integer(i))
                 if i >= limit:
                     break
-        except Rpn2Leave:
+        except Rpn_E_Leave:
             pass
 
     def __str__(self):
@@ -268,17 +296,17 @@ class Rpn2DoLoop:
         return "DoLoop[{}]".format(repr(self._seq))
 
 
-class Rpn2DoPlusLoop:
+class Rpn_PlusLoop:
     def __init__(self, seq):
         self._seq = seq
-        seq.scope().set_variable('_I', Rpn2Variable('_I', None, hidden=True))
+        seq.scope().set_variable('_I', Rpn_Variable('_I', None, hidden=True))
 
     def __call__(self):
         if param_stack.size() < 2:
             raise RuntimeError("do: Insufficient parameters (2 required)")
         x = param_stack.pop()
         y = param_stack.pop()
-        if type(y) is not Rpn2Integer or type(x) is not Rpn2Integer:
+        if type(y) is not Rpn_t_Integer or type(x) is not Rpn_t_Integer:
             param_stack.push(y)
             param_stack.push(x)
             raise TypeError("do: Loop control parameters must be integers")
@@ -296,15 +324,15 @@ class Rpn2DoPlusLoop:
                 if param_stack.empty():
                     raise RuntimeError("+loop: Insufficient parameters (1 required)")
                 incr = param_stack.pop()
-                if type(incr) is not Rpn2Integer:
+                if type(incr) is not Rpn_t_Integer:
                     param_stack.push(incr)
                     raise TypeError("+loop: Increment must be integer")
                 i += incr.value()
-                _I.set_obj(Rpn2Integer(i))
+                _I.set_obj(Rpn_t_Integer(i))
                 if    incr.value() > 0 and i >= limit \
                    or incr.value() < 0 and i < limit:
                     break
-        except Rpn2Leave:
+        except Rpn_E_Leave:
             pass
 
     def __str__(self):
@@ -314,10 +342,10 @@ class Rpn2DoPlusLoop:
         return "DoPlusLoop[{}]".format(repr(self._seq))
 
 
-class Rpn2DotQuote:
+class Rpn_Dot_Quote:
     def __init__(self, val):
         if len(val) < 3 or val[0:2] != '."' or val[-1] != '"':
-            raise Rpn2Fatal("{}: Malformed string: '{}'".format(whoami(), val))
+            raise Rpn_E_Fatal("{}: Malformed string: '{}'".format(whoami(), val))
         self._str = val[2:-1]
 
     def stringval(self):
@@ -333,7 +361,7 @@ class Rpn2DotQuote:
         return "DotQuote[{}]".format(repr(self.stringval()))
 
 
-class Rpn2Error:
+class Rpn_Error:
     def __init__(self, msg):
         self._message = msg
 
@@ -344,14 +372,14 @@ class Rpn2Error:
         return "Error[{}]".format(self._message)
 
 
-class Rpn2Exe:
+class Rpn_Executable:
     def __init__(self, exe):
         self._exe = exe
 
     def __call__(self):
         try:
             self._exe.__call__()
-        except Rpn2Exit:
+        except Rpn_E_Exit:
             raise
 
     def __str__(self):
@@ -361,10 +389,10 @@ class Rpn2Exe:
         return "Exe[{}]".format(repr(self._exe))
 
 
-class Rpn2FetchVar:
+class Rpn_Fetch_Var:
     def __init__(self, id, var):
-        if type(var) is not Rpn2Variable:
-            raise Rpn2Fatal("{}: Variable {} is not an Rpn2Variable".format(whoami(), id))
+        if type(var) is not Rpn_Variable:
+            raise Rpn_E_Fatal("{}: Variable {} is not an Rpn_Variable".format(whoami(), id))
         self._identifier = id
         self._variable = var
 
@@ -381,7 +409,7 @@ class Rpn2FetchVar:
         return "Fetch[{}]".format(self.identifier())
 
 
-class Rpn2Float:
+class Rpn_t_Float:
     def __init__(self, val=0.0):
         self._value = float(val)
 
@@ -401,7 +429,28 @@ class Rpn2Float:
         return "Float[{}]".format(repr(self.value()))
 
 
-class Rpn2Help:
+class Rpn_Forget:
+    def __init__(self, word, scope):
+        if type(word) is not Rpn_Word:
+            raise Rpn_E_Fatal("{}: Word {} is not an Rpn_Word".format(whoami(), repr(word)))
+        if type(scope) is not Rpn_Scope:
+            raise Rpn_E_Fatal("{}: Scope {} is not an Rpn_Scope".format(whoami(), repr(scope)))
+        self._word = word
+        self._scope = scope
+
+    def __call__(self):
+        if self._word.protected():
+            raise RuntimeError("forget: '{}' is protected".format(self._word.name()))
+        self._scope.unset_word(self._word)
+
+    def __str__(self):
+        return "forget {}".format(self._word.name())
+
+    def __repr__(self):
+        return "Forget[{}]".format(self.repr(self._word.name()))
+
+
+class Rpn_Help:
     def __init__(self, id, doc):
         self._identifier = id
         self._doc = doc
@@ -422,7 +471,7 @@ class Rpn2Help:
         return "Help[{}]".format(self.repr(self.identifier()))
 
 
-class Rpn2If:
+class Rpn_If:
     def __init__(self, seq):
         self._seq = seq
 
@@ -430,7 +479,7 @@ class Rpn2If:
         if param_stack.empty():
             raise RuntimeError("if: Insufficient parameters (1 required)")
         flag = param_stack.pop()
-        if type(flag) is not Rpn2Integer:
+        if type(flag) is not Rpn_t_Integer:
             param_stack.push(flag)
             raise TypeError("if: Flag must be an integer")
         if flag.value() != 0:
@@ -443,7 +492,7 @@ class Rpn2If:
         return "If[{}]".format(repr(self._seq))
 
 
-class Rpn2IfElse:
+class Rpn_If_Else:
     def __init__(self, seq1, seq2):
         self._seq1 = seq1
         self._seq2 = seq2
@@ -452,7 +501,7 @@ class Rpn2IfElse:
         if param_stack.empty():
             raise RuntimeError("if: Insufficient parameters (1 required)")
         flag = param_stack.pop()
-        if type(flag) is not Rpn2Integer:
+        if type(flag) is not Rpn_t_Integer:
             param_stack.push(flag)
             raise TypeError("if: Flag must be an integer")
         if flag.value() != 0:
@@ -467,7 +516,7 @@ class Rpn2IfElse:
         return "IfElse[{},{}]".format(repr(self._seq1), repr(self._seq2))
 
 
-class Rpn2Integer:
+class Rpn_t_Integer:
     def __init__(self, val=0):
         self._value = int(val)
 
@@ -487,7 +536,7 @@ class Rpn2Integer:
         return "Integer[{}]".format(repr(self.value()))
 
 
-class Rpn2List:
+class Rpn_List:
     def __init__(self, item=None, oldlist=None):
         if item is None and oldlist is None:
             self._list = []
@@ -509,11 +558,11 @@ class Rpn2List:
             # lnwriteln("{}: {}.__call__()".format(whoami(), item))
             try:
                 item.__call__()
-            except Rpn2Exit:
+            except Rpn_E_Exit:
                 caught_exit = True
                 break
         if caught_exit is True:
-            raise Rpn2Exit
+            raise Rpn_E_Exit
 
     def items(self):
         for item in self.listval():
@@ -538,7 +587,7 @@ class Rpn2List:
             return s[:-1] + "]"
 
 
-class Rpn2Matrix:
+class Rpn_t_Matrix:
     def __init__(self, vals):
         lnwriteln("{}: vals={}".format(whoami(), vals))
         self._vals = vals
@@ -556,7 +605,7 @@ class Rpn2Matrix:
         lnwriteln("{} rows x {} columns".format(self.nrows(), self.ncols()))
 
     def value(self):
-        raise RuntimeError("Need Rpn2Matrix#value()")
+        raise RuntimeError("Need Rpn_t_Matrix#value()")
 
     def nrows(self):
         return self._nrows
@@ -571,7 +620,7 @@ class Rpn2Matrix:
         return "Matrix[{}]".format(repr(self._vals))
 
 
-class Rpn2NoOp:
+class Rpn_No_Op:
     def __init__(self):
         pass
 
@@ -585,7 +634,7 @@ class Rpn2NoOp:
         return "NoOp[]"
 
 
-class Rpn2Rational:
+class Rpn_t_Rational:
     def __init__(self, num=0, denom=1):
         self._value = Fraction(int(num), int(denom))
 
@@ -615,7 +664,7 @@ class Rpn2Rational:
         return "Rational[{}]".format(repr(self.value()))
 
 
-class Rpn2Scope:
+class Rpn_Scope:
     def __init__(self):
         self._words = {}
         self._variables = {}
@@ -624,18 +673,23 @@ class Rpn2Scope:
         return self._words
 
     def set_word(self, identifier, word):
-        if type(word) is not Rpn2Word:
-            raise Rpn2Fatal("{}: Word {} is not an Rpn2Word".format(whoami(), identifier))
+        if type(word) is not Rpn_Word:
+            raise Rpn_E_Fatal("{}: Word {} is not an Rpn_Word".format(whoami(), identifier))
         # if word.doc() is None and not word.hidden():
         #     print("Warning: Word '{}' has no documentation".format(identifier))
         self._words[identifier] = word
+
+    def unset_word(self, word):
+        if type(word) is not Rpn_Word:
+            raise Rpn_E_Fatal("{}: Word {} is not an Rpn_Word".format(whoami(), word))
+        del self._words[word.name()]
 
     def word(self, identifier):
         return self._words.get(identifier)
 
     def set_variable(self, identifier, var):
-        if type(var) is not Rpn2Variable:
-            raise Rpn2Fatal("{}: Variable {} is not an Rpn2Variable".format(whoami(), identifier))
+        if type(var) is not Rpn_Variable:
+            raise Rpn_E_Fatal("{}: Variable {} is not an Rpn_Variable".format(whoami(), identifier))
         self._variables[identifier] = var
 
     def variable(self, identifier):
@@ -648,7 +702,7 @@ class Rpn2Scope:
         return "Scope[{}]".format(hex(id(self)))
 
 
-class Rpn2Sequence:
+class Rpn_Sequence:
     def __init__(self, scope, in_vars, out_vars, exe_seq):
         self._scope    = scope
         self._in_vars  = in_vars
@@ -663,7 +717,7 @@ class Rpn2Sequence:
         try:
             # lnwriteln("{}: exe_seq={}".format(whoami(), repr(self._exe_seq)))
             self._exe_seq.__call__()
-        except Rpn2Exit:
+        except Rpn_E_Exit:
             raise
         finally:
             s = pop_scope("Sequence {} is done".format(self.exe_seq))
@@ -684,7 +738,7 @@ class Rpn2Sequence:
         return "Sequence[Scope={}, Exe_Seq={}]".format(repr(self.scope()), repr(self.exe_seq()))
 
 
-class Rpn2Stack:
+class Rpn_Stack:
     def __init__(self):
         self._stack = []
         self._nitems = 0
@@ -705,13 +759,13 @@ class Rpn2Stack:
 
     def pop(self):
         if self.empty():
-            raise Rpn2Fatal("{}: Empty stack".format(whoami()))
+            raise Rpn_E_Fatal("{}: Empty stack".format(whoami()))
         self._nitems -= 1
         return self._stack.pop()
 
     def top(self):
         if self.empty():
-            raise Rpn2Fatal("{}: Empty stack".format(whoami()))
+            raise Rpn_E_Fatal("{}: Empty stack".format(whoami()))
         return self._stack[self.size() - 1]
 
     def items_bottom_to_top(self):
@@ -726,7 +780,7 @@ class Rpn2Stack:
         return reversed(list(self.items_bottom_to_top()))
 
 
-class Rpn2Stackable:
+class Rpn_Stackable:
     def __init__(self, val):
         self._value = val
 
@@ -734,15 +788,15 @@ class Rpn2Stackable:
         return self._value
 
     def __call__(self):
-        if type(self.value()) in [Rpn2Complex, Rpn2Float, Rpn2Integer,
-                                  Rpn2Matrix, Rpn2Rational, Rpn2Vector]:
+        if type(self.value()) in [Rpn_t_Complex, Rpn_t_Float, Rpn_t_Integer,
+                                  Rpn_t_Matrix, Rpn_t_Rational, Rpn_t_Vector]:
             param_stack.push(self.value())
-        elif type(self.value()) is Rpn2String:
+        elif type(self.value()) is Rpn_t_String:
             string_stack.push(self.value())
-        elif type(self.value()) is Rpn2FetchVar:
+        elif type(self.value()) is Rpn_Fetch_Var:
             var = self.value().variable()
-            if type(var) is not Rpn2Variable:
-                raise Rpn2Fatal("{}: Rpn2FetchVar.value().variable ({}) is not an Rpn2Variable".format(whoami(), self.value().identifier()))
+            if type(var) is not Rpn_Variable:
+                raise Rpn_E_Fatal("{}: Rpn_Fetch_Var.value().variable ({}) is not an Rpn_Variable".format(whoami(), self.value().identifier()))
             elif var.obj() is None:
                 raise RuntimeError("{}: Fetch of undefined variable {}".format(whoami(), self.value()))
             else:
@@ -757,10 +811,10 @@ class Rpn2Stackable:
         return "Stackable[{}]".format(repr(self.value()))
 
 
-class Rpn2StoreVar:
+class Rpn_Store_Var:
     def __init__(self, id, var):
-        if type(var) is not Rpn2Variable:
-            raise Rpn2Fatal("!{}: Variable is not an Rpn2Variable".format(id))
+        if type(var) is not Rpn_Variable:
+            raise Rpn_E_Fatal("!{}: Variable is not an Rpn_Variable".format(id))
         self._identifier = id
         self._variable = var
 
@@ -779,10 +833,10 @@ class Rpn2StoreVar:
         return "Store[{}]".format(self.identifier())
 
 
-class Rpn2String:
+class Rpn_t_String:
     def __init__(self, val):
         if len(val) < 2 or val[0] != '"' or val[-1] != '"':
-            raise Rpn2Fatal("{}: Malformed string: '{}'".format(whoami(), val))
+            raise Rpn_E_Fatal("{}: Malformed string: '{}'".format(whoami(), val))
         self._value = val[1:-1]
 
     def value(self):
@@ -798,7 +852,7 @@ class Rpn2String:
         return "String[{}]".format(repr(self.value()))
 
 
-class Rpn2Variable:
+class Rpn_Variable:
     def __init__(self, name, obj=None, **kwargs):
         self._name = name
         self._hidden = False
@@ -835,10 +889,10 @@ class Rpn2Variable:
         return "Variable[{}]".format(self._name)
 
 
-class Rpn2Vector:
+class Rpn_t_Vector:
     def __init__(self, vals):
-        if type(vals) is not Rpn2List:
-            raise Rpn2Fatal("{}: vals is not an Rpn2List ({})".format(whoami(), repr(vals)))
+        if type(vals) is not Rpn_List:
+            raise Rpn_E_Fatal("{}: vals is not an Rpn_List ({})".format(whoami(), repr(vals)))
         self._vals = vals
         np_list = []
         for item in vals.items():
@@ -861,17 +915,20 @@ class Rpn2Vector:
         return "Vector[{}]\nNP:{}".format(repr(self._vals),repr(self._np_value))
 
 
-class Rpn2Word:
+class Rpn_Word:
     def __init__(self, name, defn, **kwargs):
-        self._args     = 0
-        self._defn     = defn
-        self._doc      = None
-        self._hidden   = False
-        self._name     = name
-        self._str_args = 0
+        global default_protected
+
+        self._args      = 0
+        self._defn      = defn
+        self._doc       = None
+        self._hidden    = False
+        self._name      = name
+        self._protected = default_protected
+        self._str_args  = 0
 
         if defn is None:
-            raise Rpn2Fatal("{}: defn is None".format(name))
+            raise Rpn_E_Fatal("{}: defn is None".format(name))
         if kwargs.get("args"):
             self._args = kwargs['args']
             del kwargs["args"]
@@ -881,6 +938,9 @@ class Rpn2Word:
         if kwargs.get("hidden"):
             self._hidden = kwargs["hidden"]
             del kwargs["hidden"]
+        if kwargs.get("protected"):
+            self._protected = kwargs["protected"]
+            del kwargs["protected"]
         if kwargs.get("str_args"):
             self._str_args = kwargs["str_args"]
             del kwargs["str_args"]
@@ -897,7 +957,7 @@ class Rpn2Word:
 
         try:
             self._defn.__call__()
-        except Rpn2Exit:
+        except Rpn_E_Exit:
             if self.name() == "exit":
                 raise
 
@@ -915,6 +975,9 @@ class Rpn2Word:
 
     def hidden(self):
         return self._hidden
+
+    def protected(self):
+        return self._protected
 
     def __str__(self):
         return str(self.name())
@@ -936,14 +999,14 @@ def p_interpret(p):
     '''interpret : cmd
                  | cmd interpret'''
 
-    p[0] = Rpn2NoOp()
+    p[0] = Rpn_No_Op()
 
 
 def p_cmd(p):
     '''cmd :  executable  execute'''
 
     # Don't need to return anything since `execute' does all the work
-    p[0] = Rpn2NoOp()
+    p[0] = Rpn_No_Op()
 
 
 def p_execute(p):
@@ -956,16 +1019,16 @@ def p_execute(p):
     except KeyboardInterrupt:
         # CTRL/C while executing returns to top level prompt
         show_x = False
-        raise Rpn2TopLevel()
-    except Rpn2Abort as e:
+        raise Rpn_E_Top_Level()
+    except Rpn_E_Abort as e:
         if len(e._message) > 0:
             lnwriteln("{}".format(e))
         param_stack.clear()
         string_stack.clear()
         show_x = False
-    except Rpn2Exit:
+    except Rpn_E_Exit:
         pass
-    except Rpn2Leave:
+    except Rpn_E_Leave:
         lnwriteln("leave: Cannot be used outside of a BEGIN or DO loop")
     except RuntimeError as e:
         lnwriteln("{}".format(e))
@@ -978,7 +1041,7 @@ def p_execute(p):
         lnwriteln("{}".format(e))
         show_x = False
 
-    p[0] = Rpn2NoOp()
+    p[0] = Rpn_No_Op()
 
 
 def p_sequence(p):
@@ -986,21 +1049,21 @@ def p_sequence(p):
 
     # `locals_opt' is a Scope; `executables_opt' is a List
     scope = pop_scope("p_sequence() is finishing")
-    p[0] = Rpn2Sequence(p[1], [], [], p[2])
+    p[0] = Rpn_Sequence(p[1], [], [], p[2])
 
 
 def p_locals_opt(p):
     '''locals_opt :  empty
                   |  VBAR  ids_opt  VBAR'''
 
-    scope = Rpn2Scope()
+    scope = Rpn_Scope()
     #print("{}: Creating new scope {}".format(whoami(), scope))
-    variables = Rpn2List()
+    variables = Rpn_List()
 
     if len(p) == 4:
         variables = p[2]
         for varname in variables.items():
-            var = Rpn2Variable(varname)
+            var = Rpn_Variable(varname)
             #lnwriteln("{}: Defining variable {} in scope {}".format(whoami(), varname, scope))
             scope.set_variable(varname, var)
 
@@ -1013,9 +1076,9 @@ def p_executables_opt(p):
                        |  executable  executables_opt'''
 
     if len(p) == 2:
-        p[0] = Rpn2List()
+        p[0] = Rpn_List()
     elif len(p) == 3:
-        p[0] = Rpn2List(p[1], p[2])
+        p[0] = Rpn_List(p[1], p[2])
     # lnwriteln("{}: Returning {}".format(whoami(), p[0])))
 
 
@@ -1023,14 +1086,14 @@ def p_colon_def(p):
     '''colon_def :  COLON  IDENTIFIER  docstr_opt  sequence  SEMICOLON  define_word'''
 
     # This returns a NoOp because `define_word' does all the work
-    p[0] = Rpn2NoOp()
+    p[0] = Rpn_No_Op()
 
 
 def p_colon_def_error(p):
     '''colon_def :  COLON  IDENTIFIER  docstr_opt  error  SEMICOLON '''
 
     pop_scope("Syntax error in colon_def")
-    p[0] = Rpn2Error("{}: Syntax error in definition".format(p[2]))
+    p[0] = Rpn_Error("{}: Syntax error in definition".format(p[2]))
 
 
 def p_define_word(p):
@@ -1045,19 +1108,19 @@ def p_define_word(p):
     if parse_error:
         lnwriteln("{}: Syntax error in definition".format(identifier))
         pop_scope("Syntax error in definition of {}".format(identifier))
-        p[0] = Rpn2NoOp()
+        p[0] = Rpn_No_Op()
         return
 
     kwargs = dict()
     if doc_str is not None:
         if len(doc_str) < 6 or doc_str[0:5] != 'doc:"' or doc_str[-1] != '"':
-            raise Rpn2Fatal("{}: Malformed doc_str: '{}'".format(whoami(), doc_str))
+            raise Rpn_E_Fatal("{}: Malformed doc_str: '{}'".format(whoami(), doc_str))
         doc_str = doc_str[5:-1]
         kwargs['doc'] = doc_str
 
     # p_sequence() has already popped the scope for this word, so
     # creating it now in scope_stack.top() will be correct.
-    new_word = Rpn2Word(identifier, sequence, **kwargs)
+    new_word = Rpn_Word(identifier, sequence, **kwargs)
     #lnwriteln("{}: Defining word {}={} in scope {}".format(whoami(), identifier, repr(new_word), scope_stack.top()))
     scope_stack.top().set_word(identifier, new_word)
 
@@ -1068,25 +1131,25 @@ def p_define_word(p):
 def p_abort_quote(p):
     '''abort_quote :  ABORT_QUOTE'''
 
-    p[0] = Rpn2AbortQuote(p[1])
+    p[0] = Rpn_Abort_Quote(p[1])
 
 
 def p_begin_again(p):
     '''begin_again :  BEGIN  sequence  AGAIN'''
 
-    p[0] = Rpn2BeginAgain(p[2])
+    p[0] = Rpn_Begin_Again(p[2])
 
 
 def p_begin_until(p):
     '''begin_until :  BEGIN  sequence  UNTIL'''
 
-    p[0] = Rpn2BeginUntil(p[2])
+    p[0] = Rpn_Begin_Until(p[2])
 
 
 def p_begin_while(p):
     '''begin_while :  BEGIN  sequence  WHILE  sequence  REPEAT'''
 
-    p[0] = Rpn2BeginWhile(p[2], p[4])
+    p[0] = Rpn_Begin_While(p[2], p[4])
 
 
 def p_docstr_opt(p):
@@ -1098,49 +1161,49 @@ def p_docstr_opt(p):
 
 def p_case(p):
     '''case :  CASE  case_clauses  otherwise_opt  ENDCASE'''
-    p[0] = Rpn2Case(p[2], p[3])
+    p[0] = Rpn_Case(p[2], p[3])
 
 def p_case_clause(p):
     '''case_clause : INTEGER  OF  sequence  ENDOF'''
-    p[0] = Rpn2CaseClause(p[1], p[3])
+    p[0] = Rpn_Case_Clause(p[1], p[3])
 
 def p_case_clauses(p):
     '''case_clauses :  case_clause
                     |  case_clause  case_clauses'''
     if len(p) == 2:
-        p[0] = Rpn2List(p[1])
+        p[0] = Rpn_List(p[1])
     else:
-        p[0] = Rpn2List(p[1], p[2])
+        p[0] = Rpn_List(p[1], p[2])
 
 def p_otherwise_opt(p):
     '''otherwise_opt : empty
                      | OTHERWISE  sequence'''
     if len(p) == 2:
-        p[0] = Rpn2List()
+        p[0] = Rpn_List()
     else:
-        p[0] = Rpn2List(p[2])
+        p[0] = Rpn_List(p[2])
 
 def p_complex(p):
     '''complex :  OPEN_PAREN  real  COMMA  real  CLOSE_PAREN '''
-    p[0] = Rpn2Complex(p[2].value(), p[4].value())
+    p[0] = Rpn_t_Complex(p[2].value(), p[4].value())
 
 
 def p_do_loop(p):
     '''do_loop :  DO  sequence  LOOP'''
 
-    p[0] = Rpn2DoLoop(p[2])
+    p[0] = Rpn_Do_Loop(p[2])
 
 
 def p_do_plusloop(p):
     '''do_plusloop :  DO  sequence  PLUS_LOOP'''
 
-    p[0] = Rpn2DoPlusLoop(p[2])
+    p[0] = Rpn_PlusLoop(p[2])
 
 
 def p_dot_quote(p):
     '''dot_quote :  DOT_QUOTE'''
 
-    p[0] = Rpn2DotQuote(p[1])
+    p[0] = Rpn_Dot_Quote(p[1])
 
 
 def p_empty(p):
@@ -1175,6 +1238,7 @@ def p_executable(p):
                   |  do_loop
                   |  do_plusloop
                   |  dot_quote
+                  |  forget
                   |  help
                   |  if_then
                   |  if_else_then
@@ -1185,7 +1249,7 @@ def p_executable(p):
     # A "word" is not just an identifier, a word is something that is
     # findable somewhere in the scope_stack.  It is a syntax error if
     # the identifier is not found.
-    p[0] = Rpn2Exe(p[1])
+    p[0] = Rpn_Executable(p[1])
 
 
 def p_fetch_var(p):
@@ -1194,18 +1258,33 @@ def p_fetch_var(p):
     global parse_error
     id = p[2]
     # lnwriteln("{}: Looking up {}".format(whoami(), id))
-    var = lookup_variable(id)
+    (var, _) = lookup_variable(id)
     if var is None:
         lnwriteln("@{}: Variable not found".format(id))
         parse_error = True
         raise SyntaxError
-    p[0] = Rpn2FetchVar(id, var)
+    p[0] = Rpn_Fetch_Var(id, var)
 
 
 def p_float(p):
     '''float :  FLOAT'''
 
-    p[0] = Rpn2Float(p[1])
+    p[0] = Rpn_t_Float(p[1])
+
+
+def p_forget(p):
+    '''forget :  FORGET  IDENTIFIER'''
+
+    global parse_error
+    name = p[2]
+    (word, scope) = lookup_word(name)
+    if word is None:
+        # throw a parse error
+        lnwriteln("forget: '{}' not found".format(name))
+        parse_error = True
+        raise SyntaxError
+    else:
+        p[0] = Rpn_Forget(word, scope)
 
 
 def p_help(p):
@@ -1218,6 +1297,7 @@ def p_help(p):
             |  HELP  ELSE
             |  HELP  ENDCASE
             |  HELP  ENDOF
+            |  HELP  FORGET
             |  HELP  HELP
             |  HELP  IDENTIFIER
             |  HELP  IF
@@ -1233,14 +1313,14 @@ def p_help(p):
 
     global parse_error
     name = p[2]
-    word = lookup_word(name)
+    (word, _) = lookup_word(name)
     if word is None:
         # throw a parse error
         lnwriteln("help: '{}' not found".format(name))
         parse_error = True
         raise SyntaxError
     else:
-        p[0] = Rpn2Help(name, word.doc() if word.doc() is not None \
+        p[0] = Rpn_Help(name, word.doc() if word.doc() is not None \
                                         and len(word.doc()) > 0 \
                         else "No help available for '{}'".format(name))
 
@@ -1250,33 +1330,33 @@ def p_ids_opt(p):
               |  IDENTIFIER  ids_opt'''
 
     if len(p) == 2:
-        p[0] = Rpn2List()
+        p[0] = Rpn_List()
     elif len(p) == 3:
-        p[0] = Rpn2List(p[1], p[2])
+        p[0] = Rpn_List(p[1], p[2])
 
 
 def p_if_then(p):
     '''if_then :  IF  sequence  THEN'''
 
-    p[0] = Rpn2If(p[2])
+    p[0] = Rpn_If(p[2])
 
 
 def p_if_else_then(p):
     '''if_else_then :  IF  sequence  ELSE  sequence  THEN'''
 
-    p[0] = Rpn2IfElse(p[2], p[4])
+    p[0] = Rpn_If_Else(p[2], p[4])
 
 
 def p_integer(p):
     '''integer :  INTEGER'''
 
-    p[0] = Rpn2Integer(p[1])
+    p[0] = Rpn_t_Integer(p[1])
 
 
 def p_matrix(p):
     '''matrix :  OPEN_BRACKET  vectors  CLOSE_BRACKET'''
 
-    p[0] = Rpn2Matrix(p[2])
+    p[0] = Rpn_t_Matrix(p[2])
 
 
 def p_number(p):
@@ -1292,15 +1372,15 @@ def p_numbers(p):
                |  number  numbers'''
 
     if len(p) == 2:
-        p[0] = Rpn2List(p[1])
+        p[0] = Rpn_List(p[1])
     elif len(p) == 3:
-        p[0] = Rpn2List(p[1], p[2])
+        p[0] = Rpn_List(p[1], p[2])
 
 
 def p_rational(p):
     '''rational :  integer  TILDE  integer'''
 
-    p[0] = Rpn2Rational(p[1].value(), p[3].value())
+    p[0] = Rpn_t_Rational(p[1].value(), p[3].value())
 
 
 def p_real(p):
@@ -1317,7 +1397,7 @@ def p_stackable(p):
                  |  matrix
                  |  fetch_var'''
 
-    p[0] = Rpn2Stackable(p[1])
+    p[0] = Rpn_Stackable(p[1])
 
 
 def p_store_var(p):
@@ -1326,24 +1406,24 @@ def p_store_var(p):
     global parse_error
     id = p[2]
     #lnwriteln("{}: Looking up {}".format(whoami(), id))
-    var = lookup_variable(id)
+    (var, _) = lookup_variable(id)
     if var is None:
         lnwriteln("!{}: Variable not found".format(id))
         parse_error = True
         raise SyntaxError
-    p[0] = Rpn2StoreVar(id, var)
+    p[0] = Rpn_Store_Var(id, var)
 
 
 def p_string(p):
     '''string :  STRING'''
 
-    p[0] = Rpn2String(p[1])
+    p[0] = Rpn_t_String(p[1])
 
 
 def p_vector(p):
     '''vector :  OPEN_BRACKET  numbers  CLOSE_BRACKET'''
 
-    p[0] = Rpn2Vector(p[2])
+    p[0] = Rpn_t_Vector(p[2])
 
 
 def p_vectors(p):
@@ -1352,9 +1432,9 @@ def p_vectors(p):
 
     lnwriteln("{}: len={}".format(whoami(), len(p)))
     if len(p) == 2:
-        p[0] = Rpn2List(p[1])
+        p[0] = Rpn_List(p[1])
     elif len(p) == 3:
-        p[0] = Rpn2List(p[1], p[2])
+        p[0] = Rpn_List(p[1], p[2])
 
 
 def p_word(p):
@@ -1362,7 +1442,7 @@ def p_word(p):
 
     global parse_error
     name = p[1]
-    word = lookup_word(name)
+    (word, _) = lookup_word(name)
     if word is None:
         # throw a parse error
         #lnwriteln("{}: Word '{}' not found".format(whoami(), name))
@@ -1380,7 +1460,7 @@ def p_word(p):
 #       W O R D   D E F I N I T I O N S
 #
 #############################################################################
-global_scope = Rpn2Scope()
+global_scope = Rpn_Scope()
 
 class defword(object):
     """Register the following word definition in the global scope"""
@@ -1398,7 +1478,7 @@ class defword(object):
         else:
             raise RuntimeError("Missing or invalid \"name\" attribute")
         #print("name is {}".format(name))
-        word = Rpn2Word(name, wrapped_f, **self._kwargs)
+        word = Rpn_Word(name, wrapped_f, **self._kwargs)
         global global_scope
         global_scope.set_word(name, word)
         return wrapped_f
@@ -1406,7 +1486,7 @@ class defword(object):
 
 @defword(name='$.', str_args=1, doc="""\
 Print top item from string stack  [ str -- ]
-No extraneous white space is printed.""")
+No extraneous white space or newline is printed.""")
 def w_dollar_dot():
     write(string_stack.pop().value())
 
@@ -1441,15 +1521,15 @@ percent = base * ----
 def w_percent():
     x = param_stack.pop()
     y = param_stack.pop()
-    if     type(x) in [Rpn2Integer, Rpn2Rational, Rpn2Float] \
-       and type(y) in [Rpn2Integer, Rpn2Rational, Rpn2Float]:
+    if     type(x) in [Rpn_t_Integer, Rpn_t_Rational, Rpn_t_Float] \
+       and type(y) in [Rpn_t_Integer, Rpn_t_Rational, Rpn_t_Float]:
         rate = float(x.value())
         base = float(y.value())
         r = base * rate / 100.0
-        if type(x) is Rpn2Integer and type(y) is Rpn2Integer and r.is_integer():
-            result = Rpn2Integer(r)
+        if type(x) is Rpn_t_Integer and type(y) is Rpn_t_Integer and r.is_integer():
+            result = Rpn_t_Integer(r)
         else:
-            result = Rpn2Float(r)
+            result = Rpn_t_Float(r)
     else:
         param_stack.push(y)
         param_stack.push(x)
@@ -1473,8 +1553,8 @@ old cannot be zero.""")
 def w_percent_ch():
     x = param_stack.pop()
     y = param_stack.pop()
-    if     type(x) in [Rpn2Integer, Rpn2Rational, Rpn2Float] \
-       and type(y) in [Rpn2Integer, Rpn2Rational, Rpn2Float]:
+    if     type(x) in [Rpn_t_Integer, Rpn_t_Rational, Rpn_t_Float] \
+       and type(y) in [Rpn_t_Integer, Rpn_t_Rational, Rpn_t_Float]:
         if y.zerop():
             param_stack.push(y)
             param_stack.push(x)
@@ -1483,10 +1563,10 @@ def w_percent_ch():
             new = float(x.value())
             old = float(y.value())
             r = (new - old) * 100.0 / old
-            if type(x) is Rpn2Integer and type(y) is Rpn2Integer and r.is_integer():
-                result = Rpn2Integer(r)
+            if type(x) is Rpn_t_Integer and type(y) is Rpn_t_Integer and r.is_integer():
+                result = Rpn_t_Integer(r)
             else:
-                result = Rpn2Float(r)
+                result = Rpn_t_Float(r)
     else:
         param_stack.push(y)
         param_stack.push(x)
@@ -1511,17 +1591,17 @@ def w_star():
 | ^Y    X> | Integer  | Float   | Rational | Complex | Vector | Matrix |"""
     x = param_stack.pop()
     y = param_stack.pop()
-    if type(x) is Rpn2Integer and type(y) is Rpn2Integer:
-        result = Rpn2Integer(y.value() * x.value())
-    elif    type(x) is Rpn2Float and type(y) in [Rpn2Integer, Rpn2Float, Rpn2Rational] \
-         or type(y) is Rpn2Float and type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
-        result = Rpn2Float(float(y.value()) * float(x.value()))
-    elif    type(x) is Rpn2Rational and type(y) in [Rpn2Integer, Rpn2Rational] \
-         or type(y) is Rpn2Rational and type(x) in [Rpn2Integer, Rpn2Rational]:
-        result = Rpn2Rational.from_Fraction(y.value() * x.value())
-    elif    type(x) is Rpn2Complex and type(y) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex] \
-         or type(y) is Rpn2Complex and type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex]:
-        result = Rpn2Complex.from_complex(complex(y.value()) * complex(x.value()))
+    if type(x) is Rpn_t_Integer and type(y) is Rpn_t_Integer:
+        result = Rpn_t_Integer(y.value() * x.value())
+    elif    type(x) is Rpn_t_Float and type(y) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational] \
+         or type(y) is Rpn_t_Float and type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational]:
+        result = Rpn_t_Float(float(y.value()) * float(x.value()))
+    elif    type(x) is Rpn_t_Rational and type(y) in [Rpn_t_Integer, Rpn_t_Rational] \
+         or type(y) is Rpn_t_Rational and type(x) in [Rpn_t_Integer, Rpn_t_Rational]:
+        result = Rpn_t_Rational.from_Fraction(y.value() * x.value())
+    elif    type(x) is Rpn_t_Complex and type(y) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex] \
+         or type(y) is Rpn_t_Complex and type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex]:
+        result = Rpn_t_Complex.from_complex(complex(y.value()) * complex(x.value()))
     else:
         param_stack.push(y)
         param_stack.push(x)
@@ -1546,17 +1626,17 @@ def w_plus():
 | ^Y    X> | Integer  | Float   | Rational | Complex | Vector | Matrix |"""
     x = param_stack.pop()
     y = param_stack.pop()
-    if type(x) is Rpn2Integer and type(y) is Rpn2Integer:
-        result = Rpn2Integer(y.value() + x.value())
-    elif    type(x) is Rpn2Float and type(y) in [Rpn2Integer, Rpn2Float, Rpn2Rational] \
-         or type(y) is Rpn2Float and type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
-        result = Rpn2Float(float(y.value()) + float(x.value()))
-    elif    type(x) is Rpn2Rational and type(y) in [Rpn2Integer, Rpn2Rational] \
-         or type(y) is Rpn2Rational and type(x) in [Rpn2Integer, Rpn2Rational]:
-        result = Rpn2Rational.from_Fraction(y.value() + x.value())
-    elif    type(x) is Rpn2Complex and type(y) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex] \
-         or type(y) is Rpn2Complex and type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex]:
-        result = Rpn2Complex.from_complex(complex(y.value()) + complex(x.value()))
+    if type(x) is Rpn_t_Integer and type(y) is Rpn_t_Integer:
+        result = Rpn_t_Integer(y.value() + x.value())
+    elif    type(x) is Rpn_t_Float and type(y) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational] \
+         or type(y) is Rpn_t_Float and type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational]:
+        result = Rpn_t_Float(float(y.value()) + float(x.value()))
+    elif    type(x) is Rpn_t_Rational and type(y) in [Rpn_t_Integer, Rpn_t_Rational] \
+         or type(y) is Rpn_t_Rational and type(x) in [Rpn_t_Integer, Rpn_t_Rational]:
+        result = Rpn_t_Rational.from_Fraction(y.value() + x.value())
+    elif    type(x) is Rpn_t_Complex and type(y) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex] \
+         or type(y) is Rpn_t_Complex and type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex]:
+        result = Rpn_t_Complex.from_complex(complex(y.value()) + complex(x.value()))
     else:
         param_stack.push(y)
         param_stack.push(x)
@@ -1585,17 +1665,17 @@ Subtraction  ( y x -- y-x )""")
 def w_minus():
     x = param_stack.pop()
     y = param_stack.pop()
-    if type(x) is Rpn2Integer and type(y) is Rpn2Integer:
-        result = Rpn2Integer(y.value() - x.value())
-    elif    type(x) is Rpn2Float and type(y) in [Rpn2Integer, Rpn2Float, Rpn2Rational] \
-         or type(y) is Rpn2Float and type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
-        result = Rpn2Float(float(y.value()) - float(x.value()))
-    elif    type(x) is Rpn2Rational and type(y) in [Rpn2Integer, Rpn2Rational] \
-         or type(y) is Rpn2Rational and type(x) in [Rpn2Integer, Rpn2Rational]:
-        result = Rpn2Rational.from_Fraction(y.value() - x.value())
-    elif    type(x) is Rpn2Complex and type(y) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex] \
-         or type(y) is Rpn2Complex and type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex]:
-        result = Rpn2Complex.from_complex(complex(y.value()) - complex(x.value()))
+    if type(x) is Rpn_t_Integer and type(y) is Rpn_t_Integer:
+        result = Rpn_t_Integer(y.value() - x.value())
+    elif    type(x) is Rpn_t_Float and type(y) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational] \
+         or type(y) is Rpn_t_Float and type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational]:
+        result = Rpn_t_Float(float(y.value()) - float(x.value()))
+    elif    type(x) is Rpn_t_Rational and type(y) in [Rpn_t_Integer, Rpn_t_Rational] \
+         or type(y) is Rpn_t_Rational and type(x) in [Rpn_t_Integer, Rpn_t_Rational]:
+        result = Rpn_t_Rational.from_Fraction(y.value() - x.value())
+    elif    type(x) is Rpn_t_Complex and type(y) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex] \
+         or type(y) is Rpn_t_Complex and type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex]:
+        result = Rpn_t_Complex.from_complex(complex(y.value()) - complex(x.value()))
     else:
         param_stack.push(y)
         param_stack.push(x)
@@ -1618,7 +1698,9 @@ def w_minus_rot():
     param_stack.push(y)
 
 
-@defword(name='.', args=1)
+@defword(name='.', args=1, doc="""\
+Print top stack value  ( x -- )
+A space is also printed after the number, but no newline.""")
 def w_dot():
     write("{} ".format(str(param_stack.pop())))
 
@@ -1628,13 +1710,15 @@ def w_dot_bang():
     lnwriteln(repr(param_stack.top()))
 
 
-@defword(name='.s')
+@defword(name='.s', doc="""\
+Print stack non-destructively""")
 def w_dot_s():
     for (i, item) in param_stack.items_bottom_to_top():
         lnwriteln("{}: {}".format(i, item))
 
 
-@defword(name='.s!')
+@defword(name='.s!', hidden=True, doc="""\
+Print stack non-destructively""")
 def w_dot_s_bang():
     for (i, item) in param_stack.items_bottom_to_top():
         lnwriteln("{}: {}".format(i, repr(item)))
@@ -1657,26 +1741,26 @@ def w_slash():
     x = param_stack.pop()
     y = param_stack.pop()
 
-    if     type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex] \
+    if     type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex] \
        and x.zerop():
         param_stack.push(y)
         param_stack.push(x)
         raise ValueError("/: Argument cannot be zero")
 
-    if    type(x) is Rpn2Rational and type(y) in [Rpn2Integer, Rpn2Rational] \
-       or type(y) is Rpn2Rational and type(x) in [Rpn2Integer, Rpn2Rational]:
-        result = Rpn2Rational.from_Fraction(y.value() / x.value())
-    elif    type(x) in [Rpn2Integer, Rpn2Float] and type(y) in [Rpn2Integer, Rpn2Float] \
-         or type(x) is Rpn2Rational and type(y) is Rpn2Float \
-         or type(y) is Rpn2Rational and type(x) is Rpn2Float:
+    if    type(x) is Rpn_t_Rational and type(y) in [Rpn_t_Integer, Rpn_t_Rational] \
+       or type(y) is Rpn_t_Rational and type(x) in [Rpn_t_Integer, Rpn_t_Rational]:
+        result = Rpn_t_Rational.from_Fraction(y.value() / x.value())
+    elif    type(x) in [Rpn_t_Integer, Rpn_t_Float] and type(y) in [Rpn_t_Integer, Rpn_t_Float] \
+         or type(x) is Rpn_t_Rational and type(y) is Rpn_t_Float \
+         or type(y) is Rpn_t_Rational and type(x) is Rpn_t_Float:
         r = float(y.value()) / float(x.value())
-        if type(x) is Rpn2Integer and type(y) is Rpn2Integer and r.is_integer():
-            result = Rpn2Integer(r)
+        if type(x) is Rpn_t_Integer and type(y) is Rpn_t_Integer and r.is_integer():
+            result = Rpn_t_Integer(r)
         else:
-            result = Rpn2Float(r)
-    elif    type(x) is Rpn2Complex and type(y) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex] \
-         or type(y) is Rpn2Complex and type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex]:
-        result = Rpn2Complex.from_complex(complex(y.value()) / complex(x.value()))
+            result = Rpn_t_Float(r)
+    elif    type(x) is Rpn_t_Complex and type(y) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex] \
+         or type(y) is Rpn_t_Complex and type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex]:
+        result = Rpn_t_Complex.from_complex(complex(y.value()) / complex(x.value()))
     else:
         param_stack.push(y)
         param_stack.push(x)
@@ -1689,8 +1773,8 @@ def w_slash():
 @defword(name='0=', args=1)
 def w_zero_equal():
     x = param_stack.pop()
-    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex]:
-        param_stack.push(Rpn2Integer(1 if x.zerop() else 0))
+    if type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex]:
+        param_stack.push(Rpn_t_Integer(1 if x.zerop() else 0))
         global show_x
         show_x = True
     else:
@@ -1729,22 +1813,22 @@ def w_equal():
 | ^Y    X> | Integer  | Float   | Rational | Complex | Vector | Matrix |"""
     x = param_stack.pop()
     y = param_stack.pop()
-    if type(x) is Rpn2Integer and type(y) is Rpn2Integer:
+    if type(x) is Rpn_t_Integer and type(y) is Rpn_t_Integer:
         flag = y.value() == x.value()
-    elif    type(x) is Rpn2Float and type(y) in [Rpn2Integer, Rpn2Float, Rpn2Rational] \
-         or type(y) is Rpn2Float and type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
+    elif    type(x) is Rpn_t_Float and type(y) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational] \
+         or type(y) is Rpn_t_Float and type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational]:
         flag = float(y.value()) == float(x.value()) # Beware floating point equality lossage
-    elif    type(x) is Rpn2Rational and type(y) in [Rpn2Integer, Rpn2Rational] \
-         or type(y) is Rpn2Rational and type(x) in [Rpn2Integer, Rpn2Rational]:
+    elif    type(x) is Rpn_t_Rational and type(y) in [Rpn_t_Integer, Rpn_t_Rational] \
+         or type(y) is Rpn_t_Rational and type(x) in [Rpn_t_Integer, Rpn_t_Rational]:
         flag = Fraction(y.value()) == Fraction(x.value())
-    elif    type(x) is Rpn2Complex and type(y) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex] \
-         or type(y) is Rpn2Complex and type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex]:
+    elif    type(x) is Rpn_t_Complex and type(y) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex] \
+         or type(y) is Rpn_t_Complex and type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex]:
         flag = complex(y.value()) == complex(x.value())
     else:
         param_stack.push(y)
         param_stack.push(x)
         raise TypeError("=: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
-    param_stack.push(Rpn2Integer(1 if flag else 0))
+    param_stack.push(Rpn_t_Integer(1 if flag else 0))
     global show_x
     show_x = True
 
@@ -1759,7 +1843,7 @@ def w_to_r():
 Duplicate top stack element if non-zero  ( x -- x x | 0 )""")
 def w_query_dup():
     x = param_stack.top()
-    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex]:
+    if type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex]:
         if not x.zerop():
             w_dup()
     else:
@@ -1770,7 +1854,7 @@ def w_query_dup():
 @defword(name='abort', doc="""\
 Abort execution and return to top level""")
 def w_abort():
-    raise Rpn2Abort()
+    raise Rpn_E_Abort()
 
 
 @defword(name='abort"', doc="""\
@@ -1787,12 +1871,12 @@ Absolute value  ( x -- abs )
 NOTE: For complex numbers, ABS return the modulus (float).""")
 def w_abs():
     x = param_stack.pop()
-    if type(x) is Rpn2Integer:
-        result = Rpn2Integer(abs(x.value()))
-    elif type(x) in [Rpn2Float, Rpn2Complex]:
-        result = Rpn2Float(abs(x.value()))
-    elif type(x) is Rpn2Rational:
-        result = Rpn2Rational.from_Fraction(abs(x.value()))
+    if type(x) is Rpn_t_Integer:
+        result = Rpn_t_Integer(abs(x.value()))
+    elif type(x) in [Rpn_t_Float, Rpn_t_Complex]:
+        result = Rpn_t_Float(abs(x.value()))
+    elif type(x) is Rpn_t_Rational:
+        result = Rpn_t_Rational.from_Fraction(abs(x.value()))
     else:
         param_stack.push(x)
         raise TypeError("abs: Type error ({})".format(type(x).__name__))
@@ -1833,7 +1917,7 @@ def w_begin():
 @defword(name='bye', doc="""\
 Exit program""")
 def w_bye():
-    raise Rpn2EndProgram()
+    raise Rpn_E_End_Program()
 
 
 @defword(name='case', doc="""\
@@ -1858,10 +1942,10 @@ def w_case():
 Ceiling  ( x -- ceil )   Smallest integer greater than or equal to X""")
 def w_ceil():
     x = param_stack.pop()
-    if type(x) is Rpn2Integer:
+    if type(x) is Rpn_t_Integer:
         result = x
-    elif type(x) in [Rpn2Float, Rpn2Rational]:
-        result = Rpn2Integer(math.ceil(x.value()))
+    elif type(x) in [Rpn_t_Float, Rpn_t_Rational]:
+        result = Rpn_t_Integer(math.ceil(x.value()))
     else:
         param_stack.push(x)
         raise TypeError("ceil: Type error ({})".format(type(x).__name__))
@@ -1873,10 +1957,10 @@ def w_ceil():
 @defword(name='cf', args=1)
 def w_cf():
     x = param_stack.pop()
-    if type(x) is Rpn2Integer:
-        if x.value() < 0 or x.value() >= flag_max:
+    if type(x) is Rpn_t_Integer:
+        if x.value() < 0 or x.value() > flag_max - 1:
             param_stack.push(x)
-            raise ValueError("cf: Argument out of range (0..{} expected)".format(flag_max))
+            raise ValueError("cf: Argument out of range (0..{} expected)".format(flag_max - 1))
         flag_clear(x.value())
     else:
         param_stack.push(x)
@@ -1887,14 +1971,14 @@ def w_cf():
 Change sign  ( x -- -x )""")
 def w_chs():
     x = param_stack.pop()
-    if type(x) is Rpn2Integer:
-        result = Rpn2Integer(-1 * x.value())
-    elif type(x) is Rpn2Float:
-        result = Rpn2Float(-1.0 * x.value())
-    elif type(x) is Rpn2Rational:
-        result = Rpn2Rational.from_Fraction(Fraction(-1,1) * x.value())
-    elif type(x) is Rpn2Complex:
-        result = Rpn2Complex(-1.0*x.real(), -1.0*x.imag())
+    if type(x) is Rpn_t_Integer:
+        result = Rpn_t_Integer(-1 * x.value())
+    elif type(x) is Rpn_t_Float:
+        result = Rpn_t_Float(-1.0 * x.value())
+    elif type(x) is Rpn_t_Rational:
+        result = Rpn_t_Rational.from_Fraction(Fraction(-1,1) * x.value())
+    elif type(x) is Rpn_t_Complex:
+        result = Rpn_t_Complex(-1.0*x.real(), -1.0*x.imag())
     else:
         param_stack.push(x)
         raise TypeError("chs: Type error ({})".format(type(x).__name__))
@@ -1927,9 +2011,9 @@ nCr = -----------
 def w_comb():
     x = param_stack.pop()
     y = param_stack.pop()
-    if type(x) is Rpn2Integer and type(y) is Rpn2Integer:
+    if type(x) is Rpn_t_Integer and type(y) is Rpn_t_Integer:
         # Python 3.8 has math.comb()
-        result = Rpn2Integer(choose_helper(y.value(), x.value()))
+        result = Rpn_t_Integer(choose_helper(y.value(), x.value()))
     else:
         param_stack.push(y)
         param_stack.push(x)
@@ -1943,10 +2027,10 @@ def w_comb():
 Cosine  ( angle -- cosine )""")
 def w_cos():
     x = param_stack.pop()
-    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
-        result = Rpn2Float(math.cos(convert_mode_to_radians(float(x.value()))))
-    elif type(x) is Rpn2Complex:
-        result = Rpn2Complex.from_complex(cmath.cos(x.value()))
+    if type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational]:
+        result = Rpn_t_Float(math.cos(convert_mode_to_radians(float(x.value()))))
+    elif type(x) is Rpn_t_Complex:
+        result = Rpn_t_Complex.from_complex(cmath.cos(x.value()))
     else:
         param_stack.push(x)
         raise TypeError("cos: Type error ({})".format(type(x).__name__))
@@ -1965,8 +2049,8 @@ def w_cr():
 Convert degrees to radians ( deg -- rad )""")
 def w_d_to_r():
     x = param_stack.pop()
-    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
-        result = Rpn2Float(convert_mode_to_radians(float(x.value()), "d"))
+    if type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational]:
+        result = Rpn_t_Float(convert_mode_to_radians(float(x.value()), "d"))
     else:
         param_stack.push(x)
         raise TypeError("d->r: Type error ({})".format(type(x).__name__))
@@ -1995,7 +2079,7 @@ def w_deg():
 @defword(name='deg?')
 def w_deg_query():
     global angle_mode
-    param_stack.push(Rpn2Integer(1 if angle_mode == "d" else 0))
+    param_stack.push(Rpn_t_Integer(1 if angle_mode == "d" else 0))
     global show_x
     show_x = True
 
@@ -2003,7 +2087,7 @@ def w_deg_query():
 @defword(name='depth', doc="""\
 Return current number of elements on stack  ( -- n )""")
 def w_depth():
-    param_stack.push(Rpn2Integer(param_stack.size()))
+    param_stack.push(Rpn_t_Integer(param_stack.size()))
     global show_x
     show_x = True
 
@@ -2017,20 +2101,20 @@ For vectors of length N, return a vector [ N ].
 For an M-row by N-col matrix, return a vector [ M N ].""")
 def w_dim():
     x = param_stack.pop()
-    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
-        result = Rpn2Integer(0)
-    elif type(x) is Rpn2Complex:
-        result = Rpn2Integer(2)
-    elif type(x) is Rpn2Vector:
-        result = Rpn2Vector(Rpn2List(Rpn2Integer(x.size()))) # [ len(x) ]
-    elif type(x) is Rpn2Matrix:
+    if type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational]:
+        result = Rpn_t_Integer(0)
+    elif type(x) is Rpn_t_Complex:
+        result = Rpn_t_Integer(2)
+    elif type(x) is Rpn_t_Vector:
+        result = Rpn_t_Vector(Rpn_List(Rpn_t_Integer(x.size()))) # [ len(x) ]
+    elif type(x) is Rpn_t_Matrix:
         # Pretty ugly.  Need a better method to append items.  Ugh,
         # things get added at the beginning of the list, so we have to
         # add the cols, THEN the rows in order to end up with
         # [ rows cols ].
-        l = Rpn2List(Rpn2Integer(x.ncols()))
-        l2 = Rpn2List(Rpn2Integer(x.nrows()), l)
-        result = Rpn2Vector(l2) # [ rows cols ]
+        l = Rpn_List(Rpn_t_Integer(x.ncols()))
+        l2 = Rpn_List(Rpn_t_Integer(x.nrows()), l)
+        result = Rpn_t_Vector(l2) # [ rows cols ]
     else:
         param_stack.push(x)
         raise TypeError("dim: Type error ({})".format(type(x).__name__))
@@ -2072,7 +2156,7 @@ def w_dup():
 @defword(name='E', doc="""\
 Constant: Base of natural logarithms ( -- 2.71828... )""")
 def w_E():
-    param_stack.push(Rpn2Float(E))
+    param_stack.push(Rpn_t_Float(E))
     global show_x
     show_x = True
 
@@ -2092,7 +2176,7 @@ emit  ( x -- )    Print a single ASCII character
 No space or newline is appended.""")
 def w_emit():
     x = param_stack.pop()
-    if type(x) is not Rpn2Integer:
+    if type(x) is not Rpn_t_Integer:
         param_stack.push(x)
         raise TypeError("emit: Type error ({})".format(type(x).__name__))
     write(chr(x.value()))
@@ -2143,17 +2227,17 @@ def w_eval():
 @defword(name='exit', doc="""\
 Terminate execution of current word""")
 def w_exit():
-    raise Rpn2Exit()
+    raise Rpn_E_Exit()
 
 
 @defword(name='exp', args=1, doc="""\
 Natural exponential ( x -- e^x )""")
 def w_exp():
     x = param_stack.pop()
-    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
-        result = Rpn2Float(math.exp(float(x.value())))
-    elif type(x) is Rpn2Complex:
-        result = Rpn2Complex.from_complex(cmath.exp(complex(x.value())))
+    if type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational]:
+        result = Rpn_t_Float(math.exp(float(x.value())))
+    elif type(x) is Rpn_t_Complex:
+        result = Rpn_t_Complex.from_complex(cmath.exp(complex(x.value())))
     else:
         param_stack.push(x)
         raise TypeError("exp: Type error ({})".format(type(x).__name__))
@@ -2171,11 +2255,11 @@ x! = x * (x-1) * (x-2) ... * 2 * 1
 X cannot be negative.""")
 def w_fact():
     x = param_stack.pop()
-    if type(x) is Rpn2Integer:
+    if type(x) is Rpn_t_Integer:
         if x.value() < 0:
             param_stack.push(x)
             raise ValueError("fact: Argument cannot be negative")
-        result = Rpn2Integer(fact_helper(x.value()))
+        result = Rpn_t_Integer(fact_helper(x.value()))
     else:
         param_stack.push(x)
         raise TypeError("fact: Type error ({})".format(type(x).__name__))
@@ -2186,7 +2270,7 @@ def w_fact():
 
 @defword(name='FALSE')
 def w_FALSE():
-    param_stack.push(Rpn2Integer(0))
+    param_stack.push(Rpn_t_Integer(0))
     global show_x
     show_x = True
 
@@ -2194,11 +2278,11 @@ def w_FALSE():
 @defword(name='fc?', args=1)
 def w_fc_query():
     x = param_stack.pop()
-    if type(x) is Rpn2Integer:
-        if x.value() < 0 or x.value() >= flag_max:
+    if type(x) is Rpn_t_Integer:
+        if x.value() < 0 or x.value() > flag_max - 1:
             param_stack.push(x)
-            raise ValueError("fc?: Argument out of range (0..{} expected)".format(flag_max))
-        result = Rpn2Integer(0 if flag_test(x.value()) else 1)
+            raise ValueError("fc?: Argument out of range (0..{} expected)".format(flag_max - 1))
+        result = Rpn_t_Integer(0 if flag_test(x.value()) else 1)
     else:
         param_stack.push(x)
         raise TypeError("fc?: Type error ({})".format(type(x).__name__))
@@ -2211,10 +2295,10 @@ def w_fc_query():
 Floor  ( x -- floor )   Largest integer not greater than X""")
 def w_floor():
     x = param_stack.pop()
-    if type(x) is Rpn2Integer:
+    if type(x) is Rpn_t_Integer:
         result = x
-    elif type(x) in [Rpn2Float, Rpn2Rational]:
-        result = Rpn2Integer(math.floor(x.value()))
+    elif type(x) in [Rpn_t_Float, Rpn_t_Rational]:
+        result = Rpn_t_Integer(math.floor(x.value()))
     else:
         param_stack.push(x)
         raise TypeError("floor: Type error ({})".format(type(x).__name__))
@@ -2223,14 +2307,20 @@ def w_floor():
     show_x = True
 
 
+@defword(name='forget', doc="""\
+Forget the definition of the following word.""")
+def w_forget():
+    pass                        # Grammar rules handle this word
+
+
 @defword(name='fs?', args=1)
 def w_fs_query():
     x = param_stack.pop()
-    if type(x) is Rpn2Integer:
-        if x.value() < 0 or x.value() >= flag_max:
+    if type(x) is Rpn_t_Integer:
+        if x.value() < 0 or x.value() > flag_max - 1:
             param_stack.push(x)
-            raise ValueError("fs?: Argument out of range (0..{} expected)".format(flag_max))
-        result = Rpn2Integer(1 if flag_test(x.value()) else 0)
+            raise ValueError("fs?: Argument out of range (0..{} expected)".format(flag_max - 1))
+        result = Rpn_t_Integer(1 if flag_test(x.value()) else 0)
     else:
         param_stack.push(x)
         raise TypeError("fs?: Type error ({})".format(type(x).__name__))
@@ -2247,7 +2337,7 @@ i = sqrt(-1)
 
 Do not confuse this with the I command, which returns the index for a DO loop.""")
 def w_i():
-    param_stack.push(Rpn2Complex(0,1))
+    param_stack.push(Rpn_t_Complex(0,1))
     global show_x
     show_x = True
 
@@ -2259,11 +2349,11 @@ Return the index of the most recent DO loop.
 
 Do not confuse this with the i command, which returns the complex number (0,1).""")
 def w_I():
-    _I = lookup_variable('_I')
+    (_I, _) = lookup_variable('_I')
     if _I is None:
         raise RuntimeError("'I' not valid here, only in DO loops")
-    elif type(_I.obj()) is not Rpn2Integer:
-        raise FatalError("I is not an Rpn2Integer")
+    elif type(_I.obj()) is not Rpn_t_Integer:
+        raise FatalError("I is not an Rpn_t_Integer")
     else:
         param_stack.push(_I.obj())
 
@@ -2281,7 +2371,7 @@ def w_if():
 @defword(name='leave', doc="""\
 Exit a DO or BEGIN loop immediately.""")
 def w_leave():
-    raise Rpn2Leave
+    raise Rpn_E_Leave
 
 
 @defword(name='lg', args=1, doc="""\
@@ -2290,24 +2380,24 @@ X cannot be zero.
 Use "ln" for the natural logarithm, and "log" for the common logarithm.""")
 def w_lg():
     x = param_stack.pop()
-    if     type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex] \
+    if     type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex] \
        and x.zerop():
         param_stack.push(x)
         raise ValueError("lg: Argument cannot be zero")
 
-    if    type(x) is Rpn2Integer  and x.value() > 0 \
-       or type(x) is Rpn2Float    and x.value() > 0.0 \
-       or type(x) is Rpn2Rational and x.value() > 0:
-        r = Rpn2Float(math.log2(float(x.value())))
-        if type(x) is Rpn2Integer and r.is_integer():
-            result = Rpn2Integer(r)
+    if    type(x) is Rpn_t_Integer  and x.value() > 0 \
+       or type(x) is Rpn_t_Float    and x.value() > 0.0 \
+       or type(x) is Rpn_t_Rational and x.value() > 0:
+        r = Rpn_t_Float(math.log2(float(x.value())))
+        if type(x) is Rpn_t_Integer and r.is_integer():
+            result = Rpn_t_Integer(r)
         else:
-            result = Rpn2Float(r)
-    elif    type(x) is Rpn2Complex \
-         or type(x) is Rpn2Integer  and x.value() < 0 \
-         or type(x) is Rpn2Float    and x.value() < 0.0 \
-         or type(x) is Rpn2Rational and x.value() < 0:
-        result = Rpn2Complex.from_complex(cmath.log(complex(x.value()), 2))
+            result = Rpn_t_Float(r)
+    elif    type(x) is Rpn_t_Complex \
+         or type(x) is Rpn_t_Integer  and x.value() < 0 \
+         or type(x) is Rpn_t_Float    and x.value() < 0.0 \
+         or type(x) is Rpn_t_Rational and x.value() < 0:
+        result = Rpn_t_Complex.from_complex(cmath.log(complex(x.value()), 2))
     else:
         param_stack.push(x)
         raise TypeError("lg: Type error ({})".format(type(x).__name__))
@@ -2322,20 +2412,20 @@ X cannot be zero.
 Use "log" for the common (base 10) logarithm.""")
 def w_ln():
     x = param_stack.pop()
-    if     type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex] \
+    if     type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex] \
        and x.zerop():
         param_stack.push(x)
         raise ValueError("ln: Argument cannot be zero")
 
-    if    type(x) is Rpn2Integer  and x.value() > 0 \
-       or type(x) is Rpn2Float    and x.value() > 0.0 \
-       or type(x) is Rpn2Rational and x.value() > 0:
-        result = Rpn2Float(math.log(float(x.value())))
-    elif    type(x) is Rpn2Complex \
-         or type(x) is Rpn2Integer  and x.value() < 0 \
-         or type(x) is Rpn2Float    and x.value() < 0.0 \
-         or type(x) is Rpn2Rational and x.value() < 0:
-        result = Rpn2Complex.from_complex(cmath.log(complex(x.value())))
+    if    type(x) is Rpn_t_Integer  and x.value() > 0 \
+       or type(x) is Rpn_t_Float    and x.value() > 0.0 \
+       or type(x) is Rpn_t_Rational and x.value() > 0:
+        result = Rpn_t_Float(math.log(float(x.value())))
+    elif    type(x) is Rpn_t_Complex \
+         or type(x) is Rpn_t_Integer  and x.value() < 0 \
+         or type(x) is Rpn_t_Float    and x.value() < 0.0 \
+         or type(x) is Rpn_t_Rational and x.value() < 0:
+        result = Rpn_t_Complex.from_complex(cmath.log(complex(x.value())))
     else:
         param_stack.push(x)
         raise TypeError("ln: Type error ({})".format(type(x).__name__))
@@ -2360,24 +2450,24 @@ X cannot be zero.
 Use "ln" for the natural (base e) logarithm.""")
 def w_log():
     x = param_stack.pop()
-    if     type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational, Rpn2Complex] \
+    if     type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex] \
        and x.zerop():
         param_stack.push(x)
         raise ValueError("log: Argument cannot be zero")
 
-    if    type(x) is Rpn2Integer  and x.value() > 0 \
-       or type(x) is Rpn2Float    and x.value() > 0.0 \
-       or type(x) is Rpn2Rational and x.value() > 0:
+    if    type(x) is Rpn_t_Integer  and x.value() > 0 \
+       or type(x) is Rpn_t_Float    and x.value() > 0.0 \
+       or type(x) is Rpn_t_Rational and x.value() > 0:
         r = math.log10(float(x.value()))
-        if type(x) is Rpn2Integer and r.is_integer():
-            result = Rpn2Integer(r)
+        if type(x) is Rpn_t_Integer and r.is_integer():
+            result = Rpn_t_Integer(r)
         else:
-            result = Rpn2Float(r)
-    elif    type(x) is Rpn2Complex \
-         or type(x) is Rpn2Integer  and x.value() < 0 \
-         or type(x) is Rpn2Float    and x.value() < 0.0 \
-         or type(x) is Rpn2Rational and x.value() < 0:
-        result = Rpn2Complex.from_complex(cmath.log10(complex(x.value())))
+            result = Rpn_t_Float(r)
+    elif    type(x) is Rpn_t_Complex \
+         or type(x) is Rpn_t_Integer  and x.value() < 0 \
+         or type(x) is Rpn_t_Float    and x.value() < 0.0 \
+         or type(x) is Rpn_t_Rational and x.value() < 0:
+        result = Rpn_t_Complex.from_complex(cmath.log10(complex(x.value())))
     else:
         param_stack.push(x)
         raise TypeError("log: Type error ({})".format(type(x).__name__))
@@ -2419,8 +2509,8 @@ integers, reals, rationals, and complex numbers.  NOTE: This is not a
 bitwise not.""")
 def w_not():
     x = param_stack.pop()
-    if type(x) is Rpn2Integer:
-        param_stack.push(Rpn2Integer(1 if x.zerop() else 0))
+    if type(x) is Rpn_t_Integer:
+        param_stack.push(Rpn_t_Integer(1 if x.zerop() else 0))
         global show_x
         show_x = True
     else:
@@ -2486,19 +2576,19 @@ nPr = ------
 def w_perm():
     x = param_stack.pop()
     y = param_stack.pop()
-    if type(y) is Rpn2Integer and type(x) is Rpn2Integer:
+    if type(y) is Rpn_t_Integer and type(x) is Rpn_t_Integer:
         # Python 3.8 has math.perm()
         n = y.value()
         r = x.value()
         if r > n or r < 0:
-            result = Rpn2Integer(0)
+            result = Rpn_t_Integer(0)
         else:
             t = 1
             while r > 0:
                 r -= 1
                 t *= n
                 n -= 1
-            result = Rpn2Integer(t)
+            result = Rpn_t_Integer(t)
     else:
         param_stack.push(y)
         param_stack.push(x)
@@ -2516,7 +2606,7 @@ PI == TAU/2
 
 Consider using TAU instead of PI to simplify your equations.""")
 def w_PI():
-    param_stack.push(Rpn2Float(PI))
+    param_stack.push(Rpn_t_Float(PI))
     global show_x
     show_x = True
 
@@ -2525,8 +2615,8 @@ def w_PI():
 Convert radians to degrees ( rad -- deg )""")
 def w_r_to_d():
     x = param_stack.pop()
-    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
-        result = Rpn2Float(convert_radians_to_mode(float(x.value()), "d"))
+    if type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational]:
+        result = Rpn_t_Float(convert_radians_to_mode(float(x.value()), "d"))
     else:
         param_stack.push(x)
         raise TypeError("r->d: Type error ({})".format(type(x).__name__))
@@ -2560,7 +2650,7 @@ def w_rad():
 @defword(name='rad?')
 def w_rad_query():
     global angle_mode
-    param_stack.push(Rpn2Integer(1 if angle_mode == "r" else 0))
+    param_stack.push(Rpn_t_Integer(1 if angle_mode == "r" else 0))
     global show_x
     show_x = True
 
@@ -2569,7 +2659,7 @@ def w_rad_query():
 Random number  ( -- n )
 0 <= n < 1""")
 def w_rand():
-    param_stack.push(Rpn2Float(random.random()))
+    param_stack.push(Rpn_t_Float(random.random()))
     global show_x
     show_x = True
 
@@ -2615,10 +2705,10 @@ def w_scopes():
 @defword(name='sf', args=1)
 def w_sf():
     x = param_stack.pop()
-    if type(x) is Rpn2Integer:
-        if x.value() < 0 or x.value() >= flag_max:
+    if type(x) is Rpn_t_Integer:
+        if x.value() < 0 or x.value() > flag_max - 1:
             param_stack.push(x)
-            raise ValueError("sf: Argument out of range (0..{} expected)".format(flag_max))
+            raise ValueError("sf: Argument out of range (0..{} expected)".format(flag_max - 1))
         flag_set(x.value())
     else:
         param_stack.push(x)
@@ -2639,7 +2729,7 @@ def w_shflag():
 @defword(name='show', str_args=1)
 def w_show():
     s = string_stack.pop()
-    what = lookup_word(s.value())
+    (what, _) = lookup_word(s.value())
     if what is None:
         lnwriteln("Could not find word '{}'".format(s))
     else:
@@ -2652,14 +2742,14 @@ Signum  ( n -- sign )
 Returns -1, 0, or 1.""")
 def w_sign():
     x = param_stack.pop()
-    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
+    if type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational]:
         if x.value() < 0:
             r = -1
         elif x.value() > 0:
             r = +1
         else:
             r = 0
-        result = Rpn2Integer(r)
+        result = Rpn_t_Integer(r)
     else:
         param_stack.push(x)
         raise TypeError("sign: Type error ({})".format(type(x).__name__))
@@ -2672,10 +2762,10 @@ def w_sign():
 Sine  ( angle -- sine )""")
 def w_sin():
     x = param_stack.pop()
-    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
-        result = Rpn2Float(math.sin(convert_mode_to_radians(float(x.value()))))
-    elif type(x) is Rpn2Complex:
-        result = Rpn2Complex.from_complex(cmath.sin(x.value()))
+    if type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational]:
+        result = Rpn_t_Float(math.sin(convert_mode_to_radians(float(x.value()))))
+    elif type(x) is Rpn_t_Complex:
+        result = Rpn_t_Complex.from_complex(cmath.sin(x.value()))
     else:
         param_stack.push(x)
         raise TypeError("sin: Type error ({})".format(type(x).__name__))
@@ -2689,25 +2779,25 @@ Square root  ( x -- sqrt(x) )
 Negative X returns a complex number""")
 def w_sqrt():
     x = param_stack.pop()
-    if type(x) is Rpn2Integer and x.zerop():
-        result = Rpn2Integer(0)
-    elif type(x) in [Rpn2Float, Rpn2Rational] and x.zerop():
-        result = Rpn2Float(0.0)
-    elif type(x) is Rpn2Complex and x.zerop():
-        result = Rpn2Complex()
-    elif    type(x) is Rpn2Integer  and x.value() > 0 \
-         or type(x) is Rpn2Float    and x.value() > 0.0 \
-         or type(x) is Rpn2Rational and x.value() > 0:
+    if type(x) is Rpn_t_Integer and x.zerop():
+        result = Rpn_t_Integer(0)
+    elif type(x) in [Rpn_t_Float, Rpn_t_Rational] and x.zerop():
+        result = Rpn_t_Float(0.0)
+    elif type(x) is Rpn_t_Complex and x.zerop():
+        result = Rpn_t_Complex()
+    elif    type(x) is Rpn_t_Integer  and x.value() > 0 \
+         or type(x) is Rpn_t_Float    and x.value() > 0.0 \
+         or type(x) is Rpn_t_Rational and x.value() > 0:
         r = math.sqrt(float(x.value()))
-        if type(x) is Rpn2Integer and r.is_integer():
-            result = Rpn2Integer(r)
+        if type(x) is Rpn_t_Integer and r.is_integer():
+            result = Rpn_t_Integer(r)
         else:
-            result = Rpn2Float(r)
-    elif    type(x) is Rpn2Complex \
-         or type(x) is Rpn2Integer  and x.value() < 0 \
-         or type(x) is Rpn2Float    and x.value() < 0.0 \
-         or type(x) is Rpn2Rational and x.value() < 0:
-        result = Rpn2Complex.from_complex(cmath.sqrt(complex(x.value())))
+            result = Rpn_t_Float(r)
+    elif    type(x) is Rpn_t_Complex \
+         or type(x) is Rpn_t_Integer  and x.value() < 0 \
+         or type(x) is Rpn_t_Float    and x.value() < 0.0 \
+         or type(x) is Rpn_t_Rational and x.value() < 0:
+        result = Rpn_t_Complex.from_complex(cmath.sqrt(complex(x.value())))
     else:
         param_stack.push(x)
         raise TypeError("sqrt: Type error ({})".format(type(x).__name__))
@@ -2730,10 +2820,10 @@ def w_swap():
 Tangent  ( angle -- tangent )""")
 def w_tan():
     x = param_stack.pop()
-    if type(x) in [Rpn2Integer, Rpn2Float, Rpn2Rational]:
-        result = Rpn2Float(math.tan(convert_mode_to_radians(float(x.value()))))
-    elif type(x) is Rpn2Complex:
-        result = Rpn2Complex.from_complex(cmath.tan(x.value()))
+    if type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational]:
+        result = Rpn_t_Float(math.tan(convert_mode_to_radians(float(x.value()))))
+    elif type(x) is Rpn_t_Complex:
+        result = Rpn_t_Complex.from_complex(cmath.tan(x.value()))
     else:
         param_stack.push(x)
         raise TypeError("tan: Type error ({})".format(type(x).__name__))
@@ -2748,7 +2838,7 @@ Constant: Tau ( -- 6.28318... )
 DEFINITION:
 Number of radians in a circle.""")
 def w_TAU():
-    param_stack.push(Rpn2Float(TAU))
+    param_stack.push(Rpn_t_Float(TAU))
     global show_x
     show_x = True
 
@@ -2764,7 +2854,7 @@ def w_then():
 
 @defword(name='TRUE')
 def w_TRUE():
-    param_stack.push(Rpn2Integer(1))
+    param_stack.push(Rpn_t_Integer(1))
     global show_x
     show_x = True
 
@@ -2921,11 +3011,11 @@ def convert_radians_to_mode(r, force_mode=None):
 
 
 def defvar(name, value, **kwargs):
-    global_scope.set_variable(name, Rpn2Variable(name, value, **kwargs))
+    global_scope.set_variable(name, Rpn_Variable(name, value, **kwargs))
 
 
 def old_defword(name, defn, **kwargs):
-    global_scope.set_word(name, Rpn2Word(name, defn, **kwargs))
+    global_scope.set_word(name, Rpn_Word(name, defn, **kwargs))
 
 
 def eval_string(s):
@@ -2944,20 +3034,20 @@ def fact_helper(x):
 
 def flag_clear(flag):
     global flags_vec
-    if flag < 0 or flag >= flag_max:
-        raise Rpn2Fatal("{}: Flag {} out of range".format(whoami(), flag))
+    if flag < 0 or flag > flag_max - 1:
+        raise Rpn_E_Fatal("{}: Flag {} out of range".format(whoami(), flag))
     flags_vec &= ~(1<<flag)
 
 def flag_set(flag):
     global flags_vec
-    if flag < 0 or flag >= flag_max:
-        raise Rpn2Fatal("{}: Flag {} out of range".format(whoami(), flag))
+    if flag < 0 or flag > flag_max - 1:
+        raise Rpn_E_Fatal("{}: Flag {} out of range".format(whoami(), flag))
     flags_vec |= 1<<flag
 
 def flag_test(flag):
     global flags_vec
-    if flag < 0 or flag >= flag_max:
-        raise Rpn2Fatal("{}: Flag {} out of range".format(whoami(), flag))
+    if flag < 0 or flag > flag_max - 1:
+        raise Rpn_E_Fatal("{}: Flag {} out of range".format(whoami(), flag))
     return True if flags_vec & 1<<flag != 0 else False
 
 
@@ -3021,6 +3111,7 @@ spacing : int
                     for row in rows)
     writeln(out)
 
+
 def load_file(filename):
     with open(filename, "r") as file:
         contents = file.read()
@@ -3034,9 +3125,9 @@ def lookup_variable(name):
         var = scope.variable(name)
         if var is not None:
             # lnwriteln("{}: Found variable {} in scope {}: {}".format(whoami(), name, scope, var))
-            return var
+            return (var, scope)
     #lnwriteln("{}: Variable {} not found".format(whoami(), name))
-    return None
+    return (None, None)
 
 
 def lookup_word(name):
@@ -3046,9 +3137,9 @@ def lookup_word(name):
         word = scope.word(name)
         if word is not None:
             #lnwriteln("{}: Found word {} in scope {}: {}".format(whoami(), name, scope, word))
-            return word
+            return (word, scope)
     #lnwriteln("{}: Word {} not found".format(whoami(), name))
-    return None
+    return (None, None)
 
 
 def prompt_string():
@@ -3063,12 +3154,12 @@ def push_scope(scope, why):
 def pop_scope(why):
     scope = scope_stack.pop()
     if scope == global_scope:
-        raise Rpn2Fatal("Attempting to pop Global scope!")
+        raise Rpn_E_Fatal("Attempting to pop Global scope!")
     #print("Popped scope {} due to {}".format(scope, why))
 
 
 def sigquit_handler(signum, frame):
-    raise Rpn2EndProgram()
+    raise Rpn_E_End_Program()
 
 
 # Simple SIGWINCH handler can become overwhelmed and crash if window
@@ -3086,8 +3177,8 @@ def sigwinch_handler(signum, frame):
     if int(tty_rows) == 0:
         env_rows = os.getenv("ROWS")
         tty_rows = int(env_rows) if env_rows is not None else 24
-    global_scope.variable('ROWS').set_obj(Rpn2Integer(tty_rows))
-    global_scope.variable('COLS').set_obj(Rpn2Integer(tty_columns))
+    global_scope.variable('ROWS').set_obj(Rpn_t_Integer(tty_rows))
+    global_scope.variable('COLS').set_obj(Rpn_t_Integer(tty_columns))
 
 
 def whoami():
@@ -3111,12 +3202,12 @@ def write(s):
         newline = s.find("\n")
     outval += len(s)
     print(s, end='')
-    sharpout.set_obj(Rpn2Integer(outval))
+    sharpout.set_obj(Rpn_t_Integer(outval))
 
 def writeln(s=""):
     sharpout = global_scope.variable('#OUT')
     print(s)
-    sharpout.set_obj(Rpn2Integer(0))
+    sharpout.set_obj(Rpn_t_Integer(0))
 
 def lnwriteln(s):
     sharpout = global_scope.variable('#OUT')
@@ -3133,7 +3224,7 @@ def lnwriteln(s):
 #
 #############################################################################
 def initialize():
-    global rpn_version
+    global rpn_version, default_protected
 
     random.seed()
     w_clflag()
@@ -3143,17 +3234,20 @@ def initialize():
     # Read & define ROWS and COLS via stty(1)
     sigwinch_handler(0, 0)
 
+    # User mode stuff
+    default_protected = False
+
     init_file = os.path.expanduser("~/.rpn2rc")
     if os.path.isfile(init_file):
         load_file(init_file)
 
 
 def define_variables():
-    defvar('COLS',  Rpn2Integer(0))
-    defvar('#OUT',  Rpn2Integer(0))
-    defvar('ROWS',  Rpn2Integer(0))
-    defvar('trace', Rpn2Integer(0))
-    defvar('VER',   Rpn2Float(rpn_version))
+    defvar('COLS',  Rpn_t_Integer(0))
+    defvar('#OUT',  Rpn_t_Integer(0))
+    defvar('ROWS',  Rpn_t_Integer(0))
+    defvar('trace', Rpn_t_Integer(0))
+    defvar('VER',   Rpn_t_Float(rpn_version))
 
 
 def define_secondary_words():
@@ -3184,19 +3278,19 @@ def main_loop():
         try:
             s = input() + " "
         except EOFError:
-            raise Rpn2EndProgram()
+            raise Rpn_E_End_Program()
         except KeyboardInterrupt:
             # CTRL/C on input exits program
-            raise Rpn2EndProgram()
+            raise Rpn_E_End_Program()
 
-        global_scope.variable('#OUT').set_obj(Rpn2Integer(0))
+        global_scope.variable('#OUT').set_obj(Rpn_t_Integer(0))
         if not s or s == " ":
             continue
 
         parse_error = False
         try:
             result = parser.parse(s, debug=rpn_debug)
-        except Rpn2TopLevel:
+        except Rpn_E_Top_Level:
             continue
 
         #print("A:parse({}) => result={} (parse_error={})".format(s, repr(result), parse_error))
@@ -3209,7 +3303,7 @@ def main_loop():
                 break
             except KeyboardInterrupt:
                 break
-            global_scope.variable('#OUT').set_obj(Rpn2Integer(0))
+            global_scope.variable('#OUT').set_obj(Rpn_t_Integer(0))
             s += t
             result = parser.parse(s, debug=rpn_debug)
             #print("B:parse({}) => result={} (parse_error={}".format(s, repr(result), parse_error))
@@ -3236,41 +3330,15 @@ def do_exit():
 #       M A I N
 #
 #############################################################################
-rpn_debug = False
-angle_mode  = "r"               # r=radians, d=degrees, g=grads (not supported)
-parse_error = False
-flag_max = 64
-show_x = False
-
 parser = yacc.yacc()
 
-param_stack  = Rpn2Stack()
-return_stack = Rpn2Stack()
-scope_stack  = Rpn2Stack()
-string_stack = Rpn2Stack()
+param_stack  = Rpn_Stack()
+return_stack = Rpn_Stack()
+scope_stack  = Rpn_Stack()
+string_stack = Rpn_Stack()
 
 #print("Creating Global scope {}".format(global_scope))
 push_scope(global_scope, "Global scope")
-
-# DEG_PER_RAD  = 360 / TAU
-# E            = Base of natural logarithms = exp(1.0)
-# GAMMA        = Euler-Mascheroni constant.  Approx: 1 - tanh(ln(1.57)) - 0.57/(9!)
-# GRAD_PER_RAD = 400 / TAU
-# LN_2         = ln(2)
-# LN_10        = ln(10)
-# PHI          = Golden ratio = (1 + sqrt(5)) / 2
-# PI           = TAU / 2
-# TAU          = Number of radians in a circle
-GAMMA        =  0.5772156649015328606065120900824024310421593359399235988057672348848677267776646709369470632917467495
-LN_2         =  0.6931471805599453094172321214581765680755001343602552541206900094933936219696947156058633269964186875
-PHI          =  1.6180339887498948482045868343656381177203091798057628621354486227052604628189024497072072041893911375
-LN_10        =  2.3025850929940456840179914546843642076011014886287729760333279009675726096773524802359972050895982983
-E            =  2.7182818284590452353602874713526624977572470936999595749669676277240766303535475945713821785251664274
-PI           =  3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170680
-TAU          =  6.2831853071795864769252867665590057683943387987502116419498891846156328125724179972560696506842341360
-DEG_PER_RAD  = 57.2957795130823208767981548141051703324054724665643215491602438612028471483245526324409689958511109442
-GRAD_PER_RAD = 63.6619772367581343075535053490057448137838582961825794990669376235587190536906140360455211065012343824
-
 
 if __name__ == "__main__":
     signal.signal(signal.SIGQUIT, sigquit_handler)
@@ -3279,9 +3347,9 @@ if __name__ == "__main__":
     w_ver()
     try:
         main_loop()
-    except Rpn2EndProgram:
+    except Rpn_E_End_Program:
         pass
-    except Rpn2Fatal as e:
+    except Rpn_E_Fatal as e:
         if len(e._message) > 0:
             lnwriteln("Fatal error: {}".format(e))
         sys.exit(1)
