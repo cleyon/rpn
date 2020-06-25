@@ -195,7 +195,7 @@ def t_MINUS(t):
     return t
 
 def t_IDENTIFIER(t):
-    r'[#$%*+./0-9<=>A-Z^a-z][!#$%*+./0-9<=>?A-Z^a-z]*'
+    r'[#$%*+./0-9<=>?A-Z^a-z][!#$%*+./0-9<=>?A-Z^a-z]*'
     t.type = reserved_words.get(t.value, 'IDENTIFIER')
     return t
 

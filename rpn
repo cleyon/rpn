@@ -26,6 +26,7 @@ from rpn_lex    import tokens
 angle_mode        = "d"  # r=radians, d=degrees, g=grads (not supported)
 date_re           = r'^(\d{1,2})\.(\d{2})(\d{4})$'
 date_pat          = re.compile(date_re)
+dbg               = {}
 default_protected = True
 flag_max          = 64
 force_interactive = False
@@ -942,6 +943,10 @@ class Rpn_Variable:
                 lnwriteln("Unrecognized keyword '{}'={}".format(key, val))
                 raise Rpn_E_Fatal("Could not construct variable '{}'".format(name))
 
+    @classmethod
+    def name_valid_p(cls, name):
+        return not (name is None or len(name) == 0 or name[0] in ['+','-','*','/','?'])
+
     def obj(self):
         return self._rpnobj
 
@@ -1102,7 +1107,7 @@ def p_execute(p):
     except KeyboardInterrupt:
         # CTRL/C while executing returns to top level prompt
         show_x = False
-        writeln("[Interrupt]")
+        writeln(" [Interrupt]")
         raise Rpn_E_Top_Level()
     except Rpn_E_Abort as e:
         if len(e._message) > 0:
@@ -1148,6 +1153,16 @@ def p_locals_opt(p):
     if len(p) == 4:
         variables = p[2]
         for varname in variables.items():
+            if not Rpn_Variable.name_valid_p(varname):
+                lnwriteln("Variable name '{}' is not valid".format(varname))
+                # If parse_error is True, p_colon_def_error() will
+                # attempt to pop the scope of the invalid sequence.
+                # Since this bad variable name error is detected before
+                # the sequence's scope has been pushed, popping would be
+                # a mistake.  Prevent that by artificially setting
+                # parse_error to False.
+                parse_error = False
+                raise SyntaxError
             var = Rpn_Variable(varname)
             #lnwriteln("{}: Defining variable {} in scope {}".format(whoami(), varname, scope))
             scope.set_variable(varname, var)
@@ -1280,7 +1295,9 @@ def p_colon_def(p):
 def p_colon_def_error(p):
     '''colon_def :  COLON  IDENTIFIER  docstr_opt  error  SEMICOLON '''
 
-    pop_scope("Syntax error in colon_def")
+    if parse_error:
+        pop_scope("Syntax error in colon_def")
+
     p[0] = Rpn_Error("{}: Syntax error in definition".format(p[2]))
 
 def p_define_word(p):
@@ -1918,6 +1935,19 @@ def w_zero_less_than():
     show_x = True
 
 
+@defword(name='0<>', args=1, doc="""\
+Test if X is not equal to zero  ( x -- flag )""")
+def w_zero_not_equal():
+    x = param_stack.pop()
+    if type(x) not in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex]:
+        param_stack.push(x)
+        raise TypeError("0<>: Type error ({})".format(type(x).__name__))
+
+    param_stack.push(Rpn_t_Integer(0 if x.zerop() else 1))
+    global show_x
+    show_x = True
+
+
 @defword(name='0=', args=1, doc="""\
 Test if X is equal to zero  ( x -- flag )""")
 def w_zero_equal():
@@ -1993,6 +2023,43 @@ def w_less_than_or_equal():
         param_stack.push(y)
         param_stack.push(x)
         raise TypeError("<=: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+    global show_x
+    show_x = True
+
+
+@defword(name='<>', args=2, doc="""\
+Test if Y is not equal to X  ( y x -- flag )""")
+def w_not_equal():
+    """\
+|----------+----------+---------+----------+---------+--------+--------|
+| Integer  |   xxxx   |  xxx    |  xxxx    | xxxx    |        |        |
+| Float    |   xxxxx  |  xxx    |   xxxx   | xxx     |        |        |
+| Rational |   xxxx   |  xxx    |  xxxxx   | xxxx    |        |        |
+| Complex  |    xxxx  |  xxx    |   xxx    | xxx     |        |        |
+| Vector   |          |         |          |         |        |        |
+| Matrix   |          |         |          |         |        |        |
+|----------+----------+---------+----------+---------+--------+--------|
+| ^Y    X> | Integer  | Float   | Rational | Complex | Vector | Matrix |"""
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if type(x) is Rpn_t_Integer and type(y) is Rpn_t_Integer:
+        flag = y.value() == x.value()
+    elif    type(x) is Rpn_t_Float and type(y) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational] \
+         or type(y) is Rpn_t_Float and type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational]:
+        flag = float(y.value()) == float(x.value()) # Beware floating point equality lossage
+    elif    type(x) is Rpn_t_Rational and type(y) in [Rpn_t_Integer, Rpn_t_Rational] \
+         or type(y) is Rpn_t_Rational and type(x) in [Rpn_t_Integer, Rpn_t_Rational]:
+        flag = Fraction(y.value()) == Fraction(x.value())
+    elif    type(x) is Rpn_t_Complex and type(y) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex] \
+         or type(y) is Rpn_t_Complex and type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex]:
+        flag = complex(y.value()) == complex(x.value())
+    # XXX - it should be possible to compare vectors and matrices for equality:
+    # Check if dimensions and components match
+    else:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("<>: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+    param_stack.push(Rpn_t_Integer(0 if flag else 1))
     global show_x
     show_x = True
 
@@ -2259,6 +2326,13 @@ Clear all flags  ( -- )""")
 def w_clflag():
     global flags_vec
     flags_vec = 0
+
+
+@defword(name='clrst', doc="""\
+Clear the return stack.
+Do not do this inside a DO loop!""")
+def w_clrst():
+    return_stack.clear()
 
 
 @defword(name='clst', doc="""\
@@ -3350,12 +3424,12 @@ def w_rand():
     show_x = True
 
 
-# XXX - I do not like this name!
-@defword(name='rclst', doc="""\
-Clear the return stack.
-Do not do this inside a DO loop!""")
-def w_rclst():
-    return_stack.clear()
+@defword(name='rdepth', doc="""\
+Current number of elements on return stack  ( -- n )""")
+def w_rdepth():
+    param_stack.push(Rpn_t_Integer(return_stack.size()))
+    global show_x
+    show_x = True
 
 
 @defword(name='repeat', doc="""\
@@ -3838,7 +3912,6 @@ class _Getch_Windows:
         import msvcrt
         return msvcrt.getch()
 
-
 class _Getch_Unix:
     def __init__(self):
         # import termios now or else you'll get the Unix version on the Mac
@@ -3854,7 +3927,6 @@ class _Getch_Unix:
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
         return ch
-
 
 class _Getch:
     """Gets a single character from standard input.  Does not echo to the screen."""
@@ -4013,9 +4085,9 @@ def push_scope(scope, why):
 
 def pop_scope(why):
     scope = scope_stack.pop()
+    #print("Popped scope {} due to {}".format(scope, why))
     if scope == global_scope:
         raise Rpn_E_Fatal("Attempting to pop Global scope!")
-    #print("Popped scope {} due to {}".format(scope, why))
 
 
 def sigquit_handler(signum, frame):
