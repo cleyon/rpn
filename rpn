@@ -24,13 +24,18 @@ from rpn_lex    import tokens
 
 # Global variables
 angle_mode        = "d"  # r=radians, d=degrees, g=grads (not supported)
+date_re           = r'^(\d{1,2})\.(\d{2})(\d{4})$'
+date_pat          = re.compile(date_re)
 default_protected = True
 flag_max          = 64
 force_interactive = False
 go_interactive    = True
+julian_offset     = 1721424 # date.toordinal() returns 1 for 0001-01-01, so compensate
 parse_error       = False
 rpn_debug         = False
 show_x            = False
+time_re           = r'^[-+]?(\d+)\.(\d{,2})(\d*)$'
+time_pat          = re.compile(time_re)
 
 # DEG_PER_RAD  = 360 / TAU
 # E            = Base of natural logarithms = exp(1.0)
@@ -435,8 +440,6 @@ Success:  (True, dateobj, julian)
           dateobj is datetime.date, julian is an int
 Failure:  (False, None, None)"""
 
-        date_re = r'^(\d{1,2})\.(\d{2})(\d{4})$'
-        date_pat = re.compile(date_re)
         match = date_pat.match("%.6f" % self.value())
         if match is None:
             return (False, None, None)
@@ -450,28 +453,26 @@ Failure:  (False, None, None)"""
             return (False, None, None)
 
         # date.toordinal() returns 1 for 0001-01-01, so compensate
-        julian = dateobj.toordinal() + 1721424
+        julian = dateobj.toordinal() + julian_offset
         return (True, dateobj, julian)
 
     def time_info(self):
-        """A float in the format HH.MMSSsss might represent a time.
+        """A float in the format HH.MMSSssss might represent a time.
 Extract some information about a time formatted this way.
 Note: This routine can unpack an arbitrary number of hours, potentially
 greater than 24, so there may not be a valid timeobj even if it parses okay.
 Success:  (True, HH, MM, SS, timeobj)
 Failure:  (False, None, None, None, None)"""
 
-        time_re = r'^(\d+)\.(\d{,2})(\d*)$'
-        time_pat = re.compile(time_re)
         match = time_pat.match("%f" % self.value())
         if match is None:
             return (False, None, None, None, None)
 
-        hh = match.group(1)
-        mm = match.group(2)
-        ss = match.group(3)
+        hh = int(  match.group(1))
+        mm = int(  match.group(2))
+        ss = float(match.group(3)) / 100.0
         try:
-            timeobj = datetime.time(int(hh), int(mm), int(ss))
+            timeobj = datetime.time(hh, mm, round(ss))
         except ValueError:
             timeobj = None
         return (True, hh, mm, ss, timeobj)
@@ -865,7 +866,7 @@ class Rpn_Stackable:
             if type(var) is not Rpn_Variable:
                 raise Rpn_E_Fatal("{}: Rpn_Fetch_Var.value().variable ({}) is not an Rpn_Variable".format(whoami(), self.value().identifier()))
             elif var.obj() is None:
-                raise RuntimeError("{}: Fetch of undefined variable {}".format(whoami(), self.value()))
+                raise RuntimeError("{}: Variable is not defined".format(self.value()))
             else:
                 param_stack.push(var.obj())
         else:
@@ -1336,7 +1337,6 @@ def p_forget(p):
     name = p[2]
     (word, scope) = lookup_word(name)
     if word is None:
-        # throw a parse error
         lnwriteln("forget: '{}' not found".format(name))
         parse_error = True
         raise SyntaxError
@@ -1372,7 +1372,6 @@ def p_help(p):
     name = p[2]
     (word, _) = lookup_word(name)
     if word is None:
-        # throw a parse error
         lnwriteln("help: '{}' not found".format(name))
         parse_error = True
         raise SyntaxError
@@ -1415,7 +1414,6 @@ def p_word(p):
     name = p[1]
     (word, _) = lookup_word(name)
     if word is None:
-        # throw a parse error
         #lnwriteln("{}: Word '{}' not found".format(whoami(), name))
         lnwriteln("{}: Word not found".format(name))
         parse_error = True
@@ -2307,7 +2305,7 @@ def w_date_plus():
         raise ValueError("date+: {} is not a valid date".format(y.value()))
 
     new_julian = julian + x.value()
-    dateobj = datetime.date.fromordinal(new_julian - 1721424)
+    dateobj = datetime.date.fromordinal(new_julian - julian_offset)
     result = Rpn_t_Float("%d.%02d%04d" % (dateobj.month, dateobj.day, dateobj.year))
     param_stack.push(result)
     global show_x
@@ -2331,7 +2329,7 @@ def w_date_minus():
         raise ValueError("date-: {} is not a valid date".format(y.value()))
 
     new_julian = julian - x.value()
-    dateobj = datetime.date.fromordinal(new_julian - 1721424)
+    dateobj = datetime.date.fromordinal(new_julian - julian_offset)
     result = Rpn_t_Float("%d.%02d%04d" % (dateobj.month, dateobj.day, dateobj.year))
     param_stack.push(result)
     global show_x
@@ -2447,7 +2445,7 @@ def w_do():
 
 
 @defword(name='dow', args=1, doc="""\
-Day of week  ( mm.ddyyyy -- dow )
+Day of week  ( MM.DDYYYY -- dow )
 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 7=Sun""")
 def w_dow():
     x = param_stack.pop()
@@ -2663,6 +2661,126 @@ def w_fs_query():
     show_x = True
 
 
+@defword(name='hms', args=1, doc="""\
+Convert decimal hours to hours/minutes/seconds  ( HH.nnn -- HH.MMSS )""")
+def w_hms():
+    x = param_stack.pop()
+    if type(x) is Rpn_t_Integer:
+        result = Rpn_t_Float(x.value())
+    elif type(x) in [Rpn_t_Float, Rpn_t_Rational]:
+        negative = x.value() < 0
+        hr = abs(x.value())
+        (minutes, seconds) = divmod(hr * 3600, 60)
+        (hours, minutes)   = divmod(minutes, 60)
+        if negative:
+            hours *= -1.0
+        result = Rpn_t_Float("%d.%02d%02d" % (hours, minutes, seconds))
+    else:
+        param_stack.push(x)
+        raise TypeError("hms: Type error ({})".format(type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='hms+', args=2)
+def w_hms_plus():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if    type(x) not in [Rpn_t_Integer, Rpn_t_Float] \
+       or type(y) not in [Rpn_t_Integer, Rpn_t_Float]:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("hms+: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+
+    ynegative = y.value() < 0
+    if type(y) is Rpn_t_Integer:
+        (yvalid, yhh, ymm, yss, _) = Rpn_t_Float(y.value()).time_info()
+    else:
+        (yvalid, yhh, ymm, yss, _) = y.time_info()
+    if not yvalid:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise ValueError("hms+: Time {} is not valid".format(y.value()))
+
+    xnegative = y.value() < 0
+    if type(x) is Rpn_t_Integer:
+        (xvalid, xhh, xmm, xss, _) = Rpn_t_Float(x.value()).time_info()
+    else:
+        (xvalid, xhh, xmm, xss, _) = x.time_info()
+    if not xvalid:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise ValueError("hms+: Time {} is not valid".format(x.value()))
+
+    (hh, mm, ss) = normalize_hms(yhh + xhh, ymm + xmm, yss + xss)
+    #print("hh=",hh,"mm=",mm,"ss=",ss)
+    result = Rpn_t_Float("%d.%02d%02d" % (hh, mm, ss))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='hms-', args=2)
+def w_hms_minus():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if    type(x) not in [Rpn_t_Integer, Rpn_t_Float] \
+       or type(y) not in [Rpn_t_Integer, Rpn_t_Float]:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("hms-: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+
+    if type(y) is Rpn_t_Integer:
+        (yvalid, yhh, ymm, yss, _) = Rpn_t_Float(y.value()).time_info()
+    else:
+        (yvalid, yhh, ymm, yss, _) = y.time_info()
+    if not yvalid:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise ValueError("hms-: Time {} is not valid".format(y.value()))
+
+    if type(x) is Rpn_t_Integer:
+        (xvalid, xhh, xmm, xss, _) = Rpn_t_Float(x.value()).time_info()
+    else:
+        (xvalid, xhh, xmm, xss, _) = x.time_info()
+    if not xvalid:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise ValueError("hms-: Time {} is not valid".format(x.value()))
+
+    (hh, mm, ss) = normalize_hms(yhh - xhh, ymm - xmm, yss - xss)
+    #print("hh=",hh,"mm=",mm,"ss=",ss)
+    result = Rpn_t_Float("%d.%02d%02d" % (hh, mm, ss))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='hr', args=1, doc="""\
+Convert hours/minutes/seconds to decimal hours  ( HH.MMSS -- HH.nnn )""")
+def w_hr():
+    x = param_stack.pop()
+    if type(x) is Rpn_t_Integer:
+        result = Rpn_t_Float(x.value())
+    elif type(x) in [Rpn_t_Float, Rpn_t_Rational]:
+        negative = -1.0 if x.value() < 0 else 1.0
+        hms = Rpn_t_Float(abs(float(x.value()) if type(x) is Rpn_t_Rational else x.value()))
+        (valid, hh, mm, ss, _) = hms.time_info()
+        if not valid:
+            param_stack.push(x)
+            raise ValueError("hr: Time {} is not valid".format(x.value()))
+
+        hr = float(hh) + float(mm)/60.0 + float(ss)/3600.0
+        result = Rpn_t_Float(negative * hr)
+    else:
+        param_stack.push(x)
+        raise TypeError("hr: Type error ({})".format(type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
 @defword(name='i', doc="""\
 Imaginary unit (0,1)  ( -- i )
 
@@ -2717,7 +2835,7 @@ def w_jd_to_d():
         param_stack.push(x)
         raise ValueError("jd->d: X out of range (1..{} expected)".format(date.max.toordinal()))
 
-    dateobj = datetime.date.fromordinal(x.value() - 1721424)
+    dateobj = datetime.date.fromordinal(x.value() - julian_offset)
     result = Rpn_t_Float("%d.%02d%04d" % (dateobj.month, dateobj.day, dateobj.year))
     param_stack.push(result)
     global show_x
@@ -3323,12 +3441,22 @@ def w_time():
 
 
 @defword(name='time!', doc="""\
-High precision clock time  ( -- HH.MMSSsssss )""")
+High precision clock time  ( -- HH.MMSSssss )""")
 def w_time_bang():
     t = datetime.datetime.now().strftime("%H.%M%S%f")
     param_stack.push(Rpn_t_Float(t))
     global show_x
     show_x = True
+
+
+@defword(name='timeinfo', args=1)
+def w_timeinfo():
+    x = param_stack.pop()
+    if type(x) is Rpn_t_Float:
+        print(x.time_info())
+    else:
+        param_stack.push(x)
+        raise TypeError("timeinfo: Type error ({})".format(type(x).__name__))
 
 
 @defword(name='TRUE')
@@ -3661,6 +3789,22 @@ def lookup_word(name):
             return (word, scope)
     #lnwriteln("{}: Word {} not found".format(whoami(), name))
     return (None, None)
+
+
+def normalize_hms(hh, mm, ss):
+    while ss < 0:
+        mm -=  1
+        ss += 60
+    while ss >= 60:
+        mm +=  1
+        ss -= 60
+    while mm < 0:
+        hh -=  1
+        mm += 60
+    while mm >= 60:
+        hh +=  1
+        mm -= 60
+    return (hh, mm, ss)
 
 
 def parse_args():
