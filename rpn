@@ -23,7 +23,7 @@ from fractions  import Fraction
 from rpn_lex    import tokens
 
 # Global variables
-angle_mode        = "d"  # r=radians, d=degrees, g=grads (not supported)
+angle_mode        = "d"  # r=radians, d=degrees, g=gradians
 date_re           = r'^(\d{1,2})\.(\d{2})(\d{4})$'
 date_pat          = re.compile(date_re)
 dbg               = {}
@@ -1394,6 +1394,8 @@ def p_help(p):
             |  HELP  UNTIL
             |  HELP  WHILE'''
 
+    # HELP DOT_QUOTE doesn't work right because the lexer scans additional
+    # characters to complete the string.  HELP never sees a bare DOT_QUOTE.
     global parse_error
     name = p[2]
     (word, _) = lookup_word(name)
@@ -1856,6 +1858,17 @@ def w_dot_bang():
     lnwriteln(repr(param_stack.top()))
     global show_x
     show_x = False
+
+
+@defword(name='."', doc="""\
+Display string enclosed by quotation marks.
+No newline is printed afterwards.
+
+NOTE: The string begins immediately after the first ", so
+  ."Hello, world!"
+is correct.  This is different from Forth, where the must be a space after ." """)
+def w_dot_quote():
+    pass                        # Grammar rules handle this word
 
 
 @defword(name='.s', doc="""\
@@ -2799,6 +2812,22 @@ def w_fs_query():
         param_stack.push(x)
         raise TypeError("fs?: Type error ({})".format(type(x).__name__))
     param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='grad', doc="""\
+Set angular mode to gradians""")
+def w_grad():
+    global angle_mode
+    angle_mode = "g"
+
+
+@defword(name='grad?', doc="""\
+Test if angular mode is gradians  ( -- flag )""")
+def w_grad_query():
+    global angle_mode
+    param_stack.push(Rpn_t_Integer(1 if angle_mode == "g" else 0))
     global show_x
     show_x = True
 
@@ -3843,8 +3872,8 @@ def convert_mode_to_radians(x, force_mode=None):
         return x
     elif mode == "d":
         return x / DEG_PER_RAD
-    # elif mode == "g":
-    #     return x / GRAD_PER_RAD
+    elif mode == "g":
+        return x / GRAD_PER_RAD
     else:
         raise Rp2Fatal("{}: Bad angle_mode '{}'".format(whoami(), mode))
 
@@ -3856,8 +3885,8 @@ def convert_radians_to_mode(r, force_mode=None):
         return r
     elif mode == "d":
         return r * DEG_PER_RAD
-    # elif mode == "g":
-    #     return r * GRAD_PER_RAD
+    elif mode == "g":
+        return r * GRAD_PER_RAD
     else:
         raise Rp2Fatal("{}: Bad angle_mode '{}'".format(whoami(), mode))
 
