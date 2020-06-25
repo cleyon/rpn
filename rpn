@@ -43,9 +43,13 @@ time_pat          = re.compile(time_re)
 # GRAD_PER_RAD = 400 / TAU
 # LN_2         = ln(2)
 # LN_10        = ln(10)
-# PHI          = Golden ratio = (1 + sqrt(5)) / 2
+# PHI          = "Golden ratio" = (1 + sqrt(5)) / 2
 # PI           = TAU / 2
-# TAU          = Number of radians in a circle
+# RAD_PER_DEG  = TAU / 360
+# RAD_PER_GRAD = TAU / 400
+# TAU          = Number of radians in a circle (2*PI)
+RAD_PER_GRAD =  0.0157079632679489661923132169163975144209858469968755291048747229615390820314310449931401741267105853
+RAD_PER_DEG  =  0.0174532925199432957692369076848861271344287188854172545609719144017100911460344944368224156963450948
 GAMMA        =  0.5772156649015328606065120900824024310421593359399235988057672348848677267776646709369470632917467495
 LN_2         =  0.6931471805599453094172321214581765680755001343602552541206900094933936219696947156058633269964186875
 PHI          =  1.6180339887498948482045868343656381177203091798057628621354486227052604628189024497072072041893911375
@@ -732,8 +736,9 @@ class Rpn_Scope:
     def set_word(self, identifier, word):
         if type(word) is not Rpn_Word:
             raise Rpn_E_Fatal("{}: Word {} is not an Rpn_Word".format(whoami(), identifier))
-        # if word.doc() is None and not word.hidden():
-        #     print("Warning: Word '{}' has no documentation".format(identifier))
+        # XXX
+        if default_protected and random.random() < 0.00 and (word.doc() is None or len(word.doc())==0) and not word.hidden():
+            print("Warning: Word '{}' has no documentation".format(identifier))
         self._words[identifier] = word
 
     def unset_word(self, word):
@@ -922,6 +927,8 @@ class Rpn_t_String:
 
 class Rpn_Variable:
     def __init__(self, name, obj=None, **kwargs):
+        if name is None or len(name) == 0 or name[0] in ['+','-','*','/','?']:
+            raise Rpn_E_Fatal("Invalid variable name '{}'".format(name))
         self._name = name
         self._hidden = False
         self._rpnobj = obj
@@ -932,8 +939,8 @@ class Rpn_Variable:
 
         if len(kwargs) > 0:
             for (key, val) in kwargs.items():
-                lnwriteln("{}: Unrecognized keyword '{}' ({}) in defvar".format(name, key, val))
-                sys.exit(1)
+                lnwriteln("Unrecognized keyword '{}'={}".format(key, val))
+                raise Rpn_E_Fatal("Could not construct variable '{}'".format(name))
 
     def obj(self):
         return self._rpnobj
@@ -995,6 +1002,8 @@ class Rpn_Word:
         self._protected = default_protected
         self._str_args  = 0
 
+        if name is None or len(name) == 0:
+            raise Rpn_E_Fatal("Invalid word name '{}'".format(name))
         if defn is None:
             raise Rpn_E_Fatal("{}: defn is None".format(name))
         if kwargs.get("args"):
@@ -1014,8 +1023,8 @@ class Rpn_Word:
             del kwargs["str_args"]
         if len(kwargs) > 0:
             for (key, val) in kwargs.items():
-                lnwriteln("{}: Unrecognized keyword '{}' ({}) in @defword".format(name, key, val))
-            sys.exit(1)
+                lnwriteln("Unrecognized keyword '{}'={}".format(key, val))
+                raise Rpn_E_Fatal("Could not construct word '{}'".format(name))
 
     def __call__(self):
         if param_stack.size() < self.args():
@@ -1549,7 +1558,6 @@ class defword(object):
             del self._kwargs["name"]
         else:
             raise RuntimeError("Missing or invalid \"name\" attribute")
-        #print("name is {}".format(name))
         word = Rpn_Word(name, wrapped_f, **self._kwargs)
         global global_scope
         global_scope.set_word(name, word)
@@ -1561,11 +1569,15 @@ Print top item from string stack  [ str -- ]
 No extraneous white space or newline is printed.""")
 def w_dollar_dot():
     write(string_stack.pop().value())
+    global show_x
+    show_x = False
 
 
 @defword(name='$.!', hidden=True, str_args=1)
 def w_dollar_dot_bang():
     lnwriteln(repr(string_stack.top()))
+    global show_x
+    show_x = False
 
 
 @defword(name='$.s', doc="""\
@@ -1573,12 +1585,16 @@ Display string stack.""")
 def w_dollar_dot_s():
     for (i, item) in string_stack.items_bottom_to_top():
         lnwriteln("{}: {}".format(i, item.value()))
+    global show_x
+    show_x = False
 
 
 @defword(name='$.s!', hidden=True)
 def w_dollar_dot_s_bang():
     for (i, item) in string_stack.items_bottom_to_top():
         lnwriteln("{}: {}".format(i, repr(item)))
+    global show_x
+    show_x = False
 
 
 @defword(name='%', args=2, doc="""\
@@ -1889,17 +1905,43 @@ def w_slash():
     show_x = True
 
 
+@defword(name='0<', args=1, doc="""\
+Test if X is less than zero  ( x -- flag )""")
+def w_zero_less_than():
+    x = param_stack.pop()
+    if type(x) not in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational]:
+        param_stack.push(x)
+        raise TypeError("0<: Type error ({})".format(type(x).__name__))
+
+    param_stack.push(Rpn_t_Integer(1 if x.value() < 0 else 0))
+    global show_x
+    show_x = True
+
+
 @defword(name='0=', args=1, doc="""\
-Return TRUE if X is equal to zero  ( x -- flag )""")
+Test if X is equal to zero  ( x -- flag )""")
 def w_zero_equal():
     x = param_stack.pop()
-    if type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex]:
-        param_stack.push(Rpn_t_Integer(1 if x.zerop() else 0))
-        global show_x
-        show_x = True
-    else:
+    if type(x) not in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex]:
         param_stack.push(x)
-        raise RuntimeError("0=: Type error ({})".format(type(x).__name__))
+        raise TypeError("0=: Type error ({})".format(type(x).__name__))
+
+    param_stack.push(Rpn_t_Integer(1 if x.zerop() else 0))
+    global show_x
+    show_x = True
+
+
+@defword(name='0>', args=1, doc="""\
+Test if X is greater than zero  ( x -- flag )""")
+def w_zero_greater_than():
+    x = param_stack.pop()
+    if type(x) not in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational]:
+        param_stack.push(x)
+        raise TypeError("0>: Type error ({})".format(type(x).__name__))
+
+    param_stack.push(Rpn_t_Integer(1 if x.value() > 0 else 0))
+    global show_x
+    show_x = True
 
 
 @defword(name=':', doc="""\
@@ -1920,7 +1962,7 @@ def w_semicolon():
 
 
 @defword(name='<', args=2, doc="""\
-Return TRUE if Y is less than X  ( y x -- flag )""")
+Test if Y is less than X  ( y x -- flag )""")
 def w_less_than():
     x = param_stack.pop()
     y = param_stack.pop()
@@ -1938,7 +1980,7 @@ def w_less_than():
 
 
 @defword(name='<=', args=2, doc="""\
-Return TRUE if Y is less than or equal to X  ( y x -- flag )""")
+Test if Y is less than or equal to X  ( y x -- flag )""")
 def w_less_than_or_equal():
     x = param_stack.pop()
     y = param_stack.pop()
@@ -1956,7 +1998,7 @@ def w_less_than_or_equal():
 
 
 @defword(name='=', args=2, doc="""\
-Return TRUE if Y is equal to X  ( y x -- flag )""")
+Test if Y is equal to X  ( y x -- flag )""")
 def w_equal():
     """\
 |----------+----------+---------+----------+---------+--------+--------|
@@ -1993,7 +2035,7 @@ def w_equal():
 
 
 @defword(name='>', args=2, doc="""\
-Return TRUE if Y is greater than X  ( y x -- flag )""")
+Test if Y is greater than X  ( y x -- flag )""")
 def w_greater_than():
     x = param_stack.pop()
     y = param_stack.pop()
@@ -2011,7 +2053,7 @@ def w_greater_than():
 
 
 @defword(name='>=', args=2, doc="""\
-Return TRUE if Y is greater than or equal to X  ( y x -- flag )""")
+Test if Y is greater than or equal to X  ( y x -- flag )""")
 def w_less_than_or_equal():
     x = param_stack.pop()
     y = param_stack.pop()
@@ -2095,6 +2137,31 @@ def w_again():
     pass                        # Grammar rules handle this word
 
 
+@defword(name='and', args=2, doc="""\
+Logical AND  ( flag flag -- flag )
+(This is not a bitwise AND - use BITAND for that.)""")
+def w_and():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if type(x) is not Rpn_t_Integer or type(y) is not Rpn_t_Integer:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("and: Type error ({})".format(type(y).__name__, type(y).__name__))
+
+    if x.value() not in [0, 1]:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise ValueError("and: X must be TRUE (1) or FALSE (0), not {}".format(x.value()))
+    if y.value() not in [0, 1]:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise ValueError("and: Y must be TRUE (1) or FALSE (0), not {}".format(y.value()))
+
+    param_stack.push(Rpn_t_Integer(x.value() and y.value()))
+    global show_x
+    show_x = True
+
+
 @defword(name='begin', doc="""\
 Execute an indefinite loop.
 BEGIN xxx AGAIN
@@ -2168,7 +2235,7 @@ def w_cf():
 
 # Some HP calcs call this NEGATE, but why type 6 characters when 3 will do?
 @defword(name='chs', args=1, doc="""\
-Change sign  ( x -- -x )""")
+Negation (change sign)  ( x -- -x )""")
 def w_chs():
     x = param_stack.pop()
     if type(x) is Rpn_t_Integer:
@@ -2215,7 +2282,7 @@ def w_comb():
         # Python 3.8 has math.comb()
         n = y.value()
         r = x.value()
-        result = Rpn_t_Integer(choose_helper(n, r))
+        result = Rpn_t_Integer(comb_helper(n, r))
     else:
         param_stack.push(y)
         param_stack.push(x)
@@ -2382,7 +2449,8 @@ def w_deg():
     angle_mode = "d"
 
 
-@defword(name='deg?')
+@defword(name='deg?', doc="""\
+Test if angular mode is degrees  ( -- flag )""")
 def w_deg_query():
     global angle_mode
     param_stack.push(Rpn_t_Integer(1 if angle_mode == "d" else 0))
@@ -2391,7 +2459,7 @@ def w_deg_query():
 
 
 @defword(name='depth', doc="""\
-Return current number of elements on stack  ( -- n )""")
+Current number of elements on stack  ( -- n )""")
 def w_depth():
     param_stack.push(Rpn_t_Integer(param_stack.size()))
     global show_x
@@ -2683,7 +2751,8 @@ def w_hms():
     show_x = True
 
 
-@defword(name='hms+', args=2)
+@defword(name='hms+', args=2, doc="""\
+Add hours/minutes/seconds  ( HH.MMSS HH.MMSS -- HH.MMSS )""")
 def w_hms_plus():
     x = param_stack.pop()
     y = param_stack.pop()
@@ -2721,7 +2790,8 @@ def w_hms_plus():
     show_x = True
 
 
-@defword(name='hms-', args=2)
+@defword(name='hms-', args=2, doc="""\
+Subtract hours/minutes/seconds  ( HH.MMSS HH.MMSS -- HH.MMSS )""")
 def w_hms_minus():
     x = param_stack.pop()
     y = param_stack.pop()
@@ -2811,7 +2881,7 @@ def w_I():
 
 
 @defword(name='if', args=1, doc="""\
-Test condition  ( f -- )
+Test condition  ( flag -- )
 Execute a conditional test.  xxx is executed if <flag> is non-zero.
 <flag> IF xxx [ ELSE yyy ] THEN
 
@@ -2842,8 +2912,46 @@ def w_jd_to_d():
     show_x = True
 
 
+@defword(name='inv', args=1, doc="""\
+Inverse  ( x -- 1/x )
+X cannot be zero.""")
+def w_inv():
+    x = param_stack.pop()
+    if type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational, Rpn_t_Complex] \
+       and x.zerop():
+        param_stack.push(x)
+        raise ValueError("inv: X cannot be zero")
+
+    if type(x) is Rpn_t_Integer:
+        result = Rpn_t_Float(1.0 / float(x.value()))
+    elif type(x) is Rpn_t_Rational:
+        result = Rpn_t_Rational(x.denominator(), x.numerator())
+    elif type(x) is Rpn_t_Float:
+        result = Rpn_t_Float(1.0 / x.value())
+    elif type(x) is Rpn_t_Complex:
+        r = complex(1,0) / x.value()
+        result = Rpn_t_Complex.from_complex(r)
+    # elif type(x) is Rpn_t_Vector:
+    #     # Vectors are not invertible
+    # elif type(x) is Rpn_t_Matrix:
+    #     # Numpy can do this; either
+    #     # m = np.matrix([[],[]])
+    #     # m.I
+    #     # -or
+    #     # b = np.array([[],[]])
+    #     # np.linalg.inv(b)
+    #     # And remember that not every matrix is invertible (singular ones)
+    else:
+        param_stack.push(x)
+        raise TypeError("inv: Type error ({})".format(type(x).__name__))
+
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
 @defword(name='key', doc="""\
-Return ASCII code of single keystroke  ( -- key )
+ASCII code of single keystroke  ( -- key )
 KEY will block until input is provided.""")
 def w_key():
     k = _Getch()()
@@ -2923,7 +3031,7 @@ Load file specified on string stack  [ file -- ]""")
 def w_load():
     filename = string_stack.pop().value()
     if not os.path.isfile(filename):
-        lnwriteln("load: \"{}\" is not a valid file".format(filename))
+        lnwriteln("load: Invalid file '{}'".format(filename))
     else:
         load_file(filename)
 
@@ -3020,22 +3128,26 @@ def w_nip():
 
 
 @defword(name='not', args=1, doc="""\
-Logical not  ( f -- !f )
+Logical not  ( flag -- !flag )
 
-Return a TRUE (1) if x is zero, otherwise FALSE (0).  Logically the same
-as 0=, but NOT is intended for boolean manipulations and only is defined
-on integers; 0= is meant to compare a number to zero, and works for
-integers, reals, rationals, and complex numbers.  NOTE: This is not a
-bitwise not.""")
+Invert a flag - return TRUE (1) if x is zero, otherwise FALSE (0).
+NOT is intended for boolean manipulations and is only defined on truth
+integers (0,1).  0= is meant to compare a number to zero, and works for
+all number types.
+
+NOTE: This is not a bitwise not - use BITNOT for that.""")
 def w_not():
     x = param_stack.pop()
-    if type(x) is Rpn_t_Integer:
-        param_stack.push(Rpn_t_Integer(1 if x.zerop() else 0))
-        global show_x
-        show_x = True
-    else:
+    if type(x) is not Rpn_t_Integer:
         param_stack.push(x)
-        raise RuntimeError("not: Type error ({})".format(type(x).__name__))
+        raise TypeError("not: Type error ({})".format(type(x).__name__))
+    if x.value() not in [0, 1]:
+        param_stack.push(x)
+        raise ValueError("not: X must be TRUE (1) or FALSE (0), not {}".format(x.value()))
+
+    param_stack.push(Rpn_t_Integer(1 if x.zerop() else 0))
+    global show_x
+    show_x = True
 
 
 @defword(name='of', doc="""\
@@ -3054,6 +3166,31 @@ qv CASE, ENDCASE, ENDOF, OTHERWISE
 """)
 def w_of():
     pass                        # Grammar rules handle this word
+
+
+@defword(name='or', args=2, doc="""\
+Logical OR  ( flag flag -- flag )
+NOTE: This is not a bitwise OR - use BITOR for that.""")
+def w_or():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if type(x) is not Rpn_t_Integer or type(y) is not Rpn_t_Integer:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("or: Type error ({})".format(type(y).__name__, type(y).__name__))
+
+    if x.value() not in [0, 1]:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise ValueError("or: X must be TRUE (1) or FALSE (0), not {}".format(x.value()))
+    if y.value() not in [0, 1]:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise ValueError("or: Y must be TRUE (1) or FALSE (0), not {}".format(y.value()))
+
+    param_stack.push(Rpn_t_Integer(x.value() or y.value()))
+    global show_x
+    show_x = True
 
 
 @defword(name='otherwise',  doc="""\
@@ -3196,7 +3333,7 @@ def w_rad():
 
 
 @defword(name='rad?', doc="""\
-Return TRUE if angular mode is radians  ( -- flag )""")
+Test if angular mode is radians  ( -- flag )""")
 def w_rad_query():
     global angle_mode
     param_stack.push(Rpn_t_Integer(1 if angle_mode == "r" else 0))
@@ -3353,6 +3490,28 @@ def w_sleep():
         raise TypeError("sleep: Type error ({})".format(type(x).__name__))
 
 
+@defword(name='sq', args=1, doc="""\
+Square  ( x -- x^2 )""")
+def w_sq():
+    x = param_stack.pop()
+    if type(x) is Rpn_t_Integer:
+        result = Rpn_t_Integer(x.value() ** 2)
+    elif type(x) is Rpn_t_Rational:
+        result = Rpn_t_Rational(x.numerator() ** 2, x.denominator() ** 2)
+    elif type(x) is Rpn_t_Float:
+        result = Rpn_t_Float(x.value() ** 2)
+    elif type(x) is Rpn_t_Complex:
+        r = complex(x.value() ** 2)
+        result = Rpn_t_Complex.from_complex(r)
+    else:
+        param_stack.push(x)
+        raise TypeError("sq: Type error ({})".format(type(x).__name__))
+
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
 @defword(name='sqrt', args=1, doc="""\
 Square root  ( x -- sqrt(x) )
 Negative X returns a complex number""")
@@ -3400,7 +3559,13 @@ Tangent  ( angle -- tangent )""")
 def w_tan():
     x = param_stack.pop()
     if type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational]:
-        result = Rpn_t_Float(math.tan(convert_mode_to_radians(float(x.value()))))
+        angle = convert_mode_to_radians(x.value())
+        cosine = math.cos(angle)
+        # This is a nice idea, but doesn't really work in practice
+        if cosine.zerop():
+            param_stack.push(x)
+            raise ValueError("tan: Cannot compute tangents of right angles")
+        result = Rpn_t_Float(math.tan(angle))
     elif type(x) is Rpn_t_Complex:
         result = Rpn_t_Complex.from_complex(cmath.tan(x.value()))
     else:
@@ -3498,7 +3663,7 @@ def w_vars():
         var = global_scope.variable(varname)
         if var.hidden():
             continue
-        vars[var.name()] = "{}:undef".format(var.name()) if not var.defined() else \
+        vars[var.name()] = "{}:[undef]".format(var.name()) if not var.defined() else \
                            "{}={}".format(var.name(), var.obj().value())
 
     sorted_vars = []
@@ -3506,6 +3671,8 @@ def w_vars():
         sorted_vars.append(vars[key])
     columns = global_scope.variable('COLS').obj().value()
     list_in_columns(sorted_vars, columns - 1)
+    global show_x
+    show_x = False
 
 
 @defword(name='vars!', hidden=True)
@@ -3536,6 +3703,8 @@ def w_vlist():
         sorted_words.append(words[key])
     columns = global_scope.variable('COLS').obj().value()
     list_in_columns(sorted_words, columns - 1)
+    global show_x
+    show_x = False
 
 
 @defword(name='while', doc="""\
@@ -3579,7 +3748,7 @@ def memoize(f):
     return helper
 
 
-def choose_helper(n, r):
+def comb_helper(n, r):
     if r > n or r < 0:
         return 0
     if n - r < r:
@@ -3762,9 +3931,13 @@ spacing : int
 
 
 def load_file(filename):
-    with open(filename, "r") as file:
-        contents = file.read()
-    eval_string(contents)
+    try:
+        with open(filename, "r") as file:
+            contents = file.read()
+    except PermissionError:
+        raise RuntimeError("load: Cannot read file '{}'".format(filename))
+    else:
+        eval_string(contents)
 
 
 def lookup_variable(name):
@@ -3995,6 +4168,8 @@ def main_loop():
         except KeyboardInterrupt:
             # CTRL/C on input exits program
             raise Rpn_E_End_Program()
+        except SystemError:
+            raise Rpn_E_Fatal("System error on input()")
 
         global_scope.variable('#OUT').set_obj(Rpn_t_Integer(0))
         if not s or s == " ":
@@ -4016,6 +4191,8 @@ def main_loop():
                 break
             except KeyboardInterrupt:
                 break
+            except SystemError:
+                raise Rpn_E_Fatal("System error on input()")
             global_scope.variable('#OUT').set_obj(Rpn_t_Integer(0))
             s += t
             result = parser.parse(s, debug=rpn_debug)
