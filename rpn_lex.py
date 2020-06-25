@@ -147,6 +147,16 @@ def t_D_TO_JD(t):
     t.type = 'IDENTIFIER'
     return t
 
+def t_P_TO_R(t):
+    r'p->r'
+    t.type = 'IDENTIFIER'
+    return t
+
+def t_R_TO_P(t):
+    r'r->p'
+    t.type = 'IDENTIFIER'
+    return t
+
 def t_SEMICOLON(t):
     r';'
     t.type = 'SEMICOLON'

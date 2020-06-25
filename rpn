@@ -539,8 +539,6 @@ class Rpn_If:
         if param_stack.empty():
             raise RuntimeError("if: Insufficient parameters (1 required)")
         flag = param_stack.pop()
-        # XXX - should any non-zero value be true?
-        # XXX - make sure Rpn_If_Else is consistent.
         if type(flag) is not Rpn_t_Integer:
             param_stack.push(flag)
             raise TypeError("if: Flag must be an integer")
@@ -2168,6 +2166,31 @@ def w_query_dup():
         raise TypeError("?dup: Type error ({})".format(type(x).__name__))
 
 
+@defword(name='^', args=2, doc="""\
+Exponentiation  ( y x -- y^x )""")
+def w_caret():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if    type(x) not in [Rpn_t_Integer, Rpn_t_Rational, Rpn_t_Float, Rpn_t_Complex] \
+       or type(y) not in [Rpn_t_Integer, Rpn_t_Rational, Rpn_t_Float, Rpn_t_Complex]:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("^: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+
+    r = pow(y.value(), x.value())
+    if type(r) is int:
+        result = Rpn_t_Integer(r)
+    elif type(r) is float:
+        result = Rpn_t_Float(r)
+    elif type(r) is complex:
+        result = Rpn_t_Complex.from_complex(r)
+    else:
+        raise Rpn_E_Fatal("pow() returned a strange type '{}'".format(type(r)))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
 @defword(name='abort', doc="""\
 Abort execution and return to top level
 
@@ -2440,6 +2463,17 @@ def w_date():
     param_stack.push(Rpn_t_Float(d))
     global show_x
     show_x = True
+
+
+@defword(name='dateinfo', args=1, hidden=True, doc="""\
+Show date_info() for Float  ( x -- )""")
+def w_dateinfo():
+    x = param_stack.pop()
+    if type(x) is Rpn_t_Float:
+        print(x.date_info())
+    else:
+        param_stack.push(x)
+        raise TypeError("dateinfo: Type error ({})".format(type(x).__name__))
 
 
 @defword(name='date+', args=2, doc="""\
@@ -3325,6 +3359,49 @@ def w_over():
     param_stack.push(y)
 
 
+@defword(name='p->r', doc="""\
+Convert polar coordinates to rectangular.
+The parameters can be either two reals or one complex.
+
+Real:      ( phi r -- y x )
+Complex:   ( cp -- cr )
+  cp : (r, phi)
+  cr : (x, y)
+
+DEFINITION:
+x = r * cos(phi)
+y = r * sin(phi)""")
+def w_p_to_r():
+    if param_stack.empty():
+        raise RuntimeError("p->r: Insufficient parameters (1 or 2 required)")
+    x = param_stack.pop()
+    if type(x) is Rpn_t_Complex:
+        r   = x.real()
+        phi = convert_mode_to_radians(x.imag())
+        result = Rpn_t_Complex.from_complex(cmath.rect(r, phi))
+        param_stack.push(result)
+    elif type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational]:
+        if param_stack.empty():
+            param_stack.push(x)
+            raise RuntimeError("p->r: Insufficient parameters (2 required)")
+        y = param_stack.pop()
+        if type(y) not in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational]:
+            param_stack.push(y)
+            param_stack.push(x)
+            raise TypeError("p->r: Type error({}, {})".format(type(y).__name__, type(x).__name__))
+        r   = float(x.value())
+        phi = convert_mode_to_radians(float(y.value()))
+        xval = r * math.cos(phi)
+        yval = r * math.sin(phi)
+        param_stack.push(Rpn_t_Float(yval))
+        param_stack.push(Rpn_t_Float(xval))
+    else:
+        param_stack.push(x)
+        raise TypeError("p->r: Type error({})".format(type(x).__name__))
+    global show_x
+    show_x = True
+
+
 @defword(name='perm', args=2, doc="""\
 Permutations  ( n r -- nPr )
 Choose from N objects R at a time, with regard to ordering.
@@ -3398,6 +3475,47 @@ def w_r_to_d():
         param_stack.push(x)
         raise TypeError("r->d: Type error ({})".format(type(x).__name__))
     param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='r->p', doc="""\
+Convert rectangular coordinates to polar.
+The parameters can be either two reals, or one complex.
+
+Real:      ( y x -- phi r )
+Complex:   ( cr -- cp )
+  cr : (x, y)
+  cp : (r, phi)
+
+DEFINITION:
+r   = hypot(x, y) == sqrt(x^2 + y^2)
+phi = atan2(x, y)""")
+def w_r_to_p():
+    if param_stack.empty():
+        raise RuntimeError("r->p: Insufficient parameters (1 or 2 required)")
+    x = param_stack.pop()
+    if type(x) is Rpn_t_Complex:
+        (r, phi) = cmath.polar(x.value())
+        result = Rpn_t_Complex(r, convert_radians_to_mode(phi))
+        param_stack.push(result)
+    elif type(x) in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational]:
+        if param_stack.empty():
+            param_stack.push(x)
+            raise RuntimeError("r->p: Insufficient parameters (2 required)")
+        y = param_stack.pop()
+        if type(y) not in [Rpn_t_Integer, Rpn_t_Float, Rpn_t_Rational]:
+            param_stack.push(y)
+            param_stack.push(x)
+            raise TypeError("r->p: Type error({}, {})".format(type(y).__name__, type(x).__name__))
+
+        phi = math.atan2(x.value(), y.value())
+        r   = math.hypot(x.value(), y.value())
+        param_stack.push(Rpn_t_Float(convert_radians_to_mode(phi)))
+        param_stack.push(Rpn_t_Float(r))
+    else:
+        param_stack.push(x)
+        raise TypeError("r->p: Type error({})".format(type(x).__name__))
     global show_x
     show_x = True
 
@@ -3717,7 +3835,8 @@ def w_time_bang():
     show_x = True
 
 
-@defword(name='timeinfo', args=1)
+@defword(name='timeinfo', args=1, hidden=True, doc="""\
+Show time_info() for Float  ( x -- )""")
 def w_timeinfo():
     x = param_stack.pop()
     if type(x) is Rpn_t_Float:
@@ -4127,6 +4246,7 @@ def pop_scope(why):
 
 
 def sigquit_handler(signum, frame):
+    writeln(" [Quit]")
     raise Rpn_E_End_Program()
 
 
