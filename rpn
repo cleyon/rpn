@@ -4054,7 +4054,7 @@ def normalize_hms(hh, mm, ss):
 
 def parse_args():
     try:
-        opts, argv = getopt.getopt(sys.argv[1:], "di")
+        opts, argv = getopt.getopt(sys.argv[1:], "dil:")
     except getopt.GetoptError as e:
         print(str(e))
         usage()
@@ -4067,6 +4067,13 @@ def parse_args():
         elif opt == "-i":
             global force_interactive
             force_interactive = True
+        elif opt == "-l":
+            try:
+                load_file(arg)
+            except FileNotFoundError:
+                lnwriteln("load: File '{}' does not exist".format(arg))
+            except RuntimeError as e:
+                lnwriteln(str(e))
         else:
             print("Unhandled option {}".format(opt))
             sys.exit(2)
@@ -4160,7 +4167,8 @@ def usage():
 Usage: rpn [-d] [-i] cmds...
 
 -d      Enable debugging
--i      Force interactive mode""")
+-i      Force interactive mode
+-l FILE Load FILE""")
 
 
 def initialize():

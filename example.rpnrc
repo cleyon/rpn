@@ -3,4 +3,5 @@
 : d     drop ;
 : e     E ;
 : pi    PI ;
+: q     bye ;
 : s     swap ;
