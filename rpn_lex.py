@@ -24,6 +24,7 @@ reserved_words = {
     'of'        : 'OF',
     'otherwise' : 'OTHERWISE',
     'repeat'    : 'REPEAT',
+    'show'      : 'SHOW',
     'then'      : 'THEN',
     'until'     : 'UNTIL',
     'while'     : 'WHILE',
