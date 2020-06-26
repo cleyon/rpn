@@ -672,6 +672,20 @@ class Rpn_t_Matrix:
         return "Matrix[{}]".format(repr(self._vals))
 
 
+class Rpn_No_Op:
+    def __init__(self):
+        pass
+
+    def __call__(self):
+        pass
+
+    def __str__(self):
+        return ""
+
+    def __repr__(self):
+        return "NoOp[]"
+
+
 class Rpn_t_Rational:
     def __init__(self, num=0, denom=1):
         self._value = Fraction(int(num), int(denom))
@@ -1112,9 +1126,14 @@ def p_interpret(p):
     '''interpret : cmd
                  | cmd interpret'''
 
+    p[0] = Rpn_No_Op()
+
 
 def p_cmd(p):
     '''cmd :  executable  execute'''
+
+    # Don't need to return anything since `execute' does all the work
+    p[0] = Rpn_No_Op()
 
 
 def p_execute(p):
@@ -1122,35 +1141,36 @@ def p_execute(p):
 
     executable = p[-1]
     global show_x
-    if executable is not None:
-        try:
-            executable.__call__()
-        except KeyboardInterrupt:
-            # CTRL/C while executing returns to top level prompt
-            show_x = False
-            writeln(" [Interrupt]")
-            raise Rpn_E_Top_Level()
-        except Rpn_E_Abort as e:
-            if len(e._message) > 0:
-                lnwriteln("{}".format(e))
-            param_stack.clear()
-            return_stack.clear()
-            string_stack.clear()
-            show_x = False
-        except Rpn_E_Exit:
-            pass
-        except Rpn_E_Leave:
-            lnwriteln("leave: Cannot be used outside of a BEGIN or DO loop")
-        except RuntimeError as e:
+    try:
+        executable.__call__()
+    except KeyboardInterrupt:
+        # CTRL/C while executing returns to top level prompt
+        show_x = False
+        writeln(" [Interrupt]")
+        raise Rpn_E_Top_Level()
+    except Rpn_E_Abort as e:
+        if len(e._message) > 0:
             lnwriteln("{}".format(e))
-            show_x = False
-        except TypeError as e:
-            lnwriteln("{}".format(e))
-            w_dot_s()
-            show_x = False
-        except ValueError as e:
-            lnwriteln("{}".format(e))
-            show_x = False
+        param_stack.clear()
+        return_stack.clear()
+        string_stack.clear()
+        show_x = False
+    except Rpn_E_Exit:
+        pass
+    except Rpn_E_Leave:
+        lnwriteln("leave: Cannot be used outside of a BEGIN or DO loop")
+    except RuntimeError as e:
+        lnwriteln("{}".format(e))
+        show_x = False
+    except TypeError as e:
+        lnwriteln("{}".format(e))
+        w_dot_s()
+        show_x = False
+    except ValueError as e:
+        lnwriteln("{}".format(e))
+        show_x = False
+
+    p[0] = Rpn_No_Op()
 
 
 def p_sequence(p):
@@ -1207,10 +1227,8 @@ def p_executables_opt(p):
     if len(p) == 2:
         p[0] = Rpn_List()
     elif len(p) == 3:
-        if p[1] is None:
-            p[0] = p[2]
-        else:
-            p[0] = Rpn_List(p[1], p[2])
+        p[0] = Rpn_List(p[1], p[2])
+    # lnwriteln("{}: Returning {}".format(whoami(), p[0])))
 
 
 def p_error(p):
@@ -1255,8 +1273,7 @@ def p_executable(p):
     # A "word" is not just an identifier, a word is something that is
     # findable somewhere in the scope_stack.  It is a syntax error if
     # the identifier is not found.
-    if p[1] is not None:
-        p[0] = Rpn_Executable(p[1])
+    p[0] = Rpn_Executable(p[1])
 
 def p_abort_quote(p):
     '''abort_quote :  ABORT_QUOTE'''
@@ -1310,6 +1327,9 @@ def p_otherwise_opt(p):
 def p_colon_def(p):
     '''colon_def :  COLON  IDENTIFIER  docstr_opt  sequence  SEMICOLON  define_word'''
 
+    # This returns a NoOp because `define_word' does all the work
+    p[0] = Rpn_No_Op()
+
 def p_colon_def_error(p):
     '''colon_def :  COLON  IDENTIFIER  docstr_opt  error  SEMICOLON '''
 
@@ -1330,6 +1350,7 @@ def p_define_word(p):
     if parse_error:
         lnwriteln("{}: Syntax error in definition".format(identifier))
         pop_scope("Syntax error in definition of {}".format(identifier))
+        p[0] = Rpn_No_Op()
         return
 
     kwargs = dict()
@@ -4447,27 +4468,26 @@ def main_loop():
         except Rpn_E_Top_Level:
             continue
 
-        # QQQ
-        # #print("A:parse({}) => result={} (parse_error={})".format(s, repr(result), parse_error))
-        # while result is None and not parse_error:
-        #     #print("In ..., parser.token() returns {}".format(parser.token()))
-        #     write("... ")
-        #     try:
-        #         t = input() + " "
-        #     except EOFError:
-        #         break
-        #     except KeyboardInterrupt:
-        #         break
-        #     except SystemError:
-        #         raise Rpn_E_Fatal("System error on input()")
-        #     global_scope.variable('#OUT').set_obj(Rpn_t_Integer(0))
-        #     s += t
-        #     result = parser.parse(s, debug=rpn_debug)
-        #     #print("B:parse({}) => result={} (parse_error={}".format(s, repr(result), parse_error))
-        # if global_scope.variable('trace').obj().value() >= 2:
-        #     lnwriteln("trace={}".format(repr(result)))
-        # elif global_scope.variable('trace').obj().value() >= 1:
-        #     lnwriteln("trace={}".format(str(result)))
+        #print("A:parse({}) => result={} (parse_error={})".format(s, repr(result), parse_error))
+        while result is None and not parse_error:
+            #print("In ..., parser.token() returns {}".format(parser.token()))
+            write("... ")
+            try:
+                t = input() + " "
+            except EOFError:
+                break
+            except KeyboardInterrupt:
+                break
+            except SystemError:
+                raise Rpn_E_Fatal("System error on input()")
+            global_scope.variable('#OUT').set_obj(Rpn_t_Integer(0))
+            s += t
+            result = parser.parse(s, debug=rpn_debug)
+            #print("B:parse({}) => result={} (parse_error={}".format(s, repr(result), parse_error))
+        if global_scope.variable('trace').obj().value() >= 2:
+            lnwriteln("trace={}".format(repr(result)))
+        elif global_scope.variable('trace').obj().value() >= 1:
+            lnwriteln("trace={}".format(str(result)))
 
 
 def do_exit():
