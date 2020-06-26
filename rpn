@@ -508,7 +508,7 @@ class Rpn_Forget:
         return "forget {}".format(self._word.name())
 
     def __repr__(self):
-        return "Forget[{}]".format(self.repr(self._word.name()))
+        return "Forget[{}]".format(repr(self._word.name()))
 
 
 class Rpn_Help:
@@ -529,7 +529,7 @@ class Rpn_Help:
         return "help {}".format(self.identifier())
 
     def __repr__(self):
-        return "Help[{}]".format(self.repr(self.identifier()))
+        return "Help[{}]".format(repr(self.identifier()))
 
 
 class Rpn_If:
@@ -812,7 +812,7 @@ class Rpn_Show:
         return "show {}".format(self._word.name())
 
     def __repr__(self):
-        return "Show[{}]".format(self.repr(self._word.name()))
+        return "Show[{}]".format(repr(self._word.name()))
 
 
 class Rpn_Stack:
