@@ -35,6 +35,7 @@ flag_max          = 64
 force_interactive = False
 go_interactive    = True
 julian_offset     = 1721424 # date.toordinal() returns 1 for 0001-01-01, so compensate
+matrix_max        = 1000
 rational_re       = r'(\d+)~(\d+)'
 rational_pat      = re.compile(rational_re)
 show_x            = False
@@ -372,6 +373,23 @@ class Rpn_Complex:
 
     def __repr__(self):
         return "Complex[{}]".format(repr(self.value()))
+
+
+class Rpn_Constant:
+    def __init__(self, var):
+        self._variable = var
+
+    def __call__(self):
+        print("Rpn_Constant#__call__")
+        if param_stack.empty():
+            raise RuntimeError("constant: Insufficient parameters (1 required)")
+        self._variable.set_obj(param_stack.pop())
+
+    def __str__(self):
+        return "constant {}".format(self._variable.name())
+
+    def __repr__(self):
+        return "Constant[{}]".format(repr(self._variable))
 
 
 class Rpn_Do_Loop:
@@ -731,23 +749,36 @@ class Rpn_List:
 
 class Rpn_Matrix:
     def __init__(self, vals):
-        lnwriteln("{}: vals={}".format(whoami(), vals))
-        self._vals = vals
+        #lnwriteln("{}: vals={}".format(whoami(), repr(vals)))
         self._nrows = len(vals)
         cols = -1
+        vecs = []
         for x in vals.items():
-            lnwriteln("x={}".format(repr(x)))
+            #lnwriteln("x={}".format(repr(x)))
+            vecs.append(x.value())
             if cols == -1:
                 cols = x.size()
             else:
                 if x.size() != cols:
-                    lnwriteln("Number of columns is not consistent")
-                    return      # # raise?
+                    raise RuntimeError("Matrix: Number of columns is not consistent")
         self._ncols = cols
-        lnwriteln("{} rows x {} columns".format(self.nrows(), self.ncols()))
+        #lnwriteln("{} rows x {} columns".format(self.nrows(), self.ncols()))
+        #print("vecs", vecs)
+        self._np_value = np.array(vecs)
+        #print("val",repr(self.value()))
+
+    @classmethod
+    def from_numpy(cls, x):
+        obj = cls(Rpn_List())
+        obj._nrows, obj._ncols = x.shape
+        obj.set_np(x)
+        return obj
 
     def value(self):
-        raise RuntimeError("Need Rpn_Matrix#value()")
+        return self._np_value
+
+    def set_np(self, np_obj):
+        self._np_value = np_obj
 
     def nrows(self):
         return self._nrows
@@ -755,11 +786,14 @@ class Rpn_Matrix:
     def ncols(self):
         return self._ncols
 
+    def __call__(self):
+        param_stack.push(self)
+
     def __str__(self):
-        return "Matrix..."      # "[" + str(self.vals) + "]"
+        return str(self.value())
 
     def __repr__(self):
-        return "Matrix[{}]".format(repr(self._vals))
+        return "Matrix[{}]".format(repr(self.value()))
 
 
 class Rpn_Rational:
@@ -808,15 +842,20 @@ class Rpn_Scope:
         self._words = {}
         self._variables = {}
 
+    def name(self):
+        return self._name
+
     def words(self):
         return self._words
+
+    def variables(self):
+        return self._variables
 
     def set_word(self, identifier, word):
         if type(word) is not Rpn_Word:
             raise Rpn_E_Fatal("{}: Word {} is not an Rpn_Word".format(whoami(), identifier))
-        # XXX
-        if default_protected and random.random() < 0.00 and (word.doc() is None or len(word.doc())==0) and not word.hidden():
-            print("Warning: Word '{}' has no documentation".format(identifier))
+        # if default_protected and random.random() < 0.00 and (word.doc() is None or len(word.doc())==0) and not word.hidden():
+        #     print("Warning: Word '{}' has no documentation".format(identifier))
         self._words[identifier] = word
 
     def unset_word(self, word):
@@ -832,14 +871,16 @@ class Rpn_Scope:
             raise Rpn_E_Fatal("{}: Variable {} is not an Rpn_Variable".format(whoami(), identifier))
         self._variables[identifier] = var
 
+    def unset_variable(self, var):
+        if type(var) is not Rpn_Variable:
+            raise Rpn_E_Fatal("{}: Variable is not an Rpn_Variable".format(whoami(), var))
+        del self._variables[var.name()]
+
     def variable(self, identifier):
         return self._variables.get(identifier)
 
     def words(self):
         return self._words
-
-    def variables(self):
-        return self._variables
 
     def visible_variables(self):
         return list( filter( lambda x: not x[1].hidden(), self.variables().items() ) )
@@ -855,7 +896,7 @@ class Rpn_Scope:
         return s
 
     def __repr__(self):
-        return "Scope[{}={}]".format(self._name, hex(id(self)))
+        return "Scope[{}={}]".format(self.name(), hex(id(self)))
 
 
 class Rpn_Sequence:
@@ -983,7 +1024,7 @@ class Rpn_Stack:
         for (i, item) in self.items_bottom_to_top():
             sa.append("{}: {}".format(i, repr(item)))
         #print(sa)
-        return "Stack[{}]".format("\n".join(sa) + "ItsRepr")
+        return "Stack[{}]".format(", ".join(sa))
 
 
 class Rpn_Store_Var:
@@ -1035,13 +1076,28 @@ class Rpn_Variable:
     def __init__(self, name, obj=None, **kwargs):
         if name is None or len(name) == 0 or name[0] in ['+','-','*','/','?']:
             raise Rpn_E_Fatal("Invalid variable name '{}'".format(name))
-        self._name = name
-        self._hidden = False
-        self._rpnobj = obj
+        self._constant  = False
+        self._hidden    = False
+        self._name      = name
+        self._noshadow  = False
+        self._protected = False
+        self._rpnobj    = obj
+
+        if kwargs.get("constant"):
+            self._constant = kwargs["constant"]
+            del kwargs["constant"]
 
         if kwargs.get("hidden"):
             self._hidden = kwargs["hidden"]
             del kwargs["hidden"]
+
+        if kwargs.get("noshadow"):
+            self._noshadow = kwargs["noshadow"]
+            del kwargs["noshadow"]
+
+        if kwargs.get("protected"):
+            self._protected = kwargs["protected"]
+            del kwargs["protected"]
 
         if len(kwargs) > 0:
             for (key, val) in kwargs.items():
@@ -1050,7 +1106,9 @@ class Rpn_Variable:
 
     @classmethod
     def name_valid_p(cls, name):
-        return not (name is None or len(name) == 0 or name[0] in ['+','-','*','/','?'])
+        return not (name is None or len(name) == 0 or \
+                    name[0] in ['+','-','*','/','?'] or \
+                    name[:3] == 'in:' or name[:4] == 'out:')
 
     def obj(self):
         return self._rpnobj
@@ -1064,8 +1122,17 @@ class Rpn_Variable:
     def defined(self):
         return self.obj() is not None
 
+    def constant(self):
+        return self._constant
+
     def hidden(self):
         return self._hidden
+
+    def noshadow(self):
+        return self._noshadow
+
+    def protected(self):
+        return self._protected
 
     def __str__(self):
         return str(self._name)
@@ -1078,30 +1145,34 @@ class Rpn_Vector:
     def __init__(self, vals):
         if type(vals) is not Rpn_List:
             raise Rpn_E_Fatal("{}: vals is not an Rpn_List ({})".format(whoami(), repr(vals)))
-        self._vals = vals
-        np_list = []
-        for item in vals.items():
-            np_list.append(item.value())
-        self._np_value = np.array(np_list)
+        self._np_value = np.array([ elem.value() for elem in vals.listval() ])
+
+    @classmethod
+    def from_numpy(cls, x):
+        obj = cls(Rpn_List())
+        # print(type(obj))
+        # print("from_numpy: {}".format(repr(obj)))
+        obj.set_np(x)
+        # print("from_numpy: {}".format(repr(obj)))
+        return obj
 
     def value(self):
         return self._np_value
 
+    def set_np(self, np_obj):
+        self._np_value = np_obj
+
     def size(self):
-        return len(self._vals)
+        return self.value().size
 
     def __call__(self):
         param_stack.push(self)
 
     def __str__(self):
-        # FIXME
-        for x in self._np_value:
-            lnwriteln(str(x))
-            lnwriteln(repr(x))
-        return "[{}]\nNP:{}".format(self._vals, self._np_value)
+        return "{}".format(self._np_value)
 
     def __repr__(self):
-        return "Vector[{}]\nNP:{}".format(repr(self._vals),repr(self._np_value))
+        return "Vector[{}]".format(repr(self._np_value))
 
 
 class Rpn_Word:
@@ -1201,6 +1272,7 @@ reserved_words = {
     'again'     : 'AGAIN',
     'begin'     : 'BEGIN',
     'case'      : 'CASE',
+    'constant'  : 'CONSTANT',
     'do'        : 'DO',
     'else'      : 'ELSE',
     'endcase'   : 'ENDCASE',
@@ -1214,7 +1286,9 @@ reserved_words = {
     'repeat'    : 'REPEAT',
     'show'      : 'SHOW',
     'then'      : 'THEN',
+    'undef'     : 'UNDEF',
     'until'     : 'UNTIL',
+    'variable'  : 'VARIABLE',
     'while'     : 'WHILE',
 }
 
@@ -1331,8 +1405,7 @@ def t_WS(t):
     r'[ \t\n]+'
 
 def t_IDENTIFIER(t):
-    r'[-#$%&\'*+,./:;<=>?@A-Z^_a-z]+'
-   #r'[-#$%&\'*+,./:;<=>?@A-Z^_a-z~]+'
+    r'[-#$%&\'*+,./:;<=>?A-Z^_a-z][-!#$%&\'*+,./0-9:;<=>?@A-Z^_a-z~]*'
 
     single_chars = {
         ':': 'COLON',
@@ -1386,6 +1459,7 @@ def p_executable(p):
                   |  case
                   |  colon_def
                   |  comment
+                  |  constant
                   |  do_loop
                   |  do_plusloop
                   |  dot_quote
@@ -1399,11 +1473,13 @@ def p_executable(p):
                   |  show
                   |  store_var
                   |  string
+                  |  undef
+                  |  variable
                   |  vector
                   |  word'''
 
     p[0] = p[1]
-    dbg("p_executable", 1, "p_executable: AA Returning {}".format(p[0]))
+    dbg("p_executable", 1, "p_executable: {}".format(p[0]))
 
 def p_execute(p):
     '''execute :  empty'''
@@ -1420,6 +1496,8 @@ def p_execute(p):
     except RuntimeError as e:
         lnwriteln(str(e))
     except TypeError as e:
+        lnwriteln(str(e))
+    except ValueError as e:
         lnwriteln(str(e))
 
 
@@ -1554,6 +1632,7 @@ def p_help(p):
             |  HELP  BEGIN
             |  HELP  CASE
             |  HELP  COLON
+            |  HELP  CONSTANT
             |  HELP  DO
             |  HELP  DOT_QUOTE
             |  HELP  ELSE
@@ -1570,7 +1649,9 @@ def p_help(p):
             |  HELP  REPEAT
             |  HELP  SEMICOLON
             |  HELP  THEN
+            |  HELP  UNDEF
             |  HELP  UNTIL
+            |  HELP  VARIABLE
             |  HELP  WHILE'''
 
     # HELP DOT_QUOTE doesn't work right because the lexer scans additional
@@ -1618,6 +1699,9 @@ def p_store_var(p):
     (var, _) = lookup_variable(id)
     if var is None:
         lnwriteln("!{}: Variable not found".format(id))
+        raise SyntaxError
+    if var.constant():
+        lnwriteln("!{}: Constants cannot be modified".format(id))
         raise SyntaxError
     p[0] = Rpn_Store_Var(id, var)
 
@@ -1683,7 +1767,7 @@ def p_locals_opt(p):
 
 def p_ids_opt(p):
     '''ids_opt :  empty
-              |  IDENTIFIER  ids_opt'''
+               |  IDENTIFIER  ids_opt'''
 
     if len(p) == 2:
         p[0] = Rpn_List()
@@ -1750,17 +1834,17 @@ def p_string(p):
 
 
 def p_vector(p):
-    '''vector :  OPEN_BRACKET  numbers  CLOSE_BRACKET'''
+    '''vector :  OPEN_BRACKET  numbers_opt  CLOSE_BRACKET'''
 
     p[0] = Rpn_Vector(p[2])
 
 
-def p_numbers(p):
-    '''numbers :  number
-               |  number  numbers'''
+def p_numbers_opt(p):
+    '''numbers_opt :  empty
+                   |  number  numbers_opt'''
 
     if len(p) == 2:
-        p[0] = Rpn_List(p[1])
+        p[0] = Rpn_List()
     elif len(p) == 3:
         p[0] = Rpn_List(p[1], p[2])
 
@@ -1771,11 +1855,82 @@ def p_matrix(p):
     p[0] = Rpn_Matrix(p[2])
 
 
+def p_constant(p):
+    '''constant :  CONSTANT  IDENTIFIER'''
+
+    id = p[2]
+    print("p_constant {}".format(id))
+    if not Rpn_Variable.name_valid_p(id):
+        lnwriteln("CONSTANT: '{}' is not valid".format(id))
+        raise SyntaxError
+
+    (var, scope) = lookup_variable(id)
+    if var is not None and var.noshadow():
+        lnwriteln("CONSTANT: '{}' cannot be shadowed".format(id))
+        raise SyntaxError
+
+    if scope is not None and scope == scope_stack.top():
+        lnwriteln("CONSTANT: '{}' redefined".format(id))
+        raise SyntaxError
+
+    var = Rpn_Variable(id, constant=True)
+    scope_stack.top().set_variable(id, var)
+    p[0] = Rpn_Constant(var)
+
+
+def p_undef(p):
+    '''undef :  UNDEF  IDENTIFIER'''
+
+    id = p[2]
+    if not Rpn_Variable.name_valid_p(id):
+        lnwriteln("UNDEF: '{}' is not valid".format(id))
+        raise SyntaxError
+
+    (var, scope) = lookup_variable(id)
+
+    if var is None:
+        lnwriteln("UNDEF: Variable '{}' not found".format(id))
+        raise SyntaxError
+
+    if var.protected():
+        lnwriteln("UNDEF: '{}' is protected".format(id))
+        raise SyntaxError
+
+    if scope != scope_stack.top():
+        lnwriteln("UNDEF: '{}' out of scope".format(id))
+        raise SyntaxError
+
+    var = Rpn_Variable(id)
+    scope_stack.top().unset_variable(var)
+
+
+def p_variable(p):
+    '''variable :  VARIABLE  IDENTIFIER'''
+
+    id = p[2]
+    if not Rpn_Variable.name_valid_p(id):
+        lnwriteln("VARIABLE: '{}' is not valid".format(id))
+        raise SyntaxError
+
+    (var, scope) = lookup_variable(id)
+
+    if var is not None and var.noshadow():
+        lnwriteln("VARIABLE: '{}' cannot be shadowed".format(id))
+        raise SyntaxError
+
+    if scope is not None and scope == scope_stack.top():
+        lnwriteln("VARIABLE: '{}' redefined".format(id))
+        raise SyntaxError
+
+    var = Rpn_Variable(id)
+    scope_stack.top().set_variable(id, var)
+
+
 def p_vectors(p):
     '''vectors :  vector
                |  vector  vectors'''
 
-    lnwriteln("{}: len={}".format(whoami(), len(p)))
+    #lnwriteln("{}: len={}".format(whoami(), len(p)))
     if len(p) == 2:
         p[0] = Rpn_List(p[1])
     elif len(p) == 3:
@@ -1844,16 +1999,16 @@ def w_dollar_dot_bang():
 @defword(name='$.s', doc="""\
 Display string stack.""")
 def w_dollar_dot_s():
-    for (i, item) in string_stack.items_bottom_to_top():
-        lnwriteln("{}: {}".format(i, item.value()))
+    if not string_stack.empty():
+        lnwriteln(string_stack)
     global show_x
     show_x = False
 
 
 @defword(name='$.s!', hidden=True)
 def w_dollar_dot_s_bang():
-    for (i, item) in string_stack.items_bottom_to_top():
-        lnwriteln("{}: {}".format(i, repr(item)))
+    if not string_stack.empty():
+        lnwriteln(repr(string_stack))
     global show_x
     show_x = False
 
@@ -2003,12 +2158,12 @@ Addition  ( y x -- y+x )""")
 def w_plus():
     """\
 |----------+----------+---------+----------+---------+--------+--------|
-| Integer  | Integer  | Float   | Rational | Complex |        |        |
-| Float    | Float    | Float   | Float    | Complex |        |        |
-| Rational | Rational | Float   | Rational | Complex |        |        |
-| Complex  | Complex  | Complex | Complex  | Complex |        |        |
-| Vector   |          |         |          |         |        |        |
-| Matrix   |          |         |          |         |        |        |
+| Integer  | Integer  | Float   | Rational | Complex | Vector | Matrix |
+| Float    | Float    | Float   | Float    | Complex | Vector | Matrix |
+| Rational | Rational | Float   | Rational | Complex | Vector | Matrix |
+| Complex  | Complex  | Complex | Complex  | Complex | Vector | Matrix |
+| Vector   | Vector   | Vector  | Vector   | Vector  | Vector |        |
+| Matrix   | Matrix   | Matrix  | Matrix   | Matrix  |        | Matrix |
 |----------+----------+---------+----------+---------+--------+--------|
 | ^Y    X> | Integer  | Float   | Rational | Complex | Vector | Matrix |"""
     x = param_stack.pop()
@@ -2024,6 +2179,32 @@ def w_plus():
     elif    type(x) is Rpn_Complex and type(y) in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex] \
          or type(y) is Rpn_Complex and type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex]:
         result = Rpn_Complex.from_complex(complex(y.value()) + complex(x.value()))
+    elif    type(x) is Rpn_Vector and type(y) in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex] \
+         or type(y) is Rpn_Vector and type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex]:
+        r = np.add(y.value(), x.value())
+        result = Rpn_Vector.from_numpy(r)
+    elif type(x) is Rpn_Vector and type(y) is Rpn_Vector:
+        if x.size() != y.size():
+            param_stack.push(y)
+            param_stack.push(x)
+            raise ValueError("+: Conformability error: Vectors ({} and {}) are not same size".format(y, x))
+        r = np.add(y.value(), x.value())
+        # print(type(r))
+        # print(r)
+        result = Rpn_Vector.from_numpy(r)
+    elif    type(x) is Rpn_Matrix and type(y) in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex] \
+         or type(y) is Rpn_Matrix and type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex]:
+        r = np.add(y.value(), x.value())
+        result = Rpn_Matrix.from_numpy(r)
+    elif type(x) is Rpn_Matrix and type(y) is Rpn_Matrix:
+        if x.nrows() != y.nrows() or x.ncols() != y.ncols():
+            param_stack.push(y)
+            param_stack.push(x)
+            raise ValueError("+: Conformability error: Matrices ({} and {}) are not same size".format(y, x))
+        r = np.add(y.value(), x.value())
+        # print(type(r))
+        # print(r)
+        result = Rpn_Matrix.from_numpy(r)
     else:
         param_stack.push(y)
         param_stack.push(x)
@@ -2116,7 +2297,8 @@ def w_dot_quote():
 @defword(name='.s', doc="""\
 Print stack non-destructively""")
 def w_dot_s():
-    lnwriteln(param_stack)
+    if not param_stack.empty():
+        lnwriteln(param_stack)
     global show_x
     show_x = False
 
@@ -2124,7 +2306,8 @@ def w_dot_s():
 @defword(name='.s!', hidden=True, doc="""\
 Print stack non-destructively""")
 def w_dot_s_bang():
-    lnwriteln(repr(param_stack))
+    if not param_stack.empty():
+        lnwriteln(repr(param_stack))
     global show_x
     show_x = False
 
@@ -2471,6 +2654,27 @@ def w_abs():
     show_x = True
 
 
+@defword(name='acos', args=1, doc="""\
+Arc cosine  ( cosine -- angle )""")
+def w_acos():
+    x = param_stack.pop()
+    if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
+        try:
+            r = math.acos(float(x.value()))
+        except ValueError:
+            param_stack.push(x)
+            raise ValueError("acos: Argument {} out of range".format(x.value()))
+        result = Rpn_Float(convert_radians_to_mode(r))
+    elif type(x) is Rpn_Complex:
+        result = Rpn_Complex.from_complex(cmath.acos(x.value()))
+    else:
+        param_stack.push(x)
+        raise TypeError("acos: Type error ({})".format(type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
 @defword(name='again', doc="""\
 Execute an indefinite loop forever.
 BEGIN xxx AGAIN
@@ -2503,6 +2707,43 @@ def w_and():
         raise ValueError("and: Y must be TRUE (1) or FALSE (0), not {}".format(y.value()))
 
     param_stack.push(Rpn_Integer(x.value() and y.value()))
+    global show_x
+    show_x = True
+
+
+@defword(name='asin', args=1, doc="""\
+Arc sine  ( sine -- angle )""")
+def w_asin():
+    x = param_stack.pop()
+    if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
+        try:
+            r = math.asin(float(x.value()))
+        except ValueError:
+            param_stack.push(x)
+            raise ValueError("asin: Argument {} out of range".format(x.value()))
+        result = Rpn_Float(convert_radians_to_mode(r))
+    elif type(x) is Rpn_Complex:
+        result = Rpn_Complex.from_complex(cmath.asin(x.value()))
+    else:
+        param_stack.push(x)
+        raise TypeError("asin: Type error ({})".format(type(x).__name__))
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+@defword(name='atan', doc="""\
+Arc tangent  ( tangent -- angle )""")
+def w_atan():
+    x = param_stack.pop()
+    if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
+        result = Rpn_Float(convert_radians_to_mode(math.atan(float(x.value()))))
+    elif type(x) is Rpn_Complex:
+        result = Rpn_Complex.from_complex(cmath.atan(x.value()))
+    else:
+        param_stack.push(x)
+        raise TypeError("atan: Type error ({})".format(type(x).__name__))
+    param_stack.push(result)
     global show_x
     show_x = True
 
@@ -2645,6 +2886,13 @@ def w_comb():
     param_stack.push(result)
     global show_x
     show_x = True
+
+
+@defword(name='Constant', doc="""\
+Declare a constant variable  ( n -- )
+CONSTANT <ccc>""")
+def w_constant():
+    pass                        # Grammar rules handle this word
 
 
 @defword(name='cos', args=1, doc="""\
@@ -2836,8 +3084,8 @@ Dimension(s) of X.
 
 For integers, floats, and rationals (scalars), return 0.
 For complex numbers, return 2.
-For vectors of length N, return a vector [ N ].
-For an M-row by N-col matrix, return a vector [ M N ].""")
+For vectors of length N, return a vector [N].
+For an M-row by N-col matrix, return a vector [M N].""")
 def w_dim():
     x = param_stack.pop()
     if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
@@ -2845,7 +3093,7 @@ def w_dim():
     elif type(x) is Rpn_Complex:
         result = Rpn_Integer(2)
     elif type(x) is Rpn_Vector:
-        result = Rpn_Vector(Rpn_List(Rpn_Integer(x.size()))) # [ len(x) ]
+        result = Rpn_Vector(Rpn_List(Rpn_Integer(x.size())))
     elif type(x) is Rpn_Matrix:
         # Pretty ugly.  Need a better method to append items.  Ugh,
         # things get added at the beginning of the list, so we have to
@@ -2875,6 +3123,33 @@ prints 0 1 2 3 4 5 6 7 8 9
 qv I, LEAVE, LOOP, +LOOP""")
 def w_do():
     pass                        # Grammar rules handle this word
+
+
+@defword(name='dot', args=2, doc="""\
+Vector dot product  ( vec_y vec_x -- real )""")
+def w_dot_prod():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if type(x) is Rpn_Vector and type(y) is Rpn_Vector:
+        try:
+            r = y.value().dot(x.value())
+        except ValueError as e:
+            param_stack.push(y)
+            param_stack.push(x)
+            raise ValueError("dot: Conformability error: Vectors ({} and {}) are not same size".format(y, x))
+
+        if type(r) is np.int64:
+            result = Rpn_Integer(r)
+        else:
+            result = Rpn_Float(r)
+    else:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("dot: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+
+    param_stack.push(result)
+    global show_x
+    show_x = True
 
 
 @defword(name='dow', args=1, doc="""\
@@ -3259,6 +3534,36 @@ def w_I():
         raise FatalError("I is not an Rpn_Integer")
     else:
         param_stack.push(_I.obj())
+
+
+@defword(name='idn', args=1, doc="""\
+Create an NxN identity matrix  ( n -- mat )""")
+def w_idn():
+    x = param_stack.pop()
+    size = 0
+    if type(x) is Rpn_Integer:
+        size = x.value()
+        if size < 1 or size > matrix_max:
+            param_stack.push(x)
+            raise ValueError("idn: X out of range (1..{} expected)".format(matrix_max))
+    elif type(x) is Rpn_Vector:
+        vsize = x.size()
+        if vsize != 2:
+            param_stack.push(x)
+            raise ValueError("idn: Only matrices can be created")
+        if int(x.value()[0]) != int(x.value()[1]):
+            param_stack.push(x)
+            raise ValueError("idn: Only square matrices can be created")
+        size = x.value()[0]
+    else:
+        param_stack.push(x)
+        raise TypeError("idn: Type error ({})".format(type(x).__name__))
+
+
+    result = Rpn_Matrix.from_numpy(np.identity(size, dtype=np.int64))
+    param_stack.push(result)
+    global show_x
+    show_x = True
 
 
 @defword(name='if', args=1, doc="""\
@@ -4034,11 +4339,6 @@ def w_tan():
     x = param_stack.pop()
     if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
         angle = convert_mode_to_radians(x.value())
-        cosine = math.cos(angle)
-        # This is a nice idea, but doesn't really work in practice
-        if cosine.zerop():
-            param_stack.push(x)
-            raise ValueError("tan: Cannot compute tangents of right angles")
         result = Rpn_Float(math.tan(angle))
     elif type(x) is Rpn_Complex:
         result = Rpn_Complex.from_complex(cmath.tan(x.value()))
@@ -4117,6 +4417,14 @@ def w_tuck():
     param_stack.push(x)
 
 
+@defword(name='undef', doc="""\
+Undefine a variable, removing it from the current scope.
+UNDEF <var>""")
+
+def w_undef():
+    pass                        # Grammar rules handle this word
+
+
 @defword(name='until', doc="""\
 Execute an indefinite loop until a condition is satisfied.
 BEGIN xxx <flag> UNTIL
@@ -4130,30 +4438,54 @@ def w_until():
     pass                        # Grammar rules handle this word
 
 
+@defword(name='variable', doc="""\
+Declare a variable.  Initial state is undefined.
+VARIABLE <var>""")
+def w_variable():
+    pass                        # Grammar rules handle this word
+
+
 @defword(name='vars', doc="""\
 List variables and their values""")
 def w_vars():
-    vars = dict()
-    for varname in global_scope.variables():
-        var = global_scope.variable(varname)
-        if var.hidden():
-            continue
-        vars[var.name()] = "{}:[undef]".format(var.name()) if not var.defined() else \
-                           "{}={}".format(var.name(), var.obj().value())
-
-    sorted_vars = []
-    for key in sorted(vars, key=str.casefold):
-        sorted_vars.append(vars[key])
     columns = global_scope.variable('COLS').obj().value()
-    list_in_columns(sorted_vars, columns - 1)
+    for (i, scope) in scope_stack.items_top_to_bottom():
+        lnwriteln("Scope {}".format(scope.name()))
+        vars = dict()
+        for varname in scope.variables():
+            var = scope.variable(varname)
+            if var.hidden():
+                continue
+            vars[var.name()] = "{}:[undef]".format(var.name()) if not var.defined() else \
+                               "{}={}".format(var.name(), var.obj().value())
+        sorted_vars = []
+        for key in sorted(vars, key=str.casefold):
+            sorted_vars.append(vars[key])
+        list_in_columns(sorted_vars, columns - 1)
+
     global show_x
     show_x = False
 
 
 @defword(name='vars!', hidden=True)
 def w_vars_bang():
-    for (i, scope) in scope_stack.items_bottom_to_top():
-        lnwriteln("{} vars: {}".format(scope, scope.variables().keys()))
+    columns = global_scope.variable('COLS').obj().value()
+    for (i, scope) in scope_stack.items_top_to_bottom():
+        lnwriteln("Scope {}".format(scope.name()))
+        vars = dict()
+        for varname in scope.variables():
+            var = scope.variable(varname)
+            # if var.hidden():
+            #     continue
+            vars[var.name()] = "{}:[undef]".format(var.name()) if not var.defined() else \
+                               "{}={}".format(var.name(), repr(var.obj()))
+        sorted_vars = []
+        for key in sorted(vars, key=str.casefold):
+            sorted_vars.append(vars[key])
+        list_in_columns(sorted_vars, columns - 1)
+
+    global show_x
+    show_x = False
 
 
 @defword(name='ver', doc="""\
@@ -4647,16 +4979,22 @@ def define_secondary_words():
 
 : foo |a b c| : bar |x y z|   ."----" cr ; : baz 66 emit space ; 65 emit space baz bar ;
 
-: hey |x| !x ;
+variable v1     [1 2 3] !v1
+variable v2     [4 5 6] !v2
+variable m
+[[1 2 3]
+ [4 5 6]]   !m
+
+: inout |in:a out:b|  @a 2 * !b ;
+
 """)
 
 
 def define_variables():
+    defvar('#OUT',  Rpn_Integer(0), protected=True, noshadow=True)
     defvar('COLS',  Rpn_Integer(0))
-    defvar('#OUT',  Rpn_Integer(0))
     defvar('ROWS',  Rpn_Integer(0))
-    defvar('trace', Rpn_Integer(0))
-    defvar('VER',   Rpn_Float(rpn_version))
+    defvar('VER',   Rpn_Float(rpn_version), protected=True, noshadow=True)
 
 
 
@@ -4691,8 +5029,11 @@ class Token_Mgr:
 
         # Read characters from input stream
         while data == "":
-            lnwrite(prompt)
+            if show_x and not param_stack.empty():
+                writeln("{}".format(str(param_stack.top())))
             show_x = False
+
+            lnwrite(prompt)
             data = input()
             sharpout.set_obj(Rpn_Integer(0))
 
@@ -4758,7 +5099,8 @@ flag is True if initial parse error, False if no error'''
             pass
 
         # These need a second token or they will be very angry
-        elif tok.type in ['AT_SIGN', 'CONSTANT', 'EXCLAM', 'FORGET', 'HELP', 'SHOW', 'VARIABLE' ]:
+        elif tok.type in ['AT_SIGN', 'CONSTANT', 'EXCLAM', 'FORGET', 'HELP',
+                          'SHOW', 'UNDEF', 'VARIABLE' ]:
             try:
                 tok2 = next(Token_Mgr.next_token())
             except StopIteration:
@@ -4805,7 +5147,6 @@ flag is True if initial parse error, False if no error'''
                 tok_list.append(tok)
                 parse_stack.pop()
                 parse_stack.push('(,')
-
 
         elif tok.type in ['BEGIN', 'CASE', 'COLON', 'DO', 'IF']:
             tok_list.append(tok)
@@ -4920,12 +5261,6 @@ def main_loop():
     show_x = False    # Reset, because some argv may have set it to True
 
     while True:
-        if global_scope.variable('#OUT').obj().value() != 0:
-            writeln()
-        if show_x and not param_stack.empty():
-            writeln("{}".format(str(param_stack.top())))
-        show_x = False
-
         try:
             (error, tok_list) = generate_token_list()
         except StopIteration:
@@ -4942,17 +5277,17 @@ def end_program():
         writeln()
 
     if not string_stack.empty():
-        lnwriteln("Strings:")
         if string_stack.size() == 1:
             w_dollar_dot(); w_cr()
         else:
+            lnwriteln("Strings:")
             w_dollar_dot_s()
 
     if not param_stack.empty():
-        lnwriteln("Stack:")
         if param_stack.size() == 1:
             w_dot(); print()
         else:
+            lnwriteln("Stack:")
             w_dot_s()
 
 
