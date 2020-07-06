@@ -28,8 +28,6 @@ import traceback
 angle_mode        = "d"  # r=radians, d=degrees, g=gradians
 date_re           = r'^(\d{1,2})\.(\d{2})(\d{4})$'
 date_pat          = re.compile(date_re)
-#debug_enabled     = True
-debug_enabled     = False
 default_protected = True
 flag_max          = 64
 force_interactive = False
@@ -129,16 +127,29 @@ It is caught in main_loop."""
 #       D E B U G G I N G
 #
 #############################################################################
+debug_enabled     = True
+#debug_enabled     = False
+
 debug_levels = {
-    "eval_string"   : 0,
-    "p_define_word" : 0,
-    "p_executable"  : 1,
-    "p_execute"     : 1,
-    "parse"         : 1,
-    "scope"         : 0,
-    "show"          : 0,
-    "token"         : 1,
+    "eval_string"           : 0,
+    "p_define_word"         : 0,
+    "p_executable"          : 1,
+    "p_execute"             : 1,
+    "parse"                 : 1,
+    "Rpn_Sequence#__init__" : 1,
+    "Rpn_Word#__init__"     : 1,
+    "scope"                 : 0,
+    "show"                  : 0,
+    "token"                 : 1,
 }
+
+def whoami():
+    whoami = ""
+    previous_frame = inspect.currentframe().f_back
+    if "self" in previous_frame.f_locals:
+        whoami += previous_frame.f_locals["self"].__class__.__name__ + "#"
+    whoami += previous_frame.f_code.co_name
+    return whoami
 
 def enable_debug():
     global debug_enabled
@@ -175,7 +186,7 @@ just change "dbg(res,1,xxx)" to "dbg(res,-1,xxx)".'''
         return False
     flag = debug_levels[resource] >= level
     if flag and text is not None:
-        lnwriteln("{}".format(text))
+        print("{}".format(text))
     return flag
 
 
@@ -900,12 +911,11 @@ class Rpn_Scope:
 
 
 class Rpn_Sequence:
-    def __init__(self, scope, in_vars, out_vars, exe_seq):
+    def __init__(self, scope, exe_seq):
         self._scope    = scope
-        self._in_vars  = in_vars
-        self._out_vars = out_vars
         self._exe_seq  = exe_seq
-        # print("{}: scope={}, exe_seq={}".format(whoami(), repr(scope), repr(exe_seq)))
+        #dbg(whoami(), 1, "{}: scope={}, exe_seq={}".format(whoami(), repr(scope), repr(exe_seq)))
+        print(repr(scope.variables()))
 
     def __call__(self):
         # TODO check param_stack.size() vs len(in_vars)
@@ -1073,12 +1083,13 @@ class Rpn_String:
 
 
 class Rpn_Variable:
-    def __init__(self, name, obj=None, **kwargs):
-        if name is None or len(name) == 0 or name[0] in ['+','-','*','/','?']:
-            raise Rpn_E_Fatal("Invalid variable name '{}'".format(name))
+    def __init__(self, rawname, obj=None, **kwargs):
+        if not Rpn_Variable.name_valid_p(rawname):
+            raise Rpn_E_Fatal("Invalid variable name '{}'".format(rawname))
+
         self._constant  = False
         self._hidden    = False
-        self._name      = name
+        self._rawname   = rawname
         self._noshadow  = False
         self._protected = False
         self._rpnobj    = obj
@@ -1102,13 +1113,12 @@ class Rpn_Variable:
         if len(kwargs) > 0:
             for (key, val) in kwargs.items():
                 lnwriteln("Unrecognized keyword '{}'={}".format(key, val))
-                raise Rpn_E_Fatal("Could not construct variable '{}'".format(name))
+                raise Rpn_E_Fatal("Could not construct variable '{}'".format(rawname))
 
     @classmethod
     def name_valid_p(cls, name):
         return not (name is None or len(name) == 0 or \
-                    name[0] in ['+','-','*','/','?'] or \
-                    name[:3] == 'in:' or name[:4] == 'out:')
+                    name[0] in ['+','-','*','/','?'] )
 
     def obj(self):
         return self._rpnobj
@@ -1117,7 +1127,7 @@ class Rpn_Variable:
         self._rpnobj = newobj
 
     def name(self):
-        return self._name
+        return self._rawname
 
     def defined(self):
         return self.obj() is not None
@@ -1135,10 +1145,10 @@ class Rpn_Variable:
         return self._protected
 
     def __str__(self):
-        return str(self._name)
+        return str(self._rawname)
 
     def __repr__(self):
-        return "Variable[{}]".format(self._name)
+        return "Variable[{}]".format(self._rawname)
 
 
 class Rpn_Vector:
@@ -1191,6 +1201,7 @@ class Rpn_Word:
             raise Rpn_E_Fatal("Invalid word name '{}'".format(name))
         if defn is None:
             raise Rpn_E_Fatal("{}: defn is None".format(name))
+        dbg(whoami(), 1, "defn is {}".format(type(defn)))
         if kwargs.get("args"):
             self._args = kwargs['args']
             del kwargs["args"]
@@ -1725,9 +1736,9 @@ def p_word(p):
 def p_sequence(p):
     '''sequence : locals_opt executables_opt'''
 
-    # `locals_opt' is a Scope; `executables_opt' is a List
+    # `locals_opt' is an Rpn_Scope; `executables_opt' is an Rpn_List
     scope = pop_scope("p_sequence() is finishing")
-    p[0] = Rpn_Sequence(p[1], [], [], p[2])
+    p[0] = Rpn_Sequence(p[1], p[2])
 
 
 def p_locals_opt(p):
@@ -4871,15 +4882,6 @@ def sigwinch_handler(signum, frame):
     global_scope.variable('COLS').set_obj(Rpn_Integer(tty_columns))
 
 
-def whoami():
-    whoami = ""
-    previous_frame = inspect.currentframe().f_back
-    if "self" in previous_frame.f_locals:
-        whoami += previous_frame.f_locals["self"].__class__.__name__ + "#"
-    whoami += previous_frame.f_code.co_name
-    return whoami
-
-
 def write(s=""):
     if len(s) == 0:
         return
@@ -4985,7 +4987,7 @@ variable m
 [[1 2 3]
  [4 5 6]]   !m
 
-: inout |in:a out:b|  @a 2 * !b ;
+\ : inout |in:a in:b out:c|  @a @b + 2 * !c ;
 
 """)
 
