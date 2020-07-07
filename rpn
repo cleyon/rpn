@@ -127,20 +127,20 @@ It is caught in main_loop."""
 #       D E B U G G I N G
 #
 #############################################################################
-#debug_enabled     = True
 debug_enabled     = False
+#debug_enabled     = True
 
 debug_levels = {
     "eval_string"           : 0,
     "p_define_word"         : 0,
-    "p_executable"          : 1,
+    "p_executable"          : 0,
     "p_execute"             : 1,
-    "parse"                 : 1,
+    "parse"                 : 0,
     "Rpn_Sequence#__init__" : 1,
     "Rpn_Word#__init__"     : 1,
-    "scope"                 : 0,
+    "scope"                 : 1,
     "show"                  : 0,
-    "token"                 : 1,
+    "token"                 : 0,
 }
 
 
@@ -740,6 +740,9 @@ class Rpn_List:
     def listval(self):
         return self._list
 
+    def append(self, item):
+        self._list.append(item)
+
     def __call__(self):
         caught_exit = False
         for item in self.listval():
@@ -860,6 +863,8 @@ class Rpn_Scope:
         self._name = name
         self._words = {}
         self._variables = {}
+        self._in_vars = Rpn_List()
+        self._out_vars = Rpn_List()
 
     def name(self):
         return self._name
@@ -886,6 +891,20 @@ class Rpn_Scope:
             raise Rpn_E_Fatal("{}: Variable {} is not an Rpn_Variable".format(whoami(), identifier))
         self._variables[identifier] = var
 
+    def set_in_variables(self, l):
+        # l is an Rpn_List of 'str'ings
+        self._in_vars = l
+
+    def in_vars(self):
+        return self._in_vars
+
+    def set_out_variables(self, l):
+        # l is an Rpn_List of 'str'ings
+        self._out_vars = l
+
+    def out_vars(self):
+        return self._out_vars
+
     def delete_variable(self, identifier):
         del self._variables[identifier]
 
@@ -896,7 +915,10 @@ class Rpn_Scope:
         return self._words
 
     def visible_variables(self):
-        return list( filter( lambda x: not x[1].hidden(), self.variables().items() ) )
+        return list(filter(lambda x: not x[1].hidden(), self.variables().items()))
+
+    def unprotected_words(self):
+        return list(filter(lambda x: not x[1].protected(), self.words().items()))
 
     def __str__(self):
         s = ""
@@ -920,7 +942,11 @@ class Rpn_Sequence:
         #print(repr(scope.variables()))
 
     def __call__(self):
-        # TODO check param_stack.size() vs len(in_vars)
+        if len(self.scope().in_vars()) > 0:
+            if param_stack.size() < len(self.scope().in_vars()):
+                raise RuntimeError("{}: Insufficient parameters ({} required)".format(self._scope.name(), len(self.scope().in_vars())))
+            for varname in self.scope().in_vars().items():
+                var = self.scope().variable(varname).set_obj(param_stack.pop())
 
         push_scope(self.scope(), "Calling {}".format(repr(self)))
         try:
@@ -929,9 +955,18 @@ class Rpn_Sequence:
         except Rpn_E_Exit:
             raise
         finally:
-            s = pop_scope("{} complete".format(repr(self)))
-
-        # TODO push out variables onto param_stack
+            pop_scope("{} complete".format(repr(self)))
+            out_pushes = 0
+            if len(self.scope().out_vars()) > 0:
+                for varname in self.scope().out_vars().items():
+                    var = self.scope().variable(varname)
+                    if not var.defined():
+                        for x in range(out_pushes):
+                            param_stack.pop()
+                        raise RuntimeError("{}: Variable '{}' was never set".format(self._scope.name(), varname))
+                    #print("{} is {}".format(varname, repr(var.obj())))
+                    param_stack.push(var.obj())
+                    out_pushes += 1
 
     def scope(self):
         return self._scope
@@ -1213,7 +1248,7 @@ class Rpn_Word:
             raise Rpn_E_Fatal("Invalid word name '{}'".format(name))
         if defn is None:
             raise Rpn_E_Fatal("{}: defn is None".format(name))
-        dbg(whoami(), 1, "defn is {}".format(type(defn)))
+        dbg(whoami(), 3, "defn is {}".format(type(defn)))
         if kwargs.get("args"):
             self._args = kwargs['args']
             del kwargs["args"]
@@ -1763,27 +1798,46 @@ def p_locals_opt(p):
         elif p[idx] == 'of':
             name = "of_" + p[idx - 1]
         elif p[idx] == ':':
-            name = ":" + p[idx + 1]
+            name = p[idx + 1]
         else:
             # lnwriteln("p_locals_opt: Not sure about {}".format(p[idx]))
             # name = "locals"
             idx -= 1
 
+    all_vars = Rpn_List()
+    in_vars  = Rpn_List()
+    out_vars = Rpn_List()
+
     scope = Rpn_Scope(name)
-    #print("{}: Creating new scope {}".format(whoami(), scope))
-    variables = Rpn_List()
+    #print("{}: Creating new scope {}".format(whoami(), repr(scope)))
 
     if len(p) == 4:
-        variables = p[2]
-        for varname in variables.items():
-            if not Rpn_Variable.name_valid_p(varname):
-                lnwriteln("Variable name '{}' is not valid".format(varname))
-                raise SyntaxError
+        for varname in p[2].items():
+            # Already tested for name_valid_p and noshadow in p_ids_opt()
+            if varname[:3] == 'in:':
+                varname = varname[3:]
+                #print("{} is an IN variable".format(varname))
+                in_vars.append(varname)
+            elif varname[:4] == 'out:':
+                varname = varname[4:]
+                #print("{} is an OUT variable".format(varname))
+                out_vars.append(varname)
+            elif varname[:6] == 'inout:':
+                varname = varname[6:]
+                #print("{} is an INOUT variable".format(varname))
+                in_vars.append(varname)
+                out_vars.append(varname)
+            all_vars.append(varname)
+
+        for varname in all_vars.items():
             var = Rpn_Variable(varname)
-            #lnwriteln("{}: Defining variable {} in scope {}".format(whoami(), varname, scope))
+            #lnwriteln("{}: Defining variable {} in scope {}".format(whoami(), varname, repr(scope)))
             scope.set_variable(varname, var)
 
-    push_scope(scope, "New sequence (locals={})".format(variables))
+        scope.set_in_variables(in_vars)
+        scope.set_out_variables(out_vars)
+
+    push_scope(scope, "New sequence (locals={})".format(all_vars))
     p[0] = scope
 
 
@@ -1794,6 +1848,14 @@ def p_ids_opt(p):
     if len(p) == 2:
         p[0] = Rpn_List()
     elif len(p) == 3:
+        id = p[1]
+        if not Rpn_Variable.name_valid_p(id):
+            lnwriteln("|{}|: Variable name is not valid".format(id))
+            raise SyntaxError
+        (var, scope) = lookup_variable(id)
+        if var is not None and var.noshadow():
+            lnwriteln("|{}|: Variable cannot be shadowed".format(id))
+            raise SyntaxError
         p[0] = Rpn_List(p[1], p[2])
 
 
@@ -3066,7 +3128,7 @@ def w_comb():
     show_x = True
 
 
-@defword(name='Constant', doc="""\
+@defword(name='constant', doc="""\
 Declare a constant variable  ( n -- )
 CONSTANT <ccc>""")
 def w_constant():
@@ -4699,6 +4761,10 @@ def w_ver():
 Print the list of defined words.
 Only words in the global scope are shown.""")
 def w_vlist():
+    columns = global_scope.variable('COLS').obj().value()
+    # This is nice, but it shows hidden words:
+    # list_in_columns(sorted([ x for x in global_scope.words() ],
+    #                        key=str.casefold), columns - 1)
     words = dict()
     for wordname in global_scope.words():
         word = global_scope.word(wordname)
@@ -4708,7 +4774,6 @@ def w_vlist():
     sorted_words = []
     for key in sorted(words, key=str.casefold):
         sorted_words.append(words[key])
-    columns = global_scope.variable('COLS').obj().value()
     list_in_columns(sorted_words, columns - 1)
     global show_x
     show_x = False
@@ -4729,8 +4794,12 @@ def w_while():
 
 @defword(name='words')
 def w_words():
-    scope = scope_stack.top()
-    lnwriteln("{} words: {}".format(scope, scope.words().keys()))
+    columns = global_scope.variable('COLS').obj().value()
+    list_in_columns(sorted([ x[0] for x in global_scope.unprotected_words() ],
+                           key=str.casefold), columns - 1)
+    global show_x
+    show_x = False
+
 
 
 
@@ -5223,7 +5292,8 @@ def define_secondary_words():
   BL emit ;
 
 : spaces        doc:"spaces  ( n -- )   Display N space characters"
-  0 do space loop ;
+  |in:N|
+  @N 0 do space loop ;
 
 : X       88 emit ;
 : xbox  |foo bar|  5 0 do  4 0 do X loop cr loop ;

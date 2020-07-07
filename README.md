@@ -18,6 +18,13 @@ pip3 install --user numpy
 pip3 install --user ply
 ```
 
+## Enhancements
+
+- TVM
+- Store/Recall arithmetic
+- More math categories (plot, root solve, integrate)
+- RECURSE.  NB, local variables need to be re-generated
+
 ## Bugs
 
 - HMS+ et al don't work well with negatives times.  Avoid them for now.
