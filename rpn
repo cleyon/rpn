@@ -5569,8 +5569,8 @@ return_stack = Rpn_Stack()
 scope_stack  = Rpn_Stack()
 string_stack = Rpn_Stack()
 
-lexer  = lex.lex()
-parser = yacc.yacc(start='evaluate') # , errorlog=yacc.NullLogger())
+lexer  = lex.lex(optimize=True)
+parser = yacc.yacc(start='evaluate', errorlog=yacc.NullLogger())
 
 if __name__ == "__main__":
     try:
