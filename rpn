@@ -4733,11 +4733,67 @@ def w_words():
     lnwriteln("{} words: {}".format(scope, scope.words().keys()))
 
 
-@defword(name='words!', hidden=True)
-def w_words_bang():
-    for (i, scope) in scope_stack.items_bottom_to_top():
-        lnwriteln("{} words: {}".format(scope, scope.words().keys()))
+
+#############################################################################
+#
+#       T V M   W O R D S
+#
+#############################################################################
 
+@defword(name='clfin', doc="""\
+Clear financial variables""")
+def w_clfin():
+    global_scope.variable('BEG') .set_obj(Rpn_Integer(0))
+    global_scope.variable('FV')  .set_obj(None)
+    global_scope.variable('I%YR').set_obj(None)
+    global_scope.variable('N')   .set_obj(None)
+    global_scope.variable('P/YR').set_obj(Rpn_Integer(12))
+    global_scope.variable('PMT') .set_obj(None)
+    global_scope.variable('PV')  .set_obj(None)
+
+
+# BUG: if PV is 0, divide by zero exception
+@defword(name='N', hidden=True, doc="""\
+Solve for N (number of payments)""")
+def w_N():
+    check_financial_variables("N", ['I%YR', 'PV', 'FV'])
+
+    N   = global_scope.variable('N')
+    FV  = global_scope.variable('FV').obj()
+    PV  = global_scope.variable('PV').obj()
+
+    ip = interest_rate_helper()
+    ln_ip1 = math.log1p(ip)
+    n = math.log((FV.value() * ip) / (PV.value() * ip))  /  ln_ip1
+    result = Rpn_Float(float(n))
+    N.set_obj(result)
+    param_stack.push(result)
+    global show_x
+    show_x = True
+
+
+def interest_rate_helper():
+    IYR = global_scope.variable('I%YR').obj().value()
+    PYR = global_scope.variable('P/YR').obj().value()
+    return (float(IYR) / 100.0) / float(PYR)
+
+
+def k_helper():
+    r = 1.0
+    if global_scope.variable('BEG').obj().value() == 1:
+        r += interest_rate_helper()
+    return r
+
+
+def check_financial_variables(for_var, needs):
+    still_needed = []
+    for x in needs:
+        #print("Checking for {}: {} is {}".format(for_var, x, global_scope.variable(x).defined()))
+        if not global_scope.variable(x).defined():
+            still_needed.append(x)
+    if len(still_needed) == 0:
+        return True
+    raise RuntimeError("{}: Financial variables {} are not set".format(for_var, ",".join(still_needed)))
 
 
 
