@@ -127,8 +127,8 @@ It is caught in main_loop."""
 #       D E B U G G I N G
 #
 #############################################################################
-debug_enabled     = True
-#debug_enabled     = False
+#debug_enabled     = True
+debug_enabled     = False
 
 debug_levels = {
     "eval_string"           : 0,
@@ -142,6 +142,14 @@ debug_levels = {
     "show"                  : 0,
     "token"                 : 1,
 }
+
+
+def typename(s):
+    t = type(s).__name__
+    if t[:4] == "Rpn_":
+        return t[4:]
+    else:
+        return t
 
 def whoami():
     whoami = ""
@@ -391,7 +399,7 @@ class Rpn_Constant:
         self._variable = var
 
     def __call__(self):
-        print("Rpn_Constant#__call__")
+        #print("Rpn_Constant#__call__")
         if param_stack.empty():
             raise RuntimeError("constant: Insufficient parameters (1 required)")
         self._variable.set_obj(param_stack.pop())
@@ -618,7 +626,7 @@ class Rpn_Forget:
     def __call__(self):
         if self._word.protected():
             raise RuntimeError("forget: '{}' is protected".format(self._word.name()))
-        self._scope.unset_word(self._word)
+        self._scope.delete_word(self._word.name())
 
     def __str__(self):
         return "forget {}".format(self._word.name())
@@ -865,14 +873,10 @@ class Rpn_Scope:
     def set_word(self, identifier, word):
         if type(word) is not Rpn_Word:
             raise Rpn_E_Fatal("{}: Word {} is not an Rpn_Word".format(whoami(), identifier))
-        # if default_protected and random.random() < 0.00 and (word.doc() is None or len(word.doc())==0) and not word.hidden():
-        #     print("Warning: Word '{}' has no documentation".format(identifier))
         self._words[identifier] = word
 
-    def unset_word(self, word):
-        if type(word) is not Rpn_Word:
-            raise Rpn_E_Fatal("{}: Word {} is not an Rpn_Word".format(whoami(), word))
-        del self._words[word.name()]
+    def delete_word(self, identifier):
+        del self._words[identifier]
 
     def word(self, identifier):
         return self._words.get(identifier)
@@ -882,10 +886,8 @@ class Rpn_Scope:
             raise Rpn_E_Fatal("{}: Variable {} is not an Rpn_Variable".format(whoami(), identifier))
         self._variables[identifier] = var
 
-    def unset_variable(self, var):
-        if type(var) is not Rpn_Variable:
-            raise Rpn_E_Fatal("{}: Variable is not an Rpn_Variable".format(whoami(), var))
-        del self._variables[var.name()]
+    def delete_variable(self, identifier):
+        del self._variables[identifier]
 
     def variable(self, identifier):
         return self._variables.get(identifier)
@@ -915,7 +917,7 @@ class Rpn_Sequence:
         self._scope    = scope
         self._exe_seq  = exe_seq
         #dbg(whoami(), 1, "{}: scope={}, exe_seq={}".format(whoami(), repr(scope), repr(exe_seq)))
-        print(repr(scope.variables()))
+        #print(repr(scope.variables()))
 
     def __call__(self):
         # TODO check param_stack.size() vs len(in_vars)
@@ -1050,6 +1052,8 @@ class Rpn_Store_Var:
     def __call__(self):
         if param_stack.empty():
             raise RuntimeError("!{}: Insufficient parameters (1 required)".format(self.identifier()))
+        if self._variable.readonly():
+            raise RuntimeError("!{}: Variable cannot be modified".format(self.identifier()))
         self._variable.set_obj(param_stack.pop())
 
     def __str__(self):
@@ -1092,6 +1096,7 @@ class Rpn_Variable:
         self._rawname   = rawname
         self._noshadow  = False
         self._protected = False
+        self._readonly  = False
         self._rpnobj    = obj
 
         if kwargs.get("constant"):
@@ -1109,6 +1114,10 @@ class Rpn_Variable:
         if kwargs.get("protected"):
             self._protected = kwargs["protected"]
             del kwargs["protected"]
+
+        if kwargs.get("readonly"):
+            self._readonly = kwargs["readonly"]
+            del kwargs["readonly"]
 
         if len(kwargs) > 0:
             for (key, val) in kwargs.items():
@@ -1143,6 +1152,9 @@ class Rpn_Variable:
 
     def protected(self):
         return self._protected
+
+    def readonly(self):
+        return self._readonly
 
     def __str__(self):
         return str(self._rawname)
@@ -1253,7 +1265,7 @@ class Rpn_Word:
         return self._protected
 
     def definition_as_string(self, debugging):
-        if debugging or type(self._defn).__name__ == 'function':
+        if debugging or typename(self._defn) == 'function':
             return repr(self)
         elif type(self._defn) is Rpn_Sequence:
             return ": {} {} ;".format(self.name(),
@@ -1265,7 +1277,7 @@ class Rpn_Word:
         return self.name()
 
     def __repr__(self):
-        if type(self._defn).__name__ == 'function':
+        if typename(self._defn) == 'function':
             return "Word[{}]".format(self.name())
         else:
             return "Word[{}, {}]".format(self.name(),repr(self._defn))
@@ -1416,7 +1428,7 @@ def t_WS(t):
     r'[ \t\n]+'
 
 def t_IDENTIFIER(t):
-    r'[-#$%&\'*+,./:;<=>?A-Z^_a-z][-!#$%&\'*+,./0-9:;<=>?@A-Z^_a-z~]*'
+    r'[-#$%&\*+,./:;<=>?A-Z^_a-z][-!"#$%&\'*+,./0-9:;<=>?@A-Z^_a-z~]*'
 
     single_chars = {
         ':': 'COLON',
@@ -1659,14 +1671,13 @@ def p_help(p):
             |  HELP  PLUS_LOOP
             |  HELP  REPEAT
             |  HELP  SEMICOLON
+            |  HELP  SHOW
             |  HELP  THEN
             |  HELP  UNDEF
             |  HELP  UNTIL
             |  HELP  VARIABLE
             |  HELP  WHILE'''
 
-    # HELP DOT_QUOTE doesn't work right because the lexer scans additional
-    # characters to complete the string.  HELP never sees a bare DOT_QUOTE.
     name = p[2]
     (word, _) = lookup_word(name)
     if word is None:
@@ -1712,7 +1723,7 @@ def p_store_var(p):
         lnwriteln("!{}: Variable not found".format(id))
         raise SyntaxError
     if var.constant():
-        lnwriteln("!{}: Constants cannot be modified".format(id))
+        lnwriteln("!{}: Constant cannot be modified".format(id))
         raise SyntaxError
     p[0] = Rpn_Store_Var(id, var)
 
@@ -1870,7 +1881,7 @@ def p_constant(p):
     '''constant :  CONSTANT  IDENTIFIER'''
 
     id = p[2]
-    print("p_constant {}".format(id))
+    #print("p_constant {}".format(id))
     if not Rpn_Variable.name_valid_p(id):
         lnwriteln("CONSTANT: '{}' is not valid".format(id))
         raise SyntaxError
@@ -1911,8 +1922,7 @@ def p_undef(p):
         lnwriteln("UNDEF: '{}' out of scope".format(id))
         raise SyntaxError
 
-    var = Rpn_Variable(id)
-    scope_stack.top().unset_variable(var)
+    scope_stack.top().delete_variable(id)
 
 
 def p_variable(p):
@@ -2048,7 +2058,7 @@ def w_percent():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("%: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+        raise TypeError("%: Type error ({}, {})".format(typename(y), typename(x)))
     param_stack.push(y)
     param_stack.push(result)
     global show_x
@@ -2085,7 +2095,7 @@ def w_percent_ch():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("%ch: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+        raise TypeError("%ch: Type error ({}, {})".format(typename(y), typename(x)))
     # The HP-32SII preserves the Y value (like %) but we do not
     param_stack.push(result)
     global show_x
@@ -2122,7 +2132,7 @@ def w_percent_t():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("%t: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+        raise TypeError("%t: Type error ({}, {})".format(typename(y), typename(x)))
     # The HP-32SII preserves the Y value (like %) but we do not
     param_stack.push(result)
     global show_x
@@ -2158,7 +2168,7 @@ def w_star():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("+: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+        raise TypeError("+: Type error ({}, {})".format(typename(y), typename(x)))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -2219,7 +2229,7 @@ def w_plus():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("+: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+        raise TypeError("+: Type error ({}, {})".format(typename(y), typename(x)))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -2258,7 +2268,7 @@ def w_minus():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("-: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+        raise TypeError("-: Type error ({}, {})".format(typename(y), typename(x)))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -2305,6 +2315,34 @@ def w_dot_quote():
     pass                        # Grammar rules handle this word
 
 
+@defword(name='.b', args=1, doc="""\
+Print X in binary  ( i -- )
+X must be an integer.""")
+def w_dot_bin():
+    x = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(x)
+        raise TypeError(".b: Type error ({})".format(typename(x)))
+
+    write("{} ".format(bin(x.value())))
+    global show_x
+    show_x = False
+
+
+@defword(name='.o', args=1, doc="""\
+Print X in octal  ( i -- )
+X must be an integer.""")
+def w_dot_oct():
+    x = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(x)
+        raise TypeError(".o: Type error ({})".format(typename(x)))
+
+    write("{} ".format(oct(x.value())))
+    global show_x
+    show_x = False
+
+
 @defword(name='.s', doc="""\
 Print stack non-destructively""")
 def w_dot_s():
@@ -2319,6 +2357,20 @@ Print stack non-destructively""")
 def w_dot_s_bang():
     if not param_stack.empty():
         lnwriteln(repr(param_stack))
+    global show_x
+    show_x = False
+
+
+@defword(name='.x', args=1, doc="""\
+Print X in hexadecimal  ( i -- )
+X must be an integer.""")
+def w_dot_hex():
+    x = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(x)
+        raise TypeError(".x: Type error ({})".format(typename(x)))
+
+    write("{} ".format(hex(x.value())))
     global show_x
     show_x = False
 
@@ -2363,7 +2415,7 @@ def w_slash():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("/: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+        raise TypeError("/: Type error ({}, {})".format(typename(y), typename(x)))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -2375,7 +2427,7 @@ def w_zero_less_than():
     x = param_stack.pop()
     if type(x) not in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
         param_stack.push(x)
-        raise TypeError("0<: Type error ({})".format(type(x).__name__))
+        raise TypeError("0<: Type error ({})".format(typename(x)))
 
     param_stack.push(Rpn_Integer(1 if x.value() < 0 else 0))
     global show_x
@@ -2388,7 +2440,7 @@ def w_zero_not_equal():
     x = param_stack.pop()
     if type(x) not in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex]:
         param_stack.push(x)
-        raise TypeError("0<>: Type error ({})".format(type(x).__name__))
+        raise TypeError("0<>: Type error ({})".format(typename(x)))
 
     param_stack.push(Rpn_Integer(0 if x.zerop() else 1))
     global show_x
@@ -2401,7 +2453,7 @@ def w_zero_equal():
     x = param_stack.pop()
     if type(x) not in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex]:
         param_stack.push(x)
-        raise TypeError("0=: Type error ({})".format(type(x).__name__))
+        raise TypeError("0=: Type error ({})".format(typename(x)))
 
     param_stack.push(Rpn_Integer(1 if x.zerop() else 0))
     global show_x
@@ -2414,7 +2466,7 @@ def w_zero_greater_than():
     x = param_stack.pop()
     if type(x) not in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
         param_stack.push(x)
-        raise TypeError("0>: Type error ({})".format(type(x).__name__))
+        raise TypeError("0>: Type error ({})".format(typename(x)))
 
     param_stack.push(Rpn_Integer(1 if x.value() > 0 else 0))
     global show_x
@@ -2451,7 +2503,27 @@ def w_less_than():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("<: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+        raise TypeError("<: Type error ({}, {})".format(typename(y), typename(x)))
+    global show_x
+    show_x = True
+
+
+@defword(name='<<', args=2, doc="""\
+<<  ( i2 i1 -- i2 << i1 )  Bitwise left shift""")
+def w_leftshift():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if type(x) is not Rpn_Integer or type(y) is not Rpn_Integer:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("<<: Type error ({}, {})".format(typename(y), typename(x)))
+
+    if x.value() < 0:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise ValueError("<<: Shift amount may not be negative")
+
+    param_stack.push(Rpn_Integer(y.value() << x.value()))
     global show_x
     show_x = True
 
@@ -2469,7 +2541,7 @@ def w_less_than_or_equal():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("<=: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+        raise TypeError("<=: Type error ({}, {})".format(typename(y), typename(x)))
     global show_x
     show_x = True
 
@@ -2505,7 +2577,7 @@ def w_not_equal():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("<>: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+        raise TypeError("<>: Type error ({}, {})".format(typename(y), typename(x)))
     param_stack.push(Rpn_Integer(0 if flag else 1))
     global show_x
     show_x = True
@@ -2542,7 +2614,7 @@ def w_equal():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("=: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+        raise TypeError("=: Type error ({}, {})".format(typename(y), typename(x)))
     param_stack.push(Rpn_Integer(1 if flag else 0))
     global show_x
     show_x = True
@@ -2561,7 +2633,27 @@ def w_greater_than():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError(">: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+        raise TypeError(">: Type error ({}, {})".format(typename(y), typename(x)))
+    global show_x
+    show_x = True
+
+
+@defword(name='>>', args=2, doc="""\
+>>  ( i2 i1 -- i2 >> i1 )  Bitwise right shift""")
+def w_rightshift():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if type(x) is not Rpn_Integer or type(y) is not Rpn_Integer:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError(">>: Type error ({}, {})".format(typename(y), typename(x)))
+
+    if x.value() < 0:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise ValueError("<<: Shift amount may not be negative")
+
+    param_stack.push(Rpn_Integer(y.value() >> x.value()))
     global show_x
     show_x = True
 
@@ -2579,7 +2671,7 @@ def w_less_than_or_equal():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError(">=: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+        raise TypeError(">=: Type error ({}, {})".format(typename(y), typename(x)))
     global show_x
     show_x = True
 
@@ -2599,7 +2691,7 @@ def w_query_dup():
             w_dup()
     else:
         param_stack.push(x)
-        raise TypeError("?dup: Type error ({})".format(type(x).__name__))
+        raise TypeError("?dup: Type error ({})".format(typename(x)))
 
 
 @defword(name='^', args=2, doc="""\
@@ -2611,7 +2703,7 @@ def w_caret():
        or type(y) not in [Rpn_Integer, Rpn_Rational, Rpn_Float, Rpn_Complex]:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("^: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+        raise TypeError("^: Type error ({}, {})".format(typename(y), typename(x)))
 
     r = pow(y.value(), x.value())
     if type(r) is int:
@@ -2659,7 +2751,7 @@ def w_abs():
         result = Rpn_Rational.from_Fraction(abs(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("abs: Type error ({})".format(type(x).__name__))
+        raise TypeError("abs: Type error ({})".format(typename(x)))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -2680,7 +2772,7 @@ def w_acos():
         result = Rpn_Complex.from_complex(cmath.acos(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("acos: Type error ({})".format(type(x).__name__))
+        raise TypeError("acos: Type error ({})".format(typename(x)))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -2706,7 +2798,7 @@ def w_and():
     if type(x) is not Rpn_Integer or type(y) is not Rpn_Integer:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("and: Type error ({})".format(type(y).__name__, type(y).__name__))
+        raise TypeError("and: Type error ({})".format(typename(y), typename(y)))
 
     if x.value() not in [0, 1]:
         param_stack.push(y)
@@ -2737,7 +2829,7 @@ def w_asin():
         result = Rpn_Complex.from_complex(cmath.asin(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("asin: Type error ({})".format(type(x).__name__))
+        raise TypeError("asin: Type error ({})".format(typename(x)))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -2753,10 +2845,18 @@ def w_atan():
         result = Rpn_Complex.from_complex(cmath.atan(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("atan: Type error ({})".format(type(x).__name__))
+        raise TypeError("atan: Type error ({})".format(typename(x)))
     param_stack.push(result)
     global show_x
     show_x = True
+
+
+@defword(name='beg', doc="""\
+Set "Begin" financial mode.
+
+Do not confuse this with the BEGIN command, which starts a loop.""")
+def w_beg():
+    global_scope.variable('BEG').set_obj(Rpn_Integer(1))
 
 
 @defword(name='begin', doc="""\
@@ -2775,6 +2875,72 @@ Time Value of Money calculations.
 qv AGAIN, LEAVE, REPEAT, UNTIL, WHILE""")
 def w_begin():
     pass                        # Grammar rules handle this word
+
+
+@defword(name='bitand', args=2, doc="""\
+bitand  ( i2 i1 -- i2 AND i1 )  Bitwise AND
+
+Perform a bitwise boolean AND on two integers""")
+def w_bitand():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if type(x) is not Rpn_Integer or type(y) is not Rpn_Integer:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("bitand: Type error ({}, {})".format(typename(y), typename(x)))
+
+    param_stack.push(Rpn_Integer(y.value() & x.value()))
+    global show_x
+    show_x = True
+
+
+@defword(name='bitnot', args=1, doc="""\
+bitnot  ( i1 -- NOT i1 )  Bitwise NOT
+
+Perform a bitwise boolean NOT on an integer""")
+def w_bitor():
+    x = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(x)
+        raise TypeError("bitnot: Type error ({})".format(typename(x)))
+
+    param_stack.push(Rpn_Integer(~ x.value()))
+    global show_x
+    show_x = True
+
+
+@defword(name='bitor', args=2, doc="""\
+bitor  ( i2 i1 -- i2 OR i1 )  Bitwise OR
+
+Perform a bitwise boolean OR on two integers""")
+def w_bitor():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if type(x) is not Rpn_Integer or type(y) is not Rpn_Integer:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("bitor: Type error ({}, {})".format(typename(y), typename(x)))
+
+    param_stack.push(Rpn_Integer(y.value() | x.value()))
+    global show_x
+    show_x = True
+
+
+@defword(name='bitxor', args=2, doc="""\
+bitxor  ( i2 i1 -- i2 XOR i1 )  Bitwise XOR
+
+Perform a bitwise boolean Exclusive OR on two integers""")
+def w_bitor():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if type(x) is not Rpn_Integer or type(y) is not Rpn_Integer:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("bitxor: Type error ({}, {})".format(typename(y), typename(x)))
+
+    param_stack.push(Rpn_Integer(y.value() ^ x.value()))
+    global show_x
+    show_x = True
 
 
 @defword(name='bye', doc="""\
@@ -2811,7 +2977,7 @@ def w_ceil():
         result = Rpn_Integer(math.ceil(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("ceil: Type error ({})".format(type(x).__name__))
+        raise TypeError("ceil: Type error ({})".format(typename(x)))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -2827,7 +2993,7 @@ def w_cf():
         flag_clear(x.value())
     else:
         param_stack.push(x)
-        raise TypeError("cf: Type error ({})".format(type(x).__name__))
+        raise TypeError("cf: Type error ({})".format(typename(x)))
 
 
 # Some HP calcs call this NEGATE, but why type 6 characters when 3 will do?
@@ -2845,7 +3011,7 @@ def w_chs():
         result = Rpn_Complex(-1.0*x.real(), -1.0*x.imag())
     else:
         param_stack.push(x)
-        raise TypeError("chs: Type error ({})".format(type(x).__name__))
+        raise TypeError("chs: Type error ({})".format(typename(x)))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -2885,15 +3051,16 @@ nCr = -----------
 def w_comb():
     x = param_stack.pop()
     y = param_stack.pop()
-    if type(x) is Rpn_Integer and type(y) is Rpn_Integer:
-        # Python 3.8 has math.comb()
-        n = y.value()
-        r = x.value()
-        result = Rpn_Integer(comb_helper(n, r))
-    else:
+    if type(x) is not Rpn_Integer or type(y) is not Rpn_Integer:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("comb: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+        raise TypeError("comb: Type error ({}, {})".format(typename(y), typename(x)))
+
+    # Python 3.8 has math.comb()
+    n = y.value()
+    r = x.value()
+    result = Rpn_Integer(comb_helper(n, r))
+
     param_stack.push(result)
     global show_x
     show_x = True
@@ -2916,7 +3083,7 @@ def w_cos():
         result = Rpn_Complex.from_complex(cmath.cos(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("cos: Type error ({})".format(type(x).__name__))
+        raise TypeError("cos: Type error ({})".format(typename(x)))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -2934,7 +3101,7 @@ def w_d_to_jd():
     x = param_stack.pop()
     if type(x) is not Rpn_Float:
         param_stack.push(x)
-        raise TypeError("d->jd: Type error ({})".format(type(x).__name__))
+        raise TypeError("d->jd: Type error ({})".format(typename(x)))
 
     (valid, dateobj, julian) = x.date_info()
     if not valid:
@@ -2954,7 +3121,7 @@ def w_d_to_r():
         result = Rpn_Float(convert_mode_to_radians(float(x.value()), "d"))
     else:
         param_stack.push(x)
-        raise TypeError("d->r: Type error ({})".format(type(x).__name__))
+        raise TypeError("d->r: Type error ({})".format(typename(x)))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -2977,7 +3144,7 @@ def w_dateinfo():
         print(x.date_info())
     else:
         param_stack.push(x)
-        raise TypeError("dateinfo: Type error ({})".format(type(x).__name__))
+        raise TypeError("dateinfo: Type error ({})".format(typename(x)))
 
 
 @defword(name='date+', args=2, doc="""\
@@ -2988,7 +3155,7 @@ def w_date_plus():
     if type(x) is not Rpn_Integer or type(y) is not Rpn_Float:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("date+: Type error ({})".format(type(y).__name__, type(y).__name__))
+        raise TypeError("date+: Type error ({})".format(typename(y), typename(y)))
 
     (valid, dateobj, julian) = y.date_info()
     if not valid:
@@ -3012,7 +3179,7 @@ def w_date_minus():
     if type(x) is not Rpn_Integer or type(y) is not Rpn_Float:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("date-: Type error ({})".format(type(y).__name__, type(y).__name__))
+        raise TypeError("date-: Type error ({})".format(typename(y), typename(y)))
 
     (valid, dateobj, julian) = y.date_info()
     if not valid:
@@ -3037,7 +3204,7 @@ def w_ddays():
     if type(x) is not Rpn_Float or type(y) is not Rpn_Float:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("ddays: Type error ({})".format(type(y).__name__, type(y).__name__))
+        raise TypeError("ddays: Type error ({})".format(typename(y), typename(y)))
 
     (valid, dateobj, xjulian) = x.date_info()
     if not valid:
@@ -3115,7 +3282,7 @@ def w_dim():
         result = Rpn_Vector(l2) # [ rows cols ]
     else:
         param_stack.push(x)
-        raise TypeError("dim: Type error ({})".format(type(x).__name__))
+        raise TypeError("dim: Type error ({})".format(typename(x)))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -3156,7 +3323,7 @@ def w_dot_prod():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("dot: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+        raise TypeError("dot: Type error ({}, {})".format(typename(y), typename(x)))
 
     param_stack.push(result)
     global show_x
@@ -3170,7 +3337,7 @@ def w_dow():
     x = param_stack.pop()
     if type(x) is not Rpn_Float:
         param_stack.push(x)
-        raise TypeError("dow: Type error ({})".format(type(x).__name__))
+        raise TypeError("dow: Type error ({})".format(typename(x)))
 
     (valid, dateobj, julian) = x.date_info()
     if not valid:
@@ -3222,8 +3389,14 @@ def w_emit():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("emit: Type error ({})".format(type(x).__name__))
+        raise TypeError("emit: Type error ({})".format(typename(x)))
     write(chr(x.value()))
+
+
+@defword(name='end', doc="""\
+Set "End" financial mode.""")
+def w_end():
+    global_scope.variable('BEG').set_obj(Rpn_Integer(0))
 
 
 @defword(name='endcase', doc="""\
@@ -3291,7 +3464,7 @@ def w_exp():
         result = Rpn_Complex.from_complex(cmath.exp(complex(x.value())))
     else:
         param_stack.push(x)
-        raise TypeError("exp: Type error ({})".format(type(x).__name__))
+        raise TypeError("exp: Type error ({})".format(typename(x)))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -3313,7 +3486,7 @@ def w_fact():
         result = Rpn_Integer(fact_helper(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("fact: Type error ({})".format(type(x).__name__))
+        raise TypeError("fact: Type error ({})".format(typename(x)))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -3329,14 +3502,14 @@ def w_FALSE():
 @defword(name='fc?', args=1)
 def w_fc_query():
     x = param_stack.pop()
-    if type(x) is Rpn_Integer:
-        if x.value() < 0 or x.value() > flag_max - 1:
-            param_stack.push(x)
-            raise ValueError("fc?: Flag out of range (0..{} expected)".format(flag_max - 1))
-        result = Rpn_Integer(0 if flag_test(x.value()) else 1)
-    else:
+    if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("fc?: Type error ({})".format(type(x).__name__))
+        raise TypeError("fc?: Type error ({})".format(typename(x)))
+
+    if x.value() < 0 or x.value() > flag_max - 1:
+        param_stack.push(x)
+        raise ValueError("fc?: Flag out of range (0..{} expected)".format(flag_max - 1))
+    result = Rpn_Integer(0 if flag_test(x.value()) else 1)
     param_stack.push(result)
     global show_x
     show_x = True
@@ -3352,7 +3525,7 @@ def w_floor():
         result = Rpn_Integer(math.floor(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("floor: Type error ({})".format(type(x).__name__))
+        raise TypeError("floor: Type error ({})".format(typename(x)))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -3367,14 +3540,14 @@ def w_forget():
 @defword(name='fs?', args=1)
 def w_fs_query():
     x = param_stack.pop()
-    if type(x) is Rpn_Integer:
-        if x.value() < 0 or x.value() > flag_max - 1:
-            param_stack.push(x)
-            raise ValueError("fs?: Flag out of range (0..{} expected)".format(flag_max - 1))
-        result = Rpn_Integer(1 if flag_test(x.value()) else 0)
-    else:
+    if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("fs?: Type error ({})".format(type(x).__name__))
+        raise TypeError("fs?: Type error ({})".format(typename(x)))
+
+    if x.value() < 0 or x.value() > flag_max - 1:
+        param_stack.push(x)
+        raise ValueError("fs?: Flag out of range (0..{} expected)".format(flag_max - 1))
+    result = Rpn_Integer(1 if flag_test(x.value()) else 0)
     param_stack.push(result)
     global show_x
     show_x = True
@@ -3412,7 +3585,7 @@ def w_hms():
         result = Rpn_Float("%d.%02d%02d" % (hours, minutes, seconds))
     else:
         param_stack.push(x)
-        raise TypeError("hms: Type error ({})".format(type(x).__name__))
+        raise TypeError("hms: Type error ({})".format(typename(x)))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -3427,7 +3600,7 @@ def w_hms_plus():
        or type(y) not in [Rpn_Integer, Rpn_Float]:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("hms+: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+        raise TypeError("hms+: Type error ({}, {})".format(typename(y), typename(x)))
 
     ynegative = y.value() < 0
     if type(y) is Rpn_Integer:
@@ -3466,7 +3639,7 @@ def w_hms_minus():
        or type(y) not in [Rpn_Integer, Rpn_Float]:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("hms-: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+        raise TypeError("hms-: Type error ({}, {})".format(typename(y), typename(x)))
 
     if type(y) is Rpn_Integer:
         (yvalid, yhh, ymm, yss, _) = Rpn_Float(y.value()).time_info()
@@ -3512,7 +3685,7 @@ def w_hr():
         result = Rpn_Float(negative * hr)
     else:
         param_stack.push(x)
-        raise TypeError("hr: Type error ({})".format(type(x).__name__))
+        raise TypeError("hr: Type error ({})".format(typename(x)))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -3568,7 +3741,7 @@ def w_idn():
         size = x.value()[0]
     else:
         param_stack.push(x)
-        raise TypeError("idn: Type error ({})".format(type(x).__name__))
+        raise TypeError("idn: Type error ({})".format(typename(x)))
 
 
     result = Rpn_Matrix.from_numpy(np.identity(size, dtype=np.int64))
@@ -3596,7 +3769,7 @@ def w_jd_to_d():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("jd->d: Type error ({})".format(type(x).__name__))
+        raise TypeError("jd->d: Type error ({})".format(typename(x)))
 
     if x.value() < 1 or x.value() > datetime.date.max.toordinal():
         param_stack.push(x)
@@ -3640,7 +3813,7 @@ def w_inv():
     #     # And remember that not every matrix is invertible (singular ones)
     else:
         param_stack.push(x)
-        raise TypeError("inv: Type error ({})".format(type(x).__name__))
+        raise TypeError("inv: Type error ({})".format(typename(x)))
 
     param_stack.push(result)
     global show_x
@@ -3689,7 +3862,7 @@ def w_lg():
         result = Rpn_Complex.from_complex(cmath.log(complex(x.value()), 2))
     else:
         param_stack.push(x)
-        raise TypeError("lg: Type error ({})".format(type(x).__name__))
+        raise TypeError("lg: Type error ({})".format(typename(x)))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -3717,7 +3890,7 @@ def w_ln():
         result = Rpn_Complex.from_complex(cmath.log(complex(x.value())))
     else:
         param_stack.push(x)
-        raise TypeError("ln: Type error ({})".format(type(x).__name__))
+        raise TypeError("ln: Type error ({})".format(typename(x)))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -3759,7 +3932,7 @@ def w_log():
         result = Rpn_Complex.from_complex(cmath.log10(complex(x.value())))
     else:
         param_stack.push(x)
-        raise TypeError("log: Type error ({})".format(type(x).__name__))
+        raise TypeError("log: Type error ({})".format(typename(x)))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -3792,7 +3965,7 @@ def w_max():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("max: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+        raise TypeError("max: Type error ({}, {})".format(typename(y), typename(x)))
     global show_x
     show_x = True
 
@@ -3810,7 +3983,7 @@ def w_min():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("min: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+        raise TypeError("min: Type error ({}, {})".format(typename(y), typename(x)))
     global show_x
     show_x = True
 
@@ -3837,7 +4010,7 @@ def w_not():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("not: Type error ({})".format(type(x).__name__))
+        raise TypeError("not: Type error ({})".format(typename(x)))
     if x.value() not in [0, 1]:
         param_stack.push(x)
         raise ValueError("not: X must be TRUE (1) or FALSE (0), not {}".format(x.value()))
@@ -3874,7 +4047,7 @@ def w_or():
     if type(x) is not Rpn_Integer or type(y) is not Rpn_Integer:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("or: Type error ({})".format(type(y).__name__, type(y).__name__))
+        raise TypeError("or: Type error ({})".format(typename(y), typename(y)))
 
     if x.value() not in [0, 1]:
         param_stack.push(y)
@@ -3948,7 +4121,7 @@ def w_p_to_r():
         if type(y) not in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
             param_stack.push(y)
             param_stack.push(x)
-            raise TypeError("p->r: Type error({}, {})".format(type(y).__name__, type(x).__name__))
+            raise TypeError("p->r: Type error({}, {})".format(typename(y), typename(x)))
         r   = float(x.value())
         phi = convert_mode_to_radians(float(y.value()))
         xval = r * math.cos(phi)
@@ -3957,7 +4130,7 @@ def w_p_to_r():
         param_stack.push(Rpn_Float(xval))
     else:
         param_stack.push(x)
-        raise TypeError("p->r: Type error({})".format(type(x).__name__))
+        raise TypeError("p->r: Type error({})".format(typename(x)))
     global show_x
     show_x = True
 
@@ -3973,23 +4146,24 @@ nPr = ------
 def w_perm():
     x = param_stack.pop()
     y = param_stack.pop()
-    if type(y) is Rpn_Integer and type(x) is Rpn_Integer:
-        # Python 3.8 has math.perm()
-        n = y.value()
-        r = x.value()
-        if r > n or r < 0:
-            result = Rpn_Integer(0)
-        else:
-            t = 1
-            while r > 0:
-                r -= 1
-                t *= n
-                n -= 1
-            result = Rpn_Integer(t)
-    else:
+    if type(y) is not Rpn_Integer or type(x) is not Rpn_Integer:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("perm: Type error ({}, {})".format(type(y).__name__, type(x).__name__))
+        raise TypeError("perm: Type error ({}, {})".format(typename(y), typename(x)))
+
+    # Python 3.8 has math.perm()
+    n = y.value()
+    r = x.value()
+    if r > n or r < 0:
+        result = Rpn_Integer(0)
+    else:
+        t = 1
+        while r > 0:
+            r -= 1
+            t *= n
+            n -= 1
+        result = Rpn_Integer(t)
+
     param_stack.push(result)
     global show_x
     show_x = True
@@ -4015,7 +4189,7 @@ def w_pick():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("pick: Type error ({})".format(type(x).__name__))
+        raise TypeError("pick: Type error ({})".format(typename(x)))
 
     if x.value() < 0 or x.value() >= param_stack.size():
         param_stack.push(x)
@@ -4033,7 +4207,7 @@ def w_r_to_d():
         result = Rpn_Float(convert_radians_to_mode(float(x.value()), "d"))
     else:
         param_stack.push(x)
-        raise TypeError("r->d: Type error ({})".format(type(x).__name__))
+        raise TypeError("r->d: Type error ({})".format(typename(x)))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -4067,7 +4241,7 @@ def w_r_to_p():
         if type(y) not in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
             param_stack.push(y)
             param_stack.push(x)
-            raise TypeError("r->p: Type error({}, {})".format(type(y).__name__, type(x).__name__))
+            raise TypeError("r->p: Type error({}, {})".format(typename(y), typename(x)))
 
         phi = math.atan2(x.value(), y.value())
         r   = math.hypot(x.value(), y.value())
@@ -4075,7 +4249,7 @@ def w_r_to_p():
         param_stack.push(Rpn_Float(r))
     else:
         param_stack.push(x)
-        raise TypeError("r->p: Type error({})".format(type(x).__name__))
+        raise TypeError("r->p: Type error({})".format(typename(x)))
     global show_x
     show_x = True
 
@@ -4159,7 +4333,7 @@ def w_roll():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("roll: Type error ({})".format(type(x).__name__))
+        raise TypeError("roll: Type error ({})".format(typename(x)))
 
     if x.value() < 0 or x.value() >= param_stack.size():
         param_stack.push(x)
@@ -4191,7 +4365,7 @@ def w_setdebug():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("setdebug: Type error ({})".format(type(x).__name__))
+        raise TypeError("setdebug: Type error ({})".format(typename(x)))
     level = x.value()
     if level < 0 or level > 9:
         param_stack.push(x)
@@ -4205,12 +4379,32 @@ def w_sf():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("sf: Type error ({})".format(type(x).__name__))
+        raise TypeError("sf: Type error ({})".format(typename(x)))
     flag = x.value()
     if flag < 0 or flag > flag_max - 1:
         param_stack.push(x)
         raise ValueError("sf: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
     flag_set(flag)
+
+
+@defword(name='shfin', doc="""\
+Show financial variables""")
+def w_shfin():
+    N   = global_scope.variable('N')
+    IYR = global_scope.variable('I%YR')
+    PV  = global_scope.variable('PV')
+    PMT = global_scope.variable('PMT')
+    FV  = global_scope.variable('FV')
+    BEG = global_scope.variable('BEG')
+    PYR = global_scope.variable('P/YR')
+
+    writeln("N:    {}".format(N  .obj().value() if N  .defined() else "Not set"))
+    writeln("I%YR: {}".format(IYR.obj().value() if IYR.defined() else "Not set"))
+    writeln("PV:   {}".format(PV .obj().value() if PV .defined() else "Not set"))
+    writeln("PMT:  {}".format(PMT.obj().value() if PMT.defined() else "Not set"))
+    writeln("FV:   {}".format(FV .obj().value() if FV .defined() else "Not set"))
+    writeln("P/YR: {}".format(PYR.obj().value() if PYR.defined() else "Not set"))
+    writeln("Mode: {}".format("BEGIN" if BEG.obj().value() == 1  else "END"))
 
 
 @defword(name='shflag', doc="""\
@@ -4230,6 +4424,21 @@ def w_show():
     pass                        # Grammar rules handle this word
 
 
+@defword(name='showdebug')
+def w_showdebug():
+    columns = global_scope.variable('COLS').obj().value()
+    dbgs = dict()
+
+    for (resource, level) in debug_levels.items():
+        dbgs[resource] = "{}={}".format(resource, level)
+    sorted_dbgs = []
+    for key in sorted(dbgs, key=str.casefold):
+        sorted_dbgs.append(dbgs[key])
+    list_in_columns(sorted_dbgs, columns - 1)
+
+    global show_x
+    show_x = False
+
 @defword(name='sign', args=1, doc="""\
 Signum  ( n -- sign )
 Returns -1, 0, or 1.""")
@@ -4245,7 +4454,7 @@ def w_sign():
         result = Rpn_Integer(r)
     else:
         param_stack.push(x)
-        raise TypeError("sign: Type error ({})".format(type(x).__name__))
+        raise TypeError("sign: Type error ({})".format(typename(x)))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -4261,7 +4470,7 @@ def w_sin():
         result = Rpn_Complex.from_complex(cmath.sin(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("sin: Type error ({})".format(type(x).__name__))
+        raise TypeError("sin: Type error ({})".format(typename(x)))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -4277,7 +4486,7 @@ def w_sleep():
         time.sleep(sleep_time)
     else:
         param_stack.push(x)
-        raise TypeError("sleep: Type error ({})".format(type(x).__name__))
+        raise TypeError("sleep: Type error ({})".format(typename(x)))
 
 
 @defword(name='sq', args=1, doc="""\
@@ -4295,7 +4504,7 @@ def w_sq():
         result = Rpn_Complex.from_complex(r)
     else:
         param_stack.push(x)
-        raise TypeError("sq: Type error ({})".format(type(x).__name__))
+        raise TypeError("sq: Type error ({})".format(typename(x)))
 
     param_stack.push(result)
     global show_x
@@ -4328,7 +4537,7 @@ def w_sqrt():
         result = Rpn_Complex.from_complex(cmath.sqrt(complex(x.value())))
     else:
         param_stack.push(x)
-        raise TypeError("sqrt: Type error ({})".format(type(x).__name__))
+        raise TypeError("sqrt: Type error ({})".format(typename(x)))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -4355,7 +4564,7 @@ def w_tan():
         result = Rpn_Complex.from_complex(cmath.tan(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("tan: Type error ({})".format(type(x).__name__))
+        raise TypeError("tan: Type error ({})".format(typename(x)))
     param_stack.push(result)
     global show_x
     show_x = True
@@ -4407,7 +4616,7 @@ def w_timeinfo():
         print(x.time_info())
     else:
         param_stack.push(x)
-        raise TypeError("timeinfo: Type error ({})".format(type(x).__name__))
+        raise TypeError("timeinfo: Type error ({})".format(typename(x)))
 
 
 @defword(name='TRUE')
@@ -4461,35 +4670,15 @@ List variables and their values""")
 def w_vars():
     columns = global_scope.variable('COLS').obj().value()
     for (i, scope) in scope_stack.items_top_to_bottom():
-        lnwriteln("Scope {}".format(scope.name()))
+        if scope_stack.size() > 1:
+            lnwriteln("Scope {}".format(scope.name()))
         vars = dict()
         for varname in scope.variables():
             var = scope.variable(varname)
             if var.hidden():
                 continue
-            vars[var.name()] = "{}:[undef]".format(var.name()) if not var.defined() else \
+            vars[var.name()] = "{} [undef]".format(var.name()) if not var.defined() else \
                                "{}={}".format(var.name(), var.obj().value())
-        sorted_vars = []
-        for key in sorted(vars, key=str.casefold):
-            sorted_vars.append(vars[key])
-        list_in_columns(sorted_vars, columns - 1)
-
-    global show_x
-    show_x = False
-
-
-@defword(name='vars!', hidden=True)
-def w_vars_bang():
-    columns = global_scope.variable('COLS').obj().value()
-    for (i, scope) in scope_stack.items_top_to_bottom():
-        lnwriteln("Scope {}".format(scope.name()))
-        vars = dict()
-        for varname in scope.variables():
-            var = scope.variable(varname)
-            # if var.hidden():
-            #     continue
-            vars[var.name()] = "{}:[undef]".format(var.name()) if not var.defined() else \
-                               "{}={}".format(var.name(), repr(var.obj()))
         sorted_vars = []
         for key in sorted(vars, key=str.casefold):
             sorted_vars.append(vars[key])
@@ -4622,6 +4811,10 @@ def eval_string(s):
     except Rpn_E_Parse_Error as e:
         if str(e) != 'EOF':
             lnwriteln("Parse error: {}".format(str(e)))
+    except Rpn_E_Abort:
+        param_stack.clear()
+        string_stack.clear()
+        return_stack.clear()
     else:
         if result is not None:
             dbg("eval_string", 1, "result={}".format(result))
@@ -4981,11 +5174,11 @@ def define_secondary_words():
 
 : foo |a b c| : bar |x y z|   ."----" cr ; : baz 66 emit space ; 65 emit space baz bar ;
 
-variable v1     [1 2 3] !v1
-variable v2     [4 5 6] !v2
-variable m
-[[1 2 3]
- [4 5 6]]   !m
+\ variable v1     [1 2 3] !v1
+\ variable v2     [4 5 6] !v2
+\ variable m
+\ [[1 2 3]
+\  [4 5 6]]   !m
 
 \ : inout |in:a in:b out:c|  @a @b + 2 * !c ;
 
@@ -4993,10 +5186,17 @@ variable m
 
 
 def define_variables():
-    defvar('#OUT',  Rpn_Integer(0), protected=True, noshadow=True)
-    defvar('COLS',  Rpn_Integer(0))
-    defvar('ROWS',  Rpn_Integer(0))
-    defvar('VER',   Rpn_Float(rpn_version), protected=True, noshadow=True)
+    defvar('#OUT', Rpn_Integer(0), protected=True, readonly=True, noshadow=True)
+    defvar('BEG',  Rpn_Integer(0), protected=True, readonly=True) # 1=Begin, 0=End (default)
+    defvar('COLS', Rpn_Integer(0), protected=True)
+    defvar('FV',   None, protected=True)
+    defvar('I%YR', None, protected=True)
+    defvar('N',    None, protected=True)
+    defvar('P/YR', Rpn_Integer(12), protected=True)
+    defvar('PMT',  None, protected=True)
+    defvar('PV',   None, protected=True)
+    defvar('ROWS', Rpn_Integer(0), protected=True)
+    defvar('VER',  Rpn_Float(rpn_version), protected=True, constant=True, noshadow=True)
 
 
 
@@ -5103,6 +5303,7 @@ flag is True if initial parse error, False if no error'''
         # These need a second token or they will be very angry
         elif tok.type in ['AT_SIGN', 'CONSTANT', 'EXCLAM', 'FORGET', 'HELP',
                           'SHOW', 'UNDEF', 'VARIABLE' ]:
+            parse_stack.push(tok.type)
             try:
                 tok2 = next(Token_Mgr.next_token())
             except StopIteration:
@@ -5111,6 +5312,7 @@ flag is True if initial parse error, False if no error'''
                 break
             finally:
                 tok_list.append(tok)
+                parse_stack.pop()
             tok_list.append(tok2)
 
         elif tok.type in ['OPEN_BRACKET', 'CLOSE_BRACKET',
@@ -5262,6 +5464,10 @@ def main_loop():
     global show_x
     show_x = False    # Reset, because some argv may have set it to True
 
+    w_ver()
+    if not param_stack.empty():
+        w_dot_s()
+
     while True:
         try:
             (error, tok_list) = generate_token_list()
@@ -5287,7 +5493,7 @@ def end_program():
 
     if not param_stack.empty():
         if param_stack.size() == 1:
-            w_dot(); print()
+            w_dot(); w_cr()
         else:
             lnwriteln("Stack:")
             w_dot_s()
@@ -5311,19 +5517,17 @@ lexer  = lex.lex()
 parser = yacc.yacc(start='evaluate') # , errorlog=yacc.NullLogger())
 
 if __name__ == "__main__":
-    initialize()
-    if go_interactive:
-        w_ver()
-        if not param_stack.empty():
-            w_dot_s()
-        try:
+    try:
+        initialize()
+        if go_interactive:
             main_loop()
-        except Rpn_E_End_Program:
-            pass
-        except Rpn_E_Fatal as e:
-            if len(e._message) > 0:
-                lnwriteln("Fatal error: {}".format(e))
-            sys.exit(1)
+    except Rpn_E_End_Program:
+        pass
+    except Rpn_E_Fatal as e:
+        if len(e._message) > 0:
+            lnwriteln("Fatal error: {}".format(e))
+        sys.exit(1)
+
     end_program()
 
 sys.exit(0)
