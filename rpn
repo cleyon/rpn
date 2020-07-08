@@ -17,6 +17,7 @@ import ply.yacc as yacc
 import queue
 import random
 import re
+import readline
 import signal
 import subprocess
 import sys
@@ -825,6 +826,20 @@ class Rpn_Matrix:
         return "Matrix[{}]".format(repr(self.value()))
 
 
+class Rpn_Queue:
+    def __init__(self):
+        self._q = queue.SimpleQueue()
+
+    def empty(self):
+        return self._q.empty()
+
+    def get(self):
+        return self._q.get_nowait()
+
+    def put(self, item):
+        self._q.put(item)
+
+
 class Rpn_Rational:
     def __init__(self, num=0, denom=1):
         self._value = Fraction(int(num), int(denom))
@@ -1206,6 +1221,67 @@ class Rpn_Variable:
 
     def __repr__(self):
         return "Variable[{}]".format(self._rawname)
+
+
+class Rpn_Token_Mgr:
+    qtok = Rpn_Queue()
+    e = 0
+
+    @classmethod
+    def get_more_tokens(cls):
+        tok_count = 0
+        data = ""
+        sharpout = global_scope.variable('#OUT')
+        prompt = prompt_string()
+        global show_x
+
+        # Read characters from input stream
+        while data == "":
+            if show_x and not param_stack.empty():
+                writeln("{}".format(str(param_stack.top())))
+            show_x = False
+
+            #lnwrite(prompt)
+            lnwrite()
+            data = input(prompt)
+            sharpout.set_obj(Rpn_Integer(0))
+
+        # Get all the tokens
+        lexer.input(data)
+        while True:
+            tok = lexer.token()
+            if not tok:
+                break
+            cls.qtok.put(tok)
+            dbg("token", 1, "Lexer returned {}, queueing".format(tok))
+            tok_count += 1
+
+        return tok_count
+
+    @classmethod
+    def next_token(cls):
+        if cls.qtok.empty():
+            if cls.e == 0:
+                new_toks = 0
+                while new_toks == 0:
+                    try:
+                        new_toks = Rpn_Token_Mgr.get_more_tokens()
+                    except EOFError:
+                        # ^D (eof) on input signals end of input tokens
+                        lnwrite()
+                        return
+                    except KeyboardInterrupt:
+                        # ^C can either void the parse_stack, or the end program
+                        if parse_stack.empty():
+                            raise Rpn_E_End_Program()
+                        else:
+                            lnwriteln("[Top level]")
+                            raise Rpn_E_Top_Level()
+
+        try:
+            yield cls.qtok.get()
+        except queue.Empty:
+            return
 
 
 class Rpn_Vector:
@@ -1784,7 +1860,7 @@ def p_store_var(p):
     if not Rpn_Variable.name_valid_p(id):
         lnwriteln("!{}: Variable name is not valid".format(id))
         raise SyntaxError
-    lnwriteln("{}: Looking up {}".format(whoami(), id))
+    #lnwriteln("{}: Looking up {}".format(whoami(), id))
     (var, _) = lookup_variable(id)
     if var is None:
         lnwriteln("!{}: Variable not found".format(id))
@@ -2063,7 +2139,7 @@ def p_fetch_var(p):
     if not Rpn_Variable.name_valid_p(id):
         lnwriteln("@{}: Variable name is not valid".format(id))
         raise SyntaxError
-    lnwriteln("{}: Looking up {}".format(whoami(), id))
+    #lnwriteln("{}: Looking up {}".format(whoami(), id))
     (var, _) = lookup_variable(id)
     if var is None:
         lnwriteln("@{}: Variable not found".format(id))
@@ -4379,7 +4455,7 @@ def w_show():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='showdebug', print_x=False) # XXX docstr
+@defword(name='shdebug', print_x=False) # XXX docstr
 def w_showdebug():
     lnwriteln("Debugging is {}".format("enabled" if debug_enabled else "disabled"))
 
@@ -4677,7 +4753,6 @@ def w_words():
 #       T V M   W O R D S
 #
 #############################################################################
-
 @defword(name='clfin', doc="""\
 Clear financial variables""")
 def w_clfin():
@@ -4730,6 +4805,7 @@ def check_financial_variables(for_var, needs):
     if len(still_needed) == 0:
         return True
     raise RuntimeError("{}: Financial variables {} are not set".format(for_var, ",".join(still_needed)))
+
 
 
 
@@ -4787,12 +4863,68 @@ def convert_radians_to_mode(r, force_mode=None):
         raise Rp2Fatal("{}: Bad angle_mode '{}'".format(whoami(), mode))
 
 
+def define_secondary_words():
+    eval_string("""
+: BL            doc:"BL  ( -- 32 )   ASCII code for a space character"
+  32 ;
+
+: space         doc:"space   Display one space character"
+  BL emit ;
+
+: spaces        doc:"spaces  ( n -- )   Display N space characters"
+  | in:N |
+  @N 0 do space loop ;
+""")
+
+
+def define_tertiary_words():
+    eval_string("""
+: die           doc:"die  ( N -- 1..N )  Roll an N-sided die
+Returns an integer in [1..N]"
+  | in:N |
+  @N rand *  1 +  floor ;
+
+: dice          doc:"dice  ( N s -- sum )  Roll N s-sided dice"
+  | in:N in:s out:sum |
+  0 !sum
+  @N 0 do
+    @s die @sum + !sum   \ Really need !+sum
+  loop ;
+
+: checkdice
+  | rolls sum |
+  20000 !rolls
+  0 !sum
+
+  @rolls 0 do
+    3 6 dice      \ ."Roll was " dup .
+    @sum + !sum   \ ."Sum is now " @sum . cr
+  loop
+
+  ."Average roll = " @sum @rolls / . cr
+;
+
+: X       88 emit ;
+: xbox  |foo bar|  5 0 do  4 0 do X loop cr loop ;
+
+: foo |a b c| : bar |x y z|   ."----" cr ; : baz 66 emit space ; 65 emit space baz bar ;
+
+\ variable v1     [1 2 3] !v1
+\ variable v2     [4 5 6] !v2
+\ variable m
+\ [[1 2 3]
+\  [4 5 6]]   !m
+
+variable a
+variable b
+variable c
+
+\ : inout |in:a in:b out:c|  @a @b + 2 * !c ;
+""")
+
+
 def defvar(name, value, **kwargs):
     global_scope.set_variable(name, Rpn_Variable(name, value, **kwargs))
-
-
-def old_defword(name, defn, **kwargs):
-    global_scope.set_word(name, Rpn_Word(name, defn, **kwargs))
 
 
 def eval_string(s):
@@ -4843,6 +4975,188 @@ def flag_test(flag):
     if flag < 0 or flag > flag_max - 1:
         raise Rpn_E_Fatal("{}: Flag {} out of range".format(whoami(), flag))
     return True if flags_vec & 1<<flag != 0 else False
+
+
+def generate_token_list():
+    '''Returns a tuple (flag, list)
+flag is True if initial parse error, False if no error'''
+
+    initial_parse_error = False
+    parse_stack.clear()
+    tok_list = []
+    depth = {
+        'BRACKET' : 0,
+        'PAREN'   : 0
+    }
+
+    while True:
+        # Get next token
+        tok = next(Rpn_Token_Mgr.next_token())
+
+        # Process token
+        dbg("token", 1, "token=({},{})".format(tok.type, repr(tok.value)))
+
+        if tok.type == 'BACKSLASH':
+            pass
+
+        # These need a second token or they will be very angry
+        elif tok.type in ['AT_SIGN', 'CONSTANT', 'EXCLAM', 'FORGET', 'HELP',
+                          'SHOW', 'UNDEF', 'VARIABLE' ]:
+            parse_stack.push(tok.type)
+            try:
+                tok2 = next(Rpn_Token_Mgr.next_token())
+            except StopIteration:
+                initial_parse_error = True
+                dbg("{}: No more tokens, exiting".format(tok.type))
+                break
+            finally:
+                tok_list.append(tok)
+                parse_stack.pop()
+            tok_list.append(tok2)
+
+        elif tok.type in ['OPEN_BRACKET', 'CLOSE_BRACKET',
+                          'OPEN_PAREN',   'CLOSE_PAREN']:
+            tok_list.append(tok)
+            (open_close, borp) = tok.type.split("_")
+            #print("borp={}".format(borp))
+            if borp == 'PAREN':
+                c = '('
+            elif borp == 'BRACKET':
+                c = '['
+
+            if open_close == 'OPEN':
+                if borp == 'PAREN' and depth[borp] > 0:
+                    lnwriteln("{}: Embedded {} not allowed".format(tok.type, c))
+                    initial_parse_error = True
+                else:
+                    parse_stack.push(c)
+                    depth[borp] += 1
+
+            if open_close == 'CLOSE':
+                if parse_stack.empty() or \
+                        borp == 'BRACKET' and parse_stack.top() != c or \
+                        borp == 'PAREN'   and parse_stack.top() != '(,':
+                    lnwriteln("{}: {} lost".format(tok.type, c))
+                    initial_parse_error = True
+                else:
+                    parse_stack.pop()
+                    depth[borp] -= 1
+
+        elif tok.type == 'COMMA':
+            if parse_stack.empty() or parse_stack.top() != '(':
+                lnwriteln("{}: no matching (".format(tok.type))
+                initial_parse_error = True
+            else:
+                tok_list.append(tok)
+                parse_stack.pop()
+                parse_stack.push('(,')
+
+        elif tok.type in ['BEGIN', 'CASE', 'COLON', 'DO', 'IF']:
+            tok_list.append(tok)
+            parse_stack.push(tok.type)
+
+        elif tok.type in ['AGAIN', 'UNTIL']:
+            if parse_stack.empty() or parse_stack.top() != 'BEGIN':
+                lnwriteln("{}: no matching BEGIN".format(tok.type))
+                initial_parse_error = True
+            else:
+                tok_list.append(tok)
+                parse_stack.pop()
+
+        elif tok.type == 'ELSE':
+            if parse_stack.empty() or parse_stack.top() != 'IF':
+                lnwriteln("ELSE: no matching IF")
+                initial_parse_error = True
+            else:
+                tok_list.append(tok)
+                parse_stack.pop()
+                parse_stack.push(tok.type)
+
+        elif tok.type == 'ENDCASE':
+            if parse_stack.empty() or parse_stack.top() not in ['CASE', 'OTHERWISE']:
+                lnwriteln("ENDCASE: no matching CASE")
+                initial_parse_error = True
+            else:
+                tok_list.append(tok)
+                parse_stack.pop()
+
+        elif tok.type == 'ENDOF':
+            if parse_stack.empty() or parse_stack.top() != 'OF':
+                lnwriteln("ENDOF: no matching OF")
+                initial_parse_error = True
+            else:
+                tok_list.append(tok)
+                parse_stack.pop()
+                parse_stack.push('CASE')
+
+        elif tok.type == 'ERROR':
+            lnwriteln("ERROR {}".format(tok))
+            initial_parse_error = True
+
+        elif tok.type in ['LOOP', 'PLUS_LOOP']:
+            if parse_stack.empty() or parse_stack.top() != 'DO':
+                lnwriteln("{}: no matching DO".format(tok.type))
+                initial_parse_error = True
+            else:
+                tok_list.append(tok)
+                parse_stack.pop()
+
+        elif tok.type in ['OF', 'OTHERWISE']:
+            if parse_stack.empty() or parse_stack.top() != 'CASE':
+                lnwriteln("{}: no matching CASE".format(tok.type))
+                initial_parse_error = True
+            else:
+                tok_list.append(tok)
+                parse_stack.pop()
+                parse_stack.push(tok.type)
+
+        elif tok.type == 'REPEAT':
+            if parse_stack.empty() or parse_stack.top() != 'WHILE':
+                lnwriteln("REPEAT: no matching WHILE")
+                initial_parse_error = True
+            else:
+                tok_list.append(tok)
+                parse_stack.pop()
+
+        elif tok.type == 'SEMICOLON':
+            if parse_stack.empty() or parse_stack.top() != 'COLON':
+                lnwriteln("SEMICOLON: no matching COLON")
+                initial_parse_error = True
+            else:
+                tok_list.append(tok)
+                parse_stack.pop()
+
+        elif tok.type == 'THEN':
+            if parse_stack.empty() or parse_stack.top() not in ['IF', 'ELSE']:
+                lnwriteln("THEN: no matching IF")
+                initial_parse_error = True
+            else:
+                tok_list.append(tok)
+                parse_stack.pop()
+
+        elif tok.type == 'WHILE':
+            if parse_stack.empty() or parse_stack.top() != 'BEGIN':
+                lnwriteln("WHILE: no matching BEGIN")
+                initial_parse_error = True
+            else:
+                tok_list.append(tok)
+                parse_stack.pop()
+                parse_stack.push(tok.type)
+
+        else:
+        # 'ABORT_QUOTE',
+        # 'DOC_STR',
+        # 'DOT_QUOTE',
+        # 'IDENTIFIER',
+        # 'VBAR',
+        # 'WS',
+            tok_list.append(tok)
+
+        # Here's what breaks the while True loop, sauf StopIteration
+        if parse_stack.empty() and depth['PAREN'] == 0 and depth['BRACKET'] == 0:
+            break
+
+    return (initial_parse_error, tok_list)
 
 
 # Helper routines for KEY
@@ -5032,15 +5346,16 @@ def prompt_string():
         s += qq + " ... "
     return s
 
-def push_scope(scope, why):
-    dbg("scope", 1, "Pushing scope {} due to {}".format(repr(scope), why))
-    scope_stack.push(scope)
 
 def pop_scope(why):
     scope = scope_stack.pop()
     dbg("scope", 1, "Popped scope {} due to {}".format(repr(scope), why))
     if scope == global_scope:
         raise Rpn_E_Fatal("Attempting to pop Global scope!")
+
+def push_scope(scope, why):
+    dbg("scope", 1, "Pushing scope {} due to {}".format(repr(scope), why))
+    scope_stack.push(scope)
 
 
 def sigquit_handler(signum, frame):
@@ -5102,7 +5417,6 @@ def lnwriteln(s=""):
 
 
 
-
 #############################################################################
 #
 #       M A I N   L O O P   &   P R I M A R Y   F U N C T I O N S
@@ -5126,13 +5440,14 @@ def initialize():
     define_variables()
     define_secondary_words()
 
+    # Switch to user mode; words are no longer protected
+    default_protected = False
+    define_tertiary_words()
+
     # Set up signal handling
     signal.signal(signal.SIGQUIT, sigquit_handler)
     signal.signal(signal.SIGWINCH, sigwinch_handler)
     sigwinch_handler(0, 0)      # Read & define ROWS and COLS via stty(1)
-
-    # Switch to user mode; words are no longer protected
-    default_protected = False
 
     # Attempt to load the user's init file
     init_file = os.path.expanduser("~/.rpnrc")
@@ -5150,63 +5465,6 @@ def initialize():
         eval_string(s)
 
 
-def define_secondary_words():
-    eval_string("""
-: BL            doc:"BL  ( -- 32 )   ASCII code for a space character"
-  32 ;
-
-: space         doc:"space   Display one space character"
-  BL emit ;
-
-: spaces        doc:"spaces  ( n -- )   Display N space characters"
-  | in:N |
-  @N 0 do space loop ;
-
-: die           doc:"die  ( N -- 1..N )  Roll an N-sided die
-Returns an integer in [1..N]"
-  | in:N |
-  @N rand *  1 +  floor ;
-
-: dice          doc:"dice  ( N s -- sum )  Roll N s-sided dice"
-  | in:N in:s out:sum |
-  0 !sum
-  @N 0 do
-    @s die @sum + !sum   \ Really need !+sum
-  loop ;
-
-: checkdice
-  | rolls sum |
-  20000 !rolls
-  0 !sum
-  time!
-  @rolls 0 do
-    3 6 dice      \ ."Roll was " dup .
-    @sum + !sum   \ ."Sum is now " @sum . cr
-  loop
-  time!
-  ."Average roll = " @sum @rolls / . cr
-;
-
-: X       88 emit ;
-: xbox  |foo bar|  5 0 do  4 0 do X loop cr loop ;
-
-: foo |a b c| : bar |x y z|   ."----" cr ; : baz 66 emit space ; 65 emit space baz bar ;
-
-\ variable v1     [1 2 3] !v1
-\ variable v2     [4 5 6] !v2
-\ variable m
-\ [[1 2 3]
-\  [4 5 6]]   !m
-
-variable a
-variable b
-variable c
-
-\ : inout |in:a in:b out:c|  @a @b + 2 * !c ;
-
-""")
-
-
 def define_variables():
     defvar('#OUT', Rpn_Integer(0), protected=True, readonly=True, noshadow=True)
     defvar('BEG',  Rpn_Integer(0), protected=True, readonly=True) # 1=Begin, 0=End (default)
@@ -5219,267 +5477,6 @@ def define_variables():
     defvar('PV',   None, protected=True)
     defvar('ROWS', Rpn_Integer(0), protected=True)
     defvar('VER',  Rpn_Float(rpn_version), protected=True, constant=True, noshadow=True)
-
-
-
-
-#############################################################################
-#
-#       M A I N
-#
-#############################################################################
-class Rpn_Queue:
-    def __init__(self):
-        self._q = queue.SimpleQueue()
-    def empty(self):
-        return self._q.empty()
-    def get(self):
-        return self._q.get_nowait()
-    def put(self, item):
-        self._q.put(item)
-
-
-class Token_Mgr:
-    qtok = Rpn_Queue()
-    e = 0
-
-    @classmethod
-    def get_more_tokens(cls):
-        tok_count = 0
-        data = ""
-        sharpout = global_scope.variable('#OUT')
-        prompt = prompt_string()
-        global show_x
-
-        # Read characters from input stream
-        while data == "":
-            if show_x and not param_stack.empty():
-                writeln("{}".format(str(param_stack.top())))
-            show_x = False
-
-            lnwrite(prompt)
-            data = input()
-            sharpout.set_obj(Rpn_Integer(0))
-
-        # Get all the tokens
-        lexer.input(data)
-        while True:
-            tok = lexer.token()
-            if not tok:
-                break
-            cls.qtok.put(tok)
-            dbg("token", 1, "Lexer returned {}, queueing".format(tok))
-            tok_count += 1
-
-        return tok_count
-
-    @classmethod
-    def next_token(cls):
-        if cls.qtok.empty():
-            if cls.e == 0:
-                new_toks = 0
-                while new_toks == 0:
-                    try:
-                        new_toks = Token_Mgr.get_more_tokens()
-                    except EOFError:
-                        # ^D (eof) on input signals end of input tokens
-                        lnwrite()
-                        return
-                    except KeyboardInterrupt:
-                        # ^C can either void the parse_stack, or the end program
-                        if parse_stack.empty():
-                            raise Rpn_E_End_Program()
-                        else:
-                            lnwriteln("[Top level]")
-                            raise Rpn_E_Top_Level()
-
-        try:
-            yield cls.qtok.get()
-        except queue.Empty:
-            return
-
-
-
-def generate_token_list():
-    '''Returns a tuple (flag, list)
-flag is True if initial parse error, False if no error'''
-
-    initial_parse_error = False
-    parse_stack.clear()
-    tok_list = []
-    depth = {
-        'BRACKET' : 0,
-        'PAREN'   : 0
-    }
-
-    while True:
-        # Get next token
-        tok = next(Token_Mgr.next_token())
-
-        # Process token
-        dbg("token", 1, "token=({},{})".format(tok.type, repr(tok.value)))
-
-        if tok.type == 'BACKSLASH':
-            pass
-
-        # These need a second token or they will be very angry
-        elif tok.type in ['AT_SIGN', 'CONSTANT', 'EXCLAM', 'FORGET', 'HELP',
-                          'SHOW', 'UNDEF', 'VARIABLE' ]:
-            parse_stack.push(tok.type)
-            try:
-                tok2 = next(Token_Mgr.next_token())
-            except StopIteration:
-                initial_parse_error = True
-                dbg("{}: No more tokens, exiting".format(tok.type))
-                break
-            finally:
-                tok_list.append(tok)
-                parse_stack.pop()
-            tok_list.append(tok2)
-
-        elif tok.type in ['OPEN_BRACKET', 'CLOSE_BRACKET',
-                          'OPEN_PAREN',   'CLOSE_PAREN']:
-            tok_list.append(tok)
-            (open_close, borp) = tok.type.split("_")
-            #print("borp={}".format(borp))
-            if borp == 'PAREN':
-                c = '('
-            elif borp == 'BRACKET':
-                c = '['
-
-            if open_close == 'OPEN':
-                if borp == 'PAREN' and depth[borp] > 0:
-                    lnwriteln("{}: Embedded {} not allowed".format(tok.type, c))
-                    initial_parse_error = True
-                else:
-                    parse_stack.push(c)
-                    depth[borp] += 1
-
-            if open_close == 'CLOSE':
-                if parse_stack.empty() or \
-                        borp == 'BRACKET' and parse_stack.top() != c or \
-                        borp == 'PAREN'   and parse_stack.top() != '(,':
-                    lnwriteln("{}: {} lost".format(tok.type, c))
-                    initial_parse_error = True
-                else:
-                    parse_stack.pop()
-                    depth[borp] -= 1
-
-        elif tok.type == 'COMMA':
-            if parse_stack.empty() or parse_stack.top() != '(':
-                lnwriteln("{}: no matching (".format(tok.type))
-                initial_parse_error = True
-            else:
-                tok_list.append(tok)
-                parse_stack.pop()
-                parse_stack.push('(,')
-
-        elif tok.type in ['BEGIN', 'CASE', 'COLON', 'DO', 'IF']:
-            tok_list.append(tok)
-            parse_stack.push(tok.type)
-
-        elif tok.type in ['AGAIN', 'UNTIL']:
-            if parse_stack.empty() or parse_stack.top() != 'BEGIN':
-                lnwriteln("{}: no matching BEGIN".format(tok.type))
-                initial_parse_error = True
-            else:
-                tok_list.append(tok)
-                parse_stack.pop()
-
-        elif tok.type == 'ELSE':
-            if parse_stack.empty() or parse_stack.top() != 'IF':
-                lnwriteln("ELSE: no matching IF")
-                initial_parse_error = True
-            else:
-                tok_list.append(tok)
-                parse_stack.pop()
-                parse_stack.push(tok.type)
-
-        elif tok.type == 'ENDCASE':
-            if parse_stack.empty() or parse_stack.top() not in ['CASE', 'OTHERWISE']:
-                lnwriteln("ENDCASE: no matching CASE")
-                initial_parse_error = True
-            else:
-                tok_list.append(tok)
-                parse_stack.pop()
-
-        elif tok.type == 'ENDOF':
-            if parse_stack.empty() or parse_stack.top() != 'OF':
-                lnwriteln("ENDOF: no matching OF")
-                initial_parse_error = True
-            else:
-                tok_list.append(tok)
-                parse_stack.pop()
-                parse_stack.push('CASE')
-
-        elif tok.type == 'ERROR':
-            lnwriteln("ERROR {}".format(tok))
-            initial_parse_error = True
-
-        elif tok.type in ['LOOP', 'PLUS_LOOP']:
-            if parse_stack.empty() or parse_stack.top() != 'DO':
-                lnwriteln("{}: no matching DO".format(tok.type))
-                initial_parse_error = True
-            else:
-                tok_list.append(tok)
-                parse_stack.pop()
-
-        elif tok.type in ['OF', 'OTHERWISE']:
-            if parse_stack.empty() or parse_stack.top() != 'CASE':
-                lnwriteln("{}: no matching CASE".format(tok.type))
-                initial_parse_error = True
-            else:
-                tok_list.append(tok)
-                parse_stack.pop()
-                parse_stack.push(tok.type)
-
-        elif tok.type == 'REPEAT':
-            if parse_stack.empty() or parse_stack.top() != 'WHILE':
-                lnwriteln("REPEAT: no matching WHILE")
-                initial_parse_error = True
-            else:
-                tok_list.append(tok)
-                parse_stack.pop()
-
-        elif tok.type == 'SEMICOLON':
-            if parse_stack.empty() or parse_stack.top() != 'COLON':
-                lnwriteln("SEMICOLON: no matching COLON")
-                initial_parse_error = True
-            else:
-                tok_list.append(tok)
-                parse_stack.pop()
-
-        elif tok.type == 'THEN':
-            if parse_stack.empty() or parse_stack.top() not in ['IF', 'ELSE']:
-                lnwriteln("THEN: no matching IF")
-                initial_parse_error = True
-            else:
-                tok_list.append(tok)
-                parse_stack.pop()
-
-        elif tok.type == 'WHILE':
-            if parse_stack.empty() or parse_stack.top() != 'BEGIN':
-                lnwriteln("WHILE: no matching BEGIN")
-                initial_parse_error = True
-            else:
-                tok_list.append(tok)
-                parse_stack.pop()
-                parse_stack.push(tok.type)
-
-        else:
-        # 'ABORT_QUOTE',
-        # 'DOC_STR',
-        # 'DOT_QUOTE',
-        # 'IDENTIFIER',
-        # 'VBAR',
-        # 'WS',
-            tok_list.append(tok)
-
-        # Here's what breaks the while True loop, sauf StopIteration
-        if parse_stack.empty() and depth['PAREN'] == 0 and depth['BRACKET'] == 0:
-            break
-
-    return (initial_parse_error, tok_list)
 
 
 def main_loop():
@@ -5528,7 +5525,6 @@ def end_program():
 #       M A I N
 #
 #############################################################################
-
 param_stack  = Rpn_Stack()
 parse_stack  = Rpn_Stack()
 return_stack = Rpn_Stack()
