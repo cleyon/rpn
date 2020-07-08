@@ -129,6 +129,7 @@ dmypy.json
 .pyre/
 
 # PLY lexer & parser
+lextab.py
 parser.out
 parsetab.py
 
