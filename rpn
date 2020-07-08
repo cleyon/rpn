@@ -960,6 +960,8 @@ class Rpn_Sequence:
             if len(self.scope().out_vars()) > 0:
                 for varname in self.scope().out_vars().items():
                     var = self.scope().variable(varname)
+                    if var is None:
+                        raise RuntimeError("{}: Variable '{}' has vanished!".format(self._scope.name(), varname))
                     if not var.defined():
                         for x in range(out_pushes):
                             param_stack.pop()
@@ -1134,29 +1136,29 @@ class Rpn_Variable:
         self._readonly  = False
         self._rpnobj    = obj
 
-        if kwargs.get("constant"):
+        if "constant" in kwargs:
             self._constant = kwargs["constant"]
             del kwargs["constant"]
 
-        if kwargs.get("hidden"):
+        if "hidden" in kwargs:
             self._hidden = kwargs["hidden"]
             del kwargs["hidden"]
 
-        if kwargs.get("noshadow"):
+        if "noshadow" in kwargs:
             self._noshadow = kwargs["noshadow"]
             del kwargs["noshadow"]
 
-        if kwargs.get("protected"):
+        if "protected" in kwargs:
             self._protected = kwargs["protected"]
             del kwargs["protected"]
 
-        if kwargs.get("readonly"):
+        if "readonly" in kwargs:
             self._readonly = kwargs["readonly"]
             del kwargs["readonly"]
 
         if len(kwargs) > 0:
             for (key, val) in kwargs.items():
-                lnwriteln("Unrecognized keyword '{}'={}".format(key, val))
+                print("Unrecognized keyword '{}'={}".format(key, val))
                 raise Rpn_E_Fatal("Could not construct variable '{}'".format(rawname))
 
     @classmethod
@@ -1244,30 +1246,44 @@ class Rpn_Word:
         self._protected = default_protected
         self._str_args  = 0
 
+        my_print_x = None
+
         if name is None or len(name) == 0:
             raise Rpn_E_Fatal("Invalid word name '{}'".format(name))
         if defn is None:
             raise Rpn_E_Fatal("{}: defn is None".format(name))
         dbg(whoami(), 3, "defn is {}".format(type(defn)))
-        if kwargs.get("args"):
+
+        if "args" in kwargs:
             self._args = kwargs['args']
             del kwargs["args"]
-        if kwargs.get("doc"):
+
+        if "doc" in kwargs:
             self._doc = kwargs["doc"]
             del kwargs["doc"]
-        if kwargs.get("hidden"):
+
+        if "hidden" in kwargs:
             self._hidden = kwargs["hidden"]
             del kwargs["hidden"]
-        if kwargs.get("protected"):
+
+        if "print_x" in kwargs:
+            my_print_x = kwargs["print_x"]
+            del kwargs["print_x"]
+
+        if "protected" in kwargs:
             self._protected = kwargs["protected"]
             del kwargs["protected"]
-        if kwargs.get("str_args"):
+
+        if "str_args" in kwargs:
             self._str_args = kwargs["str_args"]
             del kwargs["str_args"]
+
         if len(kwargs) > 0:
             for (key, val) in kwargs.items():
-                lnwriteln("Unrecognized keyword '{}'={}".format(key, val))
+                print("Unrecognized keyword '{}'={}".format(key, val))
                 raise Rpn_E_Fatal("Could not construct word '{}'".format(name))
+
+        kwargs["print_x"] = my_print_x
 
     def __call__(self):
         if param_stack.size() < self.args():
@@ -1901,7 +1917,6 @@ def p_float(p):
 
 
 def p_rational(p):
-   #'''rational :  integer  TILDE  integer'''
     '''rational :  RATIONAL'''
     p[0] = Rpn_Rational.from_string(p[1])
 
@@ -2052,6 +2067,10 @@ class defword(object):
         def wrapped_f(**kwargs):
             #print("Decorator args: {}".format(self._kwargs))
             f()
+            if "print_x" in self._kwargs and \
+               self._kwargs["print_x"] is not None:
+                global show_x
+                show_x = self._kwargs["print_x"]
         if "name" in self._kwargs and len(self._kwargs["name"]) > 0:
             name = self._kwargs["name"]
             del self._kwargs["name"]
@@ -2063,40 +2082,32 @@ class defword(object):
         return wrapped_f
 
 
-@defword(name='$.', str_args=1, doc="""\
+@defword(name='$.', str_args=1, print_x=False, doc="""\
 Print top item from string stack  [ str -- ]
 No extraneous white space or newline is printed.""")
 def w_dollar_dot():
     write(string_stack.pop().value())
-    global show_x
-    show_x = False
 
 
-@defword(name='$.!', hidden=True, str_args=1)
+@defword(name='$.!', hidden=True, print_x=False, str_args=1)
 def w_dollar_dot_bang():
     lnwriteln(repr(string_stack.top()))
-    global show_x
-    show_x = False
 
 
-@defword(name='$.s', doc="""\
+@defword(name='$.s', print_x=False, doc="""\
 Display string stack.""")
 def w_dollar_dot_s():
     if not string_stack.empty():
         lnwriteln(string_stack)
-    global show_x
-    show_x = False
 
 
-@defword(name='$.s!', hidden=True)
+@defword(name='$.s!', print_x=False, hidden=True)
 def w_dollar_dot_s_bang():
     if not string_stack.empty():
         lnwriteln(repr(string_stack))
-    global show_x
-    show_x = False
 
 
-@defword(name='%', args=2, doc="""\
+@defword(name='%', args=2, print_x=True, doc="""\
 Percentage  ( base rate -- base percent )
 
 Base is maintained in Y.
@@ -2123,11 +2134,9 @@ def w_percent():
         raise TypeError("%: Type error ({}, {})".format(typename(y), typename(x)))
     param_stack.push(y)
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='%ch', args=2, doc="""\
+@defword(name='%ch', args=2, print_x=True, doc="""\
 Percentage change  ( old new -- %change )
 
 DEFINITION:
@@ -2160,11 +2169,9 @@ def w_percent_ch():
         raise TypeError("%ch: Type error ({}, {})".format(typename(y), typename(x)))
     # The HP-32SII preserves the Y value (like %) but we do not
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='%t', args=2, doc="""\
+@defword(name='%t', args=2, print_x=True, doc="""\
 Percent of total  ( total amount -- %tot )
 
 DEFINITION:
@@ -2197,11 +2204,9 @@ def w_percent_t():
         raise TypeError("%t: Type error ({}, {})".format(typename(y), typename(x)))
     # The HP-32SII preserves the Y value (like %) but we do not
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='*', args=2, doc="""\
+@defword(name='*', args=2, print_x=True, doc="""\
 Multiplication  ( y x -- y*x )""")
 def w_star():
     """\
@@ -2232,11 +2237,9 @@ def w_star():
         param_stack.push(x)
         raise TypeError("+: Type error ({}, {})".format(typename(y), typename(x)))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='+', args=2, doc="""\
+@defword(name='+', args=2, print_x=True, doc="""\
 Addition  ( y x -- y+x )""")
 def w_plus():
     """\
@@ -2293,8 +2296,6 @@ def w_plus():
         param_stack.push(x)
         raise TypeError("+: Type error ({}, {})".format(typename(y), typename(x)))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
 @defword(name='+loop', doc="""\
@@ -2311,7 +2312,7 @@ def w_plusloop():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='-', args=2, doc="""\
+@defword(name='-', args=2, print_x=True, doc="""\
 Subtraction  ( y x -- y-x )""")
 def w_minus():
     x = param_stack.pop()
@@ -2332,8 +2333,6 @@ def w_minus():
         param_stack.push(x)
         raise TypeError("-: Type error ({}, {})".format(typename(y), typename(x)))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
 @defword(name='-rot', args=3, doc="""\
@@ -2349,21 +2348,19 @@ def w_minus_rot():
     param_stack.push(y)
 
 
-@defword(name='.', args=1, doc="""\
+@defword(name='.', args=1, print_x=False, doc="""\
 Print top stack value  ( x -- )
 A space is also printed after the number, but no newline.
 If you need a newline, call CR.""")
 def w_dot():
     write("{} ".format(str(param_stack.pop())))
-    global show_x
-    show_x = False
+    # global show_x
+    # show_x = False
 
 
-@defword(name='.!', hidden=True, args=1)
+@defword(name='.!', hidden=True, print_x=False, args=1)
 def w_dot_bang():
     lnwriteln(repr(param_stack.top()))
-    global show_x
-    show_x = False
 
 
 @defword(name='."', doc="""\
@@ -2377,7 +2374,7 @@ def w_dot_quote():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='.b', args=1, doc="""\
+@defword(name='.b', args=1, print_x=False, doc="""\
 Print X in binary  ( i -- )
 X must be an integer.""")
 def w_dot_bin():
@@ -2387,11 +2384,9 @@ def w_dot_bin():
         raise TypeError(".b: Type error ({})".format(typename(x)))
 
     write("{} ".format(bin(x.value())))
-    global show_x
-    show_x = False
 
 
-@defword(name='.o', args=1, doc="""\
+@defword(name='.o', args=1, print_x=False, doc="""\
 Print X in octal  ( i -- )
 X must be an integer.""")
 def w_dot_oct():
@@ -2401,29 +2396,23 @@ def w_dot_oct():
         raise TypeError(".o: Type error ({})".format(typename(x)))
 
     write("{} ".format(oct(x.value())))
-    global show_x
-    show_x = False
 
 
-@defword(name='.s', doc="""\
+@defword(name='.s', print_x=False, doc="""\
 Print stack non-destructively""")
 def w_dot_s():
     if not param_stack.empty():
         lnwriteln(param_stack)
-    global show_x
-    show_x = False
 
 
-@defword(name='.s!', hidden=True, doc="""\
+@defword(name='.s!', hidden=True, print_x=False, doc="""\
 Print stack non-destructively""")
 def w_dot_s_bang():
     if not param_stack.empty():
         lnwriteln(repr(param_stack))
-    global show_x
-    show_x = False
 
 
-@defword(name='.x', args=1, doc="""\
+@defword(name='.x', args=1, print_x=False, doc="""\
 Print X in hexadecimal  ( i -- )
 X must be an integer.""")
 def w_dot_hex():
@@ -2433,11 +2422,9 @@ def w_dot_hex():
         raise TypeError(".x: Type error ({})".format(typename(x)))
 
     write("{} ".format(hex(x.value())))
-    global show_x
-    show_x = False
 
 
-@defword(name='/', args=2, doc="""\
+@defword(name='/', args=2, print_x=True, doc="""\
 Division  ( y x -- y/x )
 X cannot be zero.""")
 def w_slash():
@@ -2479,11 +2466,9 @@ def w_slash():
         param_stack.push(x)
         raise TypeError("/: Type error ({}, {})".format(typename(y), typename(x)))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='0<', args=1, doc="""\
+@defword(name='0<', args=1, print_x=True, doc="""\
 Test if X is less than zero  ( x -- flag )""")
 def w_zero_less_than():
     x = param_stack.pop()
@@ -2492,11 +2477,9 @@ def w_zero_less_than():
         raise TypeError("0<: Type error ({})".format(typename(x)))
 
     param_stack.push(Rpn_Integer(1 if x.value() < 0 else 0))
-    global show_x
-    show_x = True
 
 
-@defword(name='0<>', args=1, doc="""\
+@defword(name='0<>', args=1, print_x=True, doc="""\
 Test if X is not equal to zero  ( x -- flag )""")
 def w_zero_not_equal():
     x = param_stack.pop()
@@ -2505,11 +2488,9 @@ def w_zero_not_equal():
         raise TypeError("0<>: Type error ({})".format(typename(x)))
 
     param_stack.push(Rpn_Integer(0 if x.zerop() else 1))
-    global show_x
-    show_x = True
 
 
-@defword(name='0=', args=1, doc="""\
+@defword(name='0=', args=1, print_x=True, doc="""\
 Test if X is equal to zero  ( x -- flag )""")
 def w_zero_equal():
     x = param_stack.pop()
@@ -2518,11 +2499,9 @@ def w_zero_equal():
         raise TypeError("0=: Type error ({})".format(typename(x)))
 
     param_stack.push(Rpn_Integer(1 if x.zerop() else 0))
-    global show_x
-    show_x = True
 
 
-@defword(name='0>', args=1, doc="""\
+@defword(name='0>', args=1, print_x=True, doc="""\
 Test if X is greater than zero  ( x -- flag )""")
 def w_zero_greater_than():
     x = param_stack.pop()
@@ -2531,8 +2510,6 @@ def w_zero_greater_than():
         raise TypeError("0>: Type error ({})".format(typename(x)))
 
     param_stack.push(Rpn_Integer(1 if x.value() > 0 else 0))
-    global show_x
-    show_x = True
 
 
 @defword(name=':', doc="""\
@@ -2552,7 +2529,7 @@ def w_semicolon():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='<', args=2, doc="""\
+@defword(name='<', args=2, print_x=True, doc="""\
 Test if Y is less than X  ( y x -- flag )""")
 def w_less_than():
     x = param_stack.pop()
@@ -2566,11 +2543,9 @@ def w_less_than():
         param_stack.push(y)
         param_stack.push(x)
         raise TypeError("<: Type error ({}, {})".format(typename(y), typename(x)))
-    global show_x
-    show_x = True
 
 
-@defword(name='<<', args=2, doc="""\
+@defword(name='<<', args=2, print_x=True, doc="""\
 <<  ( i2 i1 -- i2 << i1 )  Bitwise left shift""")
 def w_leftshift():
     x = param_stack.pop()
@@ -2586,11 +2561,9 @@ def w_leftshift():
         raise ValueError("<<: Shift amount may not be negative")
 
     param_stack.push(Rpn_Integer(y.value() << x.value()))
-    global show_x
-    show_x = True
 
 
-@defword(name='<=', args=2, doc="""\
+@defword(name='<=', args=2, print_x=True, doc="""\
 Test if Y is less than or equal to X  ( y x -- flag )""")
 def w_less_than_or_equal():
     x = param_stack.pop()
@@ -2604,11 +2577,9 @@ def w_less_than_or_equal():
         param_stack.push(y)
         param_stack.push(x)
         raise TypeError("<=: Type error ({}, {})".format(typename(y), typename(x)))
-    global show_x
-    show_x = True
 
 
-@defword(name='<>', args=2, doc="""\
+@defword(name='<>', args=2, print_x=True, doc="""\
 Test if Y is not equal to X  ( y x -- flag )""")
 def w_not_equal():
     """\
@@ -2641,11 +2612,9 @@ def w_not_equal():
         param_stack.push(x)
         raise TypeError("<>: Type error ({}, {})".format(typename(y), typename(x)))
     param_stack.push(Rpn_Integer(0 if flag else 1))
-    global show_x
-    show_x = True
 
 
-@defword(name='=', args=2, doc="""\
+@defword(name='=', args=2, print_x=True, doc="""\
 Test if Y is equal to X  ( y x -- flag )""")
 def w_equal():
     """\
@@ -2678,11 +2647,9 @@ def w_equal():
         param_stack.push(x)
         raise TypeError("=: Type error ({}, {})".format(typename(y), typename(x)))
     param_stack.push(Rpn_Integer(1 if flag else 0))
-    global show_x
-    show_x = True
 
 
-@defword(name='>', args=2, doc="""\
+@defword(name='>', args=2, print_x=True, doc="""\
 Test if Y is greater than X  ( y x -- flag )""")
 def w_greater_than():
     x = param_stack.pop()
@@ -2696,11 +2663,9 @@ def w_greater_than():
         param_stack.push(y)
         param_stack.push(x)
         raise TypeError(">: Type error ({}, {})".format(typename(y), typename(x)))
-    global show_x
-    show_x = True
 
 
-@defword(name='>>', args=2, doc="""\
+@defword(name='>>', args=2, print_x=True, doc="""\
 >>  ( i2 i1 -- i2 >> i1 )  Bitwise right shift""")
 def w_rightshift():
     x = param_stack.pop()
@@ -2716,11 +2681,9 @@ def w_rightshift():
         raise ValueError("<<: Shift amount may not be negative")
 
     param_stack.push(Rpn_Integer(y.value() >> x.value()))
-    global show_x
-    show_x = True
 
 
-@defword(name='>=', args=2, doc="""\
+@defword(name='>=', args=2, print_x=True, doc="""\
 Test if Y is greater than or equal to X  ( y x -- flag )""")
 def w_less_than_or_equal():
     x = param_stack.pop()
@@ -2734,8 +2697,6 @@ def w_less_than_or_equal():
         param_stack.push(y)
         param_stack.push(x)
         raise TypeError(">=: Type error ({}, {})".format(typename(y), typename(x)))
-    global show_x
-    show_x = True
 
 
 @defword(name='>r', args=1, doc="""\
@@ -2748,15 +2709,14 @@ def w_to_r():
 Duplicate top stack element if non-zero  ( x -- x x | 0 )""")
 def w_query_dup():
     x = param_stack.top()
-    if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex]:
-        if not x.zerop():
-            w_dup()
-    else:
+    if type(x) not in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex]:
         param_stack.push(x)
         raise TypeError("?dup: Type error ({})".format(typename(x)))
+    if not x.zerop():
+        w_dup()
 
 
-@defword(name='^', args=2, doc="""\
+@defword(name='^', args=2, print_x=True, doc="""\
 Exponentiation  ( y x -- y^x )""")
 def w_caret():
     x = param_stack.pop()
@@ -2777,8 +2737,6 @@ def w_caret():
     else:
         raise Rpn_E_Fatal("pow() returned a strange type '{}'".format(type(r)))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
 @defword(name='abort', doc="""\
@@ -2799,7 +2757,7 @@ def w_abort_quote():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='abs', doc="""\
+@defword(name='abs', print_x=True, doc="""\
 Absolute value  ( x -- |x| )
 
 NOTE: For complex numbers, ABS return the modulus (as a float).""")
@@ -2815,11 +2773,9 @@ def w_abs():
         param_stack.push(x)
         raise TypeError("abs: Type error ({})".format(typename(x)))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='acos', args=1, doc="""\
+@defword(name='acos', args=1, print_x=True, doc="""\
 Arc cosine  ( cosine -- angle )""")
 def w_acos():
     x = param_stack.pop()
@@ -2836,8 +2792,6 @@ def w_acos():
         param_stack.push(x)
         raise TypeError("acos: Type error ({})".format(typename(x)))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
 @defword(name='again', doc="""\
@@ -2851,7 +2805,7 @@ def w_again():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='and', args=2, doc="""\
+@defword(name='and', args=2, print_x=True, doc="""\
 Logical AND  ( flag flag -- flag )
 (This is not a bitwise AND - use BITAND for that.)""")
 def w_and():
@@ -2872,11 +2826,9 @@ def w_and():
         raise ValueError("and: Y must be TRUE (1) or FALSE (0), not {}".format(y.value()))
 
     param_stack.push(Rpn_Integer(x.value() and y.value()))
-    global show_x
-    show_x = True
 
 
-@defword(name='asin', args=1, doc="""\
+@defword(name='asin', args=1, print_x=True, doc="""\
 Arc sine  ( sine -- angle )""")
 def w_asin():
     x = param_stack.pop()
@@ -2893,11 +2845,9 @@ def w_asin():
         param_stack.push(x)
         raise TypeError("asin: Type error ({})".format(typename(x)))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='atan', doc="""\
+@defword(name='atan', print_x=True, doc="""\
 Arc tangent  ( tangent -- angle )""")
 def w_atan():
     x = param_stack.pop()
@@ -2909,8 +2859,6 @@ def w_atan():
         param_stack.push(x)
         raise TypeError("atan: Type error ({})".format(typename(x)))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
 @defword(name='beg', doc="""\
@@ -2939,7 +2887,7 @@ def w_begin():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='bitand', args=2, doc="""\
+@defword(name='bitand', args=2, print_x=True, doc="""\
 bitand  ( i2 i1 -- i2 AND i1 )  Bitwise AND
 
 Perform a bitwise boolean AND on two integers""")
@@ -2952,11 +2900,9 @@ def w_bitand():
         raise TypeError("bitand: Type error ({}, {})".format(typename(y), typename(x)))
 
     param_stack.push(Rpn_Integer(y.value() & x.value()))
-    global show_x
-    show_x = True
 
 
-@defword(name='bitnot', args=1, doc="""\
+@defword(name='bitnot', args=1, print_x=True, doc="""\
 bitnot  ( i1 -- NOT i1 )  Bitwise NOT
 
 Perform a bitwise boolean NOT on an integer""")
@@ -2967,11 +2913,9 @@ def w_bitor():
         raise TypeError("bitnot: Type error ({})".format(typename(x)))
 
     param_stack.push(Rpn_Integer(~ x.value()))
-    global show_x
-    show_x = True
 
 
-@defword(name='bitor', args=2, doc="""\
+@defword(name='bitor', args=2, print_x=True, doc="""\
 bitor  ( i2 i1 -- i2 OR i1 )  Bitwise OR
 
 Perform a bitwise boolean OR on two integers""")
@@ -2984,11 +2928,9 @@ def w_bitor():
         raise TypeError("bitor: Type error ({}, {})".format(typename(y), typename(x)))
 
     param_stack.push(Rpn_Integer(y.value() | x.value()))
-    global show_x
-    show_x = True
 
 
-@defword(name='bitxor', args=2, doc="""\
+@defword(name='bitxor', args=2, print_x=True, doc="""\
 bitxor  ( i2 i1 -- i2 XOR i1 )  Bitwise XOR
 
 Perform a bitwise boolean Exclusive OR on two integers""")
@@ -3001,8 +2943,6 @@ def w_bitor():
         raise TypeError("bitxor: Type error ({}, {})".format(typename(y), typename(x)))
 
     param_stack.push(Rpn_Integer(y.value() ^ x.value()))
-    global show_x
-    show_x = True
 
 
 @defword(name='bye', doc="""\
@@ -3029,7 +2969,7 @@ def w_case():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='ceil', doc="""\
+@defword(name='ceil', args=1, print_x=True, doc="""\
 Ceiling  ( x -- ceil )   Smallest integer greater than or equal to X""")
 def w_ceil():
     x = param_stack.pop()
@@ -3041,25 +2981,23 @@ def w_ceil():
         param_stack.push(x)
         raise TypeError("ceil: Type error ({})".format(typename(x)))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
 @defword(name='cf', args=1)
 def w_cf():
     x = param_stack.pop()
-    if type(x) is Rpn_Integer:
-        if x.value() < 0 or x.value() > flag_max - 1:
-            param_stack.push(x)
-            raise ValueError("cf: Flag out of range (0..{} expected)".format(flag_max - 1))
-        flag_clear(x.value())
-    else:
+    if type(x) is not Rpn_Integer:
         param_stack.push(x)
         raise TypeError("cf: Type error ({})".format(typename(x)))
 
+    if x.value() < 0 or x.value() > flag_max - 1:
+        param_stack.push(x)
+        raise ValueError("cf: Flag out of range (0..{} expected)".format(flag_max - 1))
+    flag_clear(x.value())
+
 
 # Some HP calcs call this NEGATE, but why type 6 characters when 3 will do?
-@defword(name='chs', args=1, doc="""\
+@defword(name='chs', args=1, print_x=True, doc="""\
 Negation (change sign)  ( x -- -x )""")
 def w_chs():
     x = param_stack.pop()
@@ -3075,8 +3013,6 @@ def w_chs():
         param_stack.push(x)
         raise TypeError("chs: Type error ({})".format(typename(x)))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
 @defword(name='clflag', doc="""\
@@ -3088,7 +3024,9 @@ def w_clflag():
 
 @defword(name='clrst', doc="""\
 Clear the return stack.
-Do not do this inside a DO loop!""")
+
+Do not confuse this with the CLST command, which clears the parameter stack.
+""")
 def w_clrst():
     return_stack.clear()
 
@@ -3096,13 +3034,15 @@ def w_clrst():
 @defword(name='clst', doc="""\
 Clear the stack
 
+Do not confuse this with the CLRST command, which clears the return stack.
+
 DEFINITION:
 : clst  depth 0 do drop loop ;""")
 def w_clst():
     param_stack.clear()
 
 
-@defword(name='comb', args=2, doc="""\
+@defword(name='comb', args=2, print_x=True, doc="""\
 Combinations  ( n r -- nCr )
 Choose from N objects R at a time, without regard to ordering.
 
@@ -3124,8 +3064,6 @@ def w_comb():
     result = Rpn_Integer(comb_helper(n, r))
 
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
 @defword(name='constant', doc="""\
@@ -3135,7 +3073,7 @@ def w_constant():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='cos', args=1, doc="""\
+@defword(name='cos', args=1, print_x=True, doc="""\
 Cosine  ( angle -- cosine )""")
 def w_cos():
     x = param_stack.pop()
@@ -3147,17 +3085,15 @@ def w_cos():
         param_stack.push(x)
         raise TypeError("cos: Type error ({})".format(typename(x)))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='cr', doc="""\
+@defword(name='cr', print_x=False, doc="""\
 Print a newline""")
 def w_cr():
     writeln()
 
 
-@defword(name='d->jd', args=1, doc="""\
+@defword(name='d->jd', args=1, print_x=True, doc="""\
 Convert date to Julian day number ( MM.DDYYYY -- julian )""")
 def w_d_to_jd():
     x = param_stack.pop()
@@ -3171,11 +3107,9 @@ def w_d_to_jd():
         raise ValueError("d->jd: {} is not a valid date".format(x.value()))
 
     param_stack.push(Rpn_Integer(julian))
-    global show_x
-    show_x = True
 
 
-@defword(name='d->r', args=1, doc="""\
+@defword(name='d->r', args=1, print_x=True, doc="""\
 Convert degrees to radians ( deg -- rad )""")
 def w_d_to_r():
     x = param_stack.pop()
@@ -3185,31 +3119,26 @@ def w_d_to_r():
         param_stack.push(x)
         raise TypeError("d->r: Type error ({})".format(typename(x)))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='date', doc="""\
+@defword(name='date', print_x=True, doc="""\
 Current date  ( -- MM.DDYYYY )""")
 def w_date():
     d = datetime.date.today().strftime("%m.%d%Y")
     param_stack.push(Rpn_Float(d))
-    global show_x
-    show_x = True
 
 
-@defword(name='dateinfo', args=1, hidden=True, doc="""\
+@defword(name='dateinfo', args=1, hidden=True, print_x=False, doc="""\
 Show date_info() for Float  ( x -- )""")
 def w_dateinfo():
     x = param_stack.pop()
-    if type(x) is Rpn_Float:
-        print(x.date_info())
-    else:
+    if type(x) is not Rpn_Float:
         param_stack.push(x)
         raise TypeError("dateinfo: Type error ({})".format(typename(x)))
+    print(x.date_info())
 
 
-@defword(name='date+', args=2, doc="""\
+@defword(name='date+', args=2, print_x=True, doc="""\
 Add N days to date  ( date1 N -- date2 )""")
 def w_date_plus():
     x = param_stack.pop()
@@ -3229,11 +3158,9 @@ def w_date_plus():
     dateobj = datetime.date.fromordinal(new_julian - julian_offset)
     result = Rpn_Float("%d.%02d%04d" % (dateobj.month, dateobj.day, dateobj.year))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='date-', args=2, doc="""\
+@defword(name='date-', args=2, print_x=True, doc="""\
 Subtract N days from date  ( date1 N -- date2 )""")
 def w_date_minus():
     x = param_stack.pop()
@@ -3253,11 +3180,9 @@ def w_date_minus():
     dateobj = datetime.date.fromordinal(new_julian - julian_offset)
     result = Rpn_Float("%d.%02d%04d" % (dateobj.month, dateobj.day, dateobj.year))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='ddays', args=2, doc="""\
+@defword(name='ddays', args=2, print_x=True, doc="""\
 Number of days between two dates  ( date1 date2 -- ddays )
 Usually the earlier date is in Y, and later date in X.""")
 def w_ddays():
@@ -3283,8 +3208,6 @@ def w_ddays():
     # Y is expected to be earlier, so we subtract in this order to get a
     # positive value for "later"
     param_stack.push(Rpn_Integer(xjulian - yjulian))
-    global show_x
-    show_x = True
 
 
 @defword(name='debug', doc="""\
@@ -3302,24 +3225,20 @@ def w_deg():
     angle_mode = "d"
 
 
-@defword(name='deg?', doc="""\
+@defword(name='deg?', print_x=True, doc="""\
 Test if angular mode is degrees  ( -- flag )""")
 def w_deg_query():
     global angle_mode
     param_stack.push(Rpn_Integer(1 if angle_mode == "d" else 0))
-    global show_x
-    show_x = True
 
 
-@defword(name='depth', doc="""\
+@defword(name='depth', print_x=True, doc="""\
 Current number of elements on stack  ( -- n )""")
 def w_depth():
     param_stack.push(Rpn_Integer(param_stack.size()))
-    global show_x
-    show_x = True
 
 
-@defword(name='dim', args=1, doc="""\
+@defword(name='dim', args=1, print_x=True, doc="""\
 Dimension(s) of X.
 
 For integers, floats, and rationals (scalars), return 0.
@@ -3346,8 +3265,6 @@ def w_dim():
         param_stack.push(x)
         raise TypeError("dim: Type error ({})".format(typename(x)))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
 @defword(name='do', doc="""\
@@ -3365,7 +3282,7 @@ def w_do():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='dot', args=2, doc="""\
+@defword(name='dot', args=2, print_x=True, doc="""\
 Vector dot product  ( vec_y vec_x -- real )""")
 def w_dot_prod():
     x = param_stack.pop()
@@ -3388,11 +3305,9 @@ def w_dot_prod():
         raise TypeError("dot: Type error ({}, {})".format(typename(y), typename(x)))
 
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='dow', args=1, doc="""\
+@defword(name='dow', args=1, print_x=True, doc="""\
 Day of week  ( MM.DDYYYY -- dow )
 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 7=Sun""")
 def w_dow():
@@ -3407,11 +3322,9 @@ def w_dow():
         raise ValueError("dow: {} is not a valid date".format(x.value()))
 
     param_stack.push(Rpn_Integer(dateobj.isoweekday()))
-    global show_x
-    show_x = True
 
 
-@defword(name='drop', args=1, doc="""\
+@defword(name='drop', args=1, print_x=False, doc="""\
 Remove top stack element  ( x -- )""")
 def w_drop():
     param_stack.pop()
@@ -3426,12 +3339,10 @@ def w_dup():
     param_stack.push(x)
 
 
-@defword(name='E', doc="""\
+@defword(name='E', print_x=True, doc="""\
 Constant: Base of natural logarithms ( -- 2.71828... )""")
 def w_E():
     param_stack.push(Rpn_Float(E))
-    global show_x
-    show_x = True
 
 
 @defword(name='else', args=1, doc="""\
@@ -3444,7 +3355,7 @@ def w_else():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='emit', args=1, doc="""\
+@defword(name='emit', args=1, print_x=False, doc="""\
 emit  ( x -- )    Print a single ASCII character
 No space or newline is appended.""")
 def w_emit():
@@ -3497,7 +3408,7 @@ def w_endof():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='epoch', doc="""\
+@defword(name='epoch', print_x=True, doc="""\
 Seconds since epoch  ( -- secs )""")
 def w_epoch():
     now = calendar.timegm(time.gmtime())
@@ -3516,7 +3427,7 @@ def w_exit():
     raise Rpn_E_Exit()
 
 
-@defword(name='exp', args=1, doc="""\
+@defword(name='exp', args=1, print_x=True, doc="""\
 Natural exponential ( x -- e^x )""")
 def w_exp():
     x = param_stack.pop()
@@ -3528,11 +3439,9 @@ def w_exp():
         param_stack.push(x)
         raise TypeError("exp: Type error ({})".format(typename(x)))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='fact', args=1, doc="""\
+@defword(name='fact', args=1, print_x=True, doc="""\
 Factorial ( x -- x! )
 
 DEFINITION:
@@ -3550,18 +3459,14 @@ def w_fact():
         param_stack.push(x)
         raise TypeError("fact: Type error ({})".format(typename(x)))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='FALSE')
+@defword(name='FALSE', print_x=True) # xxx need docstr
 def w_FALSE():
     param_stack.push(Rpn_Integer(0))
-    global show_x
-    show_x = True
 
 
-@defword(name='fc?', args=1)
+@defword(name='fc?', args=1, print_x=True) # XXX needs docstr
 def w_fc_query():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
@@ -3573,11 +3478,9 @@ def w_fc_query():
         raise ValueError("fc?: Flag out of range (0..{} expected)".format(flag_max - 1))
     result = Rpn_Integer(0 if flag_test(x.value()) else 1)
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='floor', doc="""\
+@defword(name='floor', args=1, print_x=True, doc="""\
 Floor  ( x -- floor )   Largest integer not greater than X""")
 def w_floor():
     x = param_stack.pop()
@@ -3589,8 +3492,6 @@ def w_floor():
         param_stack.push(x)
         raise TypeError("floor: Type error ({})".format(typename(x)))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
 @defword(name='forget', doc="""\
@@ -3599,7 +3500,7 @@ def w_forget():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='fs?', args=1)
+@defword(name='fs?', print_x=True, args=1) # XXX needs docstr
 def w_fs_query():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
@@ -3611,8 +3512,6 @@ def w_fs_query():
         raise ValueError("fs?: Flag out of range (0..{} expected)".format(flag_max - 1))
     result = Rpn_Integer(1 if flag_test(x.value()) else 0)
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
 @defword(name='grad', doc="""\
@@ -3622,16 +3521,14 @@ def w_grad():
     angle_mode = "g"
 
 
-@defword(name='grad?', doc="""\
+@defword(name='grad?', print_x=True, doc="""\
 Test if angular mode is gradians  ( -- flag )""")
 def w_grad_query():
     global angle_mode
     param_stack.push(Rpn_Integer(1 if angle_mode == "g" else 0))
-    global show_x
-    show_x = True
 
 
-@defword(name='hms', args=1, doc="""\
+@defword(name='hms', args=1, print_x=True, doc="""\
 Convert decimal hours to hours/minutes/seconds  ( HH.nnn -- HH.MMSS )""")
 def w_hms():
     x = param_stack.pop()
@@ -3649,11 +3546,9 @@ def w_hms():
         param_stack.push(x)
         raise TypeError("hms: Type error ({})".format(typename(x)))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='hms+', args=2, doc="""\
+@defword(name='hms+', args=2, print_x=True, doc="""\
 Add hours/minutes/seconds  ( HH.MMSS HH.MMSS -- HH.MMSS )""")
 def w_hms_plus():
     x = param_stack.pop()
@@ -3688,11 +3583,9 @@ def w_hms_plus():
     #print("hh=",hh,"mm=",mm,"ss=",ss)
     result = Rpn_Float("%d.%02d%02d" % (hh, mm, ss))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='hms-', args=2, doc="""\
+@defword(name='hms-', args=2, print_x=True, doc="""\
 Subtract hours/minutes/seconds  ( HH.MMSS HH.MMSS -- HH.MMSS )""")
 def w_hms_minus():
     x = param_stack.pop()
@@ -3725,11 +3618,9 @@ def w_hms_minus():
     #print("hh=",hh,"mm=",mm,"ss=",ss)
     result = Rpn_Float("%d.%02d%02d" % (hh, mm, ss))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='hr', args=1, doc="""\
+@defword(name='hr', args=1, print_x=True, doc="""\
 Convert hours/minutes/seconds to decimal hours  ( HH.MMSS -- HH.nnn )""")
 def w_hr():
     x = param_stack.pop()
@@ -3749,11 +3640,9 @@ def w_hr():
         param_stack.push(x)
         raise TypeError("hr: Type error ({})".format(typename(x)))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='i', doc="""\
+@defword(name='i', print_x=True, doc="""\
 Imaginary unit (0,1)  ( -- i )
 
 DEFINITION:
@@ -3762,8 +3651,6 @@ i = sqrt(-1)
 Do not confuse this with the I command, which returns the index for a DO loop.""")
 def w_i():
     param_stack.push(Rpn_Complex(0,1))
-    global show_x
-    show_x = True
 
 
 @defword(name='I', doc="""\
@@ -3782,7 +3669,7 @@ def w_I():
         param_stack.push(_I.obj())
 
 
-@defword(name='idn', args=1, doc="""\
+@defword(name='idn', args=1, print_x=True, doc="""\
 Create an NxN identity matrix  ( n -- mat )""")
 def w_idn():
     x = param_stack.pop()
@@ -3808,8 +3695,6 @@ def w_idn():
 
     result = Rpn_Matrix.from_numpy(np.identity(size, dtype=np.int64))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
 @defword(name='if', args=1, doc="""\
@@ -3822,7 +3707,7 @@ def w_if():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='jd->d', args=1, doc="""\
+@defword(name='jd->d', args=1, print_x=True, doc="""\
 Convert julian day number to date  ( julian -- MM.DDYYYY )
 
 EXAMPLE:
@@ -3840,11 +3725,9 @@ def w_jd_to_d():
     dateobj = datetime.date.fromordinal(x.value() - julian_offset)
     result = Rpn_Float("%d.%02d%04d" % (dateobj.month, dateobj.day, dateobj.year))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='inv', args=1, doc="""\
+@defword(name='inv', args=1, print_x=True, doc="""\
 Inverse  ( x -- 1/x )
 X cannot be zero.""")
 def w_inv():
@@ -3878,11 +3761,9 @@ def w_inv():
         raise TypeError("inv: Type error ({})".format(typename(x)))
 
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='key', doc="""\
+@defword(name='key', print_x=True, doc="""\
 ASCII code of single keystroke  ( -- key )
 KEY will block until input is provided.""")
 def w_key():
@@ -3898,7 +3779,7 @@ def w_leave():
     raise Rpn_E_Leave
 
 
-@defword(name='lg', args=1, doc="""\
+@defword(name='lg', args=1, print_x=True, doc="""\
 Logarithm [base 2]  ( x -- lg )
 X cannot be zero.
 Use "ln" for the natural logarithm, and "log" for the common logarithm.""")
@@ -3926,11 +3807,9 @@ def w_lg():
         param_stack.push(x)
         raise TypeError("lg: Type error ({})".format(typename(x)))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='ln', args=1, doc="""\
+@defword(name='ln', args=1, print_x=True, doc="""\
 Natural logarithm [base e]  ( x -- ln )
 X cannot be zero.
 Use "log" for the common (base 10) logarithm.""")
@@ -3954,11 +3833,9 @@ def w_ln():
         param_stack.push(x)
         raise TypeError("ln: Type error ({})".format(typename(x)))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='load', str_args=1, doc="""\
+@defword(name='load', str_args=1, print_x=False, doc="""\
 Load file specified on string stack  [ file -- ]""")
 def w_load():
     filename = string_stack.pop().value()
@@ -3968,7 +3845,7 @@ def w_load():
         load_file(filename)
 
 
-@defword(name='log', args=1, doc="""\
+@defword(name='log', args=1, print_x=True, doc="""\
 Common logarithm [base 10]  ( x -- log )
 X cannot be zero.
 Use "ln" for the natural (base e) logarithm.""")
@@ -3996,8 +3873,6 @@ def w_log():
         param_stack.push(x)
         raise TypeError("log: Type error ({})".format(typename(x)))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
 @defword(name='loop', doc="""\
@@ -4014,7 +3889,7 @@ def w_loop():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='max', args=2, doc="""\
+@defword(name='max', args=2, print_x=True, doc="""\
 Smaller of X or Y  ( y x -- max )""")
 def w_max():
     x = param_stack.pop()
@@ -4028,11 +3903,9 @@ def w_max():
         param_stack.push(y)
         param_stack.push(x)
         raise TypeError("max: Type error ({}, {})".format(typename(y), typename(x)))
-    global show_x
-    show_x = True
 
 
-@defword(name='min', args=2, doc="""\
+@defword(name='min', args=2, print_x=True, doc="""\
 Smaller of X or Y  ( y x -- min )""")
 def w_min():
     x = param_stack.pop()
@@ -4046,8 +3919,6 @@ def w_min():
         param_stack.push(y)
         param_stack.push(x)
         raise TypeError("min: Type error ({}, {})".format(typename(y), typename(x)))
-    global show_x
-    show_x = True
 
 
 @defword(name='nip', args=2, doc="""\
@@ -4059,7 +3930,7 @@ def w_nip():
     param_stack.push(x)
 
 
-@defword(name='not', args=1, doc="""\
+@defword(name='not', args=1, print_x=True, doc="""\
 Logical not  ( flag -- !flag )
 
 Invert a flag - return TRUE (1) if x is zero, otherwise FALSE (0).
@@ -4078,8 +3949,6 @@ def w_not():
         raise ValueError("not: X must be TRUE (1) or FALSE (0), not {}".format(x.value()))
 
     param_stack.push(Rpn_Integer(1 if x.zerop() else 0))
-    global show_x
-    show_x = True
 
 
 @defword(name='of', doc="""\
@@ -4100,7 +3969,7 @@ def w_of():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='or', args=2, doc="""\
+@defword(name='or', args=2, print_x=True, doc="""\
 Logical OR  ( flag flag -- flag )
 NOTE: This is not a bitwise OR - use BITOR for that.""")
 def w_or():
@@ -4121,8 +3990,6 @@ def w_or():
         raise ValueError("or: Y must be TRUE (1) or FALSE (0), not {}".format(y.value()))
 
     param_stack.push(Rpn_Integer(x.value() or y.value()))
-    global show_x
-    show_x = True
 
 
 @defword(name='otherwise',  doc="""\
@@ -4154,7 +4021,7 @@ def w_over():
     param_stack.push(y)
 
 
-@defword(name='p->r', doc="""\
+@defword(name='p->r', print_x=True, doc="""\
 Convert polar coordinates to rectangular.
 The parameters can be either two reals or one complex.
 
@@ -4193,11 +4060,9 @@ def w_p_to_r():
     else:
         param_stack.push(x)
         raise TypeError("p->r: Type error({})".format(typename(x)))
-    global show_x
-    show_x = True
 
 
-@defword(name='perm', args=2, doc="""\
+@defword(name='perm', args=2, print_x=True, doc="""\
 Permutations  ( n r -- nPr )
 Choose from N objects R at a time, with regard to ordering.
 
@@ -4227,11 +4092,9 @@ def w_perm():
         result = Rpn_Integer(t)
 
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='PI', doc="""\
+@defword(name='PI', print_x=True, doc="""\
 Constant: Pi ( -- 3.14159... )
 
 DEFINITION:
@@ -4240,8 +4103,6 @@ PI == TAU/2
 Consider using TAU instead of PI to simplify your equations.""")
 def w_PI():
     param_stack.push(Rpn_Float(PI))
-    global show_x
-    show_x = True
 
 
 @defword(name='pick', args=1, doc="""\
@@ -4261,7 +4122,24 @@ def w_pick():
     param_stack.push(result)
 
 
-@defword(name='r->d', args=1, doc="""\
+@defword(name='prompt', str_args=1, print_x=False, doc="""\
+Display prompt and await input""")
+def w_prompt():
+    prompt = string_stack.pop().value()
+    write(prompt)
+    x = input()
+    print("I got {}".format(x))
+    # prompt_lexer = lexer.clone()
+    # prompt_lexer.input(x)
+    # valid = False
+    # while True:
+    #     tok = prompt_lexer.token()
+    #     if not tok:
+    #         break
+    #     print("prompt_lexer => {}".format(tok))
+
+
+@defword(name='r->d', args=1, print_x=True, doc="""\
 Convert radians to degrees ( rad -- deg )""")
 def w_r_to_d():
     x = param_stack.pop()
@@ -4271,11 +4149,9 @@ def w_r_to_d():
         param_stack.push(x)
         raise TypeError("r->d: Type error ({})".format(typename(x)))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='r->p', doc="""\
+@defword(name='r->p', print_x=True, doc="""\
 Convert rectangular coordinates to polar.
 The parameters can be either two reals, or one complex.
 
@@ -4312,18 +4188,14 @@ def w_r_to_p():
     else:
         param_stack.push(x)
         raise TypeError("r->p: Type error({})".format(typename(x)))
-    global show_x
-    show_x = True
 
 
-@defword(name='r.s', doc="""\
+@defword(name='r.s', print_x=False, doc="""\
 Display return stack""")
 def w_r_dot_s():
     for (i, item) in return_stack.items_bottom_to_top():
         # Prefix with "r" to prevent confusion with .s
         lnwriteln("r{}: {}".format(i, item))
-    global show_x
-    show_x = False
 
 
 @defword(name='r>', doc="""\
@@ -4349,30 +4221,24 @@ def w_rad():
     angle_mode = "r"
 
 
-@defword(name='rad?', doc="""\
+@defword(name='rad?', print_x=True, doc="""\
 Test if angular mode is radians  ( -- flag )""")
 def w_rad_query():
     global angle_mode
     param_stack.push(Rpn_Integer(1 if angle_mode == "r" else 0))
-    global show_x
-    show_x = True
 
 
-@defword(name='rand', doc="""\
+@defword(name='rand', print_x=True, doc="""\
 Random number  ( -- n )
 0 <= n < 1""")
 def w_rand():
     param_stack.push(Rpn_Float(random.random()))
-    global show_x
-    show_x = True
 
 
-@defword(name='rdepth', doc="""\
+@defword(name='rdepth', print_x=True, doc="""\
 Current number of elements on return stack  ( -- n )""")
 def w_rdepth():
     param_stack.push(Rpn_Integer(return_stack.size()))
-    global show_x
-    show_x = True
 
 
 @defword(name='repeat', doc="""\
@@ -4416,13 +4282,13 @@ def w_rot():
     param_stack.push(z)
 
 
-@defword(name='scopes')
+@defword(name='scopes', print_x=False)
 def w_scopes():
     for (i, item) in scope_stack.items_bottom_to_top():
         lnwriteln("{}: {}".format(i, item))
 
 
-@defword(name='setdebug', args=1, str_args=1)
+@defword(name='setdebug', args=1, str_args=1, print_x=False)
 def w_setdebug():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
@@ -4449,7 +4315,7 @@ def w_sf():
     flag_set(flag)
 
 
-@defword(name='shfin', doc="""\
+@defword(name='shfin', print_x=False, doc="""\
 Show financial variables""")
 def w_shfin():
     N   = global_scope.variable('N')
@@ -4469,7 +4335,7 @@ def w_shfin():
     writeln("Mode: {}".format("BEGIN" if BEG.obj().value() == 1  else "END"))
 
 
-@defword(name='shflag', doc="""\
+@defword(name='shflag', print_x=False, doc="""\
 Show status of all flags ( -- )""")
 def w_shflag():
     flags = []
@@ -4486,7 +4352,7 @@ def w_show():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='showdebug')
+@defword(name='showdebug', print_x=False) # XXX docstr
 def w_showdebug():
     columns = global_scope.variable('COLS').obj().value()
     dbgs = dict()
@@ -4498,10 +4364,8 @@ def w_showdebug():
         sorted_dbgs.append(dbgs[key])
     list_in_columns(sorted_dbgs, columns - 1)
 
-    global show_x
-    show_x = False
 
-@defword(name='sign', args=1, doc="""\
+@defword(name='sign', args=1, print_x=True, doc="""\
 Signum  ( n -- sign )
 Returns -1, 0, or 1.""")
 def w_sign():
@@ -4518,11 +4382,9 @@ def w_sign():
         param_stack.push(x)
         raise TypeError("sign: Type error ({})".format(typename(x)))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='sin', args=1, doc="""\
+@defword(name='sin', args=1, print_x=True, doc="""\
 Sine  ( angle -- sine )""")
 def w_sin():
     x = param_stack.pop()
@@ -4534,8 +4396,6 @@ def w_sin():
         param_stack.push(x)
         raise TypeError("sin: Type error ({})".format(typename(x)))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
 @defword(name='sleep', args=1, doc="""\
@@ -4543,15 +4403,14 @@ Sleep for N seconds  ( n -- )
 N may be fractional.""")
 def w_sleep():
     x = param_stack.pop()
-    if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
-        sleep_time = float(x.value())
-        time.sleep(sleep_time)
-    else:
+    if type(x) not in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
         param_stack.push(x)
         raise TypeError("sleep: Type error ({})".format(typename(x)))
+    sleep_time = float(x.value())
+    time.sleep(sleep_time)
 
 
-@defword(name='sq', args=1, doc="""\
+@defword(name='sq', args=1, print_x=True, doc="""\
 Square  ( x -- x^2 )""")
 def w_sq():
     x = param_stack.pop()
@@ -4569,11 +4428,9 @@ def w_sq():
         raise TypeError("sq: Type error ({})".format(typename(x)))
 
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='sqrt', args=1, doc="""\
+@defword(name='sqrt', args=1, print_x=True, doc="""\
 Square root  ( x -- sqrt(x) )
 Negative X returns a complex number""")
 def w_sqrt():
@@ -4601,8 +4458,6 @@ def w_sqrt():
         param_stack.push(x)
         raise TypeError("sqrt: Type error ({})".format(typename(x)))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
 @defword(name='swap', args=2, doc="""\
@@ -4615,7 +4470,7 @@ def w_swap():
     param_stack.push(y)
 
 
-@defword(name='tan', doc="""\
+@defword(name='tan', print_x=True, doc="""\
 Tangent  ( angle -- tangent )""")
 def w_tan():
     x = param_stack.pop()
@@ -4628,19 +4483,15 @@ def w_tan():
         param_stack.push(x)
         raise TypeError("tan: Type error ({})".format(typename(x)))
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
-@defword(name='TAU', doc="""\
+@defword(name='TAU', print_x=True, doc="""\
 Constant: Tau ( -- 6.28318... )
 
 DEFINITION:
 Number of radians in a circle.""")
 def w_TAU():
     param_stack.push(Rpn_Float(TAU))
-    global show_x
-    show_x = True
 
 
 @defword(name='then', args=1, doc="""\
@@ -4652,25 +4503,21 @@ def w_then():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='time', doc="""\
+@defword(name='time', print_x=True, doc="""\
 Current time  ( -- HH.MMSS )""")
 def w_time():
     t = datetime.datetime.now().strftime("%H.%M%S")
     param_stack.push(Rpn_Float(t))
-    global show_x
-    show_x = True
 
 
-@defword(name='time!', doc="""\
+@defword(name='time!', print_x=True, doc="""\
 High precision clock time  ( -- HH.MMSSssss )""")
 def w_time_bang():
     t = datetime.datetime.now().strftime("%H.%M%S%f")
     param_stack.push(Rpn_Float(t))
-    global show_x
-    show_x = True
 
 
-@defword(name='timeinfo', args=1, hidden=True, doc="""\
+@defword(name='timeinfo', args=1, hidden=True, print_x=False, doc="""\
 Show time_info() for Float  ( x -- )""")
 def w_timeinfo():
     x = param_stack.pop()
@@ -4681,7 +4528,7 @@ def w_timeinfo():
         raise TypeError("timeinfo: Type error ({})".format(typename(x)))
 
 
-@defword(name='TRUE')
+@defword(name='TRUE', print_x=True) # XXX need docstr
 def w_TRUE():
     param_stack.push(Rpn_Integer(1))
     global show_x
@@ -4727,7 +4574,7 @@ def w_variable():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='vars', doc="""\
+@defword(name='vars', print_x=False, doc="""\
 List variables and their values""")
 def w_vars():
     columns = global_scope.variable('COLS').obj().value()
@@ -4746,18 +4593,15 @@ def w_vars():
             sorted_vars.append(vars[key])
         list_in_columns(sorted_vars, columns - 1)
 
-    global show_x
-    show_x = False
 
-
-@defword(name='ver', doc="""\
+@defword(name='ver', print_x=False, doc="""\
 Display the current RPN version.
 Also available as @VER""")
 def w_ver():
     lnwriteln("RPN version {}".format(global_scope.variable('VER').obj().value()))
 
 
-@defword(name='vlist', doc="""\
+@defword(name='vlist', print_x=False, doc="""\
 Print the list of defined words.
 Only words in the global scope are shown.""")
 def w_vlist():
@@ -4775,8 +4619,6 @@ def w_vlist():
     for key in sorted(words, key=str.casefold):
         sorted_words.append(words[key])
     list_in_columns(sorted_words, columns - 1)
-    global show_x
-    show_x = False
 
 
 @defword(name='while', doc="""\
@@ -4792,13 +4634,11 @@ def w_while():
     pass                        # Grammer rules handle this word
 
 
-@defword(name='words')
+@defword(name='words', print_x=False)
 def w_words():
     columns = global_scope.variable('COLS').obj().value()
     list_in_columns(sorted([ x[0] for x in global_scope.unprotected_words() ],
                            key=str.casefold), columns - 1)
-    global show_x
-    show_x = False
 
 
 
@@ -4822,7 +4662,7 @@ def w_clfin():
 
 
 # BUG: if PV is 0, divide by zero exception
-@defword(name='N', hidden=True, doc="""\
+@defword(name='N', hidden=True, print_x=True, doc="""\
 Solve for N (number of payments)""")
 def w_N():
     check_financial_variables("N", ['I%YR', 'PV', 'FV'])
@@ -4837,8 +4677,6 @@ def w_N():
     result = Rpn_Float(float(n))
     N.set_obj(result)
     param_stack.push(result)
-    global show_x
-    show_x = True
 
 
 def interest_rate_helper():
