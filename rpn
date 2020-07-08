@@ -157,6 +157,8 @@ def whoami():
     if "self" in previous_frame.f_locals:
         whoami += previous_frame.f_locals["self"].__class__.__name__ + "#"
     whoami += previous_frame.f_code.co_name
+    if whoami[:2] == "w_":
+        whoami = whoami[2:]
     return whoami
 
 def enable_debug():
@@ -516,11 +518,12 @@ class Rpn_Dot_Quote:
 
 
 class Rpn_Fetch_Var:
-    def __init__(self, id, var):
+    def __init__(self, id, var, modifier=None):
         if type(var) is not Rpn_Variable:
             raise Rpn_E_Fatal("{}: Variable {} is not an Rpn_Variable".format(whoami(), id))
         self._identifier = id
-        self._variable = var
+        self._variable   = var
+        self._modifier   = modifier
 
     def variable(self):
         return self._variable
@@ -535,16 +538,20 @@ class Rpn_Fetch_Var:
         if type(var) is not Rpn_Variable:
             raise Rpn_E_Fatal("{}: Variable '{}' is not an Rpn_Variable".format(whoami(), self.identifier()))
         elif var.obj() is None:
-            raise RuntimeError("{}: Variable is not defined".format(self.identifier()))
+            if self._modifier == '?':
+                param_stack.push(Rpn_Integer(0))
+            else:
+                raise RuntimeError("{}: Variable is not defined".format(self.identifier()))
         else:
+            #if self._modifier == '+': # XXX
             param_stack.push(var.obj())
 
     def __str__(self):
-        # XXX modifiers
-        return "@{}".format(self.identifier())
+        return "@{}{}".format(self.identifier(), self._modifier if self._modifier is not None else "")
 
     def __repr__(self):
-        return "Fetch[{}]".format(self.identifier())
+        return "Fetch[{}{}]".format(self.identifier(),
+                                    ",mod={}".format(self._modifier) if self._modifier is not None else "")
 
 
 class Rpn_Float:
@@ -1077,11 +1084,12 @@ class Rpn_Stack:
 
 
 class Rpn_Store_Var:
-    def __init__(self, id, var):
+    def __init__(self, id, var, modifier=None):
         if type(var) is not Rpn_Variable:
             raise Rpn_E_Fatal("!{}: Variable is not an Rpn_Variable".format(id))
         self._identifier = id
-        self._variable = var
+        self._variable   = var
+        self._modifier   = modifier
 
     def identifier(self):
         return self._identifier
@@ -1164,7 +1172,7 @@ class Rpn_Variable:
     @classmethod
     def name_valid_p(cls, name):
         return not (name is None or len(name) == 0 or \
-                    name[0] in ['+','-','*','/','?'] )
+                    name[0] in ['+', '-', '*', '/', '?'])
 
     def obj(self):
         return self._rpnobj
@@ -1768,7 +1776,15 @@ def p_store_var(p):
     '''store_var :  EXCLAM  IDENTIFIER'''
 
     id = p[2]
-    #lnwriteln("{}: Looking up {}".format(whoami(), id))
+    if id[0] in ['+', '-', '*', '/']:
+        modifier = id[0]
+        id = id[1:]
+    else:
+        modifier = None
+    if not Rpn_Variable.name_valid_p(id):
+        lnwriteln("!{}: Variable name is not valid".format(id))
+        raise SyntaxError
+    lnwriteln("{}: Looking up {}".format(whoami(), id))
     (var, _) = lookup_variable(id)
     if var is None:
         lnwriteln("!{}: Variable not found".format(id))
@@ -1776,7 +1792,7 @@ def p_store_var(p):
     if var.constant():
         lnwriteln("!{}: Constant cannot be modified".format(id))
         raise SyntaxError
-    p[0] = Rpn_Store_Var(id, var)
+    p[0] = Rpn_Store_Var(id, var, modifier)
 
 
 # A "word" is not just an identifier, a word is something that is
@@ -2039,12 +2055,20 @@ def p_fetch_var(p):
     '''fetch_var :  AT_SIGN  IDENTIFIER'''
 
     id = p[2]
-    # lnwriteln("{}: Looking up {}".format(whoami(), id))
+    if id[0] in ['+', '-', '*', '/', '?']:
+        modifier = id[0]
+        id = id[1:]
+    else:
+        modifier = None
+    if not Rpn_Variable.name_valid_p(id):
+        lnwriteln("@{}: Variable name is not valid".format(id))
+        raise SyntaxError
+    lnwriteln("{}: Looking up {}".format(whoami(), id))
     (var, _) = lookup_variable(id)
     if var is None:
         lnwriteln("@{}: Variable not found".format(id))
         raise SyntaxError
-    p[0] = Rpn_Fetch_Var(id, var)
+    p[0] = Rpn_Fetch_Var(id, var, modifier)
 
 
 
@@ -3215,7 +3239,7 @@ Toggle debugging state""")
 def w_debug():
     global debug_enabled
     debug_enabled = not debug_enabled
-    lnwriteln("debug: Debugging is now {}".format(debug_enabled))
+    lnwriteln("debug: Debugging is now {}".format("enabled" if debug_enabled else "disabled"))
 
 
 @defword(name='deg', doc="""\
@@ -4143,11 +4167,10 @@ def w_prompt():
 Convert radians to degrees ( rad -- deg )""")
 def w_r_to_d():
     x = param_stack.pop()
-    if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
-        result = Rpn_Float(convert_radians_to_mode(float(x.value()), "d"))
-    else:
+    if type(x) not in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
         param_stack.push(x)
         raise TypeError("r->d: Type error ({})".format(typename(x)))
+    result = Rpn_Float(convert_radians_to_mode(float(x.value()), "d"))
     param_stack.push(result)
 
 
@@ -4298,8 +4321,12 @@ def w_setdebug():
     if level < 0 or level > 9:
         param_stack.push(x)
         raise ValueError("setdebug: Level {} out of range (0..9 expected)".format(level))
-    resource = string_stack.pop().value()
-    set_debug(resource, level)
+    resource = string_stack.pop()
+    if not resource.value() in debug_levels:
+        param_stack.push(x)
+        string_stack.push(resource)
+        raise ValueError("{}: Resource '{}' is not valid".format(whoami(), resource.value()))
+    set_debug(resource.value(), level)
 
 
 @defword(name='sf', args=1)
@@ -4354,6 +4381,8 @@ def w_show():
 
 @defword(name='showdebug', print_x=False) # XXX docstr
 def w_showdebug():
+    lnwriteln("Debugging is {}".format("enabled" if debug_enabled else "disabled"))
+
     columns = global_scope.variable('COLS').obj().value()
     dbgs = dict()
 
@@ -5130,8 +5159,33 @@ def define_secondary_words():
   BL emit ;
 
 : spaces        doc:"spaces  ( n -- )   Display N space characters"
-  |in:N|
+  | in:N |
   @N 0 do space loop ;
+
+: die           doc:"die  ( N -- 1..N )  Roll an N-sided die
+Returns an integer in [1..N]"
+  | in:N |
+  @N rand *  1 +  floor ;
+
+: dice          doc:"dice  ( N s -- sum )  Roll N s-sided dice"
+  | in:N in:s out:sum |
+  0 !sum
+  @N 0 do
+    @s die @sum + !sum   \ Really need !+sum
+  loop ;
+
+: checkdice
+  | rolls sum |
+  20000 !rolls
+  0 !sum
+  time!
+  @rolls 0 do
+    3 6 dice      \ ."Roll was " dup .
+    @sum + !sum   \ ."Sum is now " @sum . cr
+  loop
+  time!
+  ."Average roll = " @sum @rolls / . cr
+;
 
 : X       88 emit ;
 : xbox  |foo bar|  5 0 do  4 0 do X loop cr loop ;
@@ -5143,6 +5197,10 @@ def define_secondary_words():
 \ variable m
 \ [[1 2 3]
 \  [4 5 6]]   !m
+
+variable a
+variable b
+variable c
 
 \ : inout |in:a in:b out:c|  @a @b + 2 * !c ;
 
