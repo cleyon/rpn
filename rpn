@@ -854,13 +854,7 @@ class Rpn_List:
         caught_exit = False
         for item in self.listval():
             # lnwriteln("{}: {}.__call__()".format(whoami(), item))
-            try:
-                item.__call__()
-            except Rpn_E_Exit:
-                caught_exit = True
-                break
-        if caught_exit is True:
-            raise Rpn_E_Exit
+            item.__call__()
 
     def items(self):
         for item in self.listval():
@@ -1862,6 +1856,8 @@ def p_execute(p):
         lnwriteln("[Interrupt]")
     except RecursionError:
         lnwriteln("{}: Excessive recursion".format(executable))
+    except Rpn_E_Exit as e:
+        pass
     except Rpn_E_Runtime_Error as e:
         lnwriteln(str(e))
     except TypeError as e:
