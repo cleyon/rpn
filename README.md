@@ -12,6 +12,12 @@ RPN calculator and interpreter
 pip3 install --user numpy
 ```
 
+- scipy
+
+``` shell
+pip3 install --user scipy
+```
+
 - PLY
 
 ``` shell

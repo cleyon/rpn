@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-rpn_version = 15.4
+rpn_version = 15.5
 
 import calendar
 import cmath
@@ -18,6 +18,7 @@ import queue
 import random
 import re
 import readline
+import scipy.integrate
 import signal
 import subprocess
 import sys
@@ -112,6 +113,9 @@ class Rpn_E_Parse_Error(Rpn_Exception):
     """Rpn_E_Parse_Error is raised by p_error and is caught in eval_string()."""
     pass
 
+class Rpn_E_Runtime_Error(Rpn_Exception):
+    pass
+
 class Rpn_E_Stack_Overflow(Rpn_Exception):
     pass
 
@@ -132,16 +136,27 @@ debug_enabled     = False
 #debug_enabled     = True
 
 debug_levels = {
-    "eval_string"           : 0,
-    "p_define_word"         : 0,
-    "p_executable"          : 0,
-    "p_execute"             : 1,
-    "parse"                 : 0,
-    "Rpn_Sequence#__init__" : 1,
-    "Rpn_Word#__init__"     : 1,
-    "scope"                 : 1,
-    "show"                  : 0,
-    "token"                 : 0,
+    "defvar"                    : 0,
+    "eval_string"               : 0,
+    "lookup_varname"            : 0,
+    "lookup_variable"           : 1,
+    "p_define_word"             : 0,
+    "p_executable"              : 0,
+    "p_execute"                 : 0,
+    "p_fetch_var"               : 0,
+    "p_locals_scope"            : 0,
+    "p_store_var"               : 0,
+    "p_variable"                : 0,
+    "parse"                     : 0,
+    "Rpn_Do_Loop#__call__"      : 1,
+    "Rpn_Scope#set_variable"    : 0,
+    "Rpn_Sequence#__call__"     : 1,
+    "Rpn_Sequence#__init__"     : 0,
+    "Rpn_Word#__init__"         : 0,
+    "scope"                     : 1,
+    "show"                      : 0,
+    "token"                     : 0,
+    "trace"                     : 2,
 }
 
 
@@ -171,7 +186,7 @@ def disable_debug():
     debug_enabled = False
 
 def set_debug(resource, level = 1):
-    global debug_enabled, debug_levels
+    global debug_levels
 
     if resource not in debug_levels:
         print("set_debug: Resource '{}' not valid".format(resource))
@@ -197,7 +212,7 @@ just change "dbg(res,1,xxx)" to "dbg(res,-1,xxx)".'''
         return False
     flag = debug_levels[resource] >= level
     if flag and text is not None:
-        print("{}".format(text))
+        print("{}".format(text), flush=True)
     return flag
 
 
@@ -219,8 +234,9 @@ class Rpn_Abort_Quote:
         return self._str
 
     def __call__(self):
+        dbg("trace", 1, "trace: {}".format(repr(self)))
         if param_stack.empty():
-            raise RuntimeError("abort\": Insufficient parameters (1 required)")
+            raise Rpn_E_Runtime_Error("abort\": Insufficient parameters (1 required)")
         flag = param_stack.pop()
         if type(flag) is not Rpn_Integer:
             param_stack.push(flag)
@@ -228,6 +244,9 @@ class Rpn_Abort_Quote:
         if flag.value() != 0:
             lnwriteln("{}".format(self.stringval()))
             raise Rpn_E_Abort()
+
+    def patch_recurse(self, new_word):
+        pass
 
     def __str__(self):
         return "abort\"{}\"".format(self.stringval())
@@ -242,11 +261,15 @@ class Rpn_Begin_Again:
         self._seq = seq
 
     def __call__(self):
+        dbg("trace", 2, "trace: {}".format(repr(self)))
         try:
             while True:
                 self._seq.__call__()
         except Rpn_E_Leave:
             pass
+
+    def patch_recurse(self, new_word):
+        self._seq.patch_recurse(new_word)
 
     def __str__(self):
         return "begin {} again".format(self._seq)
@@ -260,11 +283,12 @@ class Rpn_Begin_Until:
         self._seq = seq
 
     def __call__(self):
+        dbg("trace", 2, "trace: {}".format(repr(self)))
         try:
             while True:
                 self._seq.__call__()
                 if param_stack.empty():
-                    raise RuntimeError("until: Insufficient parameters (1 required)")
+                    raise Rpn_E_Runtime_Error("until: Insufficient parameters (1 required)")
                 flag = param_stack.pop()
                 if type(flag) is not Rpn_Integer:
                     param_stack.push(flag)
@@ -273,6 +297,9 @@ class Rpn_Begin_Until:
                     break
         except Rpn_E_Leave:
             pass
+
+    def patch_recurse(self, new_word):
+        self._seq.patch_recurse(new_word)
 
     def __str__(self):
         return "begin {} until".format(self._seq)
@@ -287,11 +314,12 @@ class Rpn_Begin_While:
         self._seq2 = seq2
 
     def __call__(self):
+        dbg("trace", 2, "trace: {}".format(repr(self)))
         try:
             while True:
                 self._seq1.__call__()
                 if param_stack.empty():
-                    raise RuntimeError("while: Insufficient parameters (1 required)")
+                    raise Rpn_E_Runtime_Error("while: Insufficient parameters (1 required)")
                 flag = param_stack.pop()
                 if type(flag) is not Rpn_Integer:
                     param_stack.push(flag)
@@ -301,6 +329,10 @@ class Rpn_Begin_While:
                 self._seq2.__call__()
         except Rpn_E_Leave:
             pass
+
+    def patch_recurse(self, new_word):
+        self._seq1.patch_recurse(new_word)
+        self._seq2.patch_recurse(new_word)
 
     def __str__(self):
         return "begin {} while {} repeat".format(self._seq1, self._seq2)
@@ -315,8 +347,9 @@ class Rpn_Case:
         self._otherwise_seq = otherwise_seq
 
     def __call__(self):
+        dbg("trace", 2, "trace: {}".format(repr(self)))
         if param_stack.empty():
-            raise RuntimeError("case: Insufficient parameters (1 required)")
+            raise Rpn_E_Runtime_Error("case: Insufficient parameters (1 required)")
         n = param_stack.pop()
         if type(n) is not Rpn_Integer:
             param_stack.push(n)
@@ -329,6 +362,10 @@ class Rpn_Case:
                 break
         if not ran:
             self._otherwise_seq.__call__()
+
+    def patch_recurse(self, new_word):
+        self._case_clauses.patch_recurse(new_word)
+        self._otherwise_seq.patch_recurse(new_word)
 
     def __str__(self):
         s = "case "
@@ -346,6 +383,7 @@ class Rpn_Case:
             s += ", Otherwise[{}]".format(repr(self._otherwise_seq))
         return s + "]"
 
+
 class Rpn_Case_Clause:
     def __init__(self, x, seq):
         self._x = x             # x is a plain integer, not an Rpn_Integer
@@ -358,11 +396,15 @@ class Rpn_Case_Clause:
         else:
             return False
 
+    def patch_recurse(self, new_word):
+        self._seq.patch_recurse(new_word)
+
     def __str__(self):
         return "{} of {} endof ".format(self._x, self._seq)
 
     def __repr__(self):
         return "Of[{}={}]".format(self._x, repr(self._seq))
+
 
 class Rpn_Complex:
     def __init__(self, real=0.0, imag=0.0):
@@ -388,7 +430,11 @@ class Rpn_Complex:
         return self.real() == 0.0 and self.imag() == 0.0
 
     def __call__(self):
+        dbg("trace", 1, "trace: {}".format(repr(self)))
         param_stack.push(self)
+
+    def patch_recurse(self, new_word):
+        pass
 
     def __str__(self):
         return "({}, {})".format(self.real(), self.imag()) # sprintf?
@@ -402,10 +448,13 @@ class Rpn_Constant:
         self._variable = var
 
     def __call__(self):
-        #print("Rpn_Constant#__call__")
+        dbg("trace", 1, "trace: {}".format(repr(self)))
         if param_stack.empty():
-            raise RuntimeError("constant: Insufficient parameters (1 required)")
+            raise Rpn_E_Runtime_Error("constant: Insufficient parameters (1 required)")
         self._variable.set_obj(param_stack.pop())
+
+    def patch_recurse(self, new_word):
+        pass
 
     def __str__(self):
         return "constant {}".format(self._variable.name())
@@ -417,24 +466,28 @@ class Rpn_Constant:
 class Rpn_Do_Loop:
     def __init__(self, seq):
         self._seq = seq
-        seq.scope().set_variable('_I', Rpn_Variable('_I', None, hidden=True))
 
     def __call__(self):
+        dbg("trace", 2, "trace: {}".format(repr(self)))
         if param_stack.size() < 2:
-            raise RuntimeError("do: Insufficient parameters (2 required)")
+            raise Rpn_E_Runtime_Error("do: Insufficient parameters (2 required)")
         x = param_stack.pop()
         y = param_stack.pop()
         if type(y) is not Rpn_Integer or type(x) is not Rpn_Integer:
             param_stack.push(y)
             param_stack.push(x)
             raise TypeError("do: Loop control parameters must be integers")
-        _I = self._seq.scope().variable('_I')
         limit = y.value()
         i = x.value()
-        _I.set_obj(x)
         if i == limit:
             #lnwriteln("do: Not executing because initial == limit")
             return
+
+        # Create a new scope
+        _I = Rpn_Variable("_I", x)
+        do_scope = Rpn_Scope("Call_Do_Loop")
+        do_scope.set_variable('_I', _I)
+        push_scope(do_scope, "Starting Do_Loop")
 
         try:
             while True:
@@ -445,6 +498,11 @@ class Rpn_Do_Loop:
                     break
         except Rpn_E_Leave:
             pass
+        finally:
+            pop_scope("Do_Loop complete")
+
+    def patch_recurse(self, new_word):
+        self._seq.patch_recurse(new_word)
 
     def __str__(self):
         return "do {} loop".format(self._seq)
@@ -456,30 +514,34 @@ class Rpn_Do_Loop:
 class Rpn_Do_PlusLoop:
     def __init__(self, seq):
         self._seq = seq
-        seq.scope().set_variable('_I', Rpn_Variable('_I', None, hidden=True))
 
     def __call__(self):
+        dbg("trace", 2, "trace: {}".format(repr(self)))
         if param_stack.size() < 2:
-            raise RuntimeError("do: Insufficient parameters (2 required)")
+            raise Rpn_E_Runtime_Error("do: Insufficient parameters (2 required)")
         x = param_stack.pop()
         y = param_stack.pop()
         if type(y) is not Rpn_Integer or type(x) is not Rpn_Integer:
             param_stack.push(y)
             param_stack.push(x)
             raise TypeError("do: Loop control parameters must be integers")
-        _I = self._seq.scope().variable('_I')
         limit = y.value()
         i = x.value()
-        _I.set_obj(x)
         if i == limit:
             #lnwriteln("do: Not executing because initial == limit")
             return
+
+        # Create a new scope
+        _I = Rpn_Variable("_I", x)
+        do_scope = Rpn_Scope("Call_Do_PlusLoop")
+        do_scope.set_variable('_I', _I)
+        push_scope(do_scope, "Starting Do_PlusLoop")
 
         try:
             while True:
                 self._seq.__call__()
                 if param_stack.empty():
-                    raise RuntimeError("+loop: Insufficient parameters (1 required)")
+                    raise Rpn_E_Runtime_Error("+loop: Insufficient parameters (1 required)")
                 incr = param_stack.pop()
                 if type(incr) is not Rpn_Integer:
                     param_stack.push(incr)
@@ -491,6 +553,11 @@ class Rpn_Do_PlusLoop:
                     break
         except Rpn_E_Leave:
             pass
+        finally:
+            pop_scope("Do_PlusLoop complete")
+
+    def patch_recurse(self, new_word):
+        self._seq.patch_recurse(new_word)
 
     def __str__(self):
         return "do {} +loop".format(self._seq)
@@ -509,7 +576,11 @@ class Rpn_Dot_Quote:
         return self._str
 
     def __call__(self):
+        dbg("trace", 1, "trace: {}".format(repr(self)))
         write("{}".format(self.stringval()))
+
+    def patch_recurse(self, new_word):
+        pass
 
     def __str__(self):
         return ".\"{}\"".format(self.stringval())
@@ -519,32 +590,30 @@ class Rpn_Dot_Quote:
 
 
 class Rpn_Fetch_Var:
-    def __init__(self, id, var, modifier=None):
-        if type(var) is not Rpn_Variable:
-            raise Rpn_E_Fatal("{}: Variable {} is not an Rpn_Variable".format(whoami(), id))
-        self._identifier = id
-        self._variable   = var
+    def __init__(self, ident, modifier=None):
+        self._identifier = ident
         self._modifier   = modifier
-
-    def variable(self):
-        return self._variable
 
     def identifier(self):
         return self._identifier
 
     def __call__(self):
-        var = self.variable()
+        dbg("trace", 1, "trace: {}".format(repr(self)))
+        (var, _) = lookup_variable(self.identifier())
+        if var is None:
+            raise Rpn_E_Fatal("{}: @{}: Variable has vanished!".format(whoami(), self.identifier()))
 
-        # Can't happen, but be paranoid
-        if type(var) is not Rpn_Variable:
-            raise Rpn_E_Fatal("{}: Variable '{}' is not an Rpn_Variable".format(whoami(), self.identifier()))
-        elif var.obj() is None:
+        if var.obj() is None:
             if self._modifier == '?':
                 param_stack.push(Rpn_Integer(0))
             else:
-                raise RuntimeError("{}: Variable is not defined".format(self.identifier()))
+                raise Rpn_E_Runtime_Error("@{}: Variable is not defined".format(self.identifier()))
         else:
+            #if self._modifier == '+': # XXX
             param_stack.push(var.obj())
+
+    def patch_recurse(self, new_word):
+        pass
 
     def __str__(self):
         return "@{}{}".format(self.identifier(), self._modifier if self._modifier is not None else "")
@@ -559,6 +628,7 @@ class Rpn_Float:
         self._value = float(val)
 
     def __call__(self):
+        dbg("trace", 1, "trace: {}".format(repr(self)))
         param_stack.push(self)
 
     def value(self):
@@ -614,6 +684,9 @@ Failure:  (False, None, None, None, None)"""
             timeobj = None
         return (True, hh, mm, ss, timeobj)
 
+    def patch_recurse(self, new_word):
+        pass
+
     def __str__(self):
         return "{}".format(self.value()) # sprintf
 
@@ -631,9 +704,13 @@ class Rpn_Forget:
         self._scope = scope
 
     def __call__(self):
+        dbg("trace", 1, "trace: {}".format(repr(self)))
         if self._word.protected():
-            raise RuntimeError("forget: '{}' is protected".format(self._word.name()))
+            raise Rpn_E_Runtime_Error("forget: '{}' is protected".format(self._word.name()))
         self._scope.delete_word(self._word.name())
+
+    def patch_recurse(self, new_word):
+        pass
 
     def __str__(self):
         return "forget {}".format(self._word.name())
@@ -643,11 +720,12 @@ class Rpn_Forget:
 
 
 class Rpn_Help:
-    def __init__(self, id, doc):
-        self._identifier = id
+    def __init__(self, ident, doc):
+        self._identifier = ident
         self._doc = doc
 
     def __call__(self):
+        dbg("trace", 1, "trace: {}".format(repr(self)))
         lnwriteln(self.doc())
 
     def identifier(self):
@@ -655,6 +733,9 @@ class Rpn_Help:
 
     def doc(self):
         return self._doc
+
+    def patch_recurse(self, new_word):
+        pass
 
     def __str__(self):
         return "help {}".format(self.identifier())
@@ -668,14 +749,18 @@ class Rpn_If:
         self._seq = seq
 
     def __call__(self):
+        dbg("trace", 2, "trace: {}".format(repr(self)))
         if param_stack.empty():
-            raise RuntimeError("if: Insufficient parameters (1 required)")
+            raise Rpn_E_Runtime_Error("if: Insufficient parameters (1 required)")
         flag = param_stack.pop()
         if type(flag) is not Rpn_Integer:
             param_stack.push(flag)
             raise TypeError("if: Flag must be an integer")
         if flag.value() != 0:
             self._seq.__call__()
+
+    def patch_recurse(self, new_word):
+        self._seq.patch_recurse(new_word)
 
     def __str__(self):
         return "if {} then".format(self._seq)
@@ -690,8 +775,9 @@ class Rpn_If_Else:
         self._seq2 = seq2
 
     def __call__(self):
+        dbg("trace", 2, "trace: {}".format(repr(self)))
         if param_stack.empty():
-            raise RuntimeError("if: Insufficient parameters (1 required)")
+            raise Rpn_E_Runtime_Error("if: Insufficient parameters (1 required)")
         flag = param_stack.pop()
         if type(flag) is not Rpn_Integer:
             param_stack.push(flag)
@@ -700,6 +786,10 @@ class Rpn_If_Else:
             self._seq1.__call__()
         else:
             self._seq2.__call__()
+
+    def patch_recurse(self, new_word):
+        self._seq1.patch_recurse(new_word)
+        self._seq2.patch_recurse(new_word)
 
     def __str__(self):
         return "if {} else {} then".format(self._seq1, self._seq2)
@@ -722,7 +812,11 @@ class Rpn_Integer:
         return self.value() == 0
 
     def __call__(self):
+        dbg("trace", 1, "trace: {}".format(repr(self)))
         param_stack.push(self)
+
+    def patch_recurse(self, new_word):
+        pass
 
     def __str__(self):
         return "{}".format(self.value()) # sprintf
@@ -747,20 +841,21 @@ class Rpn_List:
     def listval(self):
         return self._list
 
+    def __getitem__(self, i):
+        return self._list[i]
+
+    def __setitem__(self, i, val):
+        self._list[i] = val
+
     def append(self, item):
         self._list.append(item)
 
     def __call__(self):
+        dbg("trace", 2, "trace: {}".format(repr(self)))
         caught_exit = False
         for item in self.listval():
             # lnwriteln("{}: {}.__call__()".format(whoami(), item))
-            try:
-                item.__call__()
-            except Rpn_E_Exit:
-                caught_exit = True
-                break
-        if caught_exit is True:
-            raise Rpn_E_Exit
+            item.__call__()
 
     def items(self):
         for item in self.listval():
@@ -789,7 +884,7 @@ class Rpn_Matrix:
                 cols = x.size()
             else:
                 if x.size() != cols:
-                    raise RuntimeError("Matrix: Number of columns is not consistent")
+                    raise Rpn_E_Runtime_Error("Matrix: Number of columns is not consistent")
         self._ncols = cols
         #lnwriteln("{} rows x {} columns".format(self.nrows(), self.ncols()))
         #print("vecs", vecs)
@@ -816,7 +911,11 @@ class Rpn_Matrix:
         return self._ncols
 
     def __call__(self):
+        dbg("trace", 1, "trace: {}".format(repr(self)))
         param_stack.push(self)
+
+    def patch_recurse(self, new_word):
+        pass
 
     def __str__(self):
         return str(self.value())
@@ -870,7 +969,11 @@ class Rpn_Rational:
         return self.numerator() == 0
 
     def __call__(self):
+        dbg("trace", 1, "trace: {}".format(repr(self)))
         param_stack.push(self)
+
+    def patch_recurse(self, new_word):
+        pass
 
     def __str__(self):
         return "{}~{}".format(self.numerator(), self.denominator())
@@ -879,13 +982,45 @@ class Rpn_Rational:
         return "Rational[{}]".format(repr(self.value()))
 
 
+class Rpn_Recurse:
+    def __init__(self, target=None):
+        if target is not None and type(target) is not Rpn_Word:
+            raise Rpn_E_Fatal("{}: Target '{}' is not an Rpn_Word".format(whoami(), repr(target)))
+        self._target = target
+
+    def __call__(self):
+        dbg("trace", 1, "trace: {}".format(repr(self)))
+        if self.target() is None:
+            raise Rpn_E_Runtime_Error("recurse: Only valid in colon definition")
+        self.target().__call__()
+
+    def target(self):
+        return self._target
+
+    def patch_recurse(self, new_word):
+        if self.target() is None:
+            self._target = new_word
+        else:
+            raise Rpn_E_Fatal("{}: Invoked on already patched Rpn_Recurse object".format(whoami()))
+
+    def __str__(self):
+        return "recurse"
+
+    def __repr__(self):
+        if self.target() is None:
+            return "Recurse[]"
+        else:
+            return "RWord[{}]".format(repr(self.target().name()))
+
+
 class Rpn_Scope:
     def __init__(self, name):
         self._name = name
         self._words = {}
         self._variables = {}
-        self._in_vars = Rpn_List()
-        self._out_vars = Rpn_List()
+        self._all_varnames = Rpn_List()
+        self._in_varnames  = Rpn_List()
+        self._out_varnames = Rpn_List()
 
     def name(self):
         return self._name
@@ -910,21 +1045,31 @@ class Rpn_Scope:
     def set_variable(self, identifier, var):
         if type(var) is not Rpn_Variable:
             raise Rpn_E_Fatal("{}: Variable {} is not an Rpn_Variable".format(whoami(), identifier))
+        dbg(whoami(), 1, "{}: Setting variable '{}' to {} in {}".format(whoami(), identifier, repr(var), repr(self)))
         self._variables[identifier] = var
 
-    def set_in_variables(self, l):
+    def add_varname(self, name):
+        self._all_varnames.append(name)
+
+    def all_varnames(self):
+        return self._all_varnames
+
+    def set_all_varnames(self, l):
+        self._all_varnames = l
+
+    def set_in_varnames(self, l):
         # l is an Rpn_List of 'str'ings
-        self._in_vars = l
+        self._in_varnames = l
 
-    def in_vars(self):
-        return self._in_vars
+    def in_varnames(self):
+        return self._in_varnames
 
-    def set_out_variables(self, l):
+    def set_out_varnames(self, l):
         # l is an Rpn_List of 'str'ings
-        self._out_vars = l
+        self._out_varnames = l
 
-    def out_vars(self):
-        return self._out_vars
+    def out_varnames(self):
+        return self._out_varnames
 
     def delete_variable(self, identifier):
         del self._variables[identifier]
@@ -941,14 +1086,27 @@ class Rpn_Scope:
     def unprotected_words(self):
         return list(filter(lambda x: not x[1].protected(), self.words().items()))
 
+    def decorate_varname(self, varname):
+        if varname in self.in_varnames() and varname in self.out_varnames():
+            return "inout:{}".format(varname)
+        elif varname in self.in_varnames():
+            return "in:{}".format(varname)
+        elif varname in self.out_varnames():
+            return "out:{}".format(varname)
+        else:
+            return varname
+
     def __str__(self):
+        # XXX Fix variable visibility
         s = ""
-        if len(self.visible_variables()) > 0:
-            s += "|" + " ".join([ x[0] for x in self.visible_variables() ]) + "|"
+        #if len(self.visible_variables()) > 0:
+        if len(self.all_varnames()) > 0:
+            #s += "|" + " ".join([ self.decorate_varname(x[0]) for x in self.visible_variables() ]) + "|"
+            s += "|" + " ".join([ self.decorate_varname(x) for x in self.all_varnames() ]) + "|"
             if len(self.words()) > 0:
                 s += " "
         if len(self.words()) > 0:
-            s += " ".join([ w.definition_as_string(dbg("show")) for w in self.words().values() ])
+            s += " ".join([ str(w) for w in self.words().values() ])
         return s
 
     def __repr__(self):
@@ -956,56 +1114,86 @@ class Rpn_Scope:
 
 
 class Rpn_Sequence:
-    def __init__(self, scope, exe_seq):
-        self._scope    = scope
-        self._exe_seq  = exe_seq
-        #dbg(whoami(), 1, "{}: scope={}, exe_seq={}".format(whoami(), repr(scope), repr(exe_seq)))
-        #print(repr(scope.variables()))
+    def __init__(self, scope_template, exe_list):
+        self._scope_template = scope_template
+        self._exe_list       = exe_list
+        dbg(whoami(), 1, "{}: scope_template={}, exe_list={}".format(whoami(), repr(scope_template), repr(exe_list)))
 
     def __call__(self):
-        if len(self.scope().in_vars()) > 0:
-            if param_stack.size() < len(self.scope().in_vars()):
-                raise RuntimeError("{}: Insufficient parameters ({} required)".format(self._scope.name(), len(self.scope().in_vars())))
-            for varname in self.scope().in_vars().items():
-                var = self.scope().variable(varname).set_obj(param_stack.pop())
-
-        push_scope(self.scope(), "Calling {}".format(repr(self)))
+        dbg("trace", 2, "trace: {}".format(repr(self)))
         try:
-            # lnwriteln("{}: seq={}".format(whoami(), repr(self.seq())))
+            # Build a runtime scope populated with actual Rpn_Variables.
+            # We need to create a new empty scope, populate it with new
+            # variables which are named clones of the templates in the
+            # sequence's scope, and then push that new scope.  This
+            # ensure that each frame gets its own set of local
+            # variables.
+
+            if self.scope_template().name()[:6] == "Parse_":
+                scope_name = "Call_" + self.scope_template().name()[6:]
+            else:
+                scope_name = "Call_" + self.scope_template().name()
+            scope = Rpn_Scope(scope_name)
+            # XXX what about kwargs???
+            for varname in self.scope_template().all_varnames():
+                var = Rpn_Variable(varname, None)
+                scope.set_variable(varname, var)
+
+            if len(self.scope_template().in_varnames()) > 0:
+                if param_stack.size() < len(self.scope_template().in_varnames()):
+                    raise Rpn_E_Runtime_Error("{}: Insufficient parameters ({} required)".format(self.scope_template().name(), len(self.scope_template().in_varnames())))
+                in_vars = []
+                for varname in self.scope_template().in_varnames().items():
+                    in_vars.append(varname)
+                in_vars.reverse()
+                for varname in in_vars:
+                    obj = param_stack.pop()
+                    dbg(whoami(), 1, "{}: Setting {} to {}".format(whoami(), varname, obj.value()))
+                    scope.variable(varname).set_obj(obj)
+
+            push_scope(scope, "Calling {}".format(repr(self)))
+
+            dbg(whoami(), 1, "{}: seq={}".format(whoami(), repr(self.seq())))
             self.seq().__call__()
         except Rpn_E_Exit:
             raise
         finally:
-            pop_scope("{} complete".format(repr(self)))
-            out_pushes = 0
-            if len(self.scope().out_vars()) > 0:
-                for varname in self.scope().out_vars().items():
-                    var = self.scope().variable(varname)
+            param_stack_pushes = 0
+            if len(self.scope_template().out_varnames()) > 0:
+                for varname in self.scope_template().out_varnames().items():
+                    var = scope.variable(varname)
                     if var is None:
-                        raise RuntimeError("{}: Variable '{}' has vanished!".format(self._scope.name(), varname))
+                        raise Rpn_E_Runtime_Error("{}: {}: Variable '{}' has vanished!".format(whoami(), self.scope_template().name(), varname))
                     if not var.defined():
-                        for x in range(out_pushes):
+                        # Undo any previous param_stack pushes if we come across an out variable that's not defined
+                        for x in range(param_stack_pushes):
                             param_stack.pop()
-                        raise RuntimeError("{}: Variable '{}' was never set".format(self._scope.name(), varname))
-                    #print("{} is {}".format(varname, repr(var.obj())))
+                        raise Rpn_E_Runtime_Error("{}: Variable '{}' was never set".format(self.scope_template().name(), varname))
+                    dbg(whoami(), 1, "{} is {}".format(varname, repr(var.obj())))
                     param_stack.push(var.obj())
-                    out_pushes += 1
+                    param_stack_pushes += 1
+            pop_scope("{} complete".format(repr(self)))
 
-    def scope(self):
-        return self._scope
+    def patch_recurse(self, new_word):
+        for idx, elem in enumerate(self.seq().items()):
+            #print("idx={}, elem={}".format(idx, type(elem)))
+            self.seq()[idx].patch_recurse(new_word)
+
+    def scope_template(self):
+        return self._scope_template
 
     def seq(self):
-        return self._exe_seq
+        return self._exe_list
 
     def __str__(self):
-        scope_str = str(self.scope())
+        scope_str = str(self.scope_template())
         s = "{}{}{}".format(scope_str,
-                            " " if len(scope_str) > 0 else "",
+                            " " if len(scope_str) > 0 and len(self.seq()) > 0 else "",
                             str(self.seq()))
         return s
 
     def __repr__(self):
-        return "Sequence[{}, {}]".format(repr(self.scope()), repr(self.seq()))
+        return "Sequence[{}, {}]".format(repr(self.scope_template()), repr(self.seq()))
 
 
 class Rpn_Show:
@@ -1018,7 +1206,11 @@ class Rpn_Show:
         self._scope = scope
 
     def __call__(self):
-        writeln(self._word.definition_as_string(dbg("show")))
+        dbg("trace", 1, "trace: {}".format(repr(self)))
+        writeln(self._word.as_definition())
+
+    def patch_recurse(self, new_word):
+        pass
 
     def __str__(self):
         return "show {}".format(self._word.name())
@@ -1098,22 +1290,27 @@ class Rpn_Stack:
 
 
 class Rpn_Store_Var:
-    def __init__(self, id, var, modifier=None):
-        if type(var) is not Rpn_Variable:
-            raise Rpn_E_Fatal("!{}: Variable is not an Rpn_Variable".format(id))
-        self._identifier = id
-        self._variable   = var
+    def __init__(self, ident, modifier=None):
+        self._identifier = ident
         self._modifier   = modifier
 
     def identifier(self):
         return self._identifier
 
     def __call__(self):
+        dbg("trace", 1, "trace: {}".format(repr(self)))
+        (var, _) = lookup_variable(self.identifier())
+        if var is None:
+            raise Rpn_E_Fatal("{}: !{}: Variable has vanished!".format(whoami(), self.identifier()))
+
         if param_stack.empty():
-            raise RuntimeError("!{}: Insufficient parameters (1 required)".format(self.identifier()))
-        if self._variable.readonly():
-            raise RuntimeError("!{}: Variable cannot be modified".format(self.identifier()))
-        self._variable.set_obj(param_stack.pop())
+            raise Rpn_E_Runtime_Error("!{}: Insufficient parameters (1 required)".format(self.identifier()))
+        if var.readonly():
+            raise Rpn_E_Runtime_Error("!{}: Variable cannot be modified".format(self.identifier()))
+        var.set_obj(param_stack.pop())
+
+    def patch_recurse(self, new_word):
+        pass
 
     def __str__(self):
         # XXX modifiers
@@ -1136,13 +1333,78 @@ class Rpn_String:
         self._value == val
 
     def __call__(self):
+        dbg("trace", 1, "trace: {}".format(repr(self)))
         string_stack.push(self)
+
+    def patch_recurse(self, new_word):
+        pass
 
     def __str__(self):
         return "\"{}\"".format(str(self.value()))
 
     def __repr__(self):
         return "String[{}]".format(repr(self.value()))
+
+
+class Rpn_Token_Mgr:
+    qtok = Rpn_Queue()
+    e = 0
+
+    @classmethod
+    def get_more_tokens(cls):
+        tok_count = 0
+        data = ""
+        sharpout = global_scope.variable('#OUT')
+        prompt = prompt_string()
+        global show_x
+
+        # Read characters from input stream
+        while data == "":
+            if show_x and not param_stack.empty():
+                writeln("{}".format(str(param_stack.top())))
+            show_x = False
+
+            lnwrite()
+            sharpout.set_obj(Rpn_Integer(len(prompt)))
+            data = input(prompt)
+            sharpout.set_obj(Rpn_Integer(0))
+
+        # Get all the tokens
+        lexer.input(data)
+        while True:
+            tok = lexer.token()
+            if not tok:
+                break
+            cls.qtok.put(tok)
+            dbg("token", 1, "Lexer returned {}, queueing".format(tok))
+            tok_count += 1
+
+        return tok_count
+
+    @classmethod
+    def next_token(cls):
+        if cls.qtok.empty():
+            if cls.e == 0:
+                new_toks = 0
+                while new_toks == 0:
+                    try:
+                        new_toks = Rpn_Token_Mgr.get_more_tokens()
+                    except EOFError:
+                        # ^D (eof) on input signals end of input tokens
+                        lnwrite()
+                        return
+                    except KeyboardInterrupt:
+                        # ^C can either void the parse_stack, or the end program
+                        if parse_stack.empty():
+                            raise Rpn_E_End_Program()
+                        else:
+                            lnwriteln("[Top level]")
+                            raise Rpn_E_Top_Level()
+
+        try:
+            yield cls.qtok.get()
+        except queue.Empty:
+            return
 
 
 class Rpn_Variable:
@@ -1219,68 +1481,7 @@ class Rpn_Variable:
         return str(self._rawname)
 
     def __repr__(self):
-        return "Variable[{}]".format(self._rawname)
-
-
-class Rpn_Token_Mgr:
-    qtok = Rpn_Queue()
-    e = 0
-
-    @classmethod
-    def get_more_tokens(cls):
-        tok_count = 0
-        data = ""
-        sharpout = global_scope.variable('#OUT')
-        prompt = prompt_string()
-        global show_x
-
-        # Read characters from input stream
-        while data == "":
-            if show_x and not param_stack.empty():
-                writeln("{}".format(str(param_stack.top())))
-            show_x = False
-
-            #lnwrite(prompt)
-            lnwrite()
-            data = input(prompt)
-            sharpout.set_obj(Rpn_Integer(0))
-
-        # Get all the tokens
-        lexer.input(data)
-        while True:
-            tok = lexer.token()
-            if not tok:
-                break
-            cls.qtok.put(tok)
-            dbg("token", 1, "Lexer returned {}, queueing".format(tok))
-            tok_count += 1
-
-        return tok_count
-
-    @classmethod
-    def next_token(cls):
-        if cls.qtok.empty():
-            if cls.e == 0:
-                new_toks = 0
-                while new_toks == 0:
-                    try:
-                        new_toks = Rpn_Token_Mgr.get_more_tokens()
-                    except EOFError:
-                        # ^D (eof) on input signals end of input tokens
-                        lnwrite()
-                        return
-                    except KeyboardInterrupt:
-                        # ^C can either void the parse_stack, or the end program
-                        if parse_stack.empty():
-                            raise Rpn_E_End_Program()
-                        else:
-                            lnwriteln("[Top level]")
-                            raise Rpn_E_Top_Level()
-
-        try:
-            yield cls.qtok.get()
-        except queue.Empty:
-            return
+        return "Variable[{},addr={},value={}]".format(self._rawname, hex(id(self)), repr(self.obj()))
 
 
 class Rpn_Vector:
@@ -1308,10 +1509,11 @@ class Rpn_Vector:
         return self.value().size
 
     def __call__(self):
+        dbg("trace", 1, "trace: {}".format(repr(self)))
         param_stack.push(self)
 
-    def __call__(self):
-        param_stack.push(self)
+    def patch_recurse(self, new_word):
+        pass
 
     def __str__(self):
         return "{}".format(self._np_value)
@@ -1325,7 +1527,7 @@ class Rpn_Word:
         global default_protected
 
         self._args      = 0
-        self._defn      = defn
+        self._defn      = defn  # Rpn_Sequence
         self._doc       = None
         self._hidden    = False
         self._name      = name
@@ -1372,10 +1574,11 @@ class Rpn_Word:
         kwargs["print_x"] = my_print_x
 
     def __call__(self):
+        dbg("trace", 1, "trace: {}".format(repr(self)))
         if param_stack.size() < self.args():
-            raise RuntimeError("{}: Insufficient parameters ({} required)".format(self.name(), self.args()))
+            raise Rpn_E_Runtime_Error("{}: Insufficient parameters ({} required)".format(self.name(), self.args()))
         if string_stack.size() < self.str_args():
-            raise RuntimeError("{}: Insufficient string parameters ({} required)".format(self.name(), self.str_args()))
+            raise Rpn_E_Runtime_Error("{}: Insufficient string parameters ({} required)".format(self.name(), self.str_args()))
 
         try:
             self._defn.__call__()
@@ -1401,17 +1604,21 @@ class Rpn_Word:
     def protected(self):
         return self._protected
 
-    def definition_as_string(self, debugging):
-        if debugging or typename(self._defn) == 'function':
-            return repr(self)
+    def as_definition(self):
+        if typename(self._defn) == 'function':
+            return self.name()
         elif type(self._defn) is Rpn_Sequence:
-            return ": {} {} ;".format(self.name(),
-                                       self._defn)
+            return ": {} {}{} ;".format(self.name(),
+                                        'doc:"{}"\n'.format(self.doc()) if self.doc() is not None and len(self.doc()) > 0 else "",
+                                        str(self._defn))
         else:
             raise Rpn_E_Fatal("{}: Unhandled type {}".format(whoami(), type(self._defn)))
 
     def __str__(self):
         return self.name()
+
+    def patch_recurse(self, new_word):
+        pass
 
     def __repr__(self):
         if typename(self._defn) == 'function':
@@ -1443,6 +1650,7 @@ reserved_words = {
     'loop'      : 'LOOP',
     'of'        : 'OF',
     'otherwise' : 'OTHERWISE',
+    'recurse'   : 'RECURSE',
     'repeat'    : 'REPEAT',
     'show'      : 'SHOW',
     'then'      : 'THEN',
@@ -1514,7 +1722,7 @@ def t_AT_SIGN(t):
     return t
 
 def t_BACKSLASH(t):
-    r'\\.*'
+    r'\\.*'                     # \ indicates a comment, so the lexer eats the remainder of the line
     type = 'BACKSLASH'
     return t
 
@@ -1604,39 +1812,40 @@ def p_error(p):
 
 
 def p_evaluate(p):
-    '''evaluate :  cmd
-                |  cmd  evaluate'''
+    '''evaluate : cmd
+                | cmd evaluate'''
 
 def p_cmd(p):
     '''cmd :  executable  execute'''
 
 
 def p_executable(p):
-    '''executable :  abort_quote
-                  |  begin_again
-                  |  begin_until
-                  |  begin_while
-                  |  case
-                  |  colon_def
-                  |  comment
-                  |  constant
-                  |  do_loop
-                  |  do_plusloop
-                  |  dot_quote
-                  |  fetch_var
-                  |  forget
-                  |  help
-                  |  if_then
-                  |  if_else_then
-                  |  matrix
-                  |  number
-                  |  show
-                  |  store_var
-                  |  string
-                  |  undef
-                  |  variable
-                  |  vector
-                  |  word'''
+    '''executable : abort_quote
+                  | begin_again
+                  | begin_until
+                  | begin_while
+                  | case
+                  | colon_def
+                  | comment
+                  | constant
+                  | do_loop
+                  | do_plusloop
+                  | dot_quote
+                  | fetch_var
+                  | forget
+                  | help
+                  | if_then
+                  | if_else_then
+                  | matrix
+                  | number
+                  | recurse
+                  | show
+                  | store_var
+                  | string
+                  | undef
+                  | variable
+                  | vector
+                  | word'''
 
     p[0] = p[1]
     dbg("p_executable", 1, "p_executable: {}".format(p[0]))
@@ -1651,9 +1860,12 @@ def p_execute(p):
     try:
         executable.__call__()
     except KeyboardInterrupt:
-        writeln()
-        writeln("[Interrupt]")
-    except RuntimeError as e:
+        lnwriteln("[Interrupt]")
+    except RecursionError:
+        lnwriteln("{}: Excessive recursion".format(executable))
+    except Rpn_E_Exit as e:
+        pass
+    except Rpn_E_Runtime_Error as e:
         lnwriteln(str(e))
     except TypeError as e:
         lnwriteln(str(e))
@@ -1662,48 +1874,52 @@ def p_execute(p):
 
 
 def p_abort_quote(p):
-    '''abort_quote :  ABORT_QUOTE'''
+    '''abort_quote : ABORT_QUOTE'''
 
     p[0] = Rpn_Abort_Quote(p[1])
 
 
 def p_begin_again(p):
-    '''begin_again :  BEGIN  sequence  AGAIN'''
+    '''begin_again : BEGIN sequence AGAIN'''
 
     p[0] = Rpn_Begin_Again(p[2])
 
 
 def p_begin_until(p):
-    '''begin_until :  BEGIN  sequence  UNTIL'''
+    '''begin_until : BEGIN sequence UNTIL'''
 
     p[0] = Rpn_Begin_Until(p[2])
 
 
 def p_begin_while(p):
-    '''begin_while :  BEGIN  sequence  WHILE  sequence  REPEAT'''
+    '''begin_while : BEGIN sequence WHILE sequence REPEAT'''
 
     p[0] = Rpn_Begin_While(p[2], p[4])
 
 
 def p_case(p):
-    '''case :  CASE  case_clauses  otherwise_opt  ENDCASE'''
+    '''case : CASE case_causes_list otherwise_list ENDCASE'''
+
     p[0] = Rpn_Case(p[2], p[3])
 
-def p_case_clauses(p):
-    '''case_clauses :  case_clause
-                    |  case_clause  case_clauses'''
+def p_case_causes_list(p):
+    '''case_causes_list : case_clause
+                        | case_clause case_causes_list'''
+
     if len(p) == 2:
         p[0] = Rpn_List(p[1])
     else:
         p[0] = Rpn_List(p[1], p[2])
 
 def p_case_clause(p):
-    '''case_clause : INTEGER  OF  sequence  ENDOF'''
+    '''case_clause : INTEGER OF sequence ENDOF'''
+
     p[0] = Rpn_Case_Clause(p[1], p[3])
 
-def p_otherwise_opt(p):
-    '''otherwise_opt : empty
-                     | OTHERWISE  sequence'''
+def p_otherwise_list(p):
+    '''otherwise_list : empty
+                      | OTHERWISE sequence'''
+
     if len(p) == 2:
         p[0] = Rpn_List()
     else:
@@ -1711,16 +1927,10 @@ def p_otherwise_opt(p):
 
 
 def p_colon_def(p):
-    '''colon_def :  COLON  IDENTIFIER  docstr_opt  sequence  SEMICOLON  define_word'''
+    '''colon_def : COLON IDENTIFIER docstring sequence SEMICOLON define_word'''
 
     # This returns None because `define_word' does all the work
     p[0] = None
-
-def p_colon_def_error(p):
-    '''colon_def :  COLON  IDENTIFIER  docstr_opt  error  SEMICOLON '''
-
-    lnwriteln("{}: Syntax error in definition".format(p[2]))
-    raise SyntaxError
 
 def p_define_word(p):
     '''define_word : empty'''
@@ -1741,16 +1951,32 @@ def p_define_word(p):
     # creating it now in scope_stack.top() will be correct.
     new_word = Rpn_Word(identifier, sequence, **kwargs)
     dbg("p_define_word", 1, "{}: Defining word {}={} in scope {}".format(whoami(), identifier, repr(new_word), repr(scope_stack.top())))
+    sequence.patch_recurse(new_word)
     scope_stack.top().set_word(identifier, new_word)
 
     p[0] = new_word
     dbg("p_define_word", 2, "{}: Returning {}".format(whoami(), repr(p[0])))
 
-def p_docstr_opt(p):
-    '''docstr_opt :  empty
-                  |  DOC_STR'''
+def p_docstring(p):
+    '''docstring : empty
+                 | DOC_STR'''
 
     p[0] = p[1]
+
+def p_recurse(p):
+    '''recurse : RECURSE'''
+
+    p[0] = Rpn_Recurse()
+
+def p_colon_def_error(p):
+    '''colon_def : COLON IDENTIFIER docstring error SEMICOLON '''
+
+    lnwriteln("{}: Syntax error in definition".format(p[2]))
+    raise SyntaxError
+
+
+def p_comment(p):
+    '''comment : BACKSLASH'''
 
 
 def p_comment(p):
@@ -1758,25 +1984,25 @@ def p_comment(p):
 
 
 def p_do_loop(p):
-    '''do_loop :  DO  sequence  LOOP'''
+    '''do_loop : DO sequence LOOP'''
 
     p[0] = Rpn_Do_Loop(p[2])
 
 
 def p_do_plusloop(p):
-    '''do_plusloop :  DO  sequence  PLUS_LOOP'''
+    '''do_plusloop : DO sequence PLUS_LOOP'''
 
     p[0] = Rpn_Do_PlusLoop(p[2])
 
 
 def p_dot_quote(p):
-    '''dot_quote :  DOT_QUOTE'''
+    '''dot_quote : DOT_QUOTE'''
 
     p[0] = Rpn_Dot_Quote(p[1])
 
 
 def p_forget(p):
-    '''forget :  FORGET  IDENTIFIER'''
+    '''forget : FORGET IDENTIFIER'''
 
     name = p[2]
     (word, scope) = lookup_word(name)
@@ -1788,32 +2014,33 @@ def p_forget(p):
 
 
 def p_help(p):
-    '''help :  HELP  AGAIN
-            |  HELP  BEGIN
-            |  HELP  CASE
-            |  HELP  COLON
-            |  HELP  CONSTANT
-            |  HELP  DO
-            |  HELP  DOT_QUOTE
-            |  HELP  ELSE
-            |  HELP  ENDCASE
-            |  HELP  ENDOF
-            |  HELP  FORGET
-            |  HELP  HELP
-            |  HELP  IDENTIFIER
-            |  HELP  IF
-            |  HELP  LOOP
-            |  HELP  OF
-            |  HELP  OTHERWISE
-            |  HELP  PLUS_LOOP
-            |  HELP  REPEAT
-            |  HELP  SEMICOLON
-            |  HELP  SHOW
-            |  HELP  THEN
-            |  HELP  UNDEF
-            |  HELP  UNTIL
-            |  HELP  VARIABLE
-            |  HELP  WHILE'''
+    '''help : HELP AGAIN
+            | HELP BEGIN
+            | HELP CASE
+            | HELP COLON
+            | HELP CONSTANT
+            | HELP DO
+            | HELP DOT_QUOTE
+            | HELP ELSE
+            | HELP ENDCASE
+            | HELP ENDOF
+            | HELP FORGET
+            | HELP HELP
+            | HELP IDENTIFIER
+            | HELP IF
+            | HELP LOOP
+            | HELP OF
+            | HELP OTHERWISE
+            | HELP PLUS_LOOP
+            | HELP RECURSE
+            | HELP REPEAT
+            | HELP SEMICOLON
+            | HELP SHOW
+            | HELP THEN
+            | HELP UNDEF
+            | HELP UNTIL
+            | HELP VARIABLE
+            | HELP WHILE'''
 
     name = p[2]
     (word, _) = lookup_word(name)
@@ -1827,19 +2054,19 @@ def p_help(p):
 
 
 def p_if_then(p):
-    '''if_then :  IF  sequence  THEN'''
+    '''if_then : IF sequence THEN'''
 
     p[0] = Rpn_If(p[2])
 
 
 def p_if_else_then(p):
-    '''if_else_then :  IF  sequence  ELSE  sequence  THEN'''
+    '''if_else_then : IF sequence ELSE sequence THEN'''
 
     p[0] = Rpn_If_Else(p[2], p[4])
 
 
 def p_show(p):
-    '''show :  SHOW  IDENTIFIER'''
+    '''show : SHOW IDENTIFIER'''
 
     name = p[2]
     (word, scope) = lookup_word(name)
@@ -1851,33 +2078,30 @@ def p_show(p):
 
 
 def p_store_var(p):
-    '''store_var :  EXCLAM  IDENTIFIER'''
+    '''store_var : EXCLAM IDENTIFIER'''
 
-    id = p[2]
-    if id[0] in ['+', '-', '*', '/']:
-        modifier = id[0]
-        id = id[1:]
+    ident = p[2]
+    if ident[0] in ['+', '-', '*', '/']:
+        modifier = ident[0]
+        ident = ident[1:]
     else:
         modifier = None
-    if not Rpn_Variable.name_valid_p(id):
-        lnwriteln("!{}: Variable name is not valid".format(id))
+    if not Rpn_Variable.name_valid_p(ident):
+        lnwriteln("!{}: Variable name is not valid".format(ident))
         raise SyntaxError
-    #lnwriteln("{}: Looking up {}".format(whoami(), id))
-    (var, _) = lookup_variable(id)
-    if var is None:
-        lnwriteln("!{}: Variable not found".format(id))
+    dbg(whoami(), 1, "{}: Looking up {}".format(whoami(), ident))
+    (varname, _) = lookup_varname(ident)
+    if varname is None:
+        lnwriteln("!{}: Variable not found".format(ident))
         raise SyntaxError
-    if var.constant():
-        lnwriteln("!{}: Constant cannot be modified".format(id))
-        raise SyntaxError
-    p[0] = Rpn_Store_Var(id, var, modifier)
+    p[0] = Rpn_Store_Var(ident, modifier)
 
 
-# A "word" is not just an identifier, a word is something that is
+# A "word" is not just an identifier: a word is something that is
 # findable somewhere in the scope_stack.  It is a syntax error if
 # the identifier is not found.
 def p_word(p):
-    '''word :  IDENTIFIER'''
+    '''word : IDENTIFIER'''
 
     name = p[1]
     (word, _) = lookup_word(name)
@@ -1890,88 +2114,86 @@ def p_word(p):
 
 
 def p_sequence(p):
-    '''sequence : locals_opt executables_opt'''
+    '''sequence : locals_scope executables_list'''
 
-    # `locals_opt' is an Rpn_Scope; `executables_opt' is an Rpn_List
+    # `locals_scope' is an Rpn_Scope; `executables_list' is an Rpn_List
     scope = pop_scope("p_sequence() is finishing")
     p[0] = Rpn_Sequence(p[1], p[2])
 
 
-def p_locals_opt(p):
-    '''locals_opt :  empty
-                  |  VBAR  ids_opt  VBAR'''
-    name = None
+def p_locals_scope(p):
+    '''locals_scope : empty
+                    | VBAR ids_list VBAR'''
+
+    scope_name = None
     idx = -1
-    while name is None:
+    while scope_name is None:
         if p[idx] in ['begin', 'do', 'else', 'if', 'otherwise']:
-            name = p[idx]
+            scope_name = p[idx]
         elif p[idx] == 'of':
-            name = "of_" + p[idx - 1]
+            scope_name = "of_" + p[idx - 1]
         elif p[idx] == ':':
-            name = p[idx + 1]
+            scope_name = p[idx + 1]
         else:
-            # lnwriteln("p_locals_opt: Not sure about {}".format(p[idx]))
-            # name = "locals"
+            # lnwriteln("p_locals_scope: Not sure about {}".format(p[idx]))
+            # scope_name = "locals"
             idx -= 1
 
-    all_vars = Rpn_List()
-    in_vars  = Rpn_List()
-    out_vars = Rpn_List()
+    all_varnames = Rpn_List()
+    in_varnames  = Rpn_List()
+    out_varnames = Rpn_List()
 
-    scope = Rpn_Scope(name)
-    #print("{}: Creating new scope {}".format(whoami(), repr(scope)))
+    scope = Rpn_Scope("Parse_" + scope_name)
+    dbg(whoami(), 1, "{}: Creating new scope {}".format(whoami(), repr(scope)))
 
     if len(p) == 4:
         for varname in p[2].items():
-            # Already tested for name_valid_p and noshadow in p_ids_opt()
+            # Already tested for name_valid_p and noshadow in p_ids_list()
             if varname[:3] == 'in:':
                 varname = varname[3:]
-                #print("{} is an IN variable".format(varname))
-                in_vars.append(varname)
+                dbg(whoami(), 3, "{} is an IN variable".format(varname))
+                in_varnames.append(varname)
             elif varname[:4] == 'out:':
                 varname = varname[4:]
-                #print("{} is an OUT variable".format(varname))
-                out_vars.append(varname)
+                dbg(whoami(), 3, "{} is an OUT variable".format(varname))
+                out_varnames.append(varname)
             elif varname[:6] == 'inout:':
                 varname = varname[6:]
-                #print("{} is an INOUT variable".format(varname))
-                in_vars.append(varname)
-                out_vars.append(varname)
-            all_vars.append(varname)
+                dbg(whoami(), 3, "{} is an INOUT variable".format(varname))
+                in_varnames.append(varname)
+                out_varnames.append(varname)
+            dbg(whoami(), 1, "{}: Adding varname '{}'".format(whoami(), varname))
+            all_varnames.append(varname)
 
-        for varname in all_vars.items():
-            var = Rpn_Variable(varname)
-            #lnwriteln("{}: Defining variable {} in scope {}".format(whoami(), varname, repr(scope)))
-            scope.set_variable(varname, var)
+        scope.set_all_varnames(all_varnames)
+        scope.set_in_varnames(in_varnames)
+        scope.set_out_varnames(out_varnames)
 
-        scope.set_in_variables(in_vars)
-        scope.set_out_variables(out_vars)
-
-    push_scope(scope, "New sequence (locals={})".format(all_vars))
+    push_scope(scope, "New sequence (locals={})".format(all_varnames))
     p[0] = scope
 
 
-def p_ids_opt(p):
-    '''ids_opt :  empty
-               |  IDENTIFIER  ids_opt'''
+def p_ids_list(p):
+    '''ids_list : empty
+                | IDENTIFIER ids_list'''
 
     if len(p) == 2:
         p[0] = Rpn_List()
     elif len(p) == 3:
-        id = p[1]
-        if not Rpn_Variable.name_valid_p(id):
-            lnwriteln("|{}|: Variable name is not valid".format(id))
+        ident = p[1]
+        if not Rpn_Variable.name_valid_p(ident):
+            lnwriteln("|{}|: Variable name is not valid".format(ident))
             raise SyntaxError
-        (var, scope) = lookup_variable(id)
+        (var, _) = lookup_variable(ident)
         if var is not None and var.noshadow():
-            lnwriteln("|{}|: Variable cannot be shadowed".format(id))
+            lnwriteln("|{}|: Variable cannot be shadowed".format(ident))
             raise SyntaxError
         p[0] = Rpn_List(p[1], p[2])
 
 
-def p_executables_opt(p):
-    '''executables_opt :  empty
-                       |  executable  executables_opt'''
+def p_executables_list(p):
+    '''executables_list : empty
+                        | executable executables_list'''
 
     if len(p) == 2:
         p[0] = Rpn_List()
@@ -1984,57 +2206,59 @@ def p_executables_opt(p):
 
 
 def p_number(p):
-    '''number :  real
-              |  rational
-              |  complex'''
+    '''number : real
+              | rational
+              | complex'''
 
     p[0] = p[1]
 
 
 def p_real(p):
-    '''real :  integer
-            |  float'''
+    '''real : integer
+            | float'''
 
     p[0] = p[1]
 
 
 def p_integer(p):
-    '''integer :  INTEGER'''
+    '''integer : INTEGER'''
 
     p[0] = Rpn_Integer(p[1])
 
 
 def p_float(p):
-    '''float :  FLOAT'''
+    '''float : FLOAT'''
 
     p[0] = Rpn_Float(p[1])
 
 
 def p_rational(p):
-    '''rational :  RATIONAL'''
+    '''rational : RATIONAL'''
+
     p[0] = Rpn_Rational.from_string(p[1])
 
 
 def p_complex(p):
-    '''complex :  OPEN_PAREN  real  COMMA  real  CLOSE_PAREN '''
+    '''complex : OPEN_PAREN real COMMA real CLOSE_PAREN '''
+
     p[0] = Rpn_Complex(p[2].value(), p[4].value())
 
 
 def p_string(p):
-    '''string :  STRING'''
+    '''string : STRING'''
 
     p[0] = Rpn_String(p[1])
 
 
 def p_vector(p):
-    '''vector :  OPEN_BRACKET  numbers_opt  CLOSE_BRACKET'''
+    '''vector : OPEN_BRACKET numbers_list CLOSE_BRACKET'''
 
     p[0] = Rpn_Vector(p[2])
 
 
-def p_numbers_opt(p):
-    '''numbers_opt :  empty
-                   |  number  numbers_opt'''
+def p_numbers_list(p):
+    '''numbers_list : empty
+                    | number numbers_list'''
 
     if len(p) == 2:
         p[0] = Rpn_List()
@@ -2043,84 +2267,84 @@ def p_numbers_opt(p):
 
 
 def p_matrix(p):
-    '''matrix :  OPEN_BRACKET  vectors  CLOSE_BRACKET'''
+    '''matrix : OPEN_BRACKET vectors_list CLOSE_BRACKET'''
 
     p[0] = Rpn_Matrix(p[2])
 
 
 def p_constant(p):
-    '''constant :  CONSTANT  IDENTIFIER'''
+    '''constant : CONSTANT IDENTIFIER'''
 
-    id = p[2]
-    #print("p_constant {}".format(id))
-    if not Rpn_Variable.name_valid_p(id):
-        lnwriteln("CONSTANT: '{}' is not valid".format(id))
+    ident = p[2]
+    #print("p_constant {}".format(ident))
+    if not Rpn_Variable.name_valid_p(ident):
+        lnwriteln("CONSTANT: '{}' is not valid".format(ident))
         raise SyntaxError
 
-    (var, scope) = lookup_variable(id)
+    (var, scope) = lookup_variable(ident)
     if var is not None and var.noshadow():
-        lnwriteln("CONSTANT: '{}' cannot be shadowed".format(id))
+        lnwriteln("CONSTANT: '{}' cannot be shadowed".format(ident))
         raise SyntaxError
 
     if scope is not None and scope == scope_stack.top():
-        lnwriteln("CONSTANT: '{}' redefined".format(id))
+        lnwriteln("CONSTANT: '{}' redefined".format(ident))
         raise SyntaxError
 
-    var = Rpn_Variable(id, constant=True)
-    scope_stack.top().set_variable(id, var)
+    var = Rpn_Variable(ident, None, constant=True)
+    #print("{}: Creating variable {} at address {} in {}".format(whoami(), ident, hex(id(var)), repr(scope)))
+    scope_stack.top().set_variable(ident, var)
     p[0] = Rpn_Constant(var)
 
 
 def p_undef(p):
-    '''undef :  UNDEF  IDENTIFIER'''
+    '''undef : UNDEF IDENTIFIER'''
 
-    id = p[2]
-    if not Rpn_Variable.name_valid_p(id):
-        lnwriteln("UNDEF: '{}' is not valid".format(id))
+    ident = p[2]
+    if not Rpn_Variable.name_valid_p(ident):
+        lnwriteln("UNDEF: '{}' is not valid".format(ident))
         raise SyntaxError
 
-    (var, scope) = lookup_variable(id)
-
+    (var, scope) = lookup_variable(ident)
     if var is None:
-        lnwriteln("UNDEF: Variable '{}' not found".format(id))
+        lnwriteln("UNDEF: Variable '{}' not found".format(ident))
         raise SyntaxError
 
     if var.protected():
-        lnwriteln("UNDEF: '{}' is protected".format(id))
+        lnwriteln("UNDEF: '{}' is protected".format(ident))
         raise SyntaxError
 
     if scope != scope_stack.top():
-        lnwriteln("UNDEF: '{}' out of scope".format(id))
+        lnwriteln("UNDEF: '{}' out of scope".format(ident))
         raise SyntaxError
 
-    scope_stack.top().delete_variable(id)
+    scope_stack.top().delete_variable(ident)
 
 
 def p_variable(p):
-    '''variable :  VARIABLE  IDENTIFIER'''
+    '''variable :  VARIABLE IDENTIFIER'''
 
-    id = p[2]
-    if not Rpn_Variable.name_valid_p(id):
-        lnwriteln("VARIABLE: '{}' is not valid".format(id))
+    ident = p[2]
+    if not Rpn_Variable.name_valid_p(ident):
+        lnwriteln("VARIABLE: '{}' is not valid".format(ident))
         raise SyntaxError
 
-    (var, scope) = lookup_variable(id)
-
+    (var, scope) = lookup_variable(ident)
     if var is not None and var.noshadow():
-        lnwriteln("VARIABLE: '{}' cannot be shadowed".format(id))
+        lnwriteln("VARIABLE: '{}' cannot be shadowed".format(ident))
         raise SyntaxError
 
     if scope is not None and scope == scope_stack.top():
-        lnwriteln("VARIABLE: '{}' redefined".format(id))
+        lnwriteln("VARIABLE: '{}' redefined".format(ident))
         raise SyntaxError
 
-    var = Rpn_Variable(id)
-    scope_stack.top().set_variable(id, var)
+    var = Rpn_Variable(ident)
+    dbg(whoami(), 1, "{}: Creating variable {} at address {} in {}".format(whoami(), ident, hex(id(var)), repr(scope_stack.top())))
+    scope_stack.top().set_variable(ident, var)
 
 
-def p_vectors(p):
-    '''vectors :  vector
-               |  vector  vectors'''
+def p_vectors_list(p):
+    '''vectors_list : vector
+                    | vector vectors_list'''
 
     #lnwriteln("{}: len={}".format(whoami(), len(p)))
     if len(p) == 2:
@@ -2130,25 +2354,23 @@ def p_vectors(p):
 
 
 def p_fetch_var(p):
-    '''fetch_var :  AT_SIGN  IDENTIFIER'''
+    '''fetch_var : AT_SIGN IDENTIFIER'''
 
-    id = p[2]
-    if id[0] in ['+', '-', '*', '/', '?']:
-        modifier = id[0]
-        id = id[1:]
+    ident = p[2]
+    if ident[0] in ['+', '-', '*', '/', '?']:
+        modifier = ident[0]
+        ident = ident[1:]
     else:
         modifier = None
-    if not Rpn_Variable.name_valid_p(id):
-        lnwriteln("@{}: Variable name is not valid".format(id))
+    if not Rpn_Variable.name_valid_p(ident):
+        writeln("@{}: Variable name is not valid".format(ident))
         raise SyntaxError
-    #lnwriteln("{}: Looking up {}".format(whoami(), id))
-    (var, _) = lookup_variable(id)
-    if var is None:
-        lnwriteln("@{}: Variable not found".format(id))
+    dbg(whoami(), 1, "{}: Looking up {}".format(whoami(), ident))
+    (varname, _) = lookup_varname(ident)
+    if varname is None:
+        writeln("@{}: Variable not found".format(ident))
         raise SyntaxError
-    p[0] = Rpn_Fetch_Var(id, var, modifier)
-
-
+    p[0] = Rpn_Fetch_Var(ident, modifier)
 
 
 
@@ -2179,7 +2401,7 @@ class defword(object):
             name = self._kwargs["name"]
             del self._kwargs["name"]
         else:
-            raise RuntimeError("Missing or invalid \"name\" attribute")
+            raise Rpn_E_Runtime_Error("Missing or invalid \"name\" attribute")
         word = Rpn_Word(name, wrapped_f, **self._kwargs)
         global global_scope
         global_scope.set_word(name, word)
@@ -2621,7 +2843,9 @@ Define a new word  ( -- )
 : WORD  [def ...] ;
 
 Define WORD with the specified definition.
-Terminate the definition with a semi-colon.""")
+Terminate the definition with a semi-colon.
+
+qv SHOW""")
 def w_colon():
     pass                        # Grammar rules handle this word
 
@@ -2768,6 +2992,20 @@ def w_greater_than():
         param_stack.push(x)
         raise TypeError(">: Type error ({}, {})".format(typename(y), typename(x)))
 
+@defword(name='>>', args=2, print_x=True, doc="""\
+>>  ( i2 i1 -- i2 >> i1 )  Bitwise right shift""")
+def w_rightshift():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if type(x) is not Rpn_Integer or type(y) is not Rpn_Integer:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError(">>: Type error ({}, {})".format(typename(y), typename(x)))
+
+    if x.value() < 0:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise ValueError("<<: Shift amount may not be negative")
 
 @defword(name='>>', args=2, print_x=True, doc="""\
 >>  ( i2 i1 -- i2 >> i1 )  Bitwise right shift""")
@@ -3286,6 +3524,13 @@ def w_date_minus():
     param_stack.push(result)
 
 
+@defword(name='dbg.tok', hidden=True)
+def w_dbg_tok():
+    global debug_enabled
+    w_debug()                   # Toggle debug_enabled
+    set_debug("token", 1 if debug_enabled else 0)
+
+
 @defword(name='ddays', args=2, print_x=True, doc="""\
 Number of days between two dates  ( date1 date2 -- ddays )
 Usually the earlier date is in Y, and later date in X.""")
@@ -3632,6 +3877,12 @@ def w_grad_query():
     param_stack.push(Rpn_Integer(1 if angle_mode == "g" else 0))
 
 
+@defword(name='help', doc="""\
+Show documentation for the following word.""")
+def w_help():
+    pass                        # Grammar rules handle this word
+
+
 @defword(name='hms', args=1, print_x=True, doc="""\
 Convert decimal hours to hours/minutes/seconds  ( HH.nnn -- HH.MMSS )""")
 def w_hms():
@@ -3758,7 +4009,7 @@ def w_i():
 
 
 @defword(name='I', doc="""\
-Index of DO loop  ( -- x )
+Index of DO current loop  ( -- x )
 
 Return the index of the most recent DO loop.
 
@@ -3766,7 +4017,7 @@ Do not confuse this with the i command, which returns the complex number (0,1)."
 def w_I():
     (_I, _) = lookup_variable('_I')
     if _I is None:
-        raise RuntimeError("'I' not valid here, only in DO loops")
+        raise Rpn_E_Runtime_Error("'I' not valid here, only in DO loops")
     elif type(_I.obj()) is not Rpn_Integer:
         raise FatalError("I is not an Rpn_Integer")
     else:
@@ -3809,6 +4060,20 @@ Execute a conditional test.  xxx is executed if <flag> is non-zero.
 qv ELSE, THEN""")
 def w_if():
     pass                        # Grammar rules handle this word
+
+
+@defword(name='J', doc="""\
+Index of DO outer DO loop  ( -- x )
+
+Return the index of the DO loop enclosing the current one""")
+def w_J():
+    (_J, _) = lookup_variable('_I', 2)
+    if _J is None:
+        raise Rpn_E_Runtime_Error("'J' not valid here, only in nested DO loops")
+    elif type(_J.obj()) is not Rpn_Integer:
+        raise FatalError("J is not an Rpn_Integer")
+    else:
+        param_stack.push(_J.obj())
 
 
 @defword(name='jd->d', args=1, print_x=True, doc="""\
@@ -4139,7 +4404,7 @@ x = r * cos(phi)
 y = r * sin(phi)""")
 def w_p_to_r():
     if param_stack.empty():
-        raise RuntimeError("p->r: Insufficient parameters (1 or 2 required)")
+        raise Rpn_E_Runtime_Error("p->r: Insufficient parameters (1 or 2 required)")
     x = param_stack.pop()
     if type(x) is Rpn_Complex:
         r   = x.real()
@@ -4149,7 +4414,7 @@ def w_p_to_r():
     elif type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
         if param_stack.empty():
             param_stack.push(x)
-            raise RuntimeError("p->r: Insufficient parameters (2 required)")
+            raise Rpn_E_Runtime_Error("p->r: Insufficient parameters (2 required)")
         y = param_stack.pop()
         if type(y) not in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
             param_stack.push(y)
@@ -4243,6 +4508,34 @@ def w_prompt():
     #     print("prompt_lexer => {}".format(tok))
 
 
+@defword(name='quad', args=2, str_args=1, print_x=True, doc="""\
+Numerical integration  ( lower upper -- err.est integral )
+Name of function must be on string stack.
+
+Implemented via scipy.integrate.quad()""")
+def w_quad():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if    type(x) not in [Rpn_Integer, Rpn_Rational, Rpn_Float] \
+       or type(y) not in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("quad: Type error ({}, {})".format(typename(y), typename(x)))
+    lower = float(y.value())
+    upper = float(x.value())
+    func_to_integrate = string_stack.pop().value()
+
+    # XXX There are probably error conditions/exceptions I need to catch
+    def func(x):
+        param_stack.push(Rpn_Float(x))
+        eval_string(func_to_integrate)
+        return param_stack.pop().value()
+
+    (res, err) = scipy.integrate.quad(func, lower, upper)
+    param_stack.push(Rpn_Float(err))
+    param_stack.push(Rpn_Float(res))
+
+
 @defword(name='r->d', args=1, print_x=True, doc="""\
 Convert radians to degrees ( rad -- deg )""")
 def w_r_to_d():
@@ -4268,7 +4561,7 @@ r   = hypot(x, y) == sqrt(x^2 + y^2)
 phi = atan2(x, y)""")
 def w_r_to_p():
     if param_stack.empty():
-        raise RuntimeError("r->p: Insufficient parameters (1 or 2 required)")
+        raise Rpn_E_Runtime_Error("r->p: Insufficient parameters (1 or 2 required)")
     x = param_stack.pop()
     if type(x) is Rpn_Complex:
         (r, phi) = cmath.polar(x.value())
@@ -4277,7 +4570,7 @@ def w_r_to_p():
     elif type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
         if param_stack.empty():
             param_stack.push(x)
-            raise RuntimeError("r->p: Insufficient parameters (2 required)")
+            raise Rpn_E_Runtime_Error("r->p: Insufficient parameters (2 required)")
         y = param_stack.pop()
         if type(y) not in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
             param_stack.push(y)
@@ -4305,7 +4598,7 @@ def w_r_dot_s():
 Pop return stack onto parameter stack  ( -- x )""")
 def w_r_from():
     if return_stack.empty():
-        raise RuntimeError("r>: Empty return stack")
+        raise Rpn_E_Runtime_Error("r>: Empty return stack")
     param_stack.push(return_stack.pop())
 
 
@@ -4313,7 +4606,7 @@ def w_r_from():
 Copy top of return stack  ( -- x )""")
 def w_r_fetch():
     if return_stack.empty():
-        raise RuntimeError("r@: Empty return stack")
+        raise Rpn_E_Runtime_Error("r@: Empty return stack")
     param_stack.push(return_stack.top())
 
 
@@ -4332,16 +4625,42 @@ def w_rad_query():
 
 
 @defword(name='rand', print_x=True, doc="""\
-Random number  ( -- n )
-0 <= n < 1""")
+Random number  ( -- r )
+r is a float in range [0,1)""")
 def w_rand():
     param_stack.push(Rpn_Float(random.random()))
+
+
+@defword(name='randint', args=1, print_x=True, doc="""\
+Random integer between 1 and n  ( n -- r )
+r is an integer in range [1,n]
+
+EXAMPLE:
+: threeD6  3 0 do 6 randint loop + + ;""")
+def w_randint():
+    x = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(x)
+        raise TypeError("randint: Type error ({})".format(typename(x)))
+
+    if x.value() < 1:
+        param_stack.push(x)
+        raise ValueError("randint: n must be positive")
+
+    r = random.randint(1, x.value())
+    param_stack.push(Rpn_Integer(r))
 
 
 @defword(name='rdepth', print_x=True, doc="""\
 Current number of elements on return stack  ( -- n )""")
 def w_rdepth():
     param_stack.push(Rpn_Integer(return_stack.size()))
+
+
+@defword(name='recurse', doc="""\
+Recurse into current word.  Only valid in a colon definition.""")
+def w_recurse():
+    pass                        # Grammar rules handle this word
 
 
 @defword(name='repeat', doc="""\
@@ -4637,6 +4956,18 @@ def w_timeinfo():
         raise TypeError("timeinfo: Type error ({})".format(typename(x)))
 
 
+@defword(name='trace', doc="""\
+Toggle tracing state""")
+def w_trace():
+    tracing = dbg("trace", 1)
+    if tracing:
+        set_debug("trace", 0)
+        lnwriteln("trace: Tracing is now disabled")
+    else:
+        set_debug("trace", 1)
+        lnwriteln("trace: Tracing is now enabled")
+
+
 @defword(name='TRUE', print_x=True) # XXX need docstr
 def w_TRUE():
     param_stack.push(Rpn_Integer(1))
@@ -4695,7 +5026,7 @@ def w_vars():
             var = scope.variable(varname)
             if var.hidden():
                 continue
-            vars[var.name()] = "{} [undef]".format(var.name()) if not var.defined() else \
+            vars[var.name()] = "{}:[undef]".format(var.name()) if not var.defined() else \
                                "{}={}".format(var.name(), var.obj().value())
         sorted_vars = []
         for key in sorted(vars, key=str.casefold):
@@ -4712,7 +5043,9 @@ def w_ver():
 
 @defword(name='vlist', print_x=False, doc="""\
 Print the list of defined words.
-Only words in the global scope are shown.""")
+Only words in the global scope are shown.
+
+qv WORDS""")
 def w_vlist():
     columns = global_scope.variable('COLS').obj().value()
     # This is nice, but it shows hidden words:
@@ -4743,7 +5076,10 @@ def w_while():
     pass                        # Grammer rules handle this word
 
 
-@defword(name='words', print_x=False)
+@defword(name='words', print_x=False, doc="""\
+Print the list of user-defined words.
+
+qv VLIST""")
 def w_words():
     columns = global_scope.variable('COLS').obj().value()
     list_in_columns(sorted([ x[0] for x in global_scope.unprotected_words() ],
@@ -4786,6 +5122,10 @@ def w_N():
     N.set_obj(result)
     param_stack.push(result)
 
+def interest_rate_helper():
+    IYR = global_scope.variable('I%YR').obj().value()
+    PYR = global_scope.variable('P/YR').obj().value()
+    return (float(IYR) / 100.0) / float(PYR)
 
 def interest_rate_helper():
     IYR = global_scope.variable('I%YR').obj().value()
@@ -4808,7 +5148,7 @@ def check_financial_variables(for_var, needs):
             still_needed.append(x)
     if len(still_needed) == 0:
         return True
-    raise RuntimeError("{}: Financial variables {} are not set".format(for_var, ",".join(still_needed)))
+    raise Rpn_E_Runtime_Error("{}: Financial variables {} are not set".format(for_var, ",".join(still_needed)))
 
 
 
@@ -4883,30 +5223,16 @@ def define_secondary_words():
 
 def define_tertiary_words():
     eval_string("""
-: die           doc:"die  ( N -- 1..N )  Roll an N-sided die
-Returns an integer in [1..N]"
-  | in:N |
-  @N rand *  1 +  floor ;
+: dice          doc:"dice  ( N sides -- sum )  Roll N sides-sided dice
 
-: dice          doc:"dice  ( N s -- sum )  Roll N s-sided dice"
-  | in:N in:s out:sum |
+EXAMPLE:
+3 6 dice => number in range [3,18]"
+  | in:N in:sides out:sum |
+
   0 !sum
   @N 0 do
-    @s die @sum + !sum   \ Really need !+sum
+    @sides randint @sum + !sum   \ Really need !+sum
   loop ;
-
-: checkdice
-  | rolls sum |
-  20000 !rolls
-  0 !sum
-
-  @rolls 0 do
-    3 6 dice      \ ."Roll was " dup .
-    @sum + !sum   \ ."Sum is now " @sum . cr
-  loop
-
-  ."Average roll = " @sum @rolls / . cr
-;
 
 : X       88 emit ;
 : xbox  |foo bar|  5 0 do  4 0 do X loop cr loop ;
@@ -4926,9 +5252,14 @@ variable c
 \ : inout |in:a in:b out:c|  @a @b + 2 * !c ;
 """)
 
+variable a
+variable b
+variable c
 
 def defvar(name, value, **kwargs):
-    global_scope.set_variable(name, Rpn_Variable(name, value, **kwargs))
+    var = Rpn_Variable(name, value, **kwargs)
+    dbg(whoami(), 1, "{}: Creating variable {} at address {} in {}".format(whoami(), name, hex(id(var)), repr(global_scope)))
+    global_scope.set_variable(name, var)
 
 
 def eval_string(s):
@@ -5021,6 +5352,7 @@ flag is True if initial parse error, False if no error'''
         elif tok.type in ['OPEN_BRACKET', 'CLOSE_BRACKET',
                           'OPEN_PAREN',   'CLOSE_PAREN']:
             tok_list.append(tok)
+            # borp == "bracket or paren"
             (open_close, borp) = tok.type.split("_")
             #print("borp={}".format(borp))
             if borp == 'PAREN':
@@ -5267,20 +5599,36 @@ def load_file(filename):
         with open(filename, "r") as file:
             contents = file.read()
     except PermissionError:
-        raise RuntimeError("load: Cannot read file '{}'".format(filename))
+        raise Rpn_E_Runtime_Error("load: Cannot read file '{}'".format(filename))
     else:
         eval_string(contents)
 
 
-def lookup_variable(name):
+def lookup_varname(varname):
     for (_, scope) in scope_stack.items_top_to_bottom():
-        #lnwriteln("{}: Looking for variable {} in {}...".format(whoami(), name, scope))
-        #lnwriteln("{} has variables: {}".format(scope, scope.variables))
+        dbg(whoami(), 1, "{}: Looking for varname {} in {}...".format(whoami(), varname, repr(scope)))
+        dbg(whoami(), 3, "{} has varnames: {}".format(scope, scope.all_varnames()))
+        if varname in scope.all_varnames():
+            dbg(whoami(), 1, "{}: Found varname {} in {}".format(whoami(), varname, repr(scope)))
+            return (varname, scope)
+    dbg(whoami(), 1, "{}: Varname {} not found".format(whoami(), varname))
+    return (None, None)
+
+
+def lookup_variable(name, how_many=1):
+    for (_, scope) in scope_stack.items_top_to_bottom():
+        dbg(whoami(), 1, "{}: Looking for variable {} in {}...".format(whoami(), name, repr(scope)))
+        dbg(whoami(), 3, "{} has variables: {}".format(scope, scope.variables()))
         var = scope.variable(name)
-        if var is not None:
-            # lnwriteln("{}: Found variable {} in scope {}: {}".format(whoami(), name, scope, var))
-            return (var, scope)
-    #lnwriteln("{}: Variable {} not found".format(whoami(), name))
+        if var is None:
+            continue
+        how_many -= 1
+        if how_many > 0:
+            continue
+        dbg(whoami(), 1, "{}: Found variable {} in {}: {}".format(whoami(), name, repr(scope), repr(var)))
+        return (var, scope)
+    dbg(whoami(), 1, "{}: Variable {} not found".format(whoami(), name))
+    #traceback.print_stack(file=sys.stderr)
     return (None, None)
 
 
@@ -5290,7 +5638,7 @@ def lookup_word(name):
         #lnwriteln("{} has words: {}".format(scope, scope.words))
         word = scope.word(name)
         if word is not None:
-            #lnwriteln("{}: Found word {} in scope {}: {}".format(whoami(), name, scope, word))
+            #lnwriteln("{}: Found word {} in {}: {}".format(whoami(), name, scope, word))
             return (word, scope)
     #lnwriteln("{}: Word {} not found".format(whoami(), name))
     return (None, None)
@@ -5332,7 +5680,7 @@ def parse_args():
                 load_file(arg)
             except FileNotFoundError:
                 lnwriteln("load: File '{}' does not exist".format(arg))
-            except RuntimeError as e:
+            except Rpn_E_Runtime_Error as e:
                 lnwriteln(str(e))
         else:
             print("Unhandled option {}".format(opt))
@@ -5353,12 +5701,14 @@ def prompt_string():
 
 def pop_scope(why):
     scope = scope_stack.pop()
-    dbg("scope", 1, "Popped scope {} due to {}".format(repr(scope), why))
+    dbg("scope", 1, "Pop  {} due to {}".format(repr(scope), why))
+    #dbg("scope", 1, "Pop  {}".format(repr(scope)))
     if scope == global_scope:
         raise Rpn_E_Fatal("Attempting to pop Global scope!")
 
 def push_scope(scope, why):
-    dbg("scope", 1, "Pushing scope {} due to {}".format(repr(scope), why))
+    dbg("scope", 2, "Push {} due to {}".format(repr(scope), why))
+    dbg("scope", 1, "Push {}".format(repr(scope)))
     scope_stack.push(scope)
 
 
@@ -5438,6 +5788,7 @@ Usage: rpn [-d] [-i] [-l FILE] cmds...
 def initialize():
     global rpn_version, default_protected
 
+    #sys.setrecursionlimit(2000) # default is 1000
     random.seed()
     push_scope(global_scope, "Global scope")
     w_clflag()
@@ -5483,268 +5834,19 @@ def define_variables():
     defvar('VER',  Rpn_Float(rpn_version), protected=True, constant=True, noshadow=True)
 
 
-def define_variables():
-    defvar('COLS',  Rpn_Integer(0))
-    defvar('#OUT',  Rpn_Integer(0))
-    defvar('ROWS',  Rpn_Integer(0))
-    defvar('trace', Rpn_Integer(0))
-    defvar('VER',   Rpn_Float(rpn_version))
+def main():
+    try:
+        initialize()
+        if go_interactive:
+            main_loop()
+    except Rpn_E_End_Program:
+        pass
+    except Rpn_E_Fatal as e:
+        if len(e._message) > 0:
+            lnwriteln("Fatal error: {}".format(e))
+        sys.exit(1)
 
-
-
-
-#############################################################################
-#
-#       M A I N
-#
-#############################################################################
-class Rpn_Queue:
-    def __init__(self):
-        self._q = queue.SimpleQueue()
-    def empty(self):
-        return self._q.empty()
-    def get(self):
-        return self._q.get_nowait()
-    def put(self, item):
-        self._q.put(item)
-
-
-class Token_Mgr:
-    qtok = Rpn_Queue()
-    e = 0
-
-    @classmethod
-    def get_more_tokens(cls):
-        tok_count = 0
-        data = ""
-        sharpout = global_scope.variable('#OUT')
-        prompt = prompt_string()
-        global show_x
-
-        # Read characters from input stream
-        while data == "":
-            lnwrite(prompt)
-            show_x = False
-            data = input()
-            sharpout.set_obj(Rpn_Integer(0))
-
-        # Get all the tokens
-        lexer.input(data)
-        while True:
-            tok = lexer.token()
-            if not tok:
-                break
-            cls.qtok.put(tok)
-            dbg("token", 1, "Lexer returned {}, queueing".format(tok))
-            tok_count += 1
-
-        return tok_count
-
-    @classmethod
-    def next_token(cls):
-        if cls.qtok.empty():
-            if cls.e == 0:
-                new_toks = 0
-                while new_toks == 0:
-                    try:
-                        new_toks = Token_Mgr.get_more_tokens()
-                    except EOFError:
-                        # ^D (eof) on input signals end of input tokens
-                        lnwrite()
-                        return
-                    except KeyboardInterrupt:
-                        # ^C can either void the parse_stack, or the end program
-                        if parse_stack.empty():
-                            raise Rpn_E_End_Program()
-                        else:
-                            lnwriteln("[Top level]")
-                            raise Rpn_E_Top_Level()
-
-        try:
-            yield cls.qtok.get()
-        except queue.Empty:
-            return
-
-
-
-def generate_token_list():
-    '''Returns a tuple (flag, list)
-flag is True if initial parse error, False if no error'''
-
-    initial_parse_error = False
-    parse_stack.clear()
-    tok_list = []
-    depth = {
-        'BRACKET' : 0,
-        'PAREN'   : 0
-    }
-
-    while True:
-        # Get next token
-        tok = next(Token_Mgr.next_token())
-
-        # Process token
-        dbg("token", 1, "token=({},{})".format(tok.type, repr(tok.value)))
-
-        if tok.type == 'BACKSLASH':
-            pass
-
-        # These need a second token or they will be very angry
-        elif tok.type in ['AT_SIGN', 'CONSTANT', 'EXCLAM', 'FORGET', 'HELP', 'SHOW', 'VARIABLE' ]:
-            try:
-                tok2 = next(Token_Mgr.next_token())
-            except StopIteration:
-                initial_parse_error = True
-                dbg("{}: No more tokens, exiting".format(tok.type))
-                break
-            finally:
-                tok_list.append(tok)
-            tok_list.append(tok2)
-
-        elif tok.type in ['OPEN_BRACKET', 'CLOSE_BRACKET',
-                          'OPEN_PAREN',   'CLOSE_PAREN']:
-            tok_list.append(tok)
-            (open_close, borp) = tok.type.split("_")
-            #print("borp={}".format(borp))
-            if borp == 'PAREN':
-                c = '('
-            elif borp == 'BRACKET':
-                c = '['
-
-            if open_close == 'OPEN':
-                if borp == 'PAREN' and depth[borp] > 0:
-                    lnwriteln("{}: Embedded {} not allowed".format(tok.type, c))
-                    initial_parse_error = True
-                else:
-                    parse_stack.push(c)
-                    depth[borp] += 1
-
-            if open_close == 'CLOSE':
-                if parse_stack.empty() or \
-                        borp == 'BRACKET' and parse_stack.top() != c or \
-                        borp == 'PAREN'   and parse_stack.top() != '(,':
-                    lnwriteln("{}: {} lost".format(tok.type, c))
-                    initial_parse_error = True
-                else:
-                    parse_stack.pop()
-                    depth[borp] -= 1
-
-        elif tok.type == 'COMMA':
-            if parse_stack.empty() or parse_stack.top() != '(':
-                lnwriteln("{}: no matching (".format(tok.type))
-                initial_parse_error = True
-            else:
-                tok_list.append(tok)
-                parse_stack.pop()
-                parse_stack.push('(,')
-
-
-        elif tok.type in ['BEGIN', 'CASE', 'COLON', 'DO', 'IF']:
-            tok_list.append(tok)
-            parse_stack.push(tok.type)
-
-        elif tok.type in ['AGAIN', 'UNTIL']:
-            if parse_stack.empty() or parse_stack.top() != 'BEGIN':
-                lnwriteln("{}: no matching BEGIN".format(tok.type))
-                initial_parse_error = True
-            else:
-                tok_list.append(tok)
-                parse_stack.pop()
-
-        elif tok.type == 'ELSE':
-            if parse_stack.empty() or parse_stack.top() != 'IF':
-                lnwriteln("ELSE: no matching IF")
-                initial_parse_error = True
-            else:
-                tok_list.append(tok)
-                parse_stack.pop()
-                parse_stack.push(tok.type)
-
-        elif tok.type == 'ENDCASE':
-            if parse_stack.empty() or parse_stack.top() not in ['CASE', 'OTHERWISE']:
-                lnwriteln("ENDCASE: no matching CASE")
-                initial_parse_error = True
-            else:
-                tok_list.append(tok)
-                parse_stack.pop()
-
-        elif tok.type == 'ENDOF':
-            if parse_stack.empty() or parse_stack.top() != 'OF':
-                lnwriteln("ENDOF: no matching OF")
-                initial_parse_error = True
-            else:
-                tok_list.append(tok)
-                parse_stack.pop()
-                parse_stack.push('CASE')
-
-        elif tok.type == 'ERROR':
-            lnwriteln("ERROR {}".format(tok))
-            initial_parse_error = True
-
-        elif tok.type in ['LOOP', 'PLUS_LOOP']:
-            if parse_stack.empty() or parse_stack.top() != 'DO':
-                lnwriteln("{}: no matching DO".format(tok.type))
-                initial_parse_error = True
-            else:
-                tok_list.append(tok)
-                parse_stack.pop()
-
-        elif tok.type in ['OF', 'OTHERWISE']:
-            if parse_stack.empty() or parse_stack.top() != 'CASE':
-                lnwriteln("{}: no matching CASE".format(tok.type))
-                initial_parse_error = True
-            else:
-                tok_list.append(tok)
-                parse_stack.pop()
-                parse_stack.push(tok.type)
-
-        elif tok.type == 'REPEAT':
-            if parse_stack.empty() or parse_stack.top() != 'WHILE':
-                lnwriteln("REPEAT: no matching WHILE")
-                initial_parse_error = True
-            else:
-                tok_list.append(tok)
-                parse_stack.pop()
-
-        elif tok.type == 'SEMICOLON':
-            if parse_stack.empty() or parse_stack.top() != 'COLON':
-                lnwriteln("SEMICOLON: no matching COLON")
-                initial_parse_error = True
-            else:
-                tok_list.append(tok)
-                parse_stack.pop()
-
-        elif tok.type == 'THEN':
-            if parse_stack.empty() or parse_stack.top() not in ['IF', 'ELSE']:
-                lnwriteln("THEN: no matching IF")
-                initial_parse_error = True
-            else:
-                tok_list.append(tok)
-                parse_stack.pop()
-
-        elif tok.type == 'WHILE':
-            if parse_stack.empty() or parse_stack.top() != 'BEGIN':
-                lnwriteln("WHILE: no matching BEGIN")
-                initial_parse_error = True
-            else:
-                tok_list.append(tok)
-                parse_stack.pop()
-                parse_stack.push(tok.type)
-
-        else:
-        # 'ABORT_QUOTE',
-        # 'DOC_STR',
-        # 'DOT_QUOTE',
-        # 'IDENTIFIER',
-        # 'VBAR',
-        # 'WS',
-            tok_list.append(tok)
-
-        # Here's what breaks the while True loop, sauf StopIteration
-        if parse_stack.empty() and depth['PAREN'] == 0 and depth['BRACKET'] == 0:
-            break
-
-    return (initial_parse_error, tok_list)
+    end_program()
 
 
 def main_loop():
@@ -5801,20 +5903,9 @@ scope_stack  = Rpn_Stack()
 string_stack = Rpn_Stack()
 
 lexer  = lex.lex(optimize=True)
-parser = yacc.yacc(start='evaluate', errorlog=yacc.NullLogger())
+parser = yacc.yacc(start='evaluate') # , errorlog=yacc.NullLogger())
 
 if __name__ == "__main__":
-    try:
-        initialize()
-        if go_interactive:
-            main_loop()
-    except Rpn_E_End_Program:
-        pass
-    except Rpn_E_Fatal as e:
-        if len(e._message) > 0:
-            lnwriteln("Fatal error: {}".format(e))
-        sys.exit(1)
-
-    end_program()
+    main()
 
 sys.exit(0)
