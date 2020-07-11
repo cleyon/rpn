@@ -1624,7 +1624,7 @@ class Rpn_Word:
         if typename(self._defn) == 'function':
             return "Word[{}]".format(self.name())
         else:
-            return "Word[{}, {}]".format(self.name(),repr(self._defn))
+            return "Word[{}, {}]".format(self.name(), repr(self._defn))
 
 
 
@@ -1851,7 +1851,8 @@ def p_executable(p):
     dbg("p_executable", 1, "p_executable: {}".format(p[0]))
 
 def p_execute(p):
-    '''execute :  empty'''
+    '''execute : empty'''
+
     executable = p[-1]
     if executable is None:
         return
@@ -2988,20 +2989,6 @@ def w_greater_than():
         param_stack.push(x)
         raise TypeError(">: Type error ({}, {})".format(typename(y), typename(x)))
 
-@defword(name='>>', args=2, print_x=True, doc="""\
->>  ( i2 i1 -- i2 >> i1 )  Bitwise right shift""")
-def w_rightshift():
-    x = param_stack.pop()
-    y = param_stack.pop()
-    if type(x) is not Rpn_Integer or type(y) is not Rpn_Integer:
-        param_stack.push(y)
-        param_stack.push(x)
-        raise TypeError(">>: Type error ({}, {})".format(typename(y), typename(x)))
-
-    if x.value() < 0:
-        param_stack.push(y)
-        param_stack.push(x)
-        raise ValueError("<<: Shift amount may not be negative")
 
 @defword(name='>>', args=2, print_x=True, doc="""\
 >>  ( i2 i1 -- i2 >> i1 )  Bitwise right shift""")
@@ -3016,7 +3003,7 @@ def w_rightshift():
     if x.value() < 0:
         param_stack.push(y)
         param_stack.push(x)
-        raise ValueError("<<: Shift amount may not be negative")
+        raise ValueError(">>: Shift amount may not be negative")
 
     param_stack.push(Rpn_Integer(y.value() >> x.value()))
 
@@ -5118,10 +5105,6 @@ def w_N():
     N.set_obj(result)
     param_stack.push(result)
 
-def interest_rate_helper():
-    IYR = global_scope.variable('I%YR').obj().value()
-    PYR = global_scope.variable('P/YR').obj().value()
-    return (float(IYR) / 100.0) / float(PYR)
 
 def interest_rate_helper():
     IYR = global_scope.variable('I%YR').obj().value()
@@ -5247,6 +5230,7 @@ variable c
 
 \ : inout |in:a in:b out:c|  @a @b + 2 * !c ;
 """)
+
 
 def defvar(name, value, **kwargs):
     var = Rpn_Variable(name, value, **kwargs)
@@ -5873,7 +5857,6 @@ def end_program():
             w_dollar_dot_s()
 
     if not param_stack.empty():
-        lnwriteln("Stack:")
         if param_stack.size() == 1:
             w_dot(); w_cr()
         else:
