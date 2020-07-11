@@ -19,6 +19,7 @@ import random
 import re
 import readline
 import scipy.integrate
+import scipy.optimize
 import signal
 import subprocess
 import sys
@@ -3843,6 +3844,32 @@ def w_fs_query():
         param_stack.push(x)
         raise ValueError("fs?: Flag out of range (0..{} expected)".format(flag_max - 1))
     result = Rpn_Integer(1 if flag_test(x.value()) else 0)
+    param_stack.push(result)
+
+
+@defword(name='fsolve', args=1, str_args=1, print_x=True, doc="""\
+Root solving  ( init.guess -- root )
+Name of function must be on string stack.
+
+Implemented via scipy.optimize.fsolve()""")
+def w_fsolve():
+    x = param_stack.pop()
+    if    type(x) not in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
+        param_stack.push(x)
+        raise TypeError("fsolve: Type error ({}, {})".format(typename(x)))
+    init_guess = float(x.value())
+    func_to_solve = string_stack.pop().value()
+
+    # XXX There are probably error conditions/exceptions I need to catch
+    def func(x):
+        param_stack.push(Rpn_Float(x))
+        eval_string(func_to_solve)
+        return param_stack.pop().value()
+
+    r = scipy.optimize.fsolve(func, 3)
+    # The return value of fsolve is a numpy array of length n for a root
+    # finding problem with n variables.
+    result = Rpn_Float(r[0])
     param_stack.push(result)
 
 
