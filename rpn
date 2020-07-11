@@ -5248,6 +5248,9 @@ variable c
 \ : inout |in:a in:b out:c|  @a @b + 2 * !c ;
 """)
 
+variable a
+variable b
+variable c
 
 def defvar(name, value, **kwargs):
     var = Rpn_Variable(name, value, **kwargs)
