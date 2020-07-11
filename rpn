@@ -2160,11 +2160,19 @@ def p_locals_scope(p):
                 out_varnames.append(varname)
             dbg(whoami(), 1, "{}: Adding varname '{}'".format(whoami(), varname))
             all_varnames.append(varname)
+<<<<<<< HEAD
 
         scope.set_all_varnames(all_varnames)
         scope.set_in_varnames(in_varnames)
         scope.set_out_varnames(out_varnames)
 
+=======
+
+        scope.set_all_varnames(all_varnames)
+        scope.set_in_varnames(in_varnames)
+        scope.set_out_varnames(out_varnames)
+
+>>>>>>> 5a916d48dc5686aff01608b7ac5854284fc50f4f
     push_scope(scope, "New sequence (locals={})".format(all_varnames))
     p[0] = scope
 
@@ -5248,6 +5256,9 @@ variable c
 \ : inout |in:a in:b out:c|  @a @b + 2 * !c ;
 """)
 
+variable a
+variable b
+variable c
 
 def defvar(name, value, **kwargs):
     var = Rpn_Variable(name, value, **kwargs)
@@ -5598,6 +5609,7 @@ def load_file(filename):
 
 
 def lookup_varname(varname):
+<<<<<<< HEAD
     for (_, scope) in scope_stack.items_top_to_bottom():
         dbg(whoami(), 1, "{}: Looking for varname {} in {}...".format(whoami(), varname, repr(scope)))
         dbg(whoami(), 3, "{} has varnames: {}".format(scope, scope.all_varnames()))
@@ -5610,6 +5622,20 @@ def lookup_varname(varname):
 
 def lookup_variable(name, how_many=1):
     for (_, scope) in scope_stack.items_top_to_bottom():
+=======
+    for (_, scope) in scope_stack.items_top_to_bottom():
+        dbg(whoami(), 1, "{}: Looking for varname {} in {}...".format(whoami(), varname, repr(scope)))
+        dbg(whoami(), 3, "{} has varnames: {}".format(scope, scope.all_varnames()))
+        if varname in scope.all_varnames():
+            dbg(whoami(), 1, "{}: Found varname {} in {}".format(whoami(), varname, repr(scope)))
+            return (varname, scope)
+    dbg(whoami(), 1, "{}: Varname {} not found".format(whoami(), varname))
+    return (None, None)
+
+
+def lookup_variable(name, how_many=1):
+    for (_, scope) in scope_stack.items_top_to_bottom():
+>>>>>>> 5a916d48dc5686aff01608b7ac5854284fc50f4f
         dbg(whoami(), 1, "{}: Looking for variable {} in {}...".format(whoami(), name, repr(scope)))
         dbg(whoami(), 3, "{} has variables: {}".format(scope, scope.variables()))
         var = scope.variable(name)
