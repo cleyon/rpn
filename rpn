@@ -3003,7 +3003,7 @@ def w_rightshift():
     if x.value() < 0:
         param_stack.push(y)
         param_stack.push(x)
-        raise ValueError("<<: Shift amount may not be negative")
+        raise ValueError(">>: Shift amount may not be negative")
 
     param_stack.push(Rpn_Integer(y.value() >> x.value()))
 
