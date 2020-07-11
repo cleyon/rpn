@@ -1621,7 +1621,10 @@ class Rpn_Word:
         pass
 
     def __repr__(self):
-        return "Word[{}]".format(self.name())
+        if typename(self._defn) == 'function':
+            return "Word[{}]".format(self.name())
+        else:
+            return "Word[{}, {}]".format(self.name(), repr(self._defn))
 
 
 
