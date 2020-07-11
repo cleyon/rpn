@@ -12,6 +12,12 @@ RPN calculator and interpreter
 pip3 install --user numpy
 ```
 
+- scipy
+
+``` shell
+pip3 install --user scipy
+```
+
 - PLY
 
 ``` shell
@@ -23,7 +29,6 @@ pip3 install --user ply
 - TVM
 - Store/Recall arithmetic
 - More math categories (plot, root solve, integrate)
-- RECURSE.  NB, local variables need to be re-generated
 
 ## Bugs
 
