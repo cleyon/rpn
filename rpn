@@ -2160,25 +2160,11 @@ def p_locals_scope(p):
                 out_varnames.append(varname)
             dbg(whoami(), 1, "{}: Adding varname '{}'".format(whoami(), varname))
             all_varnames.append(varname)
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
->>>>>>> 5220a2db3e34fd7d805305c705c9bba78eff754a
 
         scope.set_all_varnames(all_varnames)
         scope.set_in_varnames(in_varnames)
         scope.set_out_varnames(out_varnames)
 
-<<<<<<< HEAD
-=======
-=======
-
-        scope.set_all_varnames(all_varnames)
-        scope.set_in_varnames(in_varnames)
-        scope.set_out_varnames(out_varnames)
-
->>>>>>> 5a916d48dc5686aff01608b7ac5854284fc50f4f
->>>>>>> 5220a2db3e34fd7d805305c705c9bba78eff754a
     push_scope(scope, "New sequence (locals={})".format(all_varnames))
     p[0] = scope
 
