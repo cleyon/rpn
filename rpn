@@ -1141,7 +1141,11 @@ class Rpn_Sequence:
             if len(self.scope_template().in_varnames()) > 0:
                 if param_stack.size() < len(self.scope_template().in_varnames()):
                     raise Rpn_E_Runtime_Error("{}: Insufficient parameters ({} required)".format(self.scope_template().name(), len(self.scope_template().in_varnames())))
+                in_vars = []
                 for varname in self.scope_template().in_varnames().items():
+                    in_vars.append(varname)
+                in_vars.reverse()
+                for varname in in_vars:
                     obj = param_stack.pop()
                     dbg(whoami(), 1, "{}: Setting {} to {}".format(whoami(), varname, obj.value()))
                     scope.variable(varname).set_obj(obj)
@@ -2832,7 +2836,9 @@ Define a new word  ( -- )
 : WORD  [def ...] ;
 
 Define WORD with the specified definition.
-Terminate the definition with a semi-colon.""")
+Terminate the definition with a semi-colon.
+
+qv SHOW""")
 def w_colon():
     pass                        # Grammar rules handle this word
 
@@ -3850,6 +3856,12 @@ def w_grad_query():
     param_stack.push(Rpn_Integer(1 if angle_mode == "g" else 0))
 
 
+@defword(name='help', doc="""\
+Show documentation for the following word.""")
+def w_help():
+    pass                        # Grammar rules handle this word
+
+
 @defword(name='hms', args=1, print_x=True, doc="""\
 Convert decimal hours to hours/minutes/seconds  ( HH.nnn -- HH.MMSS )""")
 def w_hms():
@@ -4564,10 +4576,30 @@ def w_rad_query():
 
 
 @defword(name='rand', print_x=True, doc="""\
-Random number  ( -- n )
-0 <= n < 1""")
+Random number  ( -- r )
+r is a float in range [0,1)""")
 def w_rand():
     param_stack.push(Rpn_Float(random.random()))
+
+
+@defword(name='randint', args=1, print_x=True, doc="""\
+Random integer between 1 and n  ( n -- r )
+r is an integer in range [1,n]
+
+EXAMPLE:
+: threeD6  3 0 do 6 randint loop + + ;""")
+def w_randint():
+    x = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(x)
+        raise TypeError("randint: Type error ({})".format(typename(x)))
+
+    if x.value() < 1:
+        param_stack.push(x)
+        raise ValueError("randint: n must be positive")
+
+    r = random.randint(1, x.value())
+    param_stack.push(Rpn_Integer(r))
 
 
 @defword(name='rdepth', print_x=True, doc="""\
@@ -4945,7 +4977,7 @@ def w_vars():
             var = scope.variable(varname)
             if var.hidden():
                 continue
-            vars[var.name()] = "{} [undef]".format(var.name()) if not var.defined() else \
+            vars[var.name()] = "{}:[undef]".format(var.name()) if not var.defined() else \
                                "{}={}".format(var.name(), var.obj().value())
         sorted_vars = []
         for key in sorted(vars, key=str.casefold):
@@ -4962,7 +4994,9 @@ def w_ver():
 
 @defword(name='vlist', print_x=False, doc="""\
 Print the list of defined words.
-Only words in the global scope are shown.""")
+Only words in the global scope are shown.
+
+qv WORDS""")
 def w_vlist():
     columns = global_scope.variable('COLS').obj().value()
     # This is nice, but it shows hidden words:
@@ -4993,7 +5027,10 @@ def w_while():
     pass                        # Grammer rules handle this word
 
 
-@defword(name='words', print_x=False)
+@defword(name='words', print_x=False, doc="""\
+Print the list of user-defined words.
+
+qv VLIST""")
 def w_words():
     columns = global_scope.variable('COLS').obj().value()
     list_in_columns(sorted([ x[0] for x in global_scope.unprotected_words() ],
@@ -5133,30 +5170,16 @@ def define_secondary_words():
 
 def define_tertiary_words():
     eval_string("""
-: die           doc:"die  ( N -- 1..N )  Roll an N-sided die
-Returns an integer in [1..N]"
-  | in:N |
-  @N rand *  1 +  floor ;
+: dice          doc:"dice  ( N sides -- sum )  Roll N sides-sided dice
 
-: dice          doc:"dice  ( N s -- sum )  Roll N s-sided dice"
-  | in:N in:s out:sum |
+EXAMPLE:
+3 6 dice => number in range [3,18]"
+  | in:N in:sides out:sum |
+
   0 !sum
   @N 0 do
-    @s die @sum + !sum   \ Really need !+sum
+    @sides randint @sum + !sum   \ Really need !+sum
   loop ;
-
-: checkdice
-  | rolls sum |
-  20000 !rolls
-  0 !sum
-
-  @rolls 0 do
-    3 6 dice      \ ."Roll was " dup .
-    @sum + !sum   \ ."Sum is now " @sum . cr
-  loop
-
-  ."Average roll = " @sum @rolls / . cr
-;
 
 : X       88 emit ;
 : xbox  |foo bar|  5 0 do  4 0 do X loop cr loop ;

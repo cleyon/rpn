@@ -1,7 +1,21 @@
 \ Convenient abbreviations
-: c     clst ;
-: d     drop ;
-: e     E ;
-: pi    PI ;
-: q     bye ;
-: s     swap ;
+: c     clst  ;
+: d     drop  ;
+: e     E     ;
+: pi    PI    ;
+: q     bye   ;
+: s     swap  ;
+: xroot inv ^ ;
+
+: sum
+  doc:"Sum all numbers on the stack"
+  depth 0= if
+      0
+  else
+      depth 1 > if
+          depth 1 - 0 do
+              +
+          loop
+      then
+  then
+;
