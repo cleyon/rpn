@@ -2013,6 +2013,7 @@ def p_forget(p):
 
 def p_help(p):
     '''help : HELP AGAIN
+            | HELP BACKSLASH
             | HELP BEGIN
             | HELP CASE
             | HELP COLON
@@ -3029,6 +3030,14 @@ def w_less_than_or_equal():
 Push X onto return stack  ( x -- )""")
 def w_to_r():
     return_stack.push(param_stack.pop())
+
+
+@defword(name='\\', doc="""\
+\  ( -- ) Comment
+
+All characters from a \ to end of line are considered a comment and ignored.""")
+def w_backslash():
+    pass                        # Grammar rules handle this word
 
 
 @defword(name='?dup', args=1, doc="""\
@@ -5224,6 +5233,50 @@ def define_secondary_words():
 : spaces        doc:"spaces  ( n -- )   Display N space characters"
   | in:N |
   @N 0 do space loop ;
+
+\ Conversion functions
+: mm->in doc:"mm->in  ( mm -- in )  Convert millimeters to inches"
+  25.4 / ;
+
+: m->ft  doc:"m->ft  ( m -- ft )  Convert meters to feet"
+  1000 * mm->in   12 / ;
+
+: km->mi doc:"km->mi  ( km -- mi )  Convert kilometers to miles"
+  1000 *  m->ft 5280 / ;
+
+: in->mm doc:"in->mm  ( in -- mm )  Convert inches to millimeters"
+  25.4 * ;
+
+: ft->m doc:"ft->m  ( ft -- m )  Convert feet to meters"
+  12   * in->mm 1000 / ;
+
+: mi->km doc:"mi->km  ( mi -- km )  Convert miles to kilometers"
+  5280   * ft->m  1000 / ;
+
+: f->c doc:"f->c  ( f -- c )  Convert degrees fahrenheit to degrees celcius"
+  32 - 5 * 9 / ;
+
+: c->f doc:"c->f  ( c -- f )  Convert degrees celcius to degrees fahrenheit"
+  9 * 5 / 32 + ;
+
+: g->ozf doc:"g->ozf  ( g -- oz )  Convert grams to ounces"
+  28.34952    / ;
+
+: kg->lbf doc:"kg->lbf  ( kg -- lb )  Convert kilograms to pounds"
+  0.45359237 / ;
+
+: cm3->in3 doc:"cm3->in3  ( cm^3 -- in^3 )  Convert cubic centimeters to cubic inches"
+  16.3871     / ;
+
+: ozf->g    doc:"ozf->g  ( oz -- g )  Convert ounces to grams"
+  28.34952    * ;
+
+: lbf->kg   doc:"lbf->kg  ( lb -- kb )  Convert pounds to kilograms"
+  0.45359237 * ;
+
+: in3->cm3  doc:"in3->cm3  ( in^3 -- cm^3 )  Convert cubic inches to cubic centimeters"
+  16.3871     * ;
+
 """)
 
 
