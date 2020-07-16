@@ -35,6 +35,7 @@ default_protected = True
 flag_max          = 64
 force_interactive = False
 go_interactive    = True
+got_interrupt     = False
 julian_offset     = 1721424 # date.toordinal() returns 1 for 0001-01-01, so compensate
 matrix_max        = 1000
 rational_re       = r'(\d+)~(\d+)'
@@ -1384,6 +1385,7 @@ class Rpn_Token_Mgr:
 
     @classmethod
     def next_token(cls):
+        global got_interrupt
         if cls.qtok.empty():
             if cls.e == 0:
                 new_toks = 0
@@ -1397,10 +1399,16 @@ class Rpn_Token_Mgr:
                     except KeyboardInterrupt:
                         # ^C can either void the parse_stack, or the end program
                         if parse_stack.empty():
-                            raise Rpn_E_End_Program()
+                            if got_interrupt:
+                                raise Rpn_E_End_Program()
+                            lnwriteln("[Interrupt; once more to quit]")
+                            got_interrupt = True
+                            continue
                         else:
-                            lnwriteln("[Top level]")
+                            lnwriteln("[Interrupt]")
                             raise Rpn_E_Top_Level()
+                    else:
+                        got_interrupt = False
 
         try:
             yield cls.qtok.get()
