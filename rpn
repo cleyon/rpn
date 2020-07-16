@@ -134,17 +134,17 @@ It is caught in main_loop."""
 #
 #############################################################################
 debug_enabled     = False
-#debug_enabled     = True
+debug_enabled     = True
 
 debug_levels = {
     "defvar"                    : 0,
     "eval_string"               : 0,
-    "lookup_varname"            : 0,
+    "lookup_varname"            : 3,
     "lookup_variable"           : 1,
     "p_define_word"             : 0,
     "p_executable"              : 0,
     "p_execute"                 : 0,
-    "p_fetch_var"               : 0,
+    "p_fetch_var"               : 1,
     "p_locals_scope"            : 0,
     "p_store_var"               : 0,
     "p_variable"                : 0,
@@ -1019,7 +1019,7 @@ class Rpn_Scope:
         self._name = name
         self._words = {}
         self._variables = {}
-        self._all_varnames = Rpn_List()
+        self._all_varnames = Rpn_List() # Isn't varnames simply the key name for the variables dictionary?
         self._in_varnames  = Rpn_List()
         self._out_varnames = Rpn_List()
 
@@ -2291,6 +2291,7 @@ def p_constant(p):
 
     var = Rpn_Variable(ident, None, constant=True)
     #print("{}: Creating variable {} at address {} in {}".format(whoami(), ident, hex(id(var)), repr(scope)))
+    scope_stack.top().add_varname(ident)
     scope_stack.top().set_variable(ident, var)
     p[0] = Rpn_Constant(var)
 
@@ -2338,6 +2339,7 @@ def p_variable(p):
 
     var = Rpn_Variable(ident)
     dbg(whoami(), 1, "{}: Creating variable {} at address {} in {}".format(whoami(), ident, hex(id(var)), repr(scope_stack.top())))
+    scope_stack.top().add_varname(ident)
     scope_stack.top().set_variable(ident, var)
 
 
@@ -3517,7 +3519,7 @@ def w_date_minus():
     param_stack.push(result)
 
 
-@defword(name='dbg.tok', hidden=True)
+@defword(name='dbg.token', hidden=True)
 def w_dbg_tok():
     global debug_enabled
     w_debug()                   # Toggle debug_enabled
@@ -5313,6 +5315,7 @@ variable c
 
 
 def defvar(name, value, **kwargs):
+    global_scope.add_varname(name)
     var = Rpn_Variable(name, value, **kwargs)
     dbg(whoami(), 1, "{}: Creating variable {} at address {} in {}".format(whoami(), name, hex(id(var)), repr(global_scope)))
     global_scope.set_variable(name, var)
