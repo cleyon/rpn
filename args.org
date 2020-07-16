@@ -1,0 +1,10 @@
+| Bin | # | Type     |
+|-----+---+----------|
+| 000 | 0 | Any      |
+| 001 | 1 | Integer  |
+| 010 | 2 | Float    |
+| 011 | 3 | Rational |
+| 100 | 4 | Complex  |
+| 101 | 5 | Vector   |
+| 110 | 6 | Matrix   |
+| 111 | 7 | String   |
