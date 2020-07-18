@@ -135,30 +135,30 @@ It is caught in main_loop."""
 #
 #############################################################################
 debug_enabled     = False
-debug_enabled     = True
+#debug_enabled     = True
 
 debug_levels = {
     "defvar"                    : 0,
     "eval_string"               : 0,
-    "lookup_varname"            : 3,
-    "lookup_variable"           : 1,
+    "lookup_varname"            : 0,
+    "lookup_variable"           : 0,
     "p_define_word"             : 0,
     "p_executable"              : 0,
     "p_execute"                 : 0,
-    "p_fetch_var"               : 1,
+    "p_fetch_var"               : 0,
     "p_locals_scope"            : 0,
     "p_store_var"               : 0,
     "p_variable"                : 0,
     "parse"                     : 0,
-    "Rpn_Do_Loop#__call__"      : 1,
+    "Rpn_Do_Loop#__call__"      : 0,
     "Rpn_Scope#set_variable"    : 0,
-    "Rpn_Sequence#__call__"     : 1,
+    "Rpn_Sequence#__call__"     : 0,
     "Rpn_Sequence#__init__"     : 0,
     "Rpn_Word#__init__"         : 0,
-    "scope"                     : 1,
+    "scope"                     : 0,
     "show"                      : 0,
     "token"                     : 0,
-    "trace"                     : 2,
+    "trace"                     : 0,
 }
 
 
@@ -489,9 +489,9 @@ class Rpn_Do_Loop:
         _I = Rpn_Variable("_I", x)
         do_scope = Rpn_Scope("Call_Do_Loop")
         do_scope.set_variable('_I', _I)
-        push_scope(do_scope, "Starting Do_Loop")
 
         try:
+            push_scope(do_scope, "Starting Do_Loop")
             while True:
                 self._seq.__call__()
                 i += 1
@@ -537,9 +537,9 @@ class Rpn_Do_PlusLoop:
         _I = Rpn_Variable("_I", x)
         do_scope = Rpn_Scope("Call_Do_PlusLoop")
         do_scope.set_variable('_I', _I)
-        push_scope(do_scope, "Starting Do_PlusLoop")
 
         try:
+            push_scope(do_scope, "Starting Do_PlusLoop")
             while True:
                 self._seq.__call__()
                 if param_stack.empty():
@@ -1112,7 +1112,7 @@ class Rpn_Scope:
         return s
 
     def __repr__(self):
-        return "Scope[{}={}]".format(self.name(), hex(id(self)))
+        return "Scope['{}'={}]".format(self.name(), hex(id(self)))
 
 
 class Rpn_Sequence:
@@ -1123,45 +1123,48 @@ class Rpn_Sequence:
 
     def __call__(self):
         dbg("trace", 2, "trace: {}".format(repr(self)))
+
+        # Build a runtime scope populated with actual Rpn_Variables.
+        # We need to create a new empty scope, populate it with new
+        # variables which are named clones of the templates in the
+        # sequence's scope, and then push that new scope.  This
+        # ensure that each frame gets its own set of local
+        # variables.
+
+        if self.scope_template().name()[:6] == "Parse_":
+            scope_name = "Call_" + self.scope_template().name()[6:]
+        else:
+            scope_name = "Call_" + self.scope_template().name()
+        scope = Rpn_Scope(scope_name)
+        # XXX what about kwargs???
+        for varname in self.scope_template().all_varnames():
+            var = Rpn_Variable(varname, None)
+            scope.set_variable(varname, var)
+
+        if len(self.scope_template().in_varnames()) > 0:
+            if param_stack.size() < len(self.scope_template().in_varnames()):
+                raise Rpn_E_Runtime_Error("{}: Insufficient parameters ({} required)".format(self.scope_template().name(), len(self.scope_template().in_varnames())))
+            in_vars = []
+            for varname in self.scope_template().in_varnames().items():
+                in_vars.append(varname)
+            in_vars.reverse()
+            for varname in in_vars:
+                obj = param_stack.pop()
+                dbg(whoami(), 1, "{}: Setting {} to {}".format(whoami(), varname, obj.value()))
+                scope.variable(varname).set_obj(obj)
+
+        dbg(whoami(), 1, "{}: seq={}".format(whoami(), repr(self.seq())))
+        pushed_scope = False
+
         try:
-            # Build a runtime scope populated with actual Rpn_Variables.
-            # We need to create a new empty scope, populate it with new
-            # variables which are named clones of the templates in the
-            # sequence's scope, and then push that new scope.  This
-            # ensure that each frame gets its own set of local
-            # variables.
-
-            if self.scope_template().name()[:6] == "Parse_":
-                scope_name = "Call_" + self.scope_template().name()[6:]
-            else:
-                scope_name = "Call_" + self.scope_template().name()
-            scope = Rpn_Scope(scope_name)
-            # XXX what about kwargs???
-            for varname in self.scope_template().all_varnames():
-                var = Rpn_Variable(varname, None)
-                scope.set_variable(varname, var)
-
-            if len(self.scope_template().in_varnames()) > 0:
-                if param_stack.size() < len(self.scope_template().in_varnames()):
-                    raise Rpn_E_Runtime_Error("{}: Insufficient parameters ({} required)".format(self.scope_template().name(), len(self.scope_template().in_varnames())))
-                in_vars = []
-                for varname in self.scope_template().in_varnames().items():
-                    in_vars.append(varname)
-                in_vars.reverse()
-                for varname in in_vars:
-                    obj = param_stack.pop()
-                    dbg(whoami(), 1, "{}: Setting {} to {}".format(whoami(), varname, obj.value()))
-                    scope.variable(varname).set_obj(obj)
-
             push_scope(scope, "Calling {}".format(repr(self)))
-
-            dbg(whoami(), 1, "{}: seq={}".format(whoami(), repr(self.seq())))
+            pushed_scope = True
             self.seq().__call__()
         except Rpn_E_Exit:
             raise
         finally:
-            param_stack_pushes = 0
             if len(self.scope_template().out_varnames()) > 0:
+                param_stack_pushes = 0
                 for varname in self.scope_template().out_varnames().items():
                     var = scope.variable(varname)
                     if var is None:
@@ -1174,7 +1177,8 @@ class Rpn_Sequence:
                     dbg(whoami(), 1, "{} is {}".format(varname, repr(var.obj())))
                     param_stack.push(var.obj())
                     param_stack_pushes += 1
-            pop_scope("{} complete".format(repr(self)))
+            if pushed_scope:
+                pop_scope("{} complete".format(repr(self)))
 
     def patch_recurse(self, new_word):
         for idx, elem in enumerate(self.seq().items()):
@@ -1630,10 +1634,11 @@ class Rpn_Word:
         pass
 
     def __repr__(self):
-        if typename(self._defn) == 'function':
-            return "Word[{}]".format(self.name())
-        else:
-            return "Word[{}, {}]".format(self.name(), repr(self._defn))
+        return "Word[{}]".format(self.name())
+        # if typename(self._defn) == 'function':
+        #     return "Word[{}]".format(self.name())
+        # else:
+        #     return "Word[{}, {}]".format(self.name(), repr(self._defn))
 
 
 
@@ -5768,14 +5773,15 @@ def prompt_string():
 
 def pop_scope(why):
     scope = scope_stack.pop()
-    dbg("scope", 1, "Pop  {} due to {}".format(repr(scope), why))
+    dbg("scope", 2, "Pop  {} due to {}".format(repr(scope), why))
     #dbg("scope", 1, "Pop  {}".format(repr(scope)))
     if scope == global_scope:
+        traceback.print_stack(file=sys.stderr)
         raise Rpn_E_Fatal("Attempting to pop Global scope!")
 
 def push_scope(scope, why):
     dbg("scope", 2, "Push {} due to {}".format(repr(scope), why))
-    dbg("scope", 1, "Push {}".format(repr(scope)))
+    #dbg("scope", 1, "Push {}".format(repr(scope)))
     scope_stack.push(scope)
 
 
@@ -5931,6 +5937,8 @@ def main_loop():
             return
         except Rpn_E_Top_Level:
             continue
+        if error is True:
+            lnwriteln("{}: generate_token_list() error".format(whoami()))
         s = " ".join([ t.value for t in tok_list ])
         dbg("parse", 1, "s='{}'".format(s))
         eval_string(s)
