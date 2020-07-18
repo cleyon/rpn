@@ -38,7 +38,7 @@ go_interactive    = True
 got_interrupt     = False
 julian_offset     = 1721424 # date.toordinal() returns 1 for 0001-01-01, so compensate
 matrix_max        = 1000
-rational_re       = r'(\d+)~(\d+)'
+rational_re       = r'(\d+)::(\d+)'
 rational_pat      = re.compile(rational_re)
 show_x            = False
 time_re           = r'^[-+]?(\d+)\.(\d{,2})(\d*)$'
@@ -978,7 +978,7 @@ class Rpn_Rational:
         pass
 
     def __str__(self):
-        return "{}~{}".format(self.numerator(), self.denominator())
+        return "{}::{}".format(self.numerator(), self.denominator())
 
     def __repr__(self):
         return "Rational[{}]".format(repr(self.value()))
@@ -1108,7 +1108,7 @@ class Rpn_Scope:
             if len(self.words()) > 0:
                 s += " "
         if len(self.words()) > 0:
-            s += " ".join([ str(w) for w in self.words().values() ])
+            s += " ".join([ w.as_definition() for w in self.words().values() ])
         return s
 
     def __repr__(self):
@@ -1707,7 +1707,7 @@ def t_STRING(t):
     return t
 
 def t_RATIONAL(t):
-    r'[0-9]+~[0-9+]'
+    r'\d+::\d+'
     t.type = 'RATIONAL'
     return t
 
@@ -1787,7 +1787,7 @@ def t_WS(t):
     r'[ \t\n]+'
 
 def t_IDENTIFIER(t):
-    r'[-#$%&\*+,./:;<=>?A-Z^_a-z][-!"#$%&\'*+,./0-9:;<=>?@A-Z^_a-z~]*'
+    r'[-#$%&\*+,./:;<=>?A-Z^_a-z~][-!"#$%&\'*+,./0-9:;<=>?@A-Z^_a-z~]*'
 
     single_chars = {
         ':': 'COLON',
@@ -5249,23 +5249,24 @@ def define_secondary_words():
   | in:N |
   @N 0 do space loop ;
 
+
 \ Conversion functions
-: mm->in doc:"mm->in  ( mm -- in )  Convert millimeters to inches"
+: mm->in doc:"mm->in  ( mm -- inch )  Convert millimeters to inches"
   25.4 / ;
 
 : m->ft  doc:"m->ft  ( m -- ft )  Convert meters to feet"
   1000 * mm->in   12 / ;
 
-: km->mi doc:"km->mi  ( km -- mi )  Convert kilometers to miles"
+: km->mi doc:"km->mi  ( km -- mile )  Convert kilometers to miles"
   1000 *  m->ft 5280 / ;
 
-: in->mm doc:"in->mm  ( in -- mm )  Convert inches to millimeters"
+: in->mm doc:"in->mm  ( inch -- mm )  Convert inches to millimeters"
   25.4 * ;
 
 : ft->m doc:"ft->m  ( ft -- m )  Convert feet to meters"
   12   * in->mm 1000 / ;
 
-: mi->km doc:"mi->km  ( mi -- km )  Convert miles to kilometers"
+: mi->km doc:"mi->km  ( mile -- km )  Convert miles to kilometers"
   5280   * ft->m  1000 / ;
 
 : f->c doc:"f->c  ( f -- c )  Convert degrees fahrenheit to degrees celcius"
@@ -5277,6 +5278,12 @@ def define_secondary_words():
 : g->ozf doc:"g->ozf  ( g -- oz )  Convert grams to ounces"
   28.34952    / ;
 
+: gal->l  doc:"gal->l  ( gal -- liter )  Convert gallons to liters"
+  3.78541 * ;
+
+: l->gal  doc:"l->gal  ( liter -- gal )  Convert liters to gallons"
+  3.78541 / ;
+
 : kg->lbf doc:"kg->lbf  ( kg -- lb )  Convert kilograms to pounds"
   0.45359237 / ;
 
@@ -5286,7 +5293,7 @@ def define_secondary_words():
 : ozf->g    doc:"ozf->g  ( oz -- g )  Convert ounces to grams"
   28.34952    * ;
 
-: lbf->kg   doc:"lbf->kg  ( lb -- kb )  Convert pounds to kilograms"
+: lbf->kg   doc:"lbf->kg  ( lb -- kg )  Convert pounds to kilograms"
   0.45359237 * ;
 
 : in3->cm3  doc:"in3->cm3  ( in^3 -- cm^3 )  Convert cubic inches to cubic centimeters"
