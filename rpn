@@ -28,16 +28,19 @@ import traceback
 
 
 # Global variables
-angle_mode        = "d"  # r=radians, d=degrees, g=gradians
+angle_mode        = "d"         # r=Radians, d=Degrees, g=Gradians
 date_re           = r'^(\d{1,2})\.(\d{2})(\d{4})$'
 date_pat          = re.compile(date_re)
 default_protected = True
+display_style     = "s"         # s=Standard, f=Fixed, e=Scientific
+display_precision = 4
 flag_max          = 64
 force_interactive = False
 go_interactive    = True
 got_interrupt     = False
 julian_offset     = 1721424 # date.toordinal() returns 1 for 0001-01-01, so compensate
 matrix_max        = 1000
+precision_max     = 48          # more than 10 or 12 is not really practical
 rational_re       = r'(\d+)::(\d+)'
 rational_pat      = re.compile(rational_re)
 show_x            = False
@@ -191,7 +194,7 @@ def set_debug(resource, level = 1):
     global debug_levels
 
     if resource not in debug_levels:
-        print("set_debug: Resource '{}' not valid".format(resource))
+        print("set_debug: Resource '{}' not valid".format(resource)) # OK
         traceback.print_stack(file=sys.stderr)
         sys.exit(1)             # Harsh!
 
@@ -206,7 +209,7 @@ just change "dbg(res,1,xxx)" to "dbg(res,-1,xxx)".'''
     global debug_enabled, debug_levels
 
     if resource not in debug_levels:
-        print("dbg: Resource '{}' not valid".format(resource))
+        print("dbg: Resource '{}' not valid".format(resource)) # OK
         traceback.print_stack(file=sys.stderr)
         sys.exit(1)             # Harsh!
 
@@ -214,7 +217,7 @@ just change "dbg(res,1,xxx)" to "dbg(res,-1,xxx)".'''
         return False
     flag = debug_levels[resource] >= level
     if flag and text is not None:
-        print("{}".format(text), flush=True)
+        print("{}".format(text), flush=True) # OK
     return flag
 
 
@@ -1367,7 +1370,7 @@ class Rpn_Token_Mgr:
         # Read characters from input stream
         while data == "":
             if show_x and not param_stack.empty():
-                writeln("{}".format(str(param_stack.top())))
+                writeln("{}".format(fmt(param_stack.top())))
             show_x = False
 
             lnwrite()
@@ -1455,7 +1458,7 @@ class Rpn_Variable:
 
         if len(kwargs) > 0:
             for (key, val) in kwargs.items():
-                print("Unrecognized keyword '{}'={}".format(key, val))
+                print("Unrecognized keyword '{}'={}".format(key, val)) # OK
                 raise Rpn_E_Fatal("Could not construct variable '{}'".format(rawname))
 
     @classmethod
@@ -1581,7 +1584,7 @@ class Rpn_Word:
 
         if len(kwargs) > 0:
             for (key, val) in kwargs.items():
-                print("Unrecognized keyword '{}'={}".format(key, val))
+                print("Unrecognized keyword '{}'={}".format(key, val)) # OK
                 raise Rpn_E_Fatal("Could not construct word '{}'".format(name))
 
         kwargs["print_x"] = my_print_x
@@ -2693,9 +2696,7 @@ Print top stack value  ( x -- )
 A space is also printed after the number, but no newline.
 If you need a newline, call CR.""")
 def w_dot():
-    write("{} ".format(str(param_stack.pop())))
-    # global show_x
-    # show_x = False
+    write("{} ".format(fmt(param_stack.pop())))
 
 
 @defword(name='.!', hidden=True, print_x=False, args=1)
@@ -3485,7 +3486,7 @@ def w_dateinfo():
     if type(x) is not Rpn_Float:
         param_stack.push(x)
         raise TypeError("dateinfo: Type error ({})".format(typename(x)))
-    print(x.date_info())
+    print(x.date_info())        # OK
 
 
 @defword(name='date+', args=2, print_x=True, doc="""\
@@ -3835,6 +3836,23 @@ def w_fc_query():
         raise ValueError("fc?: Flag out of range (0..{} expected)".format(flag_max - 1))
     result = Rpn_Integer(0 if flag_test(x.value()) else 1)
     param_stack.push(result)
+
+
+@defword(name='fix', args=1, print_x=False, doc="""\
+Set fixed display  ( n -- )""")
+def w_fix():
+    global display_style, display_precision, precision_max
+    x = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(x)
+        raise TypeError("fix: Type error ({})".format(typename(x)))
+
+    if x.value() < 0 or x.value() > precision_max:
+        param_stack.push(x)
+        raise ValueError("fix: Precision out of range (0..{} expected)".format(precision_max))
+
+    display_style = "f"
+    display_precision = x.value()
 
 
 @defword(name='floor', args=1, print_x=True, doc="""\
@@ -4738,6 +4756,23 @@ def w_rot():
     param_stack.push(z)
 
 
+@defword(name='sci', args=1, print_x=False, doc="""\
+Set scientific display  ( n -- )""")
+def w_sci():
+    global display_style, display_precision, precision_max
+    x = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(x)
+        raise TypeError("{}: Type error ({})".format(whoami(), typename(x)))
+
+    if x.value() < 0 or x.value() > precision_max:
+        param_stack.push(x)
+        raise ValueError("fix: Precision out of range (0..{} expected)".format(precision_max))
+
+    display_style = "e"
+    display_precision = x.value()
+
+
 @defword(name='scopes', print_x=False)
 def w_scopes():
     for (i, item) in scope_stack.items_bottom_to_top():
@@ -4786,6 +4821,7 @@ def w_shfin():
     BEG = global_scope.variable('BEG')
     PYR = global_scope.variable('P/YR')
 
+    # XXX fmt()
     writeln("N:    {}".format(N  .obj().value() if N  .defined() else "Not set"))
     writeln("I%YR: {}".format(IYR.obj().value() if IYR.defined() else "Not set"))
     writeln("PV:   {}".format(PV .obj().value() if PV .defined() else "Not set"))
@@ -4922,6 +4958,14 @@ def w_sqrt():
     param_stack.push(result)
 
 
+@defword(name='std', print_x=False, doc="""\
+std  ( -- )
+Set display mode to standard.""")
+def w_std():
+    global display_style
+    display_style = "s"
+
+
 @defword(name='swap', args=2, doc="""\
 Exchange top two stack elements  ( y x -- x y )
 Equivalent to 1 ROLL""")
@@ -4932,7 +4976,7 @@ def w_swap():
     param_stack.push(y)
 
 
-@defword(name='tan', print_x=True, doc="""\
+@defword(name='tan', args=1, print_x=True, doc="""\
 Tangent  ( angle -- tangent )""")
 def w_tan():
     x = param_stack.pop()
@@ -4983,11 +5027,10 @@ def w_time_bang():
 Show time_info() for Float  ( x -- )""")
 def w_timeinfo():
     x = param_stack.pop()
-    if type(x) is Rpn_Float:
-        print(x.time_info())
-    else:
+    if type(x) is not Rpn_Float:
         param_stack.push(x)
         raise TypeError("timeinfo: Type error ({})".format(typename(x)))
+    print(x.time_info())        # OK
 
 
 @defword(name='trace', doc="""\
@@ -5318,7 +5361,10 @@ EXAMPLE:
 : X       88 emit ;
 : xbox  |foo bar|  5 0 do  4 0 do X loop cr loop ;
 
-: foo |a b c| : bar |x y z|   ."----" cr ; : baz 66 emit space ; 65 emit space baz bar ;
+: foo  |a b c|
+  : bar  |x y z|  ."----" cr ;
+  : baz           66 emit space ;
+  65 emit space baz bar ;
 
 \ variable v1     [1 2 3] !v1
 \ variable v2     [4 5 6] !v2
@@ -5389,6 +5435,15 @@ def flag_test(flag):
     if flag < 0 or flag > flag_max - 1:
         raise Rpn_E_Fatal("{}: Flag {} out of range".format(whoami(), flag))
     return True if flags_vec & 1<<flag != 0 else False
+
+
+# I should really just use __format__() correctly
+def fmt(x):
+    global display_style, display_precision
+    if type(x) is Rpn_Float and display_style in ["f", "e"]:
+        return "{:.{prec}{style}}".format(x.value(), style=display_style, prec=display_precision)
+    else:
+        return str(x)
 
 
 def generate_token_list():
@@ -5743,9 +5798,9 @@ def parse_args():
     try:
         opts, argv = getopt.getopt(sys.argv[1:], "dil:")
     except getopt.GetoptError as e:
-        print(str(e))
+        print(str(e))           # OK
         usage()
-        sys.exit(2)
+        sys.exit(64)
 
     for opt, arg in opts:
         if opt == "-d":
@@ -5762,7 +5817,7 @@ def parse_args():
             except Rpn_E_Runtime_Error as e:
                 lnwriteln(str(e))
         else:
-            print("Unhandled option {}".format(opt))
+            print("Unhandled option {}".format(opt)) # OK
             sys.exit(2)
 
     return argv
