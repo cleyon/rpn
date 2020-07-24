@@ -239,7 +239,7 @@ class Rpn_Abort_Quote:
         return self._str
 
     def __call__(self):
-        dbg("trace", 1, "trace: {}".format(repr(self)))
+        dbg("trace", 1, "trace({})".format(repr(self)))
         if param_stack.empty():
             raise Rpn_E_Runtime_Error("abort\": Insufficient parameters (1 required)")
         flag = param_stack.pop()
@@ -266,7 +266,7 @@ class Rpn_Begin_Again:
         self._seq = seq
 
     def __call__(self):
-        dbg("trace", 2, "trace: {}".format(repr(self)))
+        dbg("trace", 2, "trace({})".format(repr(self)))
         try:
             while True:
                 self._seq.__call__()
@@ -288,7 +288,7 @@ class Rpn_Begin_Until:
         self._seq = seq
 
     def __call__(self):
-        dbg("trace", 2, "trace: {}".format(repr(self)))
+        dbg("trace", 2, "trace({})".format(repr(self)))
         try:
             while True:
                 self._seq.__call__()
@@ -319,7 +319,7 @@ class Rpn_Begin_While:
         self._seq2 = seq2
 
     def __call__(self):
-        dbg("trace", 2, "trace: {}".format(repr(self)))
+        dbg("trace", 2, "trace({})".format(repr(self)))
         try:
             while True:
                 self._seq1.__call__()
@@ -352,7 +352,7 @@ class Rpn_Case:
         self._otherwise_seq = otherwise_seq
 
     def __call__(self):
-        dbg("trace", 2, "trace: {}".format(repr(self)))
+        dbg("trace", 2, "trace({})".format(repr(self)))
         if param_stack.empty():
             raise Rpn_E_Runtime_Error("case: Insufficient parameters (1 required)")
         n = param_stack.pop()
@@ -435,7 +435,7 @@ class Rpn_Complex:
         return self.real() == 0.0 and self.imag() == 0.0
 
     def __call__(self):
-        dbg("trace", 1, "trace: {}".format(repr(self)))
+        dbg("trace", 1, "trace({})".format(repr(self)))
         param_stack.push(self)
 
     def patch_recurse(self, new_word):
@@ -453,7 +453,7 @@ class Rpn_Constant:
         self._variable = var
 
     def __call__(self):
-        dbg("trace", 1, "trace: {}".format(repr(self)))
+        dbg("trace", 1, "trace({})".format(repr(self)))
         if param_stack.empty():
             raise Rpn_E_Runtime_Error("constant: Insufficient parameters (1 required)")
         self._variable.set_obj(param_stack.pop())
@@ -473,7 +473,7 @@ class Rpn_Do_Loop:
         self._seq = seq
 
     def __call__(self):
-        dbg("trace", 2, "trace: {}".format(repr(self)))
+        dbg("trace", 2, "trace({})".format(repr(self)))
         if param_stack.size() < 2:
             raise Rpn_E_Runtime_Error("do: Insufficient parameters (2 required)")
         x = param_stack.pop()
@@ -521,7 +521,7 @@ class Rpn_Do_PlusLoop:
         self._seq = seq
 
     def __call__(self):
-        dbg("trace", 2, "trace: {}".format(repr(self)))
+        dbg("trace", 2, "trace({})".format(repr(self)))
         if param_stack.size() < 2:
             raise Rpn_E_Runtime_Error("do: Insufficient parameters (2 required)")
         x = param_stack.pop()
@@ -581,7 +581,7 @@ class Rpn_Dot_Quote:
         return self._str
 
     def __call__(self):
-        dbg("trace", 1, "trace: {}".format(repr(self)))
+        dbg("trace", 1, "trace({})".format(repr(self)))
         write("{}".format(self.stringval()))
 
     def patch_recurse(self, new_word):
@@ -603,7 +603,7 @@ class Rpn_Fetch_Var:
         return self._identifier
 
     def __call__(self):
-        dbg("trace", 1, "trace: {}".format(repr(self)))
+        dbg("trace", 1, "trace({})".format(repr(self)))
         (var, _) = lookup_variable(self.identifier())
         if var is None:
             raise Rpn_E_Fatal("{}: @{}: Variable has vanished!".format(whoami(), self.identifier()))
@@ -633,7 +633,7 @@ class Rpn_Float:
         self._value = float(val)
 
     def __call__(self):
-        dbg("trace", 1, "trace: {}".format(repr(self)))
+        dbg("trace", 1, "trace({})".format(repr(self)))
         param_stack.push(self)
 
     def value(self):
@@ -709,7 +709,7 @@ class Rpn_Forget:
         self._scope = scope
 
     def __call__(self):
-        dbg("trace", 1, "trace: {}".format(repr(self)))
+        dbg("trace", 1, "trace({})".format(repr(self)))
         if self._word.protected():
             raise Rpn_E_Runtime_Error("forget: '{}' is protected".format(self._word.name()))
         self._scope.delete_word(self._word.name())
@@ -730,7 +730,7 @@ class Rpn_Help:
         self._doc = doc
 
     def __call__(self):
-        dbg("trace", 1, "trace: {}".format(repr(self)))
+        dbg("trace", 1, "trace({})".format(repr(self)))
         lnwriteln(self.doc())
 
     def identifier(self):
@@ -754,7 +754,7 @@ class Rpn_If:
         self._seq = seq
 
     def __call__(self):
-        dbg("trace", 2, "trace: {}".format(repr(self)))
+        dbg("trace", 2, "trace({})".format(repr(self)))
         if param_stack.empty():
             raise Rpn_E_Runtime_Error("if: Insufficient parameters (1 required)")
         flag = param_stack.pop()
@@ -780,7 +780,7 @@ class Rpn_If_Else:
         self._seq2 = seq2
 
     def __call__(self):
-        dbg("trace", 2, "trace: {}".format(repr(self)))
+        dbg("trace", 2, "trace({})".format(repr(self)))
         if param_stack.empty():
             raise Rpn_E_Runtime_Error("if: Insufficient parameters (1 required)")
         flag = param_stack.pop()
@@ -817,7 +817,7 @@ class Rpn_Integer:
         return self.value() == 0
 
     def __call__(self):
-        dbg("trace", 1, "trace: {}".format(repr(self)))
+        dbg("trace", 1, "trace({})".format(repr(self)))
         param_stack.push(self)
 
     def patch_recurse(self, new_word):
@@ -856,7 +856,7 @@ class Rpn_List:
         self._list.append(item)
 
     def __call__(self):
-        dbg("trace", 2, "trace: {}".format(repr(self)))
+        dbg("trace", 2, "trace({})".format(repr(self)))
         caught_exit = False
         for item in self.listval():
             # lnwriteln("{}: {}.__call__()".format(whoami(), item))
@@ -916,7 +916,7 @@ class Rpn_Matrix:
         return self._ncols
 
     def __call__(self):
-        dbg("trace", 1, "trace: {}".format(repr(self)))
+        dbg("trace", 1, "trace({})".format(repr(self)))
         param_stack.push(self)
 
     def patch_recurse(self, new_word):
@@ -974,7 +974,7 @@ class Rpn_Rational:
         return self.numerator() == 0
 
     def __call__(self):
-        dbg("trace", 1, "trace: {}".format(repr(self)))
+        dbg("trace", 1, "trace({})".format(repr(self)))
         param_stack.push(self)
 
     def patch_recurse(self, new_word):
@@ -994,7 +994,7 @@ class Rpn_Recurse:
         self._target = target
 
     def __call__(self):
-        dbg("trace", 1, "trace: {}".format(repr(self)))
+        dbg("trace", 1, "trace({})".format(repr(self)))
         if self.target() is None:
             raise Rpn_E_Runtime_Error("recurse: Only valid in colon definition")
         self.target().__call__()
@@ -1125,7 +1125,7 @@ class Rpn_Sequence:
         dbg(whoami(), 1, "{}: scope_template={}, exe_list={}".format(whoami(), repr(scope_template), repr(exe_list)))
 
     def __call__(self):
-        dbg("trace", 2, "trace: {}".format(repr(self)))
+        dbg("trace", 2, "trace({})".format(repr(self)))
 
         # Build a runtime scope populated with actual Rpn_Variables.
         # We need to create a new empty scope, populate it with new
@@ -1215,7 +1215,7 @@ class Rpn_Show:
         self._scope = scope
 
     def __call__(self):
-        dbg("trace", 1, "trace: {}".format(repr(self)))
+        dbg("trace", 1, "trace({})".format(repr(self)))
         writeln(self._word.as_definition())
 
     def patch_recurse(self, new_word):
@@ -1307,16 +1307,27 @@ class Rpn_Store_Var:
         return self._identifier
 
     def __call__(self):
-        dbg("trace", 1, "trace: {}".format(repr(self)))
+        dbg("trace", 1, "trace({})".format(repr(self)))
         (var, _) = lookup_variable(self.identifier())
         if var is None:
             raise Rpn_E_Fatal("{}: !{}: Variable has vanished!".format(whoami(), self.identifier()))
 
-        if param_stack.empty():
-            raise Rpn_E_Runtime_Error("!{}: Insufficient parameters (1 required)".format(self.identifier()))
         if var.readonly():
             raise Rpn_E_Runtime_Error("!{}: Variable cannot be modified".format(self.identifier()))
-        var.set_obj(param_stack.pop())
+        if var.constant():
+            raise Rpn_E_Runtime_Error("!{}: Constants cannot be modified".format(self.identifier()))
+        if param_stack.empty():
+            raise Rpn_E_Runtime_Error("!{}: Insufficient parameters (1 required)".format(self.identifier()))
+
+        if var._hook is None:
+            var.set_obj(param_stack.pop())
+        else:
+            try:
+                var._hook(var.obj(), param_stack.top())
+            except Rpn_E_Runtime_Error as e:
+                lnwriteln(str(e))
+            else:
+                var.set_obj(param_stack.pop())
 
     def patch_recurse(self, new_word):
         pass
@@ -1342,7 +1353,7 @@ class Rpn_String:
         self._value == val
 
     def __call__(self):
-        dbg("trace", 1, "trace: {}".format(repr(self)))
+        dbg("trace", 1, "trace({})".format(repr(self)))
         string_stack.push(self)
 
     def patch_recurse(self, new_word):
@@ -1385,7 +1396,7 @@ class Rpn_Token_Mgr:
             if not tok:
                 break
             cls.qtok.put(tok)
-            dbg("token", 1, "Lexer returned {}, queueing".format(tok))
+            dbg("token", 3, "Lexer returned {}, queueing".format(tok))
             tok_count += 1
 
         return tok_count
@@ -1429,33 +1440,69 @@ class Rpn_Variable:
             raise Rpn_E_Fatal("Invalid variable name '{}'".format(rawname))
 
         self._constant  = False
+        self._doc       = None
         self._hidden    = False
         self._rawname   = rawname
         self._noshadow  = False
         self._protected = False
         self._readonly  = False
         self._rpnobj    = obj
+        self._hook      = None
 
+        # `constant' is created by user word "constant".  Constants are
+        # initialized from the paramteter stack and cannot be modified
+        # after creation.
         if "constant" in kwargs:
             self._constant = kwargs["constant"]
             del kwargs["constant"]
 
+        # `doc' is the variable's documentation string.  For future use,
+        # not currently implemented.
+        if "doc" in kwargs:
+            self._doc = kwargs["doc"]
+            del kwargs["doc"]
+
+        # `hidden' means that the variable does not appear in the VARS
+        # command.  In all other respects (lookup, store, fetch) the
+        # variable behaves normally.
         if "hidden" in kwargs:
             self._hidden = kwargs["hidden"]
             del kwargs["hidden"]
 
+        # `noshadow' means that no variable of the same name can be
+        # created in a lower scope.  This ensures that every operation
+        # will find the original variable.
         if "noshadow" in kwargs:
             self._noshadow = kwargs["noshadow"]
             del kwargs["noshadow"]
 
+        # `protected' variables cannot be UNDEFined.  However, they can
+        # be modified or shadowed.
         if "protected" in kwargs:
             self._protected = kwargs["protected"]
             del kwargs["protected"]
 
+        # `readonly' means variable not be modified (by the user).  Very
+        # similar to constant.  Users cannot create readonly variables,
+        # only constants.  One previous difference was it was supposed
+        # to be a syntax error to attempt to modify a constant, while it
+        # was a runtime error to attempt to modify a readonly variable.
+        # This distinction is not currently enforced.
         if "readonly" in kwargs:
             self._readonly = kwargs["readonly"]
             del kwargs["readonly"]
 
+        # `hook' is a function that is called before a user-mode "!VAR"
+        # or "undef VAR".  It is called with the old value and the new
+        # proposed value.  (For "undef", new value is None.)  If system
+        # wants to prevent the change, the hook function should raise a
+        # Rpn_E_Runtime_Error exception.  Nothing needs to be returned.
+        if "hook" in kwargs:
+            self._hook = kwargs["hook"]
+            del kwargs["hook"]
+
+        # If there are any keywords left over, they must be ones we
+        # don't know about and we want to flag them as errors.
         if len(kwargs) > 0:
             for (key, val) in kwargs.items():
                 print("Unrecognized keyword '{}'={}".format(key, val)) # OK
@@ -1525,7 +1572,7 @@ class Rpn_Vector:
         return self.value().size
 
     def __call__(self):
-        dbg("trace", 1, "trace: {}".format(repr(self)))
+        dbg("trace", 1, "trace({})".format(repr(self)))
         param_stack.push(self)
 
     def patch_recurse(self, new_word):
@@ -1590,7 +1637,7 @@ class Rpn_Word:
         kwargs["print_x"] = my_print_x
 
     def __call__(self):
-        dbg("trace", 1, "trace: {}".format(repr(self)))
+        dbg("trace", 1, "trace({})".format(repr(self)))
         if param_stack.size() < self.args():
             raise Rpn_E_Runtime_Error("{}: Insufficient parameters ({} required)".format(self.name(), self.args()))
         if string_stack.size() < self.str_args():
@@ -2333,7 +2380,15 @@ def p_undef(p):
         lnwriteln("UNDEF: '{}' out of scope".format(ident))
         raise SyntaxError
 
-    scope_stack.top().delete_variable(ident)
+    if var._hook is None:
+        scope_stack.top().delete_variable(ident)
+    else:
+        try:
+            var._hook(var.obj(), None)
+        except Rpn_E_Runtime_Error as e:
+            lnwriteln(str(e))
+        else:
+            scope_stack.top().delete_variable(ident)
 
 
 def p_variable(p):
@@ -5066,7 +5121,6 @@ def w_tuck():
 @defword(name='undef', doc="""\
 Undefine a variable, removing it from the current scope.
 UNDEF <var>""")
-
 def w_undef():
     pass                        # Grammar rules handle this word
 
@@ -5200,6 +5254,16 @@ def w_N():
     param_stack.push(result)
 
 
+# def update_tvm_vars(pre, post):
+#     pre_value = "None" if pre is None else pre.value()
+#     post_value = "None" if post is None else post.value()
+#     print("Want to update from {} to {}".format(pre_value, post_value))
+#     if post is None:
+#         raise Rpn_E_Runtime_Error("Sorry, you are not allowed to undef N")
+#     if post.value() == 3:
+#         raise Rpn_E_Runtime_Error("Sorry, 3 is not valid")
+
+
 def interest_rate_helper():
     IYR = global_scope.variable('I%YR').obj().value()
     PYR = global_scope.variable('P/YR').obj().value()
@@ -5318,7 +5382,7 @@ def define_secondary_words():
 : c->f doc:"c->f  ( c -- f )  Convert degrees celcius to degrees fahrenheit"
   9 * 5 / 32 + ;
 
-: g->ozf doc:"g->ozf  ( g -- oz )  Convert grams to ounces"
+: g->oz doc:"g->oz  ( g -- oz )  Convert grams to ounces"
   28.34952    / ;
 
 : gal->l  doc:"gal->l  ( gal -- liter )  Convert gallons to liters"
@@ -5327,20 +5391,20 @@ def define_secondary_words():
 : l->gal  doc:"l->gal  ( liter -- gal )  Convert liters to gallons"
   3.78541 / ;
 
-: kg->lbf doc:"kg->lbf  ( kg -- lb )  Convert kilograms to pounds"
+: kg->lb doc:"kg->lb  ( kg -- lb )  Convert kilograms to pounds"
   0.45359237 / ;
 
-: cm3->in3 doc:"cm3->in3  ( cm^3 -- in^3 )  Convert cubic centimeters to cubic inches"
-  16.3871     / ;
+\ : cm3->in3 doc:"cm3->in3  ( cm^3 -- in^3 )  Convert cubic centimeters to cubic inches"
+\   16.3871     / ;
 
-: ozf->g    doc:"ozf->g  ( oz -- g )  Convert ounces to grams"
+: oz->g    doc:"oz->g  ( oz -- g )  Convert ounces to grams"
   28.34952    * ;
 
-: lbf->kg   doc:"lbf->kg  ( lb -- kg )  Convert pounds to kilograms"
+: lb->kg   doc:"lb->kg  ( lb -- kg )  Convert pounds to kilograms"
   0.45359237 * ;
 
-: in3->cm3  doc:"in3->cm3  ( in^3 -- cm^3 )  Convert cubic inches to cubic centimeters"
-  16.3871     * ;
+\ : in3->cm3  doc:"in3->cm3  ( in^3 -- cm^3 )  Convert cubic inches to cubic centimeters"
+\   16.3871     * ;
 
 """)
 
@@ -5461,10 +5525,9 @@ flag is True if initial parse error, False if no error'''
     while True:
         # Get next token
         tok = next(Rpn_Token_Mgr.next_token())
+        dbg("token", 1, "token({},{})".format(tok.type, repr(tok.value)))
 
         # Process token
-        dbg("token", 1, "token=({},{})".format(tok.type, repr(tok.value)))
-
         if tok.type == 'BACKSLASH':
             pass
 
@@ -5474,9 +5537,10 @@ flag is True if initial parse error, False if no error'''
             parse_stack.push(tok.type)
             try:
                 tok2 = next(Rpn_Token_Mgr.next_token())
+                dbg("token", 1, "token({},{})".format(tok2.type, repr(tok2.value)))
             except StopIteration:
                 initial_parse_error = True
-                dbg("{}: No more tokens, exiting".format(tok.type))
+                dbg("token", 1, "{}: No more tokens, exiting".format(tok.type))
                 break
             finally:
                 tok_list.append(tok)
@@ -5959,8 +6023,10 @@ def define_variables():
     defvar('#OUT', Rpn_Integer(0), protected=True, readonly=True, noshadow=True)
     defvar('BEG',  Rpn_Integer(0), protected=True, readonly=True) # 1=Begin, 0=End (default)
     defvar('COLS', Rpn_Integer(0), protected=True)
-    defvar('FV',   None, protected=True)
+    defvar('FV',   None, protected=True, doc="""\
+TVM variable: Future Value""")
     defvar('I%YR', None, protected=True)
+    #defvar('N',    None, protected=True, hook=update_tvm_vars)
     defvar('N',    None, protected=True)
     defvar('P/YR', Rpn_Integer(12), protected=True)
     defvar('PMT',  None, protected=True)
