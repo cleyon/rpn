@@ -360,13 +360,22 @@ class Rpn_Case:
             param_stack.push(n)
             raise TypeError("case: Case control parameter must be an integer")
         nval = n.value()
-        ran = False
+
+        # Determine the correct sequence to call
+        seq = self._otherwise_seq
         for clause in self._case_clauses.items():
-            ran = clause.attempt_call(nval)
-            if ran:
+            if clause.x() == nval:
+                seq = clause
                 break
-        if not ran:
-            self._otherwise_seq.__call__()
+
+        # Call it with a new scope
+        case_scope = Rpn_Scope("Call_Case")
+        case_scope.set_variable('caseval', Rpn_Variable("caseval", n))
+        try:
+            push_scope(case_scope, "Starting Case")
+            seq.__call__()
+        finally:
+            pop_scope("Case complete")
 
     def patch_recurse(self, new_word):
         self._case_clauses.patch_recurse(new_word)
@@ -391,15 +400,14 @@ class Rpn_Case:
 
 class Rpn_Case_Clause:
     def __init__(self, x, seq):
-        self._x = x             # x is a plain integer, not an Rpn_Integer
+        self._x = int(x)      # x is a plain integer, not an Rpn_Integer
         self._seq = seq
 
-    def attempt_call(self, n):
-        if n == self._x:
-            self._seq.__call__()
-            return True
-        else:
-            return False
+    def x(self):
+        return self._x
+
+    def __call__(self):
+        self._seq.__call__()
 
     def patch_recurse(self, new_word):
         self._seq.patch_recurse(new_word)
@@ -865,6 +873,10 @@ class Rpn_List:
     def items(self):
         for item in self.listval():
             yield item
+
+    def patch_recurse(self, new_word):
+        for item in self.listval():
+            item.patch_recurse(new_word)
 
     def __len__(self):
         return len(self.listval())
@@ -1727,7 +1739,6 @@ reserved_words = {
 tokens = [
     'ABORT_QUOTE',
     'AT_SIGN',
-    'BACKSLASH',
     'CLOSE_BRACKET',
     'CLOSE_PAREN',
     'COLON',
@@ -1786,9 +1797,20 @@ def t_AT_SIGN(t):
     return t
 
 def t_BACKSLASH(t):
-    r'\\.*'                     # \ indicates a comment, so the lexer eats the remainder of the line
-    type = 'BACKSLASH'
-    return t
+    r'\\.*'
+
+    # \ consumes the remainder of the line.
+    # Instead of setting type and returning t, doing nothing will ignore
+    # the token.  We want this behaviour, because otherwise the
+    # BACKSLASH token is returned and the parser attempts to execute it.
+    # This is problematic in places where an executable is not expected.
+    # For example, consider:
+    #     \ This comment is valid.
+    #     case
+    #        1 of ."Found one" endof
+    #        \ This comment is NOT valid because a case-clause is expected.
+    #        otherwise ."Found other value"
+    #     endcase
 
 def t_CLOSE_PAREN(t):
     r'\)'
@@ -1890,7 +1912,6 @@ def p_executable(p):
                   | begin_while
                   | case
                   | colon_def
-                  | comment
                   | constant
                   | do_loop
                   | do_plusloop
@@ -2040,10 +2061,6 @@ def p_colon_def_error(p):
     raise SyntaxError
 
 
-def p_comment(p):
-    '''comment : BACKSLASH'''
-
-
 def p_do_loop(p):
     '''do_loop : DO sequence LOOP'''
 
@@ -2076,7 +2093,6 @@ def p_forget(p):
 
 def p_help(p):
     '''help : HELP AGAIN
-            | HELP BACKSLASH
             | HELP BEGIN
             | HELP CASE
             | HELP COLON
@@ -3103,14 +3119,6 @@ def w_to_r():
     return_stack.push(param_stack.pop())
 
 
-@defword(name='\\', doc="""\
-\  ( -- ) Comment
-
-All characters from a \ to end of line are considered a comment and ignored.""")
-def w_backslash():
-    pass                        # Grammar rules handle this word
-
-
 @defword(name='?dup', args=1, doc="""\
 Duplicate top stack element if non-zero  ( x -- x x | 0 )""")
 def w_query_dup():
@@ -3360,13 +3368,15 @@ def w_bye():
 @defword(name='case', doc="""\
 Execute a sequence of words based on stack value.  Once a match is
 executed, no other clauses are considered.  OTHERWISE is optional.
-<n> and OF labels must be integers.
+<n> and OF labels must be integers.  CASE consumes the top of stack
+like any word; however the integer value is available to the sequence
+in variable "caseval".
 
 <n> CASE
   <x> OF xxx ENDOF
   <y> OF yyy ENDOF
   <z> OF zzz ENDOF
-  [ OTHERWISE aaa ]
+  [ OTHERWISE ooo ]
 ENDCASE
 
 qv ENDCASE, ENDOF, OF, OTHERWISE
@@ -5425,6 +5435,13 @@ EXAMPLE:
 : X       88 emit ;
 : xbox  |foo bar|  5 0 do  4 0 do X loop cr loop ;
 
+: ctest
+  case 1 of ."Found 1" .s vars endof
+  \ foo
+  otherwise ."Found other" .s vars
+  endcase
+;
+
 : foo  |a b c|
   : bar  |x y z|  ."----" cr ;
   : baz           66 emit space ;
@@ -5527,12 +5544,8 @@ flag is True if initial parse error, False if no error'''
         tok = next(Rpn_Token_Mgr.next_token())
         dbg("token", 1, "token({},{})".format(tok.type, repr(tok.value)))
 
-        # Process token
-        if tok.type == 'BACKSLASH':
-            pass
-
         # These need a second token or they will be very angry
-        elif tok.type in ['AT_SIGN', 'CONSTANT', 'EXCLAM', 'FORGET', 'HELP',
+        if tok.type in ['AT_SIGN', 'CONSTANT', 'EXCLAM', 'FORGET', 'HELP',
                           'SHOW', 'UNDEF', 'VARIABLE' ]:
             parse_stack.push(tok.type)
             try:
