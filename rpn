@@ -57,12 +57,14 @@ time_pat          = re.compile(time_re)
 # PI           = TAU / 2
 # RAD_PER_DEG  = TAU / 360
 # RAD_PER_GRAD = TAU / 400
-# TAU          = Number of radians in a circle (2*PI)
+# SQRT_2       = Square root of 2
+# TAU          = Number of radians in a circle = 2*PI
 
 RAD_PER_GRAD =  0.0157079632679489661923132169163975144209858469968755291048747229615390820314310449931401741267105853
 RAD_PER_DEG  =  0.0174532925199432957692369076848861271344287188854172545609719144017100911460344944368224156963450948
 GAMMA        =  0.5772156649015328606065120900824024310421593359399235988057672348848677267776646709369470632917467495
 LN_2         =  0.6931471805599453094172321214581765680755001343602552541206900094933936219696947156058633269964186875
+SQRT_2       =  1.4142135623730950488016887242096980785696718753769480731766797379907324784621070388503875343276415727
 PHI          =  1.6180339887498948482045868343656381177203091798057628621354486227052604628189024497072072041893911375
 LN_10        =  2.3025850929940456840179914546843642076011014886287729760333279009675726096773524802359972050895982983
 E            =  2.7182818284590452353602874713526624977572470936999595749669676277240766303535475945713821785251664274
@@ -3197,6 +3199,21 @@ def w_abs():
         result = Rpn_Float(abs(x.value()))
     elif type(x) is Rpn_Rational:
         result = Rpn_Rational.from_Fraction(abs(x.value()))
+    elif type(x) is Rpn_Vector:
+        if x.size() == 0:
+            param_stack.push(x)
+            raise ValueError("abs: X cannot be an empty vector")
+        sumsq = 0.0
+        for val in x.value():
+            sumsq += val ** 2
+        r = numpy_to_python(sumsq)
+        t = type(r)
+        if t is float:
+            result = Rpn_Float(math.sqrt(r))
+        elif t is complex:
+            result = Rpn_Complex.from_complex(cmath.sqrt(r))
+        else:
+            raise Rpn_E_Fatal("{}: Cannot handle type {}".format(whoami(), t))
     else:
         param_stack.push(x)
         raise TypeError("abs: Type error ({})".format(typename(x)))
@@ -3204,7 +3221,7 @@ def w_abs():
 
 
 @defword(name='acos', args=1, print_x=True, doc="""\
-Arc cosine  ( cosine -- angle )""")
+Inverse cosine  ( cosine -- angle )""")
 def w_acos():
     x = param_stack.pop()
     if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
@@ -3219,6 +3236,25 @@ def w_acos():
     else:
         param_stack.push(x)
         raise TypeError("acos: Type error ({})".format(typename(x)))
+    param_stack.push(result)
+
+
+@defword(name='acosh', args=1, print_x=True, doc="""\
+Inverse hyperbolic cosine  ( cosine_h -- angle )""")
+def w_acosh():
+    x = param_stack.pop()
+    if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
+        try:
+            r = math.acosh(float(x.value()))
+        except ValueError:
+            param_stack.push(x)
+            raise ValueError("acosh: Argument {} out of range".format(x.value()))
+        result = Rpn_Float(r)
+    elif type(x) is Rpn_Complex:
+        result = Rpn_Complex.from_complex(cmath.acosh(x.value()))
+    else:
+        param_stack.push(x)
+        raise TypeError("acosh: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -3257,7 +3293,7 @@ def w_and():
 
 
 @defword(name='asin', args=1, print_x=True, doc="""\
-Arc sine  ( sine -- angle )""")
+Inverse sine  ( sine -- angle )""")
 def w_asin():
     x = param_stack.pop()
     if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
@@ -3275,8 +3311,27 @@ def w_asin():
     param_stack.push(result)
 
 
+@defword(name='asinh', args=1, print_x=True, doc="""\
+Inverse hyperbolic sine  ( sine_h -- angle )""")
+def w_asinh():
+    x = param_stack.pop()
+    if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
+        try:
+            r = math.asinh(float(x.value()))
+        except ValueError:
+            param_stack.push(x)
+            raise ValueError("asinh: Argument {} out of range".format(x.value()))
+        result = Rpn_Float(r)
+    elif type(x) is Rpn_Complex:
+        result = Rpn_Complex.from_complex(cmath.asinh(x.value()))
+    else:
+        param_stack.push(x)
+        raise TypeError("asinh: Type error ({})".format(typename(x)))
+    param_stack.push(result)
+
+
 @defword(name='atan', print_x=True, doc="""\
-Arc tangent  ( tangent -- angle )""")
+Inverse tangent  ( tangent -- angle )""")
 def w_atan():
     x = param_stack.pop()
     if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
@@ -3289,10 +3344,24 @@ def w_atan():
     param_stack.push(result)
 
 
+@defword(name='atanh', print_x=True, doc="""\
+Inverse hyperbolic tangent  ( tangent_h -- angle )""")
+def w_atanh():
+    x = param_stack.pop()
+    if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
+        result = Rpn_Float(math.atanh(float(x.value())))
+    elif type(x) is Rpn_Complex:
+        result = Rpn_Complex.from_complex(cmath.atanh(x.value()))
+    else:
+        param_stack.push(x)
+        raise TypeError("atanh: Type error ({})".format(typename(x)))
+    param_stack.push(result)
+
+
 @defword(name='beg', doc="""\
 Set "Begin" financial mode.
 
-Do not confuse this with the BEGIN command, which starts a loop.""")
+Do not confuse this with the "begin" command, which starts a loop.""")
 def w_beg():
     global_scope.variable('BEG').set_obj(Rpn_Integer(1))
 
@@ -3307,7 +3376,7 @@ LEAVE will exit the loop early.  Note that the effect of the test in
 BEGIN...WHILE is opposite that in BEGIN...UNTIL.  The loop repeats
 while something is true, rather than until it becomes true.
 
-Do not confuse this with the BEG command, which sets "begin mode" for
+Do not confuse this with the "beg" command, which sets 'begin mode' for
 Time Value of Money calculations.
 
 qv AGAIN, LEAVE, REPEAT, UNTIL, WHILE""")
@@ -3393,8 +3462,7 @@ in variable "caseval".
   [ OTHERWISE ooo ]
 ENDCASE
 
-qv ENDCASE, ENDOF, OF, OTHERWISE
-""")
+qv ENDCASE, ENDOF, OF, OTHERWISE""")
 def w_case():
     pass                        # Grammar rules handle this word
 
@@ -3455,8 +3523,7 @@ def w_clflag():
 @defword(name='clrst', doc="""\
 Clear the return stack.
 
-Do not confuse this with the CLST command, which clears the parameter stack.
-""")
+Do not confuse this with the "clst" command, which clears the parameter stack.""")
 def w_clrst():
     return_stack.clear()
 
@@ -3464,7 +3531,7 @@ def w_clrst():
 @defword(name='clst', doc="""\
 Clear the stack
 
-Do not confuse this with the CLRST command, which clears the return stack.
+Do not confuse this with the "clrst" command, which clears the return stack.
 
 DEFINITION:
 : clst  depth 0 do drop loop ;""")
@@ -3514,6 +3581,20 @@ def w_cos():
     else:
         param_stack.push(x)
         raise TypeError("cos: Type error ({})".format(typename(x)))
+    param_stack.push(result)
+
+
+@defword(name='cosh', args=1, print_x=True, doc="""\
+Hyperbolic cosine  ( angle -- cosine_h )""")
+def w_cosh():
+    x = param_stack.pop()
+    if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
+        result = Rpn_Float(math.cosh(float(x.value())))
+    elif type(x) is Rpn_Complex:
+        result = Rpn_Complex.from_complex(cmath.cosh(x.value()))
+    else:
+        param_stack.push(x)
+        raise TypeError("cosh: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -3821,8 +3902,7 @@ executed, no other clauses are considered.  OTHERWISE is optional.
   [ OTHERWISE aaa ]
 ENDCASE
 
-qv CASE, ENDOF, OF, OTHERWISE
-""")
+qv CASE, ENDOF, OF, OTHERWISE""")
 def w_endcase():
     pass                        # Grammar rules handle this word
 
@@ -3839,8 +3919,7 @@ executed, no other clauses are considered.  OTHERWISE is optional.
   [ OTHERWISE aaa ]
 ENDCASE
 
-qv CASE, ENDCASE, OF, OTHERWISE
-""")
+qv CASE, ENDCASE, OF, OTHERWISE""")
 def w_endof():
     pass                        # Grammar rules handle this word
 
@@ -3994,6 +4073,14 @@ def w_fsolve():
     param_stack.push(result)
 
 
+@defword(name='GAMMA', print_x=True, doc="""\
+Constant: Euler number ( -- 0.5772... )
+
+Do not confuse with the the "gamma" function.""")
+def w_GAMMA():
+    param_stack.push(Rpn_Float(GAMMA))
+
+
 @defword(name='grad', doc="""\
 Set angular mode to gradians""")
 def w_grad():
@@ -4134,7 +4221,8 @@ Imaginary unit (0,1)  ( -- i )
 DEFINITION:
 i = sqrt(-1)
 
-Do not confuse this with the I command, which returns the index for a DO loop.""")
+Do not confuse this with the "I" command,
+which returns the index of a DO loop.""")
 def w_i():
     param_stack.push(Rpn_Complex(0,1))
 
@@ -4144,7 +4232,8 @@ Index of DO current loop  ( -- x )
 
 Return the index of the most recent DO loop.
 
-Do not confuse this with the i command, which returns the complex number (0,1).""")
+Do not confuse this with the "i" command,
+which returns the complex number (0,1).""")
 def w_I():
     (_I, _) = lookup_variable('_I')
     if _I is None:
@@ -4463,8 +4552,7 @@ executed, no other clauses are considered.  OTHERWISE is optional.
   [ OTHERWISE aaa ]
 ENDCASE
 
-qv CASE, ENDCASE, ENDOF, OTHERWISE
-""")
+qv CASE, ENDCASE, ENDOF, OTHERWISE""")
 def w_of():
     pass                        # Grammar rules handle this word
 
@@ -4504,8 +4592,7 @@ executed, no other clauses are considered.  OTHERWISE is optional.
   [ OTHERWISE aaa ]
 ENDCASE
 
-qv CASE, ENDCASE, ENDOF, OF
-""")
+qv CASE, ENDCASE, ENDOF, OF""")
 def w_otherwise():
     pass                        # Grammar rules handle this word
 
@@ -4757,7 +4844,9 @@ def w_rad_query():
 
 @defword(name='rand', print_x=True, doc="""\
 Random number  ( -- r )
-r is a float in range [0,1)""")
+r is a float in range [0,1)
+
+qv RANDINT""")
 def w_rand():
     param_stack.push(Rpn_Float(random.random()))
 
@@ -4767,7 +4856,9 @@ Random integer between 1 and n  ( n -- r )
 r is an integer in range [1,n]
 
 EXAMPLE:
-: threeD6  3 0 do 6 randint loop + + ;""")
+: threeD6  3 0 do 6 randint loop + + ;
+
+qv RAND""")
 def w_randint():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
@@ -4807,7 +4898,7 @@ def w_repeat():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='rms', args=1, doc="""\
+@defword(name='rms', args=1, print_x=True, doc="""\
 Root Mean Square  ( v -- rms )
 
 DEFINITION:
@@ -5009,6 +5100,20 @@ def w_sin():
     param_stack.push(result)
 
 
+@defword(name='sinh', args=1, print_x=True, doc="""\
+Hyperbolic sine  ( angle -- sine_h )""")
+def w_sinh():
+    x = param_stack.pop()
+    if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
+        result = Rpn_Float(math.sinh(float(x.value())))
+    elif type(x) is Rpn_Complex:
+        result = Rpn_Complex.from_complex(cmath.sinh(x.value()))
+    else:
+        param_stack.push(x)
+        raise TypeError("sinh: Type error ({})".format(typename(x)))
+    param_stack.push(result)
+
+
 @defword(name='sleep', args=1, doc="""\
 Sleep for N seconds  ( n -- )
 N may be fractional.""")
@@ -5101,6 +5206,20 @@ def w_tan():
     else:
         param_stack.push(x)
         raise TypeError("tan: Type error ({})".format(typename(x)))
+    param_stack.push(result)
+
+
+@defword(name='tanh', args=1, print_x=True, doc="""\
+Hyperbolic tangent  ( angle -- tangent_h )""")
+def w_tanh():
+    x = param_stack.pop()
+    if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
+        result = Rpn_Float(math.tanh(x.value()))
+    elif type(x) is Rpn_Complex:
+        result = Rpn_Complex.from_complex(cmath.tanh(x.value()))
+    else:
+        param_stack.push(x)
+        raise TypeError("tanh: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -5386,7 +5505,7 @@ def convert_mode_to_radians(x, force_mode=None):
     elif mode == "g":
         return x / GRAD_PER_RAD
     else:
-        raise Rp2Fatal("{}: Bad angle_mode '{}'".format(whoami(), mode))
+        raise Rpn_E_Fatal("{}: Bad angle_mode '{}'".format(whoami(), mode))
 
 
 def convert_radians_to_mode(r, force_mode=None):
@@ -5399,11 +5518,17 @@ def convert_radians_to_mode(r, force_mode=None):
     elif mode == "g":
         return r * GRAD_PER_RAD
     else:
-        raise Rp2Fatal("{}: Bad angle_mode '{}'".format(whoami(), mode))
+        raise Rpn_E_Fatal("{}: Bad angle_mode '{}'".format(whoami(), mode))
 
 
 def define_secondary_words():
     eval_string("""
+: PHI           doc:"PHI  ( -- 1.618... )   Golden ratio
+
+DEFINITION:
+PHI = (1 + sqrt(5)) / 2"
+  5 sqrt 1 + 2 / ;
+
 : BL            doc:"BL  ( -- 32 )   ASCII code for a space character"
   32 ;
 
