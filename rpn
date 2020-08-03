@@ -450,7 +450,7 @@ class Rpn_Complex:
         pass
 
     def __str__(self):
-        return "({}, {})".format(self.real(), self.imag()) # sprintf?
+        return "({}, {})".format(fmt(self.real()), fmt(self.imag()))
 
     def __repr__(self):
         return "Complex[{}]".format(repr(self.value()))
@@ -1331,15 +1331,17 @@ class Rpn_Store_Var:
         if param_stack.empty():
             raise Rpn_E_Runtime_Error("!{}: Insufficient parameters (1 required)".format(self.identifier()))
 
-        if var._hook is None:
+        if var._pre_hook is None:
             var.set_obj(param_stack.pop())
         else:
             try:
-                var._hook(var.obj(), param_stack.top())
+                var._pre_hook(var.obj(), param_stack.top())
             except Rpn_E_Runtime_Error as e:
                 lnwriteln(str(e))
             else:
                 var.set_obj(param_stack.pop())
+        if var._post_hook is not None:
+            var._post_hook()
 
     def patch_recurse(self, new_word):
         pass
@@ -1459,7 +1461,8 @@ class Rpn_Variable:
         self._protected = False
         self._readonly  = False
         self._rpnobj    = obj
-        self._hook      = None
+        self._pre_hook  = None
+        self._post_hook = None
 
         # `constant' is created by user word "constant".  Constants are
         # initialized from the paramteter stack and cannot be modified
@@ -1504,14 +1507,23 @@ class Rpn_Variable:
             self._readonly = kwargs["readonly"]
             del kwargs["readonly"]
 
-        # `hook' is a function that is called before a user-mode "!VAR"
+        # `pre_hook' is a function that is called before a user-mode "!VAR"
         # or "undef VAR".  It is called with the old value and the new
         # proposed value.  (For "undef", new value is None.)  If system
-        # wants to prevent the change, the hook function should raise a
+        # wants to prevent the change, the pre_hook function should raise a
         # Rpn_E_Runtime_Error exception.  Nothing needs to be returned.
-        if "hook" in kwargs:
-            self._hook = kwargs["hook"]
-            del kwargs["hook"]
+        if "pre_hook" in kwargs:
+            self._pre_hook = kwargs["pre_hook"]
+            del kwargs["pre_hook"]
+
+        # `post_hook' is a function that is called after a user-mode
+        # "!VAR" or "undef VAR".  It has no parameters; the variable is
+        # already set.  It is used to update other things that depend on
+        # the variable's new value.  Nothing needs to be returned, and
+        # no exceptions should be raised.
+        if "post_hook" in kwargs:
+            self._post_hook = kwargs["post_hook"]
+            del kwargs["post_hook"]
 
         # If there are any keywords left over, they must be ones we
         # don't know about and we want to flag them as errors.
@@ -2396,15 +2408,17 @@ def p_undef(p):
         lnwriteln("UNDEF: '{}' out of scope".format(ident))
         raise SyntaxError
 
-    if var._hook is None:
+    if var._pre_hook is None:
         scope_stack.top().delete_variable(ident)
     else:
         try:
-            var._hook(var.obj(), None)
+            var._pre_hook(var.obj(), None)
         except Rpn_E_Runtime_Error as e:
             lnwriteln(str(e))
         else:
             scope_stack.top().delete_variable(ident)
+    if var._post_hook is not None:
+        var._post_hook()
 
 
 def p_variable(p):
@@ -2556,7 +2570,7 @@ Percentage change  ( old new -- %change )
 DEFINITION:
 
           new - old
-%change = --------- * 100
+%Change = --------- * 100
              old
 
 old cannot be zero.""")
@@ -4793,6 +4807,40 @@ def w_repeat():
     pass                        # Grammar rules handle this word
 
 
+@defword(name='rms', args=1, doc="""\
+Root Mean Square  ( v -- rms )
+
+DEFINITION:
+            2    2    2          2
+           x1 + x2 + x3 + ... + xn
+rms = sqrt(-----------------------)
+                      n""")
+def w_rms():
+    x = param_stack.pop()
+    if type(x) is not Rpn_Vector:
+        param_stack.push(x)
+        raise TypeError("rms: Type error ({})".format(typename(x)))
+
+    n = x.size()
+    if n == 0:
+        param_stack.push(x)
+        raise ValueError("rms: X cannot be an empty vector")
+    sumsq = 0.0
+    for val in x.value():
+        sumsq += val ** 2
+    sumsq /= n
+    rval = numpy_to_python(sumsq)
+    t = type(rval)
+    if t is float:
+        r = Rpn_Float(math.sqrt(rval))
+    elif t is complex:
+        r = Rpn_Complex.from_complex(cmath.sqrt(rval))
+    else:
+        raise Rpn_E_Fatal("{}: Cannot handle type {}".format(whoami(), t))
+
+    param_stack.push(r)
+
+
 @defword(name='roll', args=1, doc="""\
 Roll stack elements  ( x -- )
 1 ROLL ==> SWAP, 2 ROLL ==> ROT""")
@@ -5521,8 +5569,10 @@ def flag_test(flag):
 # I should really just use __format__() correctly
 def fmt(x):
     global display_style, display_precision
-    if type(x) is Rpn_Float and display_style in ["f", "e"]:
-        return "{:.{prec}{style}}".format(x.value(), style=display_style, prec=display_precision)
+    if type(x) is float and display_style in ["f", "e"]:
+        return "{:.{prec}{style}}".format(x, style=display_style, prec=display_precision)
+    elif type(x) is Rpn_Float and display_style in ["f", "e"]:
+        return fmt(x.value())
     else:
         return str(x)
 
@@ -5871,6 +5921,26 @@ def normalize_hms(hh, mm, ss):
     return (hh, mm, ss)
 
 
+def numpy_to_python(n):
+    t = type(n)
+    if t is np.int64:
+        return int(n)
+    elif t is np.float64:
+        return float(n)
+    elif t is np.complex128:
+        return complex(n)
+    else:
+        raise Rpn_E_Fatal("{}: Cannot handle type {}".format(whoami(), t))
+
+
+def numpy_to_rpn(n):
+    t = type(n)
+    if t is np.int64:
+        return Rpn_Integer(n)
+    else:
+        raise Rpn_E_Fatal("{}: Cannot handle type {}".format(whoami(), t))
+
+
 def parse_args():
     try:
         opts, argv = getopt.getopt(sys.argv[1:], "dil:")
@@ -6039,7 +6109,7 @@ def define_variables():
     defvar('FV',   None, protected=True, doc="""\
 TVM variable: Future Value""")
     defvar('I%YR', None, protected=True)
-    #defvar('N',    None, protected=True, hook=update_tvm_vars)
+    #defvar('N',    None, protected=True, pre_hook=update_tvm_vars)
     defvar('N',    None, protected=True)
     defvar('P/YR', Rpn_Integer(12), protected=True)
     defvar('PMT',  None, protected=True)
