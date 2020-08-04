@@ -32,4 +32,4 @@ pip3 install --user ply
 
 ## Bugs
 
-- HMS+ et al don't work well with negatives times.  Avoid them for now.
+- HMS+ et al don't work well with negative times.  Avoid them for now.

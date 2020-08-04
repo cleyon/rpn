@@ -10,29 +10,39 @@ import getopt
 import inspect
 import itertools
 import math
-try:
-    import numpy    as np
-    have_numpy = True
-except ModuleNotFoundError:
-    have_numpy = False
 import os
-import ply.lex  as lex
-import ply.yacc as yacc
 import queue
 import random
 import re
 import readline
-try:
-    import scipy.integrate
-    import scipy.optimize
-    have_scipy = True
-except ModuleNotFoundError:
-    have_scipy = False
 import signal
 import subprocess
 import sys
 import time
 import traceback
+
+try:
+    import ply.lex  as lex
+    import ply.yacc as yacc
+except ModuleNotFoundError:
+    print("RPN requires the 'ply' library; please consult the README")
+    sys.exit(1)
+
+have_numpy = False
+try:
+    import numpy as np
+    have_numpy = True
+except ModuleNotFoundError:
+    pass
+
+have_scipy = False
+if have_numpy:
+    try:
+        import scipy.integrate
+        import scipy.optimize
+        have_scipy = True
+    except ModuleNotFoundError:
+        pass
 
 
 # Global variables
@@ -4095,9 +4105,38 @@ def w_fsolve():
 @defword(name='GAMMA', print_x=True, doc="""\
 Constant: Euler number ( -- 0.5772... )
 
-Do not confuse with the the "gamma" function.""")
+Do not confuse this with the "gamma" function.""")
 def w_GAMMA():
     param_stack.push(Rpn_Float(GAMMA))
+
+
+@defword(name='gamma', args=1, print_x=True, doc="""\
+Gamma function  ( x -- gamma[x] )
+
+Do not confuse this with the constant "GAMMA".""")
+def w_gamma():
+    x = param_stack.pop()
+    if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
+        try:
+            r = math.gamma(x.value())
+        except ValueError:
+            param_stack.push(x)
+            raise ValueError("gamma: X cannot be a non-positive integer")
+        if type(x) is Rpn_Integer:
+            result = Rpn_Integer(r)
+        else:
+            result = Rpn_Float(r)
+    elif type(x) is Rpn_Complex:
+        if not have_scipy:
+            param_stack.push(x)
+            raise Rpn_E_Runtime_Error("gamma: Complex support requires 'scipy' library")
+        r = scipy.special.gamma(x.value())
+        # XXX - (-5,0) gamma => (nan,nan).  How to trap?
+        result = Rpn_Complex.from_complex(r)
+    else:
+        param_stack.push(x)
+        raise TypeError("gamma: Type error({})".format(typename(x)))
+    param_stack.push(result)
 
 
 @defword(name='grad', doc="""\
