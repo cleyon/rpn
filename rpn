@@ -5079,22 +5079,27 @@ def w_sf():
 @defword(name='shfin', print_x=False, doc="""\
 Show financial variables""")
 def w_shfin():
-    N   = global_scope.variable('N')
-    IYR = global_scope.variable('I%YR')
-    PV  = global_scope.variable('PV')
-    PMT = global_scope.variable('PMT')
-    FV  = global_scope.variable('FV')
-    BEG = global_scope.variable('BEG')
-    PYR = global_scope.variable('P/YR')
+    global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
+    global tvm_A, tvm_B, tvm_C, tvm_X
+
+    # N   = global_scope.variable('N')
+    # IYR = global_scope.variable('I%YR')
+    # PV  = global_scope.variable('PV')
+    # PMT = global_scope.variable('PMT')
+    # FV  = global_scope.variable('FV')
+    # BEG = global_scope.variable('BEG')
+    # PYR = global_scope.variable('P/YR')
 
     # XXX fmt()
-    writeln("N:    {}".format(N  .obj().value() if N  .defined() else "Not set"))
-    writeln("I%YR: {}".format(IYR.obj().value() if IYR.defined() else "Not set"))
-    writeln("PV:   {}".format(PV .obj().value() if PV .defined() else "Not set"))
-    writeln("PMT:  {}".format(PMT.obj().value() if PMT.defined() else "Not set"))
-    writeln("FV:   {}".format(FV .obj().value() if FV .defined() else "Not set"))
-    writeln("P/YR: {}".format(PYR.obj().value() if PYR.defined() else "Not set"))
-    writeln("Mode: {}".format("BEGIN" if BEG.obj().value() == 1  else "END"))
+    writeln("N:    {}".format(tvm_n.obj().value() if tvm_n.defined() else "Not set"))
+    writeln("INT:  {}".format(tvm_i.obj().value() if tvm_i.defined() else "Not set"))
+   #writeln("PV:   {}".format(PV .obj().value() if PV .defined() else "Not set"))
+   #writeln("PMT:  {}".format(PMT.obj().value() if PMT.defined() else "Not set"))
+   #writeln("FV:   {}".format(FV .obj().value() if FV .defined() else "Not set"))
+   #writeln("P/YR: {}".format(PYR.obj().value() if PYR.defined() else "Not set"))
+   #writeln("Mode: {}".format("BEGIN" if BEG.obj().value() == 1  else "END"))
+    writeln("A:    {}".format(tvm_A if tvm_A is not None else "Not set"))
+    writeln("X:    {}".format(tvm_X.obj().value() if tvm_X.defined() else "Not set"))
 
 
 @defword(name='shflag', print_x=False, doc="""\
@@ -5475,45 +5480,123 @@ def w_clfin():
     global_scope.variable('PV')  .set_obj(None)
 
 
-# BUG: if PV is 0, divide by zero exception
-@defword(name='N', hidden=True, print_x=True, doc="""\
+@defword(name='N', print_x=True, doc="""\
 Solve for N (number of payments)""")
 def w_N():
-    check_financial_variables("N", ['I%YR', 'PV', 'FV'])
+    global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
+    global tvm_A, tvm_B, tvm_C, tvm_X
 
-    N   = global_scope.variable('N')
-    FV  = global_scope.variable('FV').obj()
-    PV  = global_scope.variable('PV').obj()
+    if not tvm_PMT.defined() or not tvm_FV.defined() or \
+       not tvm_PV.defined()  or not tvm_i.defined():
+        raise Rpn_E_Runtime_Error("N: Need i, PV, PMT, and FV")
 
-    ip = interest_rate_helper()
-    ln_ip1 = math.log1p(ip)
-    n = math.log((FV.value() * ip) / (PV.value() * ip))  /  ln_ip1
-    result = Rpn_Float(float(n))
-    N.set_obj(result)
+    # n = ln[(C-FV)/(C+PV)] / ln(1+i)
+    FV = tvm_FV.obj().value()
+    PV = tvm_PV.obj().value()
+    i  = tvm_i .obj().value()
+    n = math.log((tvm_C - FV) / (tvm_C + PV)) / math.log1p(i)
+    result = Rpn_Float(n)
+    tvm_n.set_obj(result)
     param_stack.push(result)
 
 
-# def update_tvm_vars(pre, post):
-#     pre_value = "None" if pre is None else pre.value()
-#     post_value = "None" if post is None else post.value()
-#     print("Want to update from {} to {}".format(pre_value, post_value))
-#     if post is None:
-#         raise Rpn_E_Runtime_Error("Sorry, you are not allowed to undef N")
-#     if post.value() == 3:
-#         raise Rpn_E_Runtime_Error("Sorry, 3 is not valid")
+@defword(name='INT', print_x=True, doc="""\
+Solve for INT (interest rate)""")
+def w_INT():
+    global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
+    global tvm_A, tvm_B, tvm_C, tvm_X
+
+    if not tvm_PMT.defined() or not tvm_FV.defined() or \
+       not tvm_n.defined()   or not tvm_PV.defined():
+        raise Rpn_E_Runtime_Error("PV: Need n, PV, PMT, and FV")
+
+    n   = tvm_n  .obj().value()
+    PV  = tvm_PV .obj().value()
+    PMT = tvm_PMT.obj().value()
+    FV  = tvm_FV .obj().value()
+
+    # i = (FV/PV)^(1/n) - 1
+    # For PMT == 0, i is solved using LBL 09
+    # For PMT != 0, i must be solved by iteration
+    i[0] = abs(PMT / (abs(PV) + abs(FV))) \
+         + abs((abs(pv) + abs(FV)) / (n**3 * PMT))
+    raise Rpn_E_Runtime_Error("INT: Not implemented yet")
 
 
-def interest_rate_helper():
-    IYR = global_scope.variable('I%YR').obj().value()
-    PYR = global_scope.variable('P/YR').obj().value()
-    return (float(IYR) / 100.0) / float(PYR)
+@defword(name='PV', print_x=True, doc="""\
+Solve for PV (present value)""")
+def w_PV():
+    global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
+    global tvm_A, tvm_B, tvm_C, tvm_X
+
+    if not tvm_PMT.defined() or not tvm_FV.defined() or \
+       not tvm_n.defined()   or not tvm_i.defined():
+        raise Rpn_E_Runtime_Error("PV: Need n, i, PMT, and FV")
+
+    # PV = -[FV + (A*C)] / (A+1)
+    FV = tvm_FV.obj().value()
+    PV = -1.0 * (FV + (tvm_A * tvm_C)) / (tvm_A + 1.0)
+    result = Rpn_Float(PV)
+    tvm_PV.set_obj(result)
+    param_stack.push(result)
 
 
-def k_helper():
-    r = 1.0
-    if global_scope.variable('BEG').obj().value() == 1:
-        r += interest_rate_helper()
-    return r
+@defword(name='PMT', print_x=True, doc="""\
+Solve for PMT (payment amount)""")
+def w_PMT():
+    global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
+    global tvm_A, tvm_B, tvm_C, tvm_X
+
+    if not tvm_PV.defined() or not tvm_FV.defined() or \
+       not tvm_n.defined()  or not tvm_i.defined():
+        raise Rpn_E_Runtime_Error("PMT: Need n, i, PV, and FV")
+
+    # PMT = -[FV + PV(A+1)] / (A*B)
+    FV = tvm_FV.obj().value()
+    PMT = -1.0 * (FV + PV*(tvm_A+1.0)) / (tvm_A * tvm_B)
+    result = Rpn_Float(PMT)
+    tvm_PMT.set_obj(result)
+    param_stack.push(result)
+
+
+@defword(name='FV', print_x=True, doc="""\
+Solve for FV (future value)""")
+def w_FV():
+    global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
+    global tvm_A, tvm_B, tvm_C, tvm_X
+
+    if not tvm_PMT.defined() or not tvm_PV.defined() or \
+       not tvm_n.defined()   or not tvm_i.defined():
+        raise Rpn_E_Runtime_Error("FV: Need n, i, PV, and PMT")
+
+    # FV = -[PV + A(PV + C)]
+    PV = tvm_PV.obj().value()
+    FV = -1.0 * (PV + tvm_A*(PV + tvm_C))
+    result = Rpn_Float(FV)
+    tvm_FV.set_obj(result)
+    param_stack.push(result)
+
+
+def validate_N(pre, post):
+    # Don't need to check if post is None because variable is protected
+    pass
+
+def update_tvm_vars():
+    global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
+    global tvm_A, tvm_B, tvm_C, tvm_X
+
+    # A = (1+i)^n - 1
+    # D = (1+i)^(n-1)
+    if tvm_n.defined() and tvm_i.defined():
+        tvm_A = ((1.0 + tvm_i.obj().value()) ** tvm_n.obj().value()) - 1.0
+
+    # B = (1+iX)/i
+    if tvm_i.defined():
+        tvm_B = (1.0 + tvm_i.obj().value() * tvm_X.obj().value()) / tvm_i.obj().value()
+
+    # C = PMT * B
+    if tvm_PMT.defined() and tvm_B is not None:
+        tvm_C = tvm_PMT.obj().value() * tvm_B
 
 
 def check_financial_variables(for_var, needs):
@@ -5524,8 +5607,8 @@ def check_financial_variables(for_var, needs):
             still_needed.append(x)
     if len(still_needed) == 0:
         return True
-    raise Rpn_E_Runtime_Error("{}: Financial variables {} are not set".format(for_var, ",".join(still_needed)))
-
+    #raise Rpn_E_Runtime_Error("{}: Financial variables {} are not set".format(for_var, ",".join(still_needed)))
+    return False
 
 
 
@@ -5600,6 +5683,16 @@ PHI = (1 + sqrt(5)) / 2"
 : spaces        doc:"spaces  ( n -- )   Display N space characters"
   | in:N |
   @N 0 do space loop ;
+
+: sum           doc:"sum  ( ... -- sum )  Sum all numbers on the stack"
+  depth 0= if
+      0
+  else
+      depth 1 > if
+          depth 1 - 0 do + loop
+      then
+  then
+;
 
 
 \ Conversion functions
@@ -5701,6 +5794,7 @@ def defvar(name, value, **kwargs):
     var = Rpn_Variable(name, value, **kwargs)
     dbg(whoami(), 1, "{}: Creating variable {} at address {} in {}".format(whoami(), name, hex(id(var)), repr(global_scope)))
     global_scope.set_variable(name, var)
+    return var
 
 
 def eval_string(s):
@@ -6290,19 +6384,25 @@ def initialize():
 
 
 def define_variables():
+    global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
+    global tvm_A, tvm_B, tvm_C, tvm_X
+
     defvar('#OUT', Rpn_Integer(0), protected=True, readonly=True, noshadow=True)
-    defvar('BEG',  Rpn_Integer(0), protected=True, readonly=True) # 1=Begin, 0=End (default)
     defvar('COLS', Rpn_Integer(0), protected=True)
-    defvar('FV',   None, protected=True, doc="""\
-TVM variable: Future Value""")
-    defvar('I%YR', None, protected=True)
-    #defvar('N',    None, protected=True, pre_hook=update_tvm_vars)
-    defvar('N',    None, protected=True)
-    defvar('P/YR', Rpn_Integer(12), protected=True)
-    defvar('PMT',  None, protected=True)
-    defvar('PV',   None, protected=True)
     defvar('ROWS', Rpn_Integer(0), protected=True)
     defvar('VER',  Rpn_Float(rpn_version), protected=True, constant=True, noshadow=True)
+
+    tvm_n   = defvar('N',    None, protected=True, pre_hook=validate_N, post_hook=update_tvm_vars)
+    tvm_i   = defvar('INT',  None, protected=True,                      post_hook=update_tvm_vars)
+    tvm_PV  = defvar('PV',   None, protected=True)
+    tvm_PMT = defvar('PMT',  None, protected=True)
+    tvm_FV  = defvar('FV',   None, protected=True, doc="TVM: Future Value")
+             #defvar('BEG',  Rpn_Integer(0), protected=True, readonly=True) # 1=Begin, 0=End (default)
+             #defvar('P/YR', Rpn_Integer(12), protected=True)
+    tvm_A = None
+    tvm_B = None
+    tvm_C = None
+    tvm_X   = defvar('X',    Rpn_Integer(0), protected=True, readonly=True) # 1=Begin (annuity due), 0=End (ordinary annuity, default)
 
 
 def main():
