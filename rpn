@@ -1320,7 +1320,7 @@ class Rpn_Stack:
     def __str__(self):
         sa = []
         for (i, item) in self.items_bottom_to_top():
-            sa.append("{}: {}".format(i, item))
+            sa.append("{}: {}".format(i, fmt(item)))
         #print(sa)
         return "\n".join(sa)
 
@@ -1410,7 +1410,7 @@ class Rpn_Token_Mgr:
     def get_more_tokens(cls):
         tok_count = 0
         data = ""
-        sharpout = global_scope.variable('#OUT')
+        global sharpout
         prompt = prompt_string()
         global show_x
 
@@ -5459,7 +5459,7 @@ def w_clfin():
     tvm_A = None
     tvm_B = None
     tvm_C = None
-    tvm_X = 0
+    tvm_X = 0 # 1=Begin (annuity due), 0=End (ordinary annuity, default)
 
 
 @defword(name='N', print_x=True, doc="""\
@@ -5468,7 +5468,7 @@ def w_N():
     global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
     global tvm_A, tvm_B, tvm_C, tvm_X
 
-    if any_undefined_p(tvm_i, tvm_PV, tvm_PMT, tvm_FV):
+    if any_undefined_p([tvm_i, tvm_PV, tvm_PMT, tvm_FV]):
         raise Rpn_E_Runtime_Error("N: Need i, PV, PMT, and FV")
 
     # n = ln[(C-FV)/(C+PV)] / ln(1+i)
@@ -5487,7 +5487,7 @@ def w_INT():
     global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
     global tvm_A, tvm_B, tvm_C, tvm_X
 
-    if any_undefined_p(tvm_n, tvm_PV, tvm_PMT, tvm_FV):
+    if any_undefined_p([tvm_n, tvm_PV, tvm_PMT, tvm_FV]):
         raise Rpn_E_Runtime_Error("PV: Need n, PV, PMT, and FV")
 
     n   = tvm_n  .obj().value()
@@ -5509,7 +5509,7 @@ def w_PV():
     global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
     global tvm_A, tvm_B, tvm_C, tvm_X
 
-    if any_undefined_p(tvm_n, tvm_i, tvm_PMT, tvm_FV):
+    if any_undefined_p([tvm_n, tvm_i, tvm_PMT, tvm_FV]):
         raise Rpn_E_Runtime_Error("PV: Need n, i, PMT, and FV")
 
     # PV = -[FV + (A*C)] / (A+1)
@@ -5526,7 +5526,7 @@ def w_PMT():
     global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
     global tvm_A, tvm_B, tvm_C, tvm_X
 
-    if any_undefined_p(tvm_n, tvm_i, tvm_PV, tvm_FV):
+    if any_undefined_p([tvm_n, tvm_i, tvm_PV, tvm_FV]):
         raise Rpn_E_Runtime_Error("PMT: Need n, i, PV, and FV")
 
     # PMT = -[FV + PV(A+1)] / (A*B)
@@ -5543,7 +5543,7 @@ def w_FV():
     global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
     global tvm_A, tvm_B, tvm_C, tvm_X
 
-    if any_undefined_p(tvm_n, tvm_i, tvm_PV, tvm_PMT):
+    if any_undefined_p([tvm_n, tvm_i, tvm_PV, tvm_PMT]):
         raise Rpn_E_Runtime_Error("FV: Need n, i, PV, and PMT")
 
     # FV = -[PV + A(PV + C)]
@@ -5560,29 +5560,27 @@ def w_shfin():
     global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
     global tvm_A, tvm_B, tvm_C, tvm_X
 
-    # XXX Should use fmt()
-    writeln("N:    {}".format(tvm_n  .obj().value() if tvm_n  .defined() else "Not set"))
-    writeln("INT:  {}".format(tvm_i  .obj().value() if tvm_i  .defined() else "Not set"))
-    writeln("PV:   {}".format(tvm_PV. obj().value() if tvm_PV .defined() else "Not set"))
-    writeln("PMT:  {}".format(tvm_PMT.obj().value() if tvm_PMT.defined() else "Not set"))
-    writeln("FV:   {}".format(tvm_FV .obj().value() if tvm_FV .defined() else "Not set"))
-    writeln("A:    {}".format(tvm_A if tvm_A is not None else "Not set"))
-    writeln("B:    {}".format(tvm_B if tvm_B is not None else "Not set"))
-    writeln("C:    {}".format(tvm_C if tvm_C is not None else "Not set"))
-    writeln("X:    {}".format(tvm_X))
-    writeln("Mode: {}".format("BEGIN" if tvm_X == 1 else "END"))
+    writeln("N:    {}".format(fmt(tvm_n  .obj().value()) if tvm_n  .defined() else "[Not set]"))
+    writeln("INT:  {}".format(fmt(tvm_i  .obj().value()) if tvm_i  .defined() else "[Not set]"))
+    writeln("PV:   {}".format(fmt(tvm_PV. obj().value()) if tvm_PV .defined() else "[Not set]"))
+    writeln("PMT:  {}".format(fmt(tvm_PMT.obj().value()) if tvm_PMT.defined() else "[Not set]"))
+    writeln("FV:   {}".format(fmt(tvm_FV .obj().value()) if tvm_FV .defined() else "[Not set]"))
+    writeln("A:    {}".format(tvm_A if tvm_A is not None else "[Not set]"))
+    writeln("B:    {}".format(tvm_B if tvm_B is not None else "[Not set]"))
+    writeln("C:    {}".format(tvm_C if tvm_C is not None else "[Not set]"))
+    writeln("Mode: {}".format("BEGIN (X=1)" if tvm_X == 1 else "END (X=0)"))
 
 
 def validate_N(pre, post):
     if type(post) not in [Rpn_Integer, Rpn_Float]:
         raise Rpn_E_Runtime_Error("!N: Type error ({})".format(typename(post)))
-    if post.obj().value() < 0:
+    if post.value() < 0:
         raise Rpn_E_Runtime_Error("!N: Cannot be negative")
 
 def validate_INT(pre, post):
     if type(post) not in [Rpn_Integer, Rpn_Float]:
         raise Rpn_E_Runtime_Error("!INT: Type error ({})".format(typename(post)))
-    if post.obj().value() < 0:
+    if post.value() < 0:
         raise Rpn_E_Runtime_Error("!INT: Cannot be negative")
 
 def validate_PV(pre, post):
@@ -5761,32 +5759,32 @@ PHI = (1 + sqrt(5)) / 2"
 
 def define_tertiary_words():
     eval_string("""
-: dice          doc:"dice  ( N sides -- sum )  Roll N sides-sided dice
-
-EXAMPLE:
-3 6 dice => number in range [3,18]"
-  | in:N in:sides out:sum |
-
-  0 !sum
-  @N 0 do
-    @sides randint @sum + !sum   \ Really need !+sum
-  loop ;
-
-: X       88 emit ;
-: xbox  |foo bar|  5 0 do  4 0 do X loop cr loop ;
-
-: ctest
-  case 1 of ."Found 1" .s vars endof
-  \ foo
-  otherwise ."Found other" .s vars
-  endcase
-;
-
-: foo  |a b c|
-  : bar  |x y z|  ."----" cr ;
-  : baz           66 emit space ;
-  65 emit space baz bar ;
-
+\ : dice          doc:"dice  ( N sides -- sum )  Roll N sides-sided dice
+\
+\ EXAMPLE:
+\ 3 6 dice => number in range [3,18]"
+\   | in:N in:sides out:sum |
+\
+\   0 !sum
+\   @N 0 do
+\     @sides randint @sum + !sum   \ Really need !+sum
+\   loop ;
+\
+\ : X       88 emit ;
+\ : xbox  |foo bar|  5 0 do  4 0 do X loop cr loop ;
+\
+\ : ctest
+\   case 1 of ."Found 1" .s vars endof
+\   \ foo
+\   otherwise ."Found other" .s vars
+\   endcase
+\ ;
+\
+\ : foo  |a b c|
+\   : bar  |x y z|  ."----" cr ;
+\   : baz           66 emit space ;
+\   65 emit space baz bar ;
+\
 \ : inout |in:a in:b out:c|  @a @b + 2 * !c ;
 """)
 
@@ -6304,7 +6302,7 @@ def sigwinch_handler(signum, frame):
 def write(s=""):
     if len(s) == 0:
         return
-    sharpout = global_scope.variable('#OUT')
+    global sharpout
     outval = sharpout.obj().value()
     newline = s.find("\n")
     while newline != -1:
@@ -6318,18 +6316,18 @@ def write(s=""):
     sharpout.set_obj(Rpn_Integer(outval))
 
 def writeln(s=""):
-    sharpout = global_scope.variable('#OUT')
+    global sharpout
     print(s, flush=True)
     sharpout.set_obj(Rpn_Integer(0))
 
 def lnwrite(s=""):
-    sharpout = global_scope.variable('#OUT')
+    global sharpout
     if sharpout.obj().value() != 0:
         writeln()
     write(s)
 
 def lnwriteln(s=""):
-    sharpout = global_scope.variable('#OUT')
+    global sharpout
     if sharpout.obj().value() != 0:
         writeln()
     writeln(s)
@@ -6387,10 +6385,10 @@ def initialize():
 
 
 def define_variables():
+    global sharpout
     global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
-    global tvm_A, tvm_B, tvm_C, tvm_X
 
-    defvar('#OUT', Rpn_Integer(0), protected=True, readonly=True, noshadow=True)
+    sharpout = defvar('#OUT', Rpn_Integer(0), protected=True, readonly=True, noshadow=True)
     defvar('COLS', Rpn_Integer(0), protected=True)
     defvar('ROWS', Rpn_Integer(0), protected=True)
     defvar('VER',  Rpn_Float(rpn_version), protected=True, constant=True, noshadow=True)
@@ -6400,10 +6398,6 @@ def define_variables():
     tvm_PV  = defvar('PV',   None, protected=True, pre_hook=validate_PV,  post_hook=update_tvm_vars, doc="TVM: Present Value")
     tvm_PMT = defvar('PMT',  None, protected=True, pre_hook=validate_PMT, post_hook=update_tvm_vars, doc="TVM: Payment amount")
     tvm_FV  = defvar('FV',   None, protected=True, pre_hook=validate_FV,  post_hook=update_tvm_vars, doc="TVM: Future Value")
-    tvm_A   = None
-    tvm_B   = None
-    tvm_C   = None
-    tvm_X   = 0 # 1=Begin (annuity due), 0=End (ordinary annuity, default)
 
 
 def main():
@@ -6444,7 +6438,8 @@ def main_loop():
 
 
 def end_program():
-    if global_scope.variable('#OUT').obj().value() != 0:
+    global sharpout
+    if sharpout.obj().value() != 0:
         writeln()
 
     if not string_stack.empty():
