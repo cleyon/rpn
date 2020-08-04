@@ -4131,7 +4131,9 @@ def w_gamma():
             param_stack.push(x)
             raise Rpn_E_Runtime_Error("gamma: Complex support requires 'scipy' library")
         r = scipy.special.gamma(x.value())
-        # XXX - (-5,0) gamma => (nan,nan).  How to trap?
+        if math.isnan(r.real) or math.isnan(r.imag):
+            param_stack.push(x)
+            raise ValueError("gamma: X cannot be a non-positive integer")
         result = Rpn_Complex.from_complex(r)
     else:
         param_stack.push(x)
