@@ -1,8 +1,10 @@
 : craps
   doc:"Play a game of craps"
   | initial_stake cash |
+
   ."Welcome to the craps table" cr
-  50 randint 100 + dup dup !initial_stake !cash
+  50 randint 100 +
+  dup !initial_stake   dup !cash
   ."I'll stake you " . ."dollars" cr
 
   : place_bet
@@ -12,33 +14,37 @@
       @bet @cash > if
         ."You can't bet more than you have!" cr
       else
-        TRUE !valid @bet
+        TRUE !valid
       then
     @valid until
+    @bet
   ;
 
-  : one_turn
+  : play
     | in:bet caseval win |
     : toss_dice  6 randint 6 randint + ;
 
     : play_point
       | in:point |
       begin
-        toss_dice dup ."Roll " . ."... "
+        toss_dice dup ."You roll a " . ."... "
         dup 7 = if
-          ."You lose on a seven, sorry" cr FALSE !win leave
+          ."You lose on a seven, sorry" cr
+          FALSE !win  leave
         else
           dup @point = if
-            ."You make your point and win double!" cr TRUE !win
-            2 !*bet  leave      \ Pays 2:1
+            ."You make your point and win double!" cr
+            2 !*bet  \ Pays 2:1
+            TRUE !win  leave
           else
             ."Roll again" cr  drop
           then
         then
-      again    drop
+      again
+      drop
     ;
 
-    toss_dice dup ."Roll " . ."... "
+    toss_dice dup ."You roll a " . ."... "
     case
        2 of ."Snake eyes, you lose!" cr FALSE !win endof
        3 of ."Craps, you lose!"      cr FALSE !win endof
@@ -62,7 +68,7 @@
       ."Thanks for playing!"  exit
     then
 
-    one_turn
+    play
 
     @cash 0> not if
       ."Looks like you're broke - thanks for playing!" cr exit

@@ -1,0 +1,4 @@
+#!/bin/sh
+
+rm -f lextab.py parsetab.py
+rm -rf __pycache__

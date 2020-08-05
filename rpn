@@ -1004,7 +1004,7 @@ class Rpn_Rational:
     def from_string(cls, s):
         match = rational_pat.match(s)
         if match is None:
-            raise Rpn_E_Fatal("Rational pattern failed to match")
+            raise Rpn_E_Fatal("Rational pattern failed to match '{}'".format(s))
         return cls(match.group(1), match.group(2))
 
     def value(self):
@@ -3753,10 +3753,10 @@ def w_date_minus():
 
 
 @defword(name='dbg.token', hidden=True)
-def w_dbg_tok():
+def w_dbg_token():
     global debug_enabled
-    w_debug()                   # Toggle debug_enabled
-    set_debug("token", 1 if debug_enabled else 0)
+    debug_enabled = True
+    set_debug("token", 3 if debug_enabled else 0)
 
 
 @defword(name='ddays', args=2, print_x=True, doc="""\
@@ -5339,11 +5339,13 @@ def w_timeinfo():
 @defword(name='trace', doc="""\
 Toggle tracing state""")
 def w_trace():
+    global debug_enabled
     tracing = dbg("trace", 1)
     if tracing:
         set_debug("trace", 0)
         lnwriteln("trace: Tracing is now disabled")
     else:
+        debug_enabled = True
         set_debug("trace", 1)
         lnwriteln("trace: Tracing is now enabled")
 
