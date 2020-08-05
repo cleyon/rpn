@@ -16,6 +16,7 @@ import random
 import re
 import readline
 import signal
+import statistics
 import subprocess
 import sys
 import time
@@ -62,6 +63,7 @@ precision_max     = 48          # more than 10 or 12 is not really practical
 rational_re       = r'(\d+)::(\d+)'
 rational_pat      = re.compile(rational_re)
 show_x            = False
+stat_list         = []
 time_re           = r'^[-+]?(\d+)\.(\d{,2})(\d*)$'
 time_pat          = re.compile(time_re)
 
@@ -3594,6 +3596,13 @@ def w_clrst():
     return_stack.clear()
 
 
+@defword(name='clstat', print_x=False, doc="""\
+Clear the statistics array""")
+def w_clstat():
+    global stat_list
+    stat_list = []
+
+
 @defword(name='clst', doc="""\
 Clear the stack
 
@@ -4177,6 +4186,20 @@ def w_gamma():
     param_stack.push(result)
 
 
+if sys.version_info >= (3,8):
+    @defword(name='gmean', print_x=True, doc="""\
+    Print the geometric mean of the statistics data""")
+    def w_gmean():
+        global stat_list
+        if len(stat_list) == 0:
+            raise Rpn_E_Runtime_Error("gmean: No statistics data")
+        try:
+            m = statistics.geometric_mean(stat_list)
+        except statistics.StatisticsError as e:
+            raise Rpn_E_Runtime_Error("gmean: {}".format(str(e)))
+        param_stack.push(Rpn_Float(m))
+
+
 @defword(name='grad', doc="""\
 Set angular mode to gradians""")
 def w_grad():
@@ -4195,6 +4218,19 @@ def w_grad_query():
 Show documentation for the following word.""")
 def w_help():
     pass                        # Grammar rules handle this word
+
+
+@defword(name='hmean', print_x=True, doc="""\
+Print the harmonic mean of the statistics data""")
+def w_hmean():
+    global stat_list
+    if len(stat_list) == 0:
+        raise Rpn_E_Runtime_Error("hmean: No statistics data")
+    try:
+        m = statistics.harmonic_mean(stat_list)
+    except statistics.StatisticsError as e:
+        raise Rpn_E_Runtime_Error("hmean: {}".format(str(e)))
+    param_stack.push(Rpn_Float(m))
 
 
 @defword(name='hms', args=1, print_x=True, doc="""\
@@ -4589,6 +4625,32 @@ def w_max():
         param_stack.push(y)
         param_stack.push(x)
         raise TypeError("max: Type error ({}, {})".format(typename(y), typename(x)))
+
+
+@defword(name='mean', print_x=True, doc="""\
+Print the arithmetic mean of the statistics data""")
+def w_mean():
+    global stat_list
+    if len(stat_list) == 0:
+        raise Rpn_E_Runtime_Error("mean: No statistics data")
+    try:
+        m = statistics.mean(stat_list)
+    except statistics.StatisticsError as e:
+        raise Rpn_E_Runtime_Error("mean: {}".format(str(e)))
+    param_stack.push(Rpn_Float(m))
+
+
+@defword(name='median', print_x=True, doc="""\
+Print the median of the statistics data""")
+def w_median():
+    global stat_list
+    if len(stat_list) == 0:
+        raise Rpn_E_Runtime_Error("median: No statistics data")
+    try:
+        m = statistics.median(stat_list)
+    except statistics.StatisticsError as e:
+        raise Rpn_E_Runtime_Error("median: {}".format(str(e)))
+    param_stack.push(Rpn_Float(m))
 
 
 @defword(name='min', args=2, print_x=True, doc="""\
@@ -5056,6 +5118,19 @@ def w_rot():
     param_stack.push(z)
 
 
+@defword(name='S+', args=1, print_x=False, doc="""\
+Add an element to the statistics list""")
+def w_s_plus():
+    x = param_stack.pop()
+    if type(x) not in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
+        param_stack.push(x)
+        raise TypeError("S+: Type error ({})".format(typename(x)))
+
+    global stat_list
+    val = float(x.value())
+    stat_list.append(val)
+
+
 @defword(name='sci', args=1, print_x=False, doc="""\
 Set scientific display  ( n -- )""")
 def w_sci():
@@ -5121,12 +5196,6 @@ def w_shflag():
     list_in_columns(flags, columns - 1)
 
 
-@defword(name='show', doc="""\
-Show the definition of the following word.""")
-def w_show():
-    pass                        # Grammar rules handle this word
-
-
 @defword(name='shdebug', print_x=False) # XXX docstr
 def w_showdebug():
     lnwriteln("Debugging is {}".format("enabled" if debug_enabled else "disabled"))
@@ -5140,6 +5209,22 @@ def w_showdebug():
     for key in sorted(dbgs, key=str.casefold):
         sorted_dbgs.append(dbgs[key])
     list_in_columns(sorted_dbgs, columns - 1)
+
+
+@defword(name='show', doc="""\
+Show the definition of the following word.""")
+def w_show():
+    pass                        # Grammar rules handle this word
+
+
+@defword(name='shstat', print_x=False, doc="""\
+Print the statistics list""")
+def w_shstat():
+    global stat_list
+    if len(stat_list) == 0:
+        print("No statistics data")
+    else:
+        print(stat_list)
 
 
 @defword(name='sign', args=1, print_x=True, doc="""\
@@ -5257,6 +5342,19 @@ Set display mode to standard.""")
 def w_std():
     global display_style
     display_style = "s"
+
+
+@defword(name='stdev', print_x=True, doc="""\
+Print the sample standard deviation of the statistics data""")
+def w_stdev():
+    global stat_list
+    if len(stat_list) < 2:
+        raise Rpn_E_Runtime_Error("stdev: Insufficient statistics data (2 required)")
+    try:
+        s = statistics.stdev(stat_list)
+    except statistics.StatisticsError as e:
+        raise Rpn_E_Runtime_Error("stdev: {}".format(str(e)))
+    param_stack.push(Rpn_Float(s))
 
 
 @defword(name='swap', args=2, doc="""\
@@ -5402,6 +5500,19 @@ Decompose a vector into stack elements""")
             raise TypeError("v>: Type error ({})".format(x))
         for elem in x.value():
             param_stack.push(to_rpn_class(elem))
+
+
+@defword(name='var', print_x=True, doc="""\
+Print the sample variance of the statistics data""")
+def w_var():
+    global stat_list
+    if len(stat_list) < 2:
+        raise Rpn_E_Runtime_Error("var: Insufficient statistics data (2 required)")
+    try:
+        v = statistics.variance(stat_list)
+    except statistics.StatisticsError as e:
+        raise Rpn_E_Runtime_Error("var: {}".format(str(e)))
+    param_stack.push(Rpn_Float(v))
 
 
 @defword(name='variable', doc="""\
