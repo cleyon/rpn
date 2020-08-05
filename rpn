@@ -5803,33 +5803,6 @@ PHI = (1 + sqrt(5)) / 2"
 
 def define_tertiary_words():
     eval_string("""
-\ : dice          doc:"dice  ( N sides -- sum )  Roll N sides-sided dice
-\
-\ EXAMPLE:
-\ 3 6 dice => number in range [3,18]"
-\   | in:N in:sides out:sum |
-\
-\   0 !sum
-\   @N 0 do
-\     @sides randint @sum + !sum   \ Really need !+sum
-\   loop ;
-\
-\ : X       88 emit ;
-\ : xbox  |foo bar|  5 0 do  4 0 do X loop cr loop ;
-\
-\ : ctest
-\   case 1 of ."Found 1" .s vars endof
-\   \ foo
-\   otherwise ."Found other" .s vars
-\   endcase
-\ ;
-\
-\ : foo  |a b c|
-\   : bar  |x y z|  ."----" cr ;
-\   : baz           66 emit space ;
-\   65 emit space baz bar ;
-\
-\ : inout |in:a in:b out:c|  @a @b + 2 * !c ;
 """)
 
 

@@ -7,3 +7,15 @@
 : q     bye   ;
 : s     swap  ;
 : xroot inv ^ ;
+
+: dice          doc:"dice  ( n s -- sum )  Roll n s-sided dice
+
+EXAMPLE:
+3 6 dice  =>  number in range [3,18]"
+  | in:n in:s out:sum |
+
+  0 !sum
+  @n 0 do
+    @s randint !+sum
+  loop
+;

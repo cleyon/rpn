@@ -32,17 +32,3 @@ pip3 install --user ply
 ## Bugs
 
 - HMS+ et al don't work well with negative times.  Avoid them for now.
-
-- p_case() does not create a scope for caseval variable:
-
-``` forth
-: sum2
-  doc:"sum  ( ... -- sum )  Sum all numbers on the stack"
-
-  depth case
-    0 of 0 endof
-    1 of endof
-    otherwise @caseval 0 do + loop
-  endcase
-;
-```
