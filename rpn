@@ -4415,6 +4415,23 @@ def w_if():
     pass                        # Grammar rules handle this word
 
 
+@defword(name='int', args=1, print_x=True, doc="""\
+Integer  ( x -- int )   Truncate to integer
+
+The result is whatever Python's int() function returns.  Do not confuse this
+with the "INT" command, which solves for financial interest rates.""")
+def w_int():
+    x = param_stack.pop()
+    if type(x) is Rpn_Integer:
+        result = x
+    elif type(x) in [Rpn_Float, Rpn_Rational]:
+        result = Rpn_Integer(int(x.value()))
+    else:
+        param_stack.push(x)
+        raise TypeError("int: Type error ({})".format(typename(x)))
+    param_stack.push(result)
+
+
 @defword(name='J', doc="""\
 Index of DO outer DO loop  ( -- x )
 
@@ -4871,15 +4888,18 @@ def w_pick():
 @defword(name='prompt', str_args=1, print_x=False, doc="""\
 Display prompt and await input""")
 def w_prompt():
+    global sharpout
+    x = ''
     prompt = string_stack.pop().value()
     write(prompt)
-    try:
-        x = input()
-        #print("I got {}".format(x))
-    except EOFError:
-        raise Rpn_E_Runtime_Error()
-    finally:
-        sharpout.set_obj(Rpn_Integer(0))
+    while len(x) == 0:
+        try:
+            x = input()
+            #print("I got '{}'".format(x))
+        except EOFError:
+            raise Rpn_E_Runtime_Error()
+        finally:
+            sharpout.set_obj(Rpn_Integer(0))
     param_stack.push(Rpn_Float(float(x)))
 
 
@@ -5642,7 +5662,9 @@ def w_N():
 
 
 @defword(name='INT', print_x=True, doc="""\
-Solve for INT (interest rate)""")
+Solve for INT (interest rate).
+
+Do not confuse this with the "INT" command, which truncates values to integers.""")
 def w_INT():
     global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
     global tvm_A, tvm_B, tvm_C, tvm_X
@@ -6363,7 +6385,7 @@ def to_rpn_class(n):
 
 def parse_args():
     try:
-        opts, argv = getopt.getopt(sys.argv[1:], "dil:")
+        opts, argv = getopt.getopt(sys.argv[1:], "df:il:")
     except getopt.GetoptError as e:
         print(str(e))           # OK
         usage()
@@ -6373,6 +6395,17 @@ def parse_args():
         if opt == "-d":
             global debug_enabled
             debug_enabled = True
+        elif opt == "-f":
+            try:
+                load_file(arg)
+            except FileNotFoundError:
+                lnwriteln("-f: File '{}' does not exist".format(arg))
+                sys.exit(1)
+            except Rpn_E_Runtime_Error as e:
+                lnwriteln(str(e))
+                sys.exit(1)
+            else:
+                sys.exit(0)
         elif opt == "-i":
             global force_interactive
             force_interactive = True
@@ -6380,12 +6413,12 @@ def parse_args():
             try:
                 load_file(arg)
             except FileNotFoundError:
-                lnwriteln("load: File '{}' does not exist".format(arg))
+                lnwriteln("-l: File '{}' does not exist".format(arg))
             except Rpn_E_Runtime_Error as e:
                 lnwriteln(str(e))
         else:
             print("Unhandled option {}".format(opt)) # OK
-            sys.exit(2)
+            sys.exit(1)
 
     return argv
 
@@ -6540,6 +6573,7 @@ def define_variables():
 
 
 def main():
+    global script_file
     try:
         initialize()
         if go_interactive:
