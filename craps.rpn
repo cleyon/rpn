@@ -3,14 +3,14 @@
   | initial_stake cash |
 
   ."Welcome to the craps table" cr
-  50 randint 100 +
+  20 randint 5 * 100 +
   dup !initial_stake   dup !cash
   ."I'll stake you " . ."dollars" cr
 
   : place_bet
     | valid bet |   FALSE !valid
     begin
-      "How much do you wager? " prompt !bet
+      "How much do you wager? " prompt floor !bet
       @bet @cash > if
         ."You can't bet more than you have!" cr
       else

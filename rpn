@@ -952,9 +952,6 @@ class Rpn_Matrix:
         obj.set_np(x)
         return obj
 
-    def value(self):
-        return self._np_value
-
     def set_np(self, np_obj):
         self._np_value = np_obj
 
@@ -972,10 +969,10 @@ class Rpn_Matrix:
         pass
 
     def __str__(self):
-        return str(self.value())
+        return str(self._np_value)
 
     def __repr__(self):
-        return "Matrix[{}]".format(repr(self.value()))
+        return "Matrix[{}]".format(repr(self._np_value))
 
 
 class Rpn_Queue:
@@ -3274,7 +3271,7 @@ def w_abs():
         sumsq = 0.0
         for val in x.value():
             sumsq += val ** 2
-        r = numpy_to_python(sumsq)
+        r = to_python_class(sumsq)
         t = type(r)
         if t is float:
             result = Rpn_Float(math.sqrt(r))
@@ -3883,10 +3880,7 @@ if have_numpy:
                 param_stack.push(x)
                 raise ValueError("dot: Conformability error: Vectors ({} and {}) are not same size".format(y, x))
 
-            if type(r) is np.int64:
-                result = Rpn_Integer(r)
-            else:
-                result = Rpn_Float(r)
+            result = to_rpn_class(r)
         else:
             param_stack.push(y)
             param_stack.push(x)
@@ -5022,7 +5016,7 @@ def w_rms():
     for val in x.value():
         sumsq += val ** 2
     sumsq /= n
-    rval = numpy_to_python(sumsq)
+    rval = to_python_class(sumsq)
     t = type(rval)
     if t is float:
         r = Rpn_Float(math.sqrt(rval))
@@ -5420,6 +5414,7 @@ def w_variable():
 @defword(name='vars', print_x=False, doc="""\
 List variables and their values""")
 def w_vars():
+    global debug_enabled
     columns = global_scope.variable('COLS').obj().value()
     for (i, scope) in scope_stack.items_top_to_bottom():
         if scope_stack.size() > 1:
@@ -5430,7 +5425,9 @@ def w_vars():
             if var.hidden():
                 continue
             vars[var.name()] = "{}:[undef]".format(var.name()) if not var.defined() else \
-                               "{}={}".format(var.name(), var.obj().value())
+                               "{}={}{}".format(var.name(),
+                                                var.obj().value(),
+                                                "(" + typename(var.obj()) + ")" if debug_enabled else "")
         sorted_vars = []
         for key in sorted(vars, key=str.casefold):
             sorted_vars.append(vars[key])
@@ -6227,7 +6224,7 @@ def normalize_hms(hh, mm, ss):
     return (hh, mm, ss)
 
 
-def numpy_to_python(n):
+def to_python_class(n):
     t = type(n)
     if t is np.int64:
         return int(n)
