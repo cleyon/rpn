@@ -634,26 +634,41 @@ class Rpn_Fetch_Var:
         dbg("trace", 1, "trace({})".format(repr(self)))
         (var, _) = lookup_variable(self.identifier())
         if var is None:
-            raise Rpn_E_Fatal("{}: @{}: Variable has vanished!".format(whoami(), self.identifier()))
-
+            raise Rpn_E_Fatal("{}: Variable has vanished!".format(str(self)))
         if var.obj() is None:
             if self._modifier == '?':
                 param_stack.push(Rpn_Integer(0))
+                # The variable remains undefined
             else:
-                raise Rpn_E_Runtime_Error("@{}: Variable is not defined".format(self.identifier()))
+                raise Rpn_E_Runtime_Error("{}: Variable is not defined".format(str(self)))
         else:
-            #if self._modifier == '+': # XXX
+            if self._modifier is not None and param_stack.empty():
+                raise Rpn_E_Runtime_Error("{}: Insufficient parameters (1 required)".format(str(self)))
+            if self._modifier == '/' and var.obj().zerop():
+                raise Rpn_E_Runtime_Error("{}: Cannot divide by zero".format(str(self)))
             param_stack.push(var.obj())
+            global show_x
+            old_show_x = show_x
+            if self._modifier == '+':
+                w_plus()
+            elif self._modifier == '-':
+                w_minus()
+            elif self._modifier == '*':
+                w_star()
+            elif self._modifier == '/':
+                w_slash()
+            show_x = old_show_x
 
     def patch_recurse(self, new_word):
         pass
 
     def __str__(self):
-        return "@{}{}".format(self.identifier(), self._modifier if self._modifier is not None else "")
+        return "@{}{}".format(self._modifier if self._modifier is not None else "",
+                              self.identifier())
 
     def __repr__(self):
-        return "Fetch[{}{}]".format(self.identifier(),
-                                    ",mod={}".format(self._modifier) if self._modifier is not None else "")
+        return "Fetch{}[{}]".format(self._modifier if self._modifier is not None else "",
+                                    self.identifier())
 
 
 class Rpn_Float:
@@ -1344,24 +1359,38 @@ class Rpn_Store_Var:
         dbg("trace", 1, "trace({})".format(repr(self)))
         (var, _) = lookup_variable(self.identifier())
         if var is None:
-            raise Rpn_E_Fatal("{}: !{}: Variable has vanished!".format(whoami(), self.identifier()))
-
+            raise Rpn_E_Fatal("{}: Variable has vanished!".format(str(self)))
         if var.readonly():
-            raise Rpn_E_Runtime_Error("!{}: Variable cannot be modified".format(self.identifier()))
+            raise Rpn_E_Runtime_Error("{}: Variable cannot be modified".format(str(self)))
         if var.constant():
-            raise Rpn_E_Runtime_Error("!{}: Constants cannot be modified".format(self.identifier()))
+            raise Rpn_E_Runtime_Error("{}: Constant cannot be modified".format(str(self)))
         if param_stack.empty():
-            raise Rpn_E_Runtime_Error("!{}: Insufficient parameters (1 required)".format(self.identifier()))
+            raise Rpn_E_Runtime_Error("{}: Insufficient parameters (1 required)".format(str(self)))
+        if self._modifier == '/' and param_stack.top().zerop():
+            raise ValueError("{}: X cannot be zero".format(str(self)))
 
-        if var._pre_hook is None:
-            var.set_obj(param_stack.pop())
-        else:
+        if var._pre_hook is not None:
             try:
                 var._pre_hook(var.obj(), param_stack.top())
             except Rpn_E_Runtime_Error as e:
                 lnwriteln(str(e))
-            else:
-                var.set_obj(param_stack.pop())
+                return
+
+        if self._modifier is None:
+            var.set_obj(param_stack.pop())
+        else:
+            param_stack.push(var.obj())
+            w_swap()
+            if self._modifier == '+':
+                w_plus()
+            elif self._modifier == '-':
+                w_minus()
+            elif self._modifier == '*':
+                w_star()
+            elif self._modifier == '/':
+                w_slash()
+            var.set_obj(param_stack.pop())
+
         if var._post_hook is not None:
             var._post_hook()
 
@@ -1369,11 +1398,12 @@ class Rpn_Store_Var:
         pass
 
     def __str__(self):
-        # XXX modifiers
-        return "!{}".format(self.identifier())
+        return "!{}{}".format(self._modifier if self._modifier is not None else "",
+                              self.identifier())
 
     def __repr__(self):
-        return "Store[{}]".format(self.identifier())
+        return "Store{}[{}]".format(self._modifier if self._modifier is not None else "",
+                                    self.identifier())
 
 
 class Rpn_String:
@@ -4777,16 +4807,14 @@ Display prompt and await input""")
 def w_prompt():
     prompt = string_stack.pop().value()
     write(prompt)
-    x = input()
-    print("I got {}".format(x))
-    # prompt_lexer = lexer.clone()
-    # prompt_lexer.input(x)
-    # valid = False
-    # while True:
-    #     tok = prompt_lexer.token()
-    #     if not tok:
-    #         break
-    #     print("prompt_lexer => {}".format(tok))
+    try:
+        x = input()
+        #print("I got {}".format(x))
+    except EOFError:
+        raise Rpn_E_Runtime_Error()
+    finally:
+        sharpout.set_obj(Rpn_Integer(0))
+    param_stack.push(Rpn_Float(float(x)))
 
 
 if have_scipy:
