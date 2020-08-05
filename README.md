@@ -27,7 +27,6 @@ pip3 install --user ply
 ## Enhancements
 
 - TVM
-- Store/Recall arithmetic
 - More math categories (plot, root solve, integrate)
 
 ## Bugs
