@@ -470,7 +470,7 @@ class Rpn_Complex:
         pass
 
     def __str__(self):
-        return "({}, {})".format(fmt(self.real()), fmt(self.imag()))
+        return "({},{})".format(fmt(self.real()), fmt(self.imag()))
 
     def __repr__(self):
         return "Complex[{}]".format(repr(self.value()))
@@ -1657,7 +1657,7 @@ class Rpn_Vector:
         pass
 
     def __str__(self):
-        return "{}".format(self._np_value)
+        return "[ " + " ".join([ str(to_rpn_class(e)) for e in self._np_value ]) +" ]"
 
     def __repr__(self):
         return "Vector[{}]".format(repr(self._np_value))
@@ -2968,50 +2968,6 @@ def w_slash():
     param_stack.push(result)
 
 
-@defword(name='0<', args=1, print_x=True, doc="""\
-Test if X is less than zero  ( x -- flag )""")
-def w_zero_less_than():
-    x = param_stack.pop()
-    if type(x) not in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
-        param_stack.push(x)
-        raise TypeError("0<: Type error ({})".format(typename(x)))
-
-    param_stack.push(Rpn_Integer(1 if x.value() < 0 else 0))
-
-
-@defword(name='0<>', args=1, print_x=True, doc="""\
-Test if X is not equal to zero  ( x -- flag )""")
-def w_zero_not_equal():
-    x = param_stack.pop()
-    if type(x) not in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex]:
-        param_stack.push(x)
-        raise TypeError("0<>: Type error ({})".format(typename(x)))
-
-    param_stack.push(Rpn_Integer(0 if x.zerop() else 1))
-
-
-@defword(name='0=', args=1, print_x=True, doc="""\
-Test if X is equal to zero  ( x -- flag )""")
-def w_zero_equal():
-    x = param_stack.pop()
-    if type(x) not in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex]:
-        param_stack.push(x)
-        raise TypeError("0=: Type error ({})".format(typename(x)))
-
-    param_stack.push(Rpn_Integer(1 if x.zerop() else 0))
-
-
-@defword(name='0>', args=1, print_x=True, doc="""\
-Test if X is greater than zero  ( x -- flag )""")
-def w_zero_greater_than():
-    x = param_stack.pop()
-    if type(x) not in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
-        param_stack.push(x)
-        raise TypeError("0>: Type error ({})".format(typename(x)))
-
-    param_stack.push(Rpn_Integer(1 if x.value() > 0 else 0))
-
-
 @defword(name=':', doc="""\
 Define a new word  ( -- )
 : WORD  [def ...]  ;
@@ -3167,6 +3123,22 @@ def w_greater_than():
         raise TypeError(">: Type error ({}, {})".format(typename(y), typename(x)))
 
 
+@defword(name='>=', args=2, print_x=True, doc="""\
+Test if Y is greater than or equal to X  ( y x -- flag )""")
+def w_less_than_or_equal():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if     type(x) in [Rpn_Integer, Rpn_Rational, Rpn_Float] \
+       and type(y) in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
+        yval = float(y.value())
+        xval = float(x.value())
+        param_stack.push(Rpn_Integer(1 if yval >= xval else 0))
+    else:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError(">=: Type error ({}, {})".format(typename(y), typename(x)))
+
+
 @defword(name='>>', args=2, print_x=True, doc="""\
 >>  ( i2 i1 -- i2 >> i1 )  Bitwise right shift""")
 def w_rightshift():
@@ -3185,26 +3157,50 @@ def w_rightshift():
     param_stack.push(Rpn_Integer(y.value() >> x.value()))
 
 
-@defword(name='>=', args=2, print_x=True, doc="""\
-Test if Y is greater than or equal to X  ( y x -- flag )""")
-def w_less_than_or_equal():
-    x = param_stack.pop()
-    y = param_stack.pop()
-    if     type(x) in [Rpn_Integer, Rpn_Rational, Rpn_Float] \
-       and type(y) in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
-        yval = float(y.value())
-        xval = float(x.value())
-        param_stack.push(Rpn_Integer(1 if yval >= xval else 0))
-    else:
-        param_stack.push(y)
-        param_stack.push(x)
-        raise TypeError(">=: Type error ({}, {})".format(typename(y), typename(x)))
-
-
 @defword(name='>r', args=1, doc="""\
 Push X onto return stack  ( x -- )""")
 def w_to_r():
     return_stack.push(param_stack.pop())
+
+
+if have_numpy:
+    @defword(name='>v2', args=2, doc="""\
+Create a 2-vector from the stack  ( y x -- v )""")
+    def w_to_v_2():
+        x = param_stack.pop()
+        y = param_stack.pop()
+        if    type(x) not in [Rpn_Integer, Rpn_Rational, Rpn_Float, Rpn_Complex] \
+           or type(y) not in [Rpn_Integer, Rpn_Rational, Rpn_Float, Rpn_Complex]:
+            param_stack.push(y)
+            param_stack.push(x)
+            raise TypeError(">v2: Type error ({}, {})".format(typename(y), typename(x)))
+        l = Rpn_List()
+        l.append(y)
+        l.append(x)
+        v = Rpn_Vector(l)
+        param_stack.push(v)
+
+
+if have_numpy:
+    @defword(name='>v3', args=3, doc="""\
+Create a 3-vector from the stack  ( z y x -- v )""")
+    def w_to_v_3():
+        x = param_stack.pop()
+        y = param_stack.pop()
+        z = param_stack.pop()
+        if    type(x) not in [Rpn_Integer, Rpn_Rational, Rpn_Float, Rpn_Complex] \
+           or type(y) not in [Rpn_Integer, Rpn_Rational, Rpn_Float, Rpn_Complex] \
+           or type(z) not in [Rpn_Integer, Rpn_Rational, Rpn_Float, Rpn_Complex]:
+            param_stack.push(z)
+            param_stack.push(y)
+            param_stack.push(x)
+            raise TypeError(">v3: Type error ({}, {}, {})".format(typename(z), typename(y), typename(x)))
+        l = Rpn_List()
+        l.append(z)
+        l.append(y)
+        l.append(x)
+        v = Rpn_Vector(l)
+        param_stack.push(v)
 
 
 @defword(name='?dup', args=1, doc="""\
@@ -5402,6 +5398,18 @@ def w_until():
     pass                        # Grammar rules handle this word
 
 
+if have_numpy:
+    @defword(name='v>', args=1, doc="""\
+Decompose a vector into stack elements""")
+    def w_v_from():
+        x = param_stack.pop()
+        if type(x) is not Rpn_Vector:
+            param_stack.push(x)
+            raise TypeError("v>: Type error ({})".format(x))
+        for elem in x.value():
+            param_stack.push(to_rpn_class(elem))
+
+
 @defword(name='variable', doc="""\
 Declare a variable.  Initial state is undefined.
 VARIABLE <var>""")
@@ -6231,10 +6239,16 @@ def numpy_to_python(n):
         raise Rpn_E_Fatal("{}: Cannot handle type {}".format(whoami(), t))
 
 
-def numpy_to_rpn(n):
+def to_rpn_class(n):
     t = type(n)
     if t is np.int64:
         return Rpn_Integer(n)
+    elif t is float:
+        return Rpn_Float(n)
+    elif t is Fraction:
+        return Rpn_Rational.from_Fraction(n)
+    elif t is complex:
+        return Rpn_Complex.from_complex(n)
     else:
         raise Rpn_E_Fatal("{}: Cannot handle type {}".format(whoami(), t))
 
