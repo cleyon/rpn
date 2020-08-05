@@ -21,7 +21,7 @@
   ;
 
   : play
-    | in:bet caseval win |
+    | in:bet win |
     : toss_dice  6 randint 6 randint + ;
 
     : play_point

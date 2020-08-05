@@ -2050,9 +2050,18 @@ def p_begin_while(p):
 
 
 def p_case(p):
-    '''case : CASE case_causes_list otherwise_list ENDCASE'''
+    '''case : CASE push_case_scope case_causes_list otherwise_list ENDCASE pop_case_scope'''
 
-    p[0] = Rpn_Case(p[2], p[3])
+    p[0] = Rpn_Case(p[3], p[4])
+
+def p_push_case_scope(p):
+    '''push_case_scope : empty'''
+
+    scope = Rpn_Scope("Parse_case")
+    all_varnames = Rpn_List()
+    all_varnames.append("caseval")
+    scope.set_all_varnames(all_varnames)
+    push_scope(scope, "Parsing Case (vars={})".format(all_varnames))
 
 def p_case_causes_list(p):
     '''case_causes_list : case_clause
@@ -2076,6 +2085,11 @@ def p_otherwise_list(p):
         p[0] = Rpn_List()
     else:
         p[0] = Rpn_List(p[2])
+
+def p_pop_case_scope(p):
+    '''pop_case_scope : empty'''
+
+    pop_scope("Parse Case complete")
 
 
 def p_colon_def(p):
@@ -3000,7 +3014,7 @@ def w_zero_greater_than():
 
 @defword(name=':', doc="""\
 Define a new word  ( -- )
-: WORD  [def ...] ;
+: WORD  [def ...]  ;
 
 Define WORD with the specified definition.
 Terminate the definition with a semi-colon.
