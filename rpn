@@ -167,6 +167,7 @@ debug_enabled     = False
 #debug_enabled     = True
 
 debug_levels = {
+    "catch"                     : 0,
     "defvar"                    : 0,
     "eval_string"               : 0,
     "lookup_varname"            : 0,
@@ -447,26 +448,34 @@ class Rpn_Case_Clause:
 
 class Rpn_Catch:
     def __init__(self, word, scope):
+        if type(word) is not Rpn_Word:
+            raise Rpn_E_Fatal("{}: Word {} is not an Rpn_Word".format(whoami(), repr(word)))
+        if type(scope) is not Rpn_Scope:
+            raise Rpn_E_Fatal("{}: Scope {} is not an Rpn_Scope".format(whoami(), repr(scope)))
+        dbg("catch", 1, "{}: Rpn_Catch({})".format(whoami(), word))
         self._word = word
+        self._scope = scope
 
     def __call__(self):
         dbg("trace", 1, "trace({})".format(repr(self)))
-        print("Rpn_Catch#__call__: exe={}".format(self._exe)) # XXX
+        dbg("catch", 1, "Calling {}: word={}, scope={}".format(whoami(), repr(self._word), repr(self._scope)))
         try:
             execute(self._word)
         except Rpn_E_Throw as e:
-            print("Caught a throw!")
+            dbg("catch", 1, "{}: Caught a throw, e={}".format(whoami(), e))
+            param_stack.push(Rpn_Integer(int(e.args[0])))
         else:
-            print("Nothing caught, finishing normally")
+            dbg("catch", 1, "{}: Nothing caught, finishing normally".format(whoami()))
+            param_stack.push(Rpn_Integer(0))
 
     def patch_recurse(self, new_word):
         pass
 
     def __str__(self):
-        return "catch {}".format(self._exe)
+        return "catch {}".format(self._word.name())
 
     def __repr__(self):
-        return "Catch[{}]".format(repr(self._exe))
+        return "Catch[{}]".format(repr(self._word.name()))
 
 
 class Rpn_Complex:
@@ -2112,9 +2121,16 @@ def p_pop_case_scope(p):
 
 
 def p_catch(p):
-    '''catch : CATCH executable'''
-    print("p_catch, executable={}".format(p[2]))
-    p[0] = Rpn_Catch(p[2])
+    '''catch : CATCH IDENTIFIER'''
+
+    name = p[2]
+    (word, scope) = lookup_word(name)
+    if word is None:
+        lnwriteln("catch: '{}' not found".format(name))
+        raise SyntaxError
+    else:
+        dbg("catch", 1, "{}: Creating Rpn_Catch obj for {}".format(whoami(), word))
+        p[0] = Rpn_Catch(word, scope)
 
 
 def p_colon_def(p):
@@ -5478,6 +5494,10 @@ def w_throw():
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
         raise TypeError("throw: Type error ({})".format(typename(x)))
+    if x.value() <= 0:
+        param_stack.push(x)
+        raise Rpn_E_Runtime_Error("throw: X must be positive")
+    dbg("catch", 1, "{}: Throwing {}".format(whoami(), x.value()))
     raise Rpn_E_Throw(x.value())
 
 
@@ -6096,8 +6116,8 @@ flag is True if initial parse error, False if no error'''
         dbg("token", 1, "token({},{})".format(tok.type, repr(tok.value)))
 
         # These need a second token or they will be very angry
-        if tok.type in ['AT_SIGN', 'CONSTANT', 'EXCLAM', 'FORGET', 'HELP',
-                          'SHOW', 'UNDEF', 'VARIABLE' ]:
+        if tok.type in ['AT_SIGN', 'CATCH', 'CONSTANT', 'EXCLAM', 'FORGET',
+                        'HELP', 'SHOW', 'UNDEF', 'VARIABLE' ]:
             parse_stack.push(tok.type)
             try:
                 tok2 = next(Rpn_Token_Mgr.next_token())
@@ -6649,6 +6669,9 @@ def main():
     except Rpn_E_Fatal as e:
         if len(e._message) > 0:
             lnwriteln("Fatal error: {}".format(e))
+        sys.exit(1)
+    except Rpn_E_Throw as e:
+        print("Uncaught exception: throw {}".format(e))
         sys.exit(1)
 
     end_program()
