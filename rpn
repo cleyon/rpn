@@ -2216,6 +2216,7 @@ def p_help(p):
     '''help : HELP AGAIN
             | HELP BEGIN
             | HELP CASE
+            | HELP CATCH
             | HELP COLON
             | HELP CONSTANT
             | HELP DO
@@ -3574,6 +3575,16 @@ ENDCASE
 
 qv ENDCASE, ENDOF, OF, OTHERWISE""")
 def w_case():
+    pass                        # Grammar rules handle this word
+
+
+@defword(name='catch', doc="""\
+Catch any exceptions.
+
+catch WORD
+
+qv THROW""")
+def w_catch():
     pass                        # Grammar rules handle this word
 
 
@@ -5486,7 +5497,9 @@ def w_then():
 
 
 @defword(name='throw', args=1, print_x=False, doc="""\
-Throw an exception.
+Throw an exception  ( n -- )
+
+N must be positive.
 
 qv CATCH""")
 def w_throw():
