@@ -180,6 +180,7 @@ debug_levels = {
     "p_store_var"               : 0,
     "p_variable"                : 0,
     "parse"                     : 0,
+    "prompt"                    : 0,
     "Rpn_Do_Loop#__call__"      : 0,
     "Rpn_Scope#set_variable"    : 0,
     "Rpn_Sequence#__call__"     : 0,
@@ -1451,6 +1452,10 @@ class Rpn_String:
             raise Rpn_E_Fatal("{}: Malformed string: '{}'".format(whoami(), val))
         self._value = val[1:-1]
 
+    @classmethod
+    def from_string(cls, s):
+        return cls('"{}"'.format(s))
+
     def value(self):
         return self._value
 
@@ -1847,6 +1852,7 @@ tokens = [
     'AT_SIGN',
     'CLOSE_BRACKET',
     'CLOSE_PAREN',
+#   'CMPLX',
     'COLON',
     'COMMA',
     'DOC_STR',
@@ -1870,6 +1876,8 @@ def t_newline(t):
 
 def t_STRING(t):
     r'"([^"]|\n)*"'
+    #r'"([^"\\]*(\\.[^"\\]*)*)"' # Nice, but doesn't work with multi-line strings
+    #r'"(?:[^"\\]++|\\.)*+"'     # This causes a stack overflow
     t.type = 'STRING'
     return t
 
@@ -1877,6 +1885,11 @@ def t_RATIONAL(t):
     r'\d+::\d+'
     t.type = 'RATIONAL'
     return t
+
+# def t_CMPLX(t):
+#     r'\([-+]?(\d+(\.\d*[eE][-+]?\d+|[eE][-+]?\d+|\.\d*))|(\d*(\.\d+[eE][-+]?\d+|[eE][-+]?\d+|\.\d+)),[-+]?(\d+(\.\d*[eE][-+]?\d+|[eE][-+]?\d+|\.\d*))|(\d*(\.\d+[eE][-+]?\d+|[eE][-+]?\d+|\.\d+))\)'
+#     t.type = 'CMPLX'
+#     return t
 
 def t_FLOAT(t):
     r'[-+]?(\d+(\.\d*[eE][-+]?\d+|[eE][-+]?\d+|\.\d*))|(\d*(\.\d+[eE][-+]?\d+|[eE][-+]?\d+|\.\d+))'
@@ -3635,6 +3648,12 @@ def w_chs():
     param_stack.push(result)
 
 
+@defword(name='cl$st', doc="""\
+Clear the string stack""")
+def w_cl_dollar_st():
+    string_stack.clear()
+
+
 @defword(name='clflag', doc="""\
 Clear all flags  ( -- )""")
 def w_clflag():
@@ -3969,6 +3988,25 @@ def w_dow():
     param_stack.push(Rpn_Integer(dateobj.isoweekday()))
 
 
+@defword(name='dow$', args=1, print_x=False, doc="""\
+Day of week name  ( dow -- )  [ -- abbrev ]
+Return abbreviated day of week name as string.  dow should be between 1 and 7.
+
+qv DOW""")
+def w_dow_dollar():
+    x = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(x)
+        raise TypeError("dow$: Type error ({})".format(typename(x)))
+    dow = x.value()
+    if dow < 1 or dow > 7:
+        param_stack.push(x)
+        raise ValueError("dow$: Day of week out of range (1..7 expected)")
+    dow_abbrev = { 1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu",
+                   5: "Fri", 6: "Sat", 7: "Sun" }
+    string_stack.push(Rpn_String.from_string(dow_abbrev[dow]))
+
+
 @defword(name='drop', args=1, print_x=False, doc="""\
 Remove top stack element  ( x -- )""")
 def w_drop():
@@ -4095,14 +4133,13 @@ x! = x * (x-1) * (x-2) ... * 2 * 1
 X cannot be negative.""")
 def w_fact():
     x = param_stack.pop()
-    if type(x) is Rpn_Integer:
-        if x.value() < 0:
-            param_stack.push(x)
-            raise ValueError("fact: X cannot be negative")
-        result = Rpn_Integer(fact_helper(x.value()))
-    else:
+    if type(x) is not Rpn_Integer:
         param_stack.push(x)
         raise TypeError("fact: Type error ({})".format(typename(x)))
+    if x.value() < 0:
+        param_stack.push(x)
+        raise ValueError("fact: X cannot be negative")
+    result = Rpn_Integer(fact_helper(x.value()))
     param_stack.push(result)
 
 
@@ -4944,7 +4981,8 @@ def w_pick():
 
 
 @defword(name='prompt', str_args=1, print_x=False, doc="""\
-Display prompt and await input""")
+Display prompt and await input.  This recognizes integers and floats, but
+not rationals or complex numbers.  The value is put on the stack.""")
 def w_prompt():
     global sharpout
     x = ''
@@ -4953,12 +4991,23 @@ def w_prompt():
     while len(x) == 0:
         try:
             x = input()
-            #print("I got '{}'".format(x))
+            dbg(whoami(), 1, "{}: '{}'".format(whoami(), x))
         except EOFError:
             raise Rpn_E_Runtime_Error()
         finally:
             sharpout.set_obj(Rpn_Integer(0))
-    param_stack.push(Rpn_Float(float(x)))
+
+    error = False
+    newlexer = lexer.clone()
+    newlexer.input(x)
+    tok = newlexer.token()
+
+    if tok.type == 'INTEGER':
+        param_stack.push(Rpn_Integer(int(tok.value)))
+    elif tok.type == 'FLOAT':
+        param_stack.push(Rpn_Float(float(tok.value)))
+    else:
+        raise Rpn_E_Runtime_Error("prompt: Could not parse '{}'".format(x))
 
 
 if have_scipy:
@@ -6109,6 +6158,8 @@ def fmt(x):
         return "{:.{prec}{style}}".format(x, style=display_style, prec=display_precision)
     elif type(x) is Rpn_Float and display_style in ["f", "e"]:
         return fmt(x.value())
+    elif type(x) is Rpn_String:
+        return x.value()
     else:
         return str(x)
 
