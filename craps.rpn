@@ -31,7 +31,7 @@
     : play_point
       | in:point |
       begin
-        toss_dice ."You roll a " dup . ."... "
+        ."You roll a " toss_dice dup . ."... "
         dup 7 = if
           ."You lose on a seven, sorry" cr
           FALSE !win  leave
@@ -48,7 +48,7 @@
       drop
     ;
 
-    toss_dice ."You roll a " dup . ."... "
+    ."You roll a " toss_dice dup . ."... "
     case
       \ Win
        7 of ."Seven, winner!"        cr TRUE  !win endof

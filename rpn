@@ -1588,8 +1588,8 @@ class Rpn_Variable:
             self._protected = kwargs["protected"]
             del kwargs["protected"]
 
-        # `readonly' means variable not be modified (by the user).  Very
-        # similar to constant.  Users cannot create readonly variables,
+        # `readonly' means variable may not be modified by the user.
+        # Very similar to constant.  Users cannot create readonly variables,
         # only constants.  One previous difference was it was supposed
         # to be a syntax error to attempt to modify a constant, while it
         # was a runtime error to attempt to modify a readonly variable.
@@ -3038,7 +3038,7 @@ def w_less_than():
        and type(y) in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
         yval = float(y.value())
         xval = float(x.value())
-        param_stack.push(Rpn_Integer(1 if yval < xval else 0))
+        param_stack.push(Rpn_Integer(bool_to_int(yval < xval)))
     else:
         param_stack.push(y)
         param_stack.push(x)
@@ -3072,7 +3072,7 @@ def w_less_than_or_equal():
        and type(y) in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
         yval = float(y.value())
         xval = float(x.value())
-        param_stack.push(Rpn_Integer(1 if yval <= xval else 0))
+        param_stack.push(Rpn_Integer(bool_to_int(yval <= xval)))
     else:
         param_stack.push(y)
         param_stack.push(x)
@@ -3111,7 +3111,7 @@ def w_not_equal():
         param_stack.push(y)
         param_stack.push(x)
         raise TypeError("<>: Type error ({}, {})".format(typename(y), typename(x)))
-    param_stack.push(Rpn_Integer(0 if flag else 1))
+    param_stack.push(Rpn_Integer(bool_to_int(not flag)))
 
 
 @defword(name='=', args=2, print_x=True, doc="""\
@@ -3146,7 +3146,7 @@ def w_equal():
         param_stack.push(y)
         param_stack.push(x)
         raise TypeError("=: Type error ({}, {})".format(typename(y), typename(x)))
-    param_stack.push(Rpn_Integer(1 if flag else 0))
+    param_stack.push(Rpn_Integer(bool_to_int(flag)))
 
 
 @defword(name='>', args=2, print_x=True, doc="""\
@@ -3158,7 +3158,7 @@ def w_greater_than():
        and type(y) in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
         yval = float(y.value())
         xval = float(x.value())
-        param_stack.push(Rpn_Integer(1 if yval > xval else 0))
+        param_stack.push(Rpn_Integer(bool_to_int(yval > xval)))
     else:
         param_stack.push(y)
         param_stack.push(x)
@@ -3174,7 +3174,7 @@ def w_less_than_or_equal():
        and type(y) in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
         yval = float(y.value())
         xval = float(x.value())
-        param_stack.push(Rpn_Integer(1 if yval >= xval else 0))
+        param_stack.push(Rpn_Integer(bool_to_int(yval >= xval)))
     else:
         param_stack.push(y)
         param_stack.push(x)
@@ -3876,7 +3876,7 @@ def w_deg():
 Test if angular mode is degrees  ( -- flag )""")
 def w_deg_query():
     global angle_mode
-    param_stack.push(Rpn_Integer(1 if angle_mode == "d" else 0))
+    param_stack.push(Rpn_Integer(bool_to_int(angle_mode == "d")))
 
 
 @defword(name='depth', print_x=True, doc="""\
@@ -4123,7 +4123,7 @@ def w_fc_query():
     if x.value() < 0 or x.value() > flag_max - 1:
         param_stack.push(x)
         raise ValueError("fc?: Flag out of range (0..{} expected)".format(flag_max - 1))
-    result = Rpn_Integer(0 if flag_test(x.value()) else 1)
+    result = Rpn_Integer(bool_to_int(not flag_test(x.value())))
     param_stack.push(result)
 
 
@@ -4175,7 +4175,7 @@ def w_fs_query():
     if x.value() < 0 or x.value() > flag_max - 1:
         param_stack.push(x)
         raise ValueError("fs?: Flag out of range (0..{} expected)".format(flag_max - 1))
-    result = Rpn_Integer(1 if flag_test(x.value()) else 0)
+    result = Rpn_Integer(bool_to_int(flag_test(x.value())))
     param_stack.push(result)
 
 
@@ -4269,7 +4269,7 @@ def w_grad():
 Test if angular mode is gradians  ( -- flag )""")
 def w_grad_query():
     global angle_mode
-    param_stack.push(Rpn_Integer(1 if angle_mode == "g" else 0))
+    param_stack.push(Rpn_Integer(bool_to_int(angle_mode == "g")))
 
 
 @defword(name='help', doc="""\
@@ -4771,7 +4771,7 @@ def w_not():
         param_stack.push(x)
         raise ValueError("not: X must be TRUE (1) or FALSE (0), not {}".format(x.value()))
 
-    param_stack.push(Rpn_Integer(1 if x.zerop() else 0))
+    param_stack.push(Rpn_Integer(bool_to_int(x.zerop())))
 
 
 @defword(name='of', doc="""\
@@ -5075,7 +5075,7 @@ def w_rad():
 Test if angular mode is radians  ( -- flag )""")
 def w_rad_query():
     global angle_mode
-    param_stack.push(Rpn_Integer(1 if angle_mode == "r" else 0))
+    param_stack.push(Rpn_Integer(bool_to_int(angle_mode == "r")))
 
 
 @defword(name='rand', print_x=True, doc="""\
@@ -5269,28 +5269,27 @@ def w_sf():
 @defword(name='shflag', print_x=False, doc="""\
 Show status of all flags ( -- )""")
 def w_shflag():
+    global scr_columns
     flags = []
     for f in range(flag_max):
         flags.append("%02d:%s" % (f, "YES" if flag_test(f) else "no "))
 
-    columns = global_scope.variable('COLS').obj().value()
-    list_in_columns(flags, columns - 1)
+    list_in_columns(flags, scr_columns.obj().value() - 1)
 
 
 @defword(name='shdebug', print_x=False, doc="""\
 Show all debug levels""")
 def w_showdebug():
+    global scr_columns
     lnwriteln("Debugging is {}".format("enabled" if debug_enabled else "disabled"))
 
-    columns = global_scope.variable('COLS').obj().value()
     dbgs = dict()
-
     for (resource, level) in debug_levels.items():
         dbgs[resource] = "{}={}".format(resource, level)
     sorted_dbgs = []
     for key in sorted(dbgs, key=str.casefold):
         sorted_dbgs.append(dbgs[key])
-    list_in_columns(sorted_dbgs, columns - 1)
+    list_in_columns(sorted_dbgs, scr_columns.obj().value() - 1)
 
 
 @defword(name='show', doc="""\
@@ -5626,8 +5625,7 @@ def w_variable():
 @defword(name='vars', print_x=False, doc="""\
 List variables and their values""")
 def w_vars():
-    global debug_enabled
-    columns = global_scope.variable('COLS').obj().value()
+    global debug_enabled, scr_columns
     for (i, scope) in scope_stack.items_top_to_bottom():
         if scope_stack.size() > 1:
             lnwriteln("Scope {}".format(scope.name()))
@@ -5643,7 +5641,7 @@ def w_vars():
         sorted_vars = []
         for key in sorted(vars, key=str.casefold):
             sorted_vars.append(vars[key])
-        list_in_columns(sorted_vars, columns - 1)
+        list_in_columns(sorted_vars, scr_columns.obj().value() - 1)
 
 
 @defword(name='ver', print_x=False, doc="""\
@@ -5659,10 +5657,10 @@ Only words in the global scope are shown.
 
 qv WORDS""")
 def w_vlist():
-    columns = global_scope.variable('COLS').obj().value()
+    global scr_columns
     # This is nice, but it shows hidden words:
     # list_in_columns(sorted([ x for x in global_scope.words() ],
-    #                        key=str.casefold), columns - 1)
+    #                        key=str.casefold), scr_columns.obj().value() - 1)
     words = dict()
     for wordname in global_scope.words():
         word = global_scope.word(wordname)
@@ -5672,7 +5670,7 @@ def w_vlist():
     sorted_words = []
     for key in sorted(words, key=str.casefold):
         sorted_words.append(words[key])
-    list_in_columns(sorted_words, columns - 1)
+    list_in_columns(sorted_words, scr_columns.obj().value() - 1)
 
 
 @defword(name='while', doc="""\
@@ -5693,9 +5691,9 @@ Print the list of user-defined words.
 
 qv VLIST""")
 def w_words():
-    columns = global_scope.variable('COLS').obj().value()
+    global scr_columns
     list_in_columns(sorted([ x[0] for x in global_scope.unprotected_words() ],
-                           key=str.casefold), columns - 1)
+                           key=str.casefold), scr_columns.obj().value() - 1)
 
 
 
@@ -5890,6 +5888,10 @@ def any_undefined_p(var_list):
 #       U T I L I T Y   F U N C T I O N S
 #
 #############################################################################
+def bool_to_int(condition):
+    return 1 if condition is True else 0
+
+
 def execute(executable):
     try:
         executable.__call__()
@@ -6552,6 +6554,7 @@ def sigquit_handler(signum, frame):
 # Simple SIGWINCH handler can become overwhelmed and crash if window
 # changes come too fast.  Consider using shutil.get_terminal_size()
 def sigwinch_handler(signum, frame):
+    global scr_columns, scr_rows
     stty_size = subprocess.check_output(['stty', 'size']).decode().split()
     if len(stty_size) != 2:
         return
@@ -6564,8 +6567,8 @@ def sigwinch_handler(signum, frame):
     if int(tty_rows) == 0:
         env_rows = os.getenv("ROWS")
         tty_rows = int(env_rows) if env_rows is not None else 24
-    global_scope.variable('ROWS').set_obj(Rpn_Integer(tty_rows))
-    global_scope.variable('COLS').set_obj(Rpn_Integer(tty_columns))
+    scr_rows   .set_obj(Rpn_Integer(tty_rows))
+    scr_columns.set_obj(Rpn_Integer(tty_columns))
 
 
 def write(s=""):
@@ -6656,13 +6659,15 @@ def initialize():
 
 
 def define_variables():
-    global sharpout
+    global sharpout, scr_columns, scr_rows
     global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
 
     sharpout = defvar('#OUT', Rpn_Integer(0), protected=True, readonly=True, noshadow=True)
-    defvar('COLS', Rpn_Integer(0), protected=True)
-    defvar('ROWS', Rpn_Integer(0), protected=True)
-    defvar('VER',  Rpn_Float(rpn_version), protected=True, constant=True, noshadow=True)
+    scr_columns = defvar('COLS', Rpn_Integer(0), protected=True)
+    defvar('HAVE_NUMPY', Rpn_Integer(bool_to_int(have_numpy)), protected=True, readonly=True, noshadow=True)
+    defvar('HAVE_SCIPY', Rpn_Integer(bool_to_int(have_scipy)), protected=True, readonly=True, noshadow=True)
+    scr_rows = defvar('ROWS', Rpn_Integer(0), protected=True)
+    defvar('VER',  Rpn_Float(rpn_version), protected=True, readonly=True, noshadow=True)
 
     tvm_n   = defvar('N',    None, protected=True, pre_hook=validate_N,   post_hook=update_tvm_vars, doc="TVM: Number of payments")
     tvm_i   = defvar('INT',  None, protected=True, pre_hook=validate_INT, post_hook=update_tvm_vars, doc="TVM: Interest rate")
