@@ -26,7 +26,7 @@ try:
     import ply.lex  as lex
     import ply.yacc as yacc
 except ModuleNotFoundError:
-    print("RPN requires the 'ply' library; please consult the README")
+    print("RPN requires the 'ply' library; please consult the README") # OK
     sys.exit(1)
 
 have_numpy = False
@@ -1087,6 +1087,9 @@ class Rpn_Scope:
     def set_word(self, identifier, word):
         if type(word) is not Rpn_Word:
             raise Rpn_E_Fatal("{}: Word {} is not an Rpn_Word".format(whoami(), identifier))
+        # XXX
+        if default_protected and (word.doc() is None or len(word.doc()) == 0) and not word.hidden():
+            print("Warning: Word '{}' has no documentation".format(identifier))
         self._words[identifier] = word
 
     def delete_word(self, identifier):
@@ -3549,7 +3552,8 @@ def w_ceil():
     param_stack.push(result)
 
 
-@defword(name='cf', args=1)
+@defword(name='cf', args=1, doc="""\
+Clear flag  ( f -- )""")
 def w_cf():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
@@ -4005,7 +4009,8 @@ def w_epoch():
     param_stack.push(Rpn_Integer(now))
 
 
-@defword(name='eval', str_args=1)
+@defword(name='eval', str_args=1, doc="""\
+Evaluate string on top of stack as a command sequence.""")
 def w_eval():
     s = string_stack.pop().value()
     eval_string(s)
@@ -4051,12 +4056,14 @@ def w_fact():
     param_stack.push(result)
 
 
-@defword(name='FALSE', print_x=True) # xxx need docstr
+@defword(name='FALSE', print_x=True, doc="""\
+Constant: Logical false  ( -- 0 )""")
 def w_FALSE():
     param_stack.push(Rpn_Integer(0))
 
 
-@defword(name='fc?', args=1, print_x=True) # XXX needs docstr
+@defword(name='fc?', args=1, print_x=True, doc="""\
+Test if flag is clear  ( -- bool )""")
 def w_fc_query():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
@@ -4107,7 +4114,8 @@ def w_forget():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='fs?', print_x=True, args=1) # XXX needs docstr
+@defword(name='fs?', print_x=True, args=1, doc="""\
+Test if flag is set  ( -- bool )""")
 def w_fs_query():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
@@ -5168,13 +5176,15 @@ def w_sci():
     display_precision = x.value()
 
 
-@defword(name='scopes', print_x=False)
+@defword(name='scopes', print_x=False, doc="""\
+Print information on all available scopes.""")
 def w_scopes():
     for (i, item) in scope_stack.items_bottom_to_top():
         lnwriteln("{}: {}".format(i, item))
 
 
-@defword(name='setdebug', args=1, str_args=1, print_x=False)
+@defword(name='setdebug', args=1, str_args=1, print_x=False, doc="""\
+Set debug level  ( lev -- )  [ "facility" -- ]""")
 def w_setdebug():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
@@ -5192,7 +5202,8 @@ def w_setdebug():
     set_debug(resource.value(), level)
 
 
-@defword(name='sf', args=1)
+@defword(name='sf', args=1, doc="""\
+Set flag  ( f -- )""")
 def w_sf():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
@@ -5216,7 +5227,8 @@ def w_shflag():
     list_in_columns(flags, columns - 1)
 
 
-@defword(name='shdebug', print_x=False) # XXX docstr
+@defword(name='shdebug', print_x=False, doc="""\
+Show all debug levels""")
 def w_showdebug():
     lnwriteln("Debugging is {}".format("enabled" if debug_enabled else "disabled"))
 
@@ -5472,7 +5484,8 @@ def w_trace():
         lnwriteln("trace: Tracing is now enabled")
 
 
-@defword(name='TRUE', print_x=True) # XXX need docstr
+@defword(name='TRUE', print_x=True, doc="""\
+Constant: Logical true  ( -- 1 )""")
 def w_TRUE():
     param_stack.push(Rpn_Integer(1))
     global show_x
@@ -6389,7 +6402,6 @@ def parse_args():
     except getopt.GetoptError as e:
         print(str(e))           # OK
         usage()
-        sys.exit(64)
 
     for opt, arg in opts:
         if opt == "-d":
@@ -6512,18 +6524,20 @@ def lnwriteln(s=""):
 #
 #############################################################################
 def usage():
-    print("""
-Usage: rpn [-d] [-i] [-l FILE] cmds...
+    print("""\
+Usage: rpn [-d] [-f FILE] [-i] [-l FILE] cmds...
 
--d      Enable debugging
--i      Force interactive mode
--l FILE Load FILE""")
+-d        Enable debugging
+-f FILE   Load FILE and exit
+-i        Force interactive mode
+-l FILE   Load FILE""")
+    sys.exit(64)
 
 
 def initialize():
     global rpn_version, default_protected
 
-    #sys.setrecursionlimit(2000) # default is 1000
+    sys.setrecursionlimit(2000) # default is 1000
     random.seed()
     push_scope(global_scope, "Global scope")
     define_variables()
@@ -6538,7 +6552,7 @@ def initialize():
     # Set up signal handling
     signal.signal(signal.SIGQUIT, sigquit_handler)
     signal.signal(signal.SIGWINCH, sigwinch_handler)
-    sigwinch_handler(0, 0)      # Read & define ROWS and COLS via stty(1)
+    sigwinch_handler(0, 0)     # Read & define ROWS and COLS via stty(1)
 
     # Attempt to load the user's init file
     init_file = os.path.expanduser("~/.rpnrc")
