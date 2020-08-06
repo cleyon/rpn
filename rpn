@@ -146,6 +146,10 @@ class Rpn_E_Runtime_Error(Rpn_Exception):
 class Rpn_E_Stack_Overflow(Rpn_Exception):
     pass
 
+class Rpn_E_Throw(Rpn_Exception):
+    """Exception raised by THROW and caught by CATCH."""
+    pass
+
 class Rpn_E_Top_Level(Rpn_Exception):
     """Rpn_E_Top_Level causes an immediate return to the top level prompt.
 It is caught in main_loop."""
@@ -439,6 +443,30 @@ class Rpn_Case_Clause:
 
     def __repr__(self):
         return "Of[{}={}]".format(self._x, repr(self._seq))
+
+
+class Rpn_Catch:
+    def __init__(self, word, scope):
+        self._word = word
+
+    def __call__(self):
+        dbg("trace", 1, "trace({})".format(repr(self)))
+        print("Rpn_Catch#__call__: exe={}".format(self._exe)) # XXX
+        try:
+            execute(self._word)
+        except Rpn_E_Throw as e:
+            print("Caught a throw!")
+        else:
+            print("Nothing caught, finishing normally")
+
+    def patch_recurse(self, new_word):
+        pass
+
+    def __str__(self):
+        return "catch {}".format(self._exe)
+
+    def __repr__(self):
+        return "Catch[{}]".format(repr(self._exe))
 
 
 class Rpn_Complex:
@@ -1783,6 +1811,7 @@ reserved_words = {
     'again'     : 'AGAIN',
     'begin'     : 'BEGIN',
     'case'      : 'CASE',
+    'catch'     : 'CATCH',
     'constant'  : 'CONSTANT',
     'do'        : 'DO',
     'else'      : 'ELSE',
@@ -1979,6 +2008,7 @@ def p_executable(p):
                   | begin_until
                   | begin_while
                   | case
+                  | catch
                   | colon_def
                   | constant
                   | do_loop
@@ -2011,20 +2041,7 @@ def p_execute(p):
         return
 
     dbg("p_execute", 1, "p_execute: {}".format(repr(executable)))
-    try:
-        executable.__call__()
-    except KeyboardInterrupt:
-        lnwriteln("[Interrupt]")
-    except RecursionError:
-        lnwriteln("{}: Excessive recursion".format(executable))
-    except Rpn_E_Exit as e:
-        pass
-    except Rpn_E_Runtime_Error as e:
-        lnwriteln(str(e))
-    except TypeError as e:
-        lnwriteln(str(e))
-    except ValueError as e:
-        lnwriteln(str(e))
+    execute(executable)
 
 
 def p_abort_quote(p):
@@ -2092,6 +2109,12 @@ def p_pop_case_scope(p):
     '''pop_case_scope : empty'''
 
     pop_scope("Parse Case complete")
+
+
+def p_catch(p):
+    '''catch : CATCH executable'''
+    print("p_catch, executable={}".format(p[2]))
+    p[0] = Rpn_Catch(p[2])
 
 
 def p_colon_def(p):
@@ -5446,6 +5469,18 @@ def w_then():
     pass                        # Grammar rules handle this word
 
 
+@defword(name='throw', args=1, print_x=False, doc="""\
+Throw an exception.
+
+qv CATCH""")
+def w_throw():
+    x = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(x)
+        raise TypeError("throw: Type error ({})".format(typename(x)))
+    raise Rpn_E_Throw(x.value())
+
+
 @defword(name='time', print_x=True, doc="""\
 Current time  ( -- HH.MMSS )""")
 def w_time():
@@ -5822,6 +5857,23 @@ def any_undefined_p(var_list):
 #       U T I L I T Y   F U N C T I O N S
 #
 #############################################################################
+def execute(executable):
+    try:
+        executable.__call__()
+    except KeyboardInterrupt:
+        lnwriteln("[Interrupt]")
+    except RecursionError:
+        lnwriteln("{}: Excessive recursion".format(executable))
+    except Rpn_E_Exit as e:
+        pass
+    except Rpn_E_Runtime_Error as e:
+        lnwriteln(str(e))
+    except TypeError as e:
+        lnwriteln(str(e))
+    except ValueError as e:
+        lnwriteln(str(e))
+
+
 def memoize(f):
     memoize = {}
     def helper(x):
