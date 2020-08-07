@@ -5346,7 +5346,7 @@ def w_sci():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("{}: Type error ({})".format(whoami(), typename(x)))
+        raise TypeError("sci: Type error ({})".format(typename(x)))
 
     if x.value() < 0 or x.value() > precision_max:
         param_stack.push(x)
@@ -5727,7 +5727,7 @@ Decompose a vector into stack elements""")
         x = param_stack.pop()
         if type(x) is not Rpn_Vector:
             param_stack.push(x)
-            raise TypeError("v>: Type error ({})".format(x))
+            raise TypeError("v>: Type error ({})".format(typename(x)))
         for elem in x.value():
             param_stack.push(to_rpn_class(elem))
 
