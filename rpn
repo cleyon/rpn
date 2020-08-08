@@ -2865,7 +2865,7 @@ def w_star():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("+: Type error ({}, {})".format(typename(y), typename(x)))
+        raise TypeError("*: Type error ({}, {})".format(typename(y), typename(x)))
     param_stack.push(result)
 
 
@@ -2874,10 +2874,27 @@ Multiply and divide  ( z y x -- z*y/x )
 
 X cannot be zero.""")
 def w_star_slash():
-    # x = param_stack.pop()
-    # y = param_stack.pop()
-    # z = param_stack.pop()
-    raise Rpn_E_Runtime_Error("*/: Not implemented yet")
+    x = param_stack.pop()
+    y = param_stack.pop()
+    z = param_stack.pop()
+    if    type(x) not in [Rpn_Integer, Rpn_Rational, Rpn_Float, Rpn_Complex] \
+       or type(y) not in [Rpn_Integer, Rpn_Rational, Rpn_Float, Rpn_Complex] \
+       or type(z) not in [Rpn_Integer, Rpn_Rational, Rpn_Float, Rpn_Complex]:
+        param_stack.push(z)
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("*/: Type error ({}, {}, {})".format(typename(z), typename(y), typename(x)))
+    if z.zerop():
+        param_stack.push(z)
+        param_stack.push(y)
+        param_stack.push(x)
+        raise ValueError("*/: X cannot be zero")
+
+    param_stack.push(z)
+    param_stack.push(y)
+    w_star()
+    param_stack.push(x)
+    w_slash()
 
 
 @defword(name='+', args=2, print_x=True, doc="""\
@@ -3108,9 +3125,9 @@ def w_slash():
 
 
 @defword(name='/mod', args=2, print_x=True, doc="""\
-Division quotient and remainder  ( y x -- rem quot )
+Division quotient and remainder  ( y x -- remainder quotient )
 
-Divide integers Y by X, returning integer REMainder and QUOTient.
+Divide integers Y by X, returning integer remainder and quotient.
 Signs are whatever Python // and % give you.""")
 def w_slash_mod():
     x = param_stack.pop()
