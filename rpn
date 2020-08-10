@@ -3609,8 +3609,9 @@ Set "Begin" (annuity due) financial mode.
 
 Do not confuse this with the "begin" command, which starts a loop.""")
 def w_beg():
-    global tvm_X
-    tvm_X = 1
+    global tvm_F09_Beg
+    tvm_F09_Beg = 1
+    update_tvm_vars()
 
 
 @defword(name='begin', doc="""\
@@ -3739,7 +3740,9 @@ def w_ceil():
 
 
 @defword(name='cf', args=1, doc="""\
-Clear flag  ( f -- )""")
+Clear flag  ( f -- )
+
+Do not confuse this with "CF", which is for Compounding Frequency""")
 def w_cf():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
@@ -4175,8 +4178,9 @@ def w_emit():
 @defword(name='end', doc="""\
 Set "End" (ordinary annuity) financial mode.""")
 def w_end():
-    global tvm_X
-    tvm_X = 0
+    global tvm_F09_Beg
+    tvm_F09_Beg = 0
+    update_tvm_vars()
 
 
 @defword(name='endcase', doc="""\
@@ -5887,7 +5891,8 @@ def w_words():
 Clear financial variables""")
 def w_clfin():
     global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
-    global tvm_A, tvm_B, tvm_C, tvm_X
+    global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
+    global tvm_F08_Cont, tvm_F09_Beg
 
     tvm_n  .set_obj(None)
     tvm_i  .set_obj(None)
@@ -5895,17 +5900,22 @@ def w_clfin():
     tvm_PMT.set_obj(None)
     tvm_FV .set_obj(None)
 
-    tvm_A = None
-    tvm_B = None
-    tvm_C = None
-    tvm_X = 0 # 1=Begin (annuity due), 0=End (ordinary annuity, default)
+    tvm_A  = None
+    tvm_B  = None
+    tvm_C  = None
+    tvm_X  = None
+    tvm_CF = 1
+    tvm_PF = 1
+    tvm_F08_Cont = 0 # 0=Discrete compounding (default), 1=Continuous compounding
+    tvm_F09_Beg  = 0 # 0=End (ordinary annuity, default), 1=Begin (annuity due)
 
 
 @defword(name='N', print_x=True, doc="""\
 Solve for N (number of payments)""")
 def w_N():
     global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
-    global tvm_A, tvm_B, tvm_C, tvm_X
+    global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
+    global tvm_F08_Cont, tvm_F09_Beg
 
     if any_undefined_p([tvm_i, tvm_PV, tvm_PMT, tvm_FV]):
         raise Rpn_E_Runtime_Error("N: Need i, PV, PMT, and FV")
@@ -5926,7 +5936,8 @@ Solve for INT (interest rate).
 Do not confuse this with the "INT" command, which truncates values to integers.""")
 def w_INT():
     global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
-    global tvm_A, tvm_B, tvm_C, tvm_X
+    global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
+    global tvm_F08_Cont, tvm_F09_Beg
 
     if any_undefined_p([tvm_n, tvm_PV, tvm_PMT, tvm_FV]):
         raise Rpn_E_Runtime_Error("PV: Need n, PV, PMT, and FV")
@@ -5948,7 +5959,8 @@ def w_INT():
 Solve for PV (present value)""")
 def w_PV():
     global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
-    global tvm_A, tvm_B, tvm_C, tvm_X
+    global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
+    global tvm_F08_Cont, tvm_F09_Beg
 
     if any_undefined_p([tvm_n, tvm_i, tvm_PMT, tvm_FV]):
         raise Rpn_E_Runtime_Error("PV: Need n, i, PMT, and FV")
@@ -5965,7 +5977,8 @@ def w_PV():
 Solve for PMT (payment amount)""")
 def w_PMT():
     global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
-    global tvm_A, tvm_B, tvm_C, tvm_X
+    global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
+    global tvm_F08_Cont, tvm_F09_Beg
 
     if any_undefined_p([tvm_n, tvm_i, tvm_PV, tvm_FV]):
         raise Rpn_E_Runtime_Error("PMT: Need n, i, PV, and FV")
@@ -5982,7 +5995,8 @@ def w_PMT():
 Solve for FV (future value)""")
 def w_FV():
     global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
-    global tvm_A, tvm_B, tvm_C, tvm_X
+    global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
+    global tvm_F08_Cont, tvm_F09_Beg
 
     if any_undefined_p([tvm_n, tvm_i, tvm_PV, tvm_PMT]):
         raise Rpn_E_Runtime_Error("FV: Need n, i, PV, and PMT")
@@ -5999,21 +6013,27 @@ def w_FV():
 Show financial variables""")
 def w_shfin():
     global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
-    global tvm_A, tvm_B, tvm_C, tvm_X
+    global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
+    global tvm_F08_Cont, tvm_F09_Beg
 
-    writeln("N:    {}".format(fmt(tvm_n  .obj().value()) if tvm_n  .defined() else "[Not set]"))
-    writeln("INT:  {}".format(fmt(tvm_i  .obj().value()) if tvm_i  .defined() else "[Not set]"))
-    writeln("PV:   {}".format(fmt(tvm_PV. obj().value()) if tvm_PV .defined() else "[Not set]"))
-    writeln("PMT:  {}".format(fmt(tvm_PMT.obj().value()) if tvm_PMT.defined() else "[Not set]"))
-    writeln("FV:   {}".format(fmt(tvm_FV .obj().value()) if tvm_FV .defined() else "[Not set]"))
-    writeln("A:    {}".format(tvm_A if tvm_A is not None else "[Not set]"))
-    writeln("B:    {}".format(tvm_B if tvm_B is not None else "[Not set]"))
-    writeln("C:    {}".format(tvm_C if tvm_C is not None else "[Not set]"))
-    writeln("Mode: {}".format("BEGIN (X=1)" if tvm_X == 1 else "END (X=0)"))
+    writeln("N:        {}".format(fmt(tvm_n  .obj().value()) if tvm_n  .defined() else "[Not set]"))
+    writeln("INT:      {}".format(fmt(tvm_i  .obj().value()) if tvm_i  .defined() else "[Not set]"))
+    writeln("PV:       {}".format(fmt(tvm_PV. obj().value()) if tvm_PV .defined() else "[Not set]"))
+    writeln("PMT:      {}".format(fmt(tvm_PMT.obj().value()) if tvm_PMT.defined() else "[Not set]"))
+    writeln("FV:       {}".format(fmt(tvm_FV .obj().value()) if tvm_FV .defined() else "[Not set]"))
+    writeln("Mode:     {}".format("BEGIN"      if tvm_F09_Beg  == 1 else "END"))
+    writeln("Compound: {}".format("CONTINUOUS" if tvm_F08_Cont == 1 else "DISCRETE"))
+    writeln("CF:       {}".format(fmt(tvm_CF) if tvm_CF is not None else "[Not set]"))
+    writeln("PF:       {}".format(fmt(tvm_PF) if tvm_PF is not None else "[Not set]"))
+    writeln("---------")
+    writeln("A:        {}".format(tvm_A if tvm_A is not None else "[Not set]"))
+    writeln("B:        {}".format(tvm_B if tvm_B is not None else "[Not set]"))
+    writeln("C:        {}".format(tvm_C if tvm_C is not None else "[Not set]"))
+    writeln("X:        {}".format(tvm_X if tvm_X is not None else "[Not set]"))
 
 
 def validate_N(pre, post):
-    if type(post) not in [Rpn_Integer, Rpn_Float]:
+    if type(post) is not Rpn_Integer:
         raise Rpn_E_Runtime_Error("!N: Type error ({})".format(typename(post)))
     if post.value() < 0:
         raise Rpn_E_Runtime_Error("!N: Cannot be negative")
@@ -6022,6 +6042,7 @@ def validate_INT(pre, post):
     if type(post) not in [Rpn_Integer, Rpn_Float]:
         raise Rpn_E_Runtime_Error("!INT: Type error ({})".format(typename(post)))
     if post.value() < 0:
+        # Technically not true (the best kind of true)
         raise Rpn_E_Runtime_Error("!INT: Cannot be negative")
 
 def validate_PV(pre, post):
@@ -6037,14 +6058,27 @@ def validate_FV(pre, post):
         raise Rpn_E_Runtime_Error("!FV: Type error ({})".format(typename(post)))
 
 
+def int_nom_to_eff(int_nom):
+    global tvm_F08_Cont
+    global tvm_CF, tvm_PF
+
+    if tvm_F08_Cont:
+        int_eff = math.expm1(i_nom / tvm_PF)
+    else:
+        # Can this be improved?
+        int_eff = (1.0 + int_nom / tvm_CF) ** ((tvm_CF / tvm_PF) - 1.0)
+    return int_eff
+
+
 def update_tvm_vars():
     global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
-    global tvm_A, tvm_B, tvm_C, tvm_X
+    global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
+    global tvm_F08_Cont, tvm_F09_Beg
 
     # A = (1+i)^n - 1
-    # D = (1+i)^(n-1)
     if tvm_n.defined() and tvm_i.defined():
-        tvm_A = ((1.0 + tvm_i.obj().value()) ** tvm_n.obj().value()) - 1.0
+        #tvm_A = ((1.0 + tvm_i.obj().value()) ** tvm_n.obj().value()) - 1.0 # Literal, but less accurate
+        tvm_A = math.expm1( math.log1p(tvm_i.obj().value()) * tvm_n.obj().value() )
 
     # B = (1+iX)/i
     if tvm_i.defined():
@@ -6053,6 +6087,12 @@ def update_tvm_vars():
     # C = PMT * B
     if tvm_PMT.defined() and tvm_B is not None:
         tvm_C = tvm_PMT.obj().value() * tvm_B
+
+    # D = (1+i)^(n-1)
+    pass
+
+    # X = Begin/End flag
+    tvm_X = tvm_F09_Beg
 
 
 def any_undefined_p(var_list):
