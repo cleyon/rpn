@@ -1501,10 +1501,11 @@ class Rpn_Store_Var:
             elif self._modifier == '/':
                 w_slash()
 
-        var.set_obj(param_stack.pop())
+        obj = param_stack.pop()
+        var.set_obj(obj)
 
         if var._post_hook is not None:
-            var._post_hook()
+            var._post_hook(self.identifier(), obj)
 
     def patch_recurse(self, new_word):
         pass
@@ -1687,11 +1688,12 @@ class Rpn_Variable:
             del kwargs["pre_hook"]
 
         # `post_hook' is a function that is called after a user-mode
-        # "!VAR" or "undef VAR".  It has no parameters; the variable is
-        # already set.  It is used to update other things that depend on
-        # the variable's new value.  Nothing needs to be returned, and
-        # no exceptions should be raised.  NB - post_hook is NOT called
-        # if the variable is removed via UNDEF.
+        # "!VAR" or "undef VAR".  It is used to update other things that
+        # depend on the variable's new value.  Two parameters are
+        # passed: the variable name, and some object: usually the new
+        # value object, but if the variable is deleted then None will be
+        # passed.  Nothing needs to be returned, and no exceptions
+        # should be raised.
         if "post_hook" in kwargs:
             self._post_hook = kwargs["post_hook"]
             del kwargs["post_hook"]
@@ -2620,8 +2622,8 @@ def p_undef(p):
             return
 
     scope_stack.top().delete_variable(ident)
-    # if var._post_hook is not None:
-    #     var._post_hook(var)
+    if var._post_hook is not None:
+        var._post_hook(ident, None)
 
 
 def p_variable(p):
@@ -3612,7 +3614,7 @@ Do not confuse this with the "begin" command, which starts a loop.""")
 def w_beg():
     global tvm_F09_Beg
     tvm_F09_Beg = 1
-    update_tvm_vars()
+    update_tvm_vars(None, 1)
 
 
 @defword(name='begin', doc="""\
@@ -4181,7 +4183,7 @@ Set "End" (ordinary annuity) financial mode.""")
 def w_end():
     global tvm_F09_Beg
     tvm_F09_Beg = 0
-    update_tvm_vars()
+    update_tvm_vars(None, 0)
 
 
 @defword(name='endcase', doc="""\
@@ -5900,13 +5902,13 @@ def w_clfin():
     tvm_PV .set_obj(None)
     tvm_PMT.set_obj(None)
     tvm_FV .set_obj(None)
+    tvm_CF .set_obj(Rpn_Integer(1))
+    tvm_PF .set_obj(Rpn_Integer(1))
 
     tvm_A  = None
     tvm_B  = None
     tvm_C  = None
     tvm_X  = None
-    tvm_CF = 1
-    tvm_PF = 1
     tvm_F08_Cont = 0 # 0=Discrete compounding (default), 1=Continuous compounding
     tvm_F09_Beg  = 0 # 0=End (ordinary annuity, default), 1=Begin (annuity due)
 
@@ -6024,8 +6026,8 @@ def w_shfin():
     writeln("FV:       {}".format(fmt(tvm_FV .obj().value()) if tvm_FV .defined() else "[Not set]"))
     writeln("Mode:     {}".format("BEGIN"      if tvm_F09_Beg  == 1 else "END"))
     writeln("Compound: {}".format("CONTINUOUS" if tvm_F08_Cont == 1 else "DISCRETE"))
-    writeln("CF:       {}".format(fmt(tvm_CF) if tvm_CF is not None else "[Not set]"))
-    writeln("PF:       {}".format(fmt(tvm_PF) if tvm_PF is not None else "[Not set]"))
+    writeln("CF:       {}".format(fmt(tvm_CF .obj().value()) if tvm_CF .defined() else "[Not set]"))
+    writeln("PF:       {}".format(fmt(tvm_PF .obj().value()) if tvm_PF .defined() else "[Not set]"))
     writeln("---------")
     writeln("A:        {}".format(tvm_A if tvm_A is not None else "[Not set]"))
     writeln("B:        {}".format(tvm_B if tvm_B is not None else "[Not set]"))
@@ -6033,45 +6035,48 @@ def w_shfin():
     writeln("X:        {}".format(tvm_X if tvm_X is not None else "[Not set]"))
 
 
-def validate_N(varname, pre, post):
-    if type(post) is not Rpn_Integer:
-        raise Rpn_E_Runtime_Error("!N: Type error ({})".format(typename(post)))
-    if post.value() < 0:
+def validate_N(varname, old, new):
+    if type(new) is not Rpn_Integer:
+        raise Rpn_E_Runtime_Error("!N: Type error ({})".format(typename(new)))
+    if new.value() < 0:
         raise Rpn_E_Runtime_Error("!N: Cannot be negative")
 
-def validate_INT(varname, pre, post):
-    if type(post) not in [Rpn_Integer, Rpn_Float]:
-        raise Rpn_E_Runtime_Error("!INT: Type error ({})".format(typename(post)))
-    if post.value() < 0:
+def validate_INT(varname, old, new):
+    if type(new) not in [Rpn_Integer, Rpn_Float]:
+        raise Rpn_E_Runtime_Error("!INT: Type error ({})".format(typename(new)))
+    if new.value() < 0:
         # Technically not true (the best kind of true)
         raise Rpn_E_Runtime_Error("!INT: Cannot be negative")
 
-def validate_PV(varname, pre, post):
-    if type(post) not in [Rpn_Integer, Rpn_Float]:
-        raise Rpn_E_Runtime_Error("!PV: Type error ({})".format(typename(post)))
+def validate_PV(varname, old, new):
+    if type(new) not in [Rpn_Integer, Rpn_Float]:
+        raise Rpn_E_Runtime_Error("!PV: Type error ({})".format(typename(new)))
 
-def validate_PMT(varname, pre, post):
-    if type(post) not in [Rpn_Integer, Rpn_Float]:
-        raise Rpn_E_Runtime_Error("!PMT: Type error ({})".format(typename(post)))
+def validate_PMT(varname, old, new):
+    if type(new) not in [Rpn_Integer, Rpn_Float]:
+        raise Rpn_E_Runtime_Error("!PMT: Type error ({})".format(typename(new)))
 
-def validate_FV(varname, pre, post):
-    if type(post) not in [Rpn_Integer, Rpn_Float]:
-        raise Rpn_E_Runtime_Error("!FV: Type error ({})".format(typename(post)))
+def validate_FV(varname, old, new):
+    if type(new) not in [Rpn_Integer, Rpn_Float]:
+        raise Rpn_E_Runtime_Error("!FV: Type error ({})".format(typename(new)))
 
 
 def int_nom_to_eff(int_nom):
     global tvm_F08_Cont
     global tvm_CF, tvm_PF
 
+    CF = tvm_CF.obj().value()
+    PF = tvm_PF.obj().value()
+
     if tvm_F08_Cont:
-        int_eff = math.expm1(i_nom / tvm_PF)
+        int_eff = math.expm1(i_nom / PF)
     else:
         # Can this be improved?
-        int_eff = (1.0 + int_nom / tvm_CF) ** ((tvm_CF / tvm_PF) - 1.0)
+        int_eff = (1.0 + int_nom / CF) ** ((CF / PF) - 1.0)
     return int_eff
 
 
-def update_tvm_vars():
+def update_tvm_vars(varname_not_used, val_not_used):
     global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
     global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
     global tvm_F08_Cont, tvm_F09_Beg
@@ -6901,6 +6906,8 @@ def define_variables():
     tvm_PV  = defvar('PV',   None, protected=True, pre_hook=validate_PV,  post_hook=update_tvm_vars, doc="TVM: Present Value")
     tvm_PMT = defvar('PMT',  None, protected=True, pre_hook=validate_PMT, post_hook=update_tvm_vars, doc="TVM: Payment amount")
     tvm_FV  = defvar('FV',   None, protected=True, pre_hook=validate_FV,  post_hook=update_tvm_vars, doc="TVM: Future Value")
+    tvm_CF  = defvar('CF',   None, protected=True, pre_hook=validate_CF,  post_hook=update_tvm_vars, doc="TVM: Compounding Frequency")
+    tvm_PF  = defvar('PF',   None, protected=True, pre_hook=validate_PF,  post_hook=update_tvm_vars, doc="TVM: Payment Frequency")
 
 
 def main():
