@@ -1484,14 +1484,12 @@ class Rpn_Store_Var:
 
         if var._pre_hook is not None:
             try:
-                var._pre_hook(var.obj(), param_stack.top())
+                var._pre_hook(self.identifier(), var.obj(), param_stack.top())
             except Rpn_E_Runtime_Error as e:
                 lnwriteln(str(e))
                 return
 
-        if self._modifier is None:
-            var.set_obj(param_stack.pop())
-        else:
+        if self._modifier is not None:
             param_stack.push(var.obj())
             w_swap()
             if self._modifier == '+':
@@ -1502,7 +1500,8 @@ class Rpn_Store_Var:
                 w_star()
             elif self._modifier == '/':
                 w_slash()
-            var.set_obj(param_stack.pop())
+
+        var.set_obj(param_stack.pop())
 
         if var._post_hook is not None:
             var._post_hook()
@@ -1676,11 +1675,13 @@ class Rpn_Variable:
             self._readonly = kwargs["readonly"]
             del kwargs["readonly"]
 
-        # `pre_hook' is a function that is called before a user-mode "!VAR"
-        # or "undef VAR".  It is called with the old value and the new
-        # proposed value.  (For "undef", new value is None.)  If system
-        # wants to prevent the change, the pre_hook function should raise a
-        # Rpn_E_Runtime_Error exception.  Nothing needs to be returned.
+        # `pre_hook' is a function that is called before a user-mode
+        # "!VAR" or "undef VAR".  It is called with the following
+        # parameters: variable name, old object (be sure to take
+        # .value()), and the new proposed value.  For "undef", new value
+        # is None.  If system wants to prevent the change, the pre_hook
+        # function should raise a Rpn_E_Runtime_Error exception.
+        # Nothing needs to be returned.
         if "pre_hook" in kwargs:
             self._pre_hook = kwargs["pre_hook"]
             del kwargs["pre_hook"]
@@ -1689,7 +1690,8 @@ class Rpn_Variable:
         # "!VAR" or "undef VAR".  It has no parameters; the variable is
         # already set.  It is used to update other things that depend on
         # the variable's new value.  Nothing needs to be returned, and
-        # no exceptions should be raised.
+        # no exceptions should be raised.  NB - post_hook is NOT called
+        # if the variable is removed via UNDEF.
         if "post_hook" in kwargs:
             self._post_hook = kwargs["post_hook"]
             del kwargs["post_hook"]
@@ -2610,17 +2612,16 @@ def p_undef(p):
         lnwriteln("UNDEF: '{}' out of scope".format(ident))
         raise SyntaxError
 
-    if var._pre_hook is None:
-        scope_stack.top().delete_variable(ident)
-    else:
+    if var._pre_hook is not None:
         try:
-            var._pre_hook(var.obj(), None)
+            var._pre_hook(ident, var.obj(), None)
         except Rpn_E_Runtime_Error as e:
             lnwriteln(str(e))
-        else:
-            scope_stack.top().delete_variable(ident)
-    if var._post_hook is not None:
-        var._post_hook()
+            return
+
+    scope_stack.top().delete_variable(ident)
+    # if var._post_hook is not None:
+    #     var._post_hook(var)
 
 
 def p_variable(p):
@@ -6032,28 +6033,28 @@ def w_shfin():
     writeln("X:        {}".format(tvm_X if tvm_X is not None else "[Not set]"))
 
 
-def validate_N(pre, post):
+def validate_N(varname, pre, post):
     if type(post) is not Rpn_Integer:
         raise Rpn_E_Runtime_Error("!N: Type error ({})".format(typename(post)))
     if post.value() < 0:
         raise Rpn_E_Runtime_Error("!N: Cannot be negative")
 
-def validate_INT(pre, post):
+def validate_INT(varname, pre, post):
     if type(post) not in [Rpn_Integer, Rpn_Float]:
         raise Rpn_E_Runtime_Error("!INT: Type error ({})".format(typename(post)))
     if post.value() < 0:
         # Technically not true (the best kind of true)
         raise Rpn_E_Runtime_Error("!INT: Cannot be negative")
 
-def validate_PV(pre, post):
+def validate_PV(varname, pre, post):
     if type(post) not in [Rpn_Integer, Rpn_Float]:
         raise Rpn_E_Runtime_Error("!PV: Type error ({})".format(typename(post)))
 
-def validate_PMT(pre, post):
+def validate_PMT(varname, pre, post):
     if type(post) not in [Rpn_Integer, Rpn_Float]:
         raise Rpn_E_Runtime_Error("!PMT: Type error ({})".format(typename(post)))
 
-def validate_FV(pre, post):
+def validate_FV(varname, pre, post):
     if type(post) not in [Rpn_Integer, Rpn_Float]:
         raise Rpn_E_Runtime_Error("!FV: Type error ({})".format(typename(post)))
 
