@@ -53,6 +53,8 @@ date_pat          = re.compile(date_re)
 default_protected = True
 display_style     = "s"         # s=Standard, f=Fixed, e=Scientific
 display_precision = 4
+flag_continuous   = 8
+flag_begin        = 9
 flag_max          = 64
 force_interactive = False
 go_interactive    = True
@@ -359,7 +361,6 @@ class Rpn_Abort_Quote:
 
     def __repr__(self):
         return "AbortQuote[{}]".format(repr(self.stringval()))
-
 
 
 class Rpn_Begin_Again:
@@ -3612,9 +3613,7 @@ Set "Begin" (annuity due) financial mode.
 
 Do not confuse this with the "begin" command, which starts a loop.""")
 def w_beg():
-    global tvm_F09_Beg
-    tvm_F09_Beg = 1
-    update_tvm_vars(None, 1)
+    flag_set(flag_begin)
 
 
 @defword(name='begin', doc="""\
@@ -4157,6 +4156,20 @@ def w_E():
     param_stack.push(Rpn_Float(E))
 
 
+@defword(name='e^x-1', args=1, print_x=True, doc="""\
+Return (e^X - 1) accurately  ( n - e^x-1 )""")
+def w_e_x_minus_1():
+    x = param_stack.pop()
+    if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
+        result = Rpn_Float(math.expm1(x.value()))
+    elif type(x) is Rpn_Complex:
+        result = Rpn_Complex.from_complex(cmath.exp(x.value()) - 1.0)
+    else:
+        param_stack.push(x)
+        raise TypeError("e^x-1: Type error ({})".format(typename(x)))
+    param_stack.push(result)
+
+
 @defword(name='else', args=1, doc="""\
 Execute a conditional test.  xxx is executed if <flag> is non-zero,
 otherwise yyy is executed.
@@ -4181,9 +4194,7 @@ def w_emit():
 @defword(name='end', doc="""\
 Set "End" (ordinary annuity) financial mode.""")
 def w_end():
-    global tvm_F09_Beg
-    tvm_F09_Beg = 0
-    update_tvm_vars(None, 0)
+    flag_clear(flag_begin)
 
 
 @defword(name='endcase', doc="""\
@@ -4287,11 +4298,46 @@ def w_fc_query():
         param_stack.push(x)
         raise TypeError("fc?: Type error ({})".format(typename(x)))
 
-    if x.value() < 0 or x.value() > flag_max - 1:
+    flag = x.value()
+    if flag < 0 or flag > flag_max - 1:
         param_stack.push(x)
-        raise ValueError("fc?: Flag out of range (0..{} expected)".format(flag_max - 1))
-    result = Rpn_Integer(bool_to_int(not flag_test(x.value())))
+        raise ValueError("fc?: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
+    result = Rpn_Integer(bool_to_int(not flag_test(flag)))
     param_stack.push(result)
+
+
+@defword(name='fc?c', args=1, print_x=True, doc="""\
+Test if flag is clear, then clear  ( -- bool )""")
+def w_fc_query_clear():
+    x = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(x)
+        raise TypeError("fc?c: Type error ({})".format(typename(x)))
+
+    flag = x.value()
+    if flag < 0 or flag > flag_max - 1:
+        param_stack.push(x)
+        raise ValueError("fc?c: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
+    result = Rpn_Integer(bool_to_int(not flag_test(flag)))
+    param_stack.push(result)
+    flag_clear(flag)
+
+
+@defword(name='fc?s', args=1, print_x=True, doc="""\
+Test if flag is clear, then set  ( -- bool )""")
+def w_fc_query_set():
+    x = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(x)
+        raise TypeError("fc?s: Type error ({})".format(typename(x)))
+
+    flag = x.value()
+    if flag < 0 or flag > flag_max - 1:
+        param_stack.push(x)
+        raise ValueError("fc?s: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
+    result = Rpn_Integer(bool_to_int(not flag_test(flag)))
+    param_stack.push(result)
+    flag_set(flag)
 
 
 @defword(name='fix', args=1, print_x=False, doc="""\
@@ -4339,11 +4385,46 @@ def w_fs_query():
         param_stack.push(x)
         raise TypeError("fs?: Type error ({})".format(typename(x)))
 
-    if x.value() < 0 or x.value() > flag_max - 1:
+    flag = x.value()
+    if flag < 0 or flag > flag_max - 1:
         param_stack.push(x)
-        raise ValueError("fs?: Flag out of range (0..{} expected)".format(flag_max - 1))
-    result = Rpn_Integer(bool_to_int(flag_test(x.value())))
+        raise ValueError("fs?: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
+    result = Rpn_Integer(bool_to_int(flag_test(flag)))
     param_stack.push(result)
+
+
+@defword(name='fs?c', print_x=True, args=1, doc="""\
+Test if flag is set, then clear  ( -- bool )""")
+def w_fs_query_clear():
+    x = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(x)
+        raise TypeError("fs?c: Type error ({})".format(typename(x)))
+
+    flag = x.value()
+    if flag < 0 or flag > flag_max - 1:
+        param_stack.push(x)
+        raise ValueError("fs?c: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
+    result = Rpn_Integer(bool_to_int(flag_test(flag)))
+    param_stack.push(result)
+    flag_clear(flag)
+
+
+@defword(name='fs?s', print_x=True, args=1, doc="""\
+Test if flag is set, then set  ( -- bool )""")
+def w_fs_query_set():
+    x = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(x)
+        raise TypeError("fs?s: Type error ({})".format(typename(x)))
+
+    flag = x.value()
+    if flag < 0 or flag > flag_max - 1:
+        param_stack.push(x)
+        raise ValueError("fs?s: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
+    result = Rpn_Integer(bool_to_int(flag_test(flag)))
+    param_stack.push(result)
+    flag_set(flag)
 
 
 @defword(name='fsolve', args=1, str_args=1, print_x=True, doc="""\
@@ -4796,6 +4877,20 @@ def w_ln():
     else:
         param_stack.push(x)
         raise TypeError("ln: Type error ({})".format(typename(x)))
+    param_stack.push(result)
+
+
+@defword(name='ln1+x', args=1, print_x=True, doc="""\
+Return ln(1 + X) accurately  ( x - ln(1+x) )""")
+def w_ln_1_plus_x():
+    x = param_stack.pop()
+    if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
+        result = Rpn_Float(math.log1p(x.value()))
+    elif type(x) is Rpn_Complex:
+        result = Rpn_Complex.from_complex(cmath.log(x.value()) + 1.0)
+    else:
+        param_stack.push(x)
+        raise TypeError("ln1+x: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -5831,13 +5926,6 @@ def w_vars():
         list_in_columns(sorted_vars, scr_columns.obj().value() - 1)
 
 
-@defword(name='ver', print_x=False, doc="""\
-Display the current RPN version.
-Also available as @VER""")
-def w_ver():
-    lnwriteln("RPN version {}".format(global_scope.variable('VER').obj().value()))
-
-
 @defword(name='vlist', print_x=False, doc="""\
 Print the list of defined words.
 Only words in the global scope are shown.
@@ -5895,7 +5983,6 @@ Clear financial variables""")
 def w_clfin():
     global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
     global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
-    global tvm_F08_Cont, tvm_F09_Beg
 
     tvm_n  .set_obj(None)
     tvm_i  .set_obj(None)
@@ -5909,8 +5996,8 @@ def w_clfin():
     tvm_B  = None
     tvm_C  = None
     tvm_X  = None
-    tvm_F08_Cont = 0 # 0=Discrete compounding (default), 1=Continuous compounding
-    tvm_F09_Beg  = 0 # 0=End (ordinary annuity, default), 1=Begin (annuity due)
+    flag_clear(flag_continuous) # Clear (0, default)=Discrete compounding;   Set (1)=Continuous compounding
+    flag_clear(flag_begin)      # Clear (0, default)=End (ordinary annuity); Set (1)=Begin (annuity due)
 
 
 @defword(name='N', print_x=True, doc="""\
@@ -5918,7 +6005,6 @@ Solve for N (number of payments)""")
 def w_N():
     global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
     global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
-    global tvm_F08_Cont, tvm_F09_Beg
 
     if any_undefined_p([tvm_i, tvm_PV, tvm_PMT, tvm_FV]):
         raise Rpn_E_Runtime_Error("N: Need i, PV, PMT, and FV")
@@ -5940,7 +6026,6 @@ Do not confuse this with the "INT" command, which truncates values to integers."
 def w_INT():
     global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
     global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
-    global tvm_F08_Cont, tvm_F09_Beg
 
     if any_undefined_p([tvm_n, tvm_PV, tvm_PMT, tvm_FV]):
         raise Rpn_E_Runtime_Error("PV: Need n, PV, PMT, and FV")
@@ -5963,7 +6048,6 @@ Solve for PV (present value)""")
 def w_PV():
     global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
     global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
-    global tvm_F08_Cont, tvm_F09_Beg
 
     if any_undefined_p([tvm_n, tvm_i, tvm_PMT, tvm_FV]):
         raise Rpn_E_Runtime_Error("PV: Need n, i, PMT, and FV")
@@ -5981,7 +6065,6 @@ Solve for PMT (payment amount)""")
 def w_PMT():
     global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
     global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
-    global tvm_F08_Cont, tvm_F09_Beg
 
     if any_undefined_p([tvm_n, tvm_i, tvm_PV, tvm_FV]):
         raise Rpn_E_Runtime_Error("PMT: Need n, i, PV, and FV")
@@ -5999,7 +6082,6 @@ Solve for FV (future value)""")
 def w_FV():
     global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
     global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
-    global tvm_F08_Cont, tvm_F09_Beg
 
     if any_undefined_p([tvm_n, tvm_i, tvm_PV, tvm_PMT]):
         raise Rpn_E_Runtime_Error("FV: Need n, i, PV, and PMT")
@@ -6017,26 +6099,26 @@ Show financial variables""")
 def w_shfin():
     global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
     global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
-    global tvm_F08_Cont, tvm_F09_Beg
 
-    writeln("N:        {}".format(fmt(tvm_n  .obj().value()) if tvm_n  .defined() else "[Not set]"))
-    writeln("INT:      {}".format(fmt(tvm_i  .obj().value()) if tvm_i  .defined() else "[Not set]"))
-    writeln("PV:       {}".format(fmt(tvm_PV. obj().value()) if tvm_PV .defined() else "[Not set]"))
-    writeln("PMT:      {}".format(fmt(tvm_PMT.obj().value()) if tvm_PMT.defined() else "[Not set]"))
-    writeln("FV:       {}".format(fmt(tvm_FV .obj().value()) if tvm_FV .defined() else "[Not set]"))
-    writeln("Mode:     {}".format("BEGIN"      if tvm_F09_Beg  == 1 else "END"))
-    writeln("Compound: {}".format("CONTINUOUS" if tvm_F08_Cont == 1 else "DISCRETE"))
-    writeln("CF:       {}".format(fmt(tvm_CF .obj().value()) if tvm_CF .defined() else "[Not set]"))
-    writeln("PF:       {}".format(fmt(tvm_PF .obj().value()) if tvm_PF .defined() else "[Not set]"))
-    writeln("---------")
-    writeln("A:        {}".format(tvm_A if tvm_A is not None else "[Not set]"))
-    writeln("B:        {}".format(tvm_B if tvm_B is not None else "[Not set]"))
-    writeln("C:        {}".format(tvm_C if tvm_C is not None else "[Not set]"))
-    writeln("X:        {}".format(tvm_X if tvm_X is not None else "[Not set]"))
+    writeln("N:           {}".format(fmt(tvm_n  .obj().value()) if tvm_n  .defined() else "[Not set]"))
+    writeln("INT:         {}".format(fmt(tvm_i  .obj().value()) if tvm_i  .defined() else "[Not set]"))
+    writeln("PV:          {}".format(fmt(tvm_PV. obj().value()) if tvm_PV .defined() else "[Not set]"))
+    writeln("PMT:         {}".format(fmt(tvm_PMT.obj().value()) if tvm_PMT.defined() else "[Not set]"))
+    writeln("FV:          {}".format(fmt(tvm_FV .obj().value()) if tvm_FV .defined() else "[Not set]"))
+    writeln("Compounding: {}".format("CONTINUOUS (flag {} is set)".format(flag_continuous) if flag_test(flag_continuous) else "DISCRETE (flag {} is clear)".format(flag_continuous)))
+    writeln("Begin/End:   {}".format("BEGIN (flag {} is set)"     .format(flag_begin)      if flag_test(flag_begin)      else "END (flag {} is clear)"     .format(flag_begin)))
+    writeln("CF:          {}".format(fmt(tvm_CF .obj().value()) if tvm_CF .defined() else "[Not set]"))
+    writeln("PF:          {}".format(fmt(tvm_PF .obj().value()) if tvm_PF .defined() else "[Not set]"))
+    if True or debug_enabled:   # XXX
+        writeln("---------")
+        writeln("A:           {}".format(tvm_A if tvm_A is not None else "[Not set]"))
+        writeln("B:           {}".format(tvm_B if tvm_B is not None else "[Not set]"))
+        writeln("C:           {}".format(tvm_C if tvm_C is not None else "[Not set]"))
+        writeln("X:           {}".format(tvm_X if tvm_X is not None else "[Not set]"))
 
 
 def validate_N(varname, old, new):
-    if type(new) is not Rpn_Integer:
+    if type(new) not in [Rpn_Integer, Rpn_Float]:
         raise Rpn_E_Runtime_Error("!N: Type error ({})".format(typename(new)))
     if new.value() < 0:
         raise Rpn_E_Runtime_Error("!N: Cannot be negative")
@@ -6060,26 +6142,52 @@ def validate_FV(varname, old, new):
     if type(new) not in [Rpn_Integer, Rpn_Float]:
         raise Rpn_E_Runtime_Error("!FV: Type error ({})".format(typename(new)))
 
+def validate_CF(varname, old, new):
+    if type(new) is not Rpn_Integer:
+        raise Rpn_E_Runtime_Error("!CF: Type error ({})".format(typename(new)))
+    if new.value() < 0:
+        raise Rpn_E_Runtime_Error("!CF: Cannot be negative")
+
+def validate_PF(varname, old, new):
+    if type(new) is not Rpn_Integer:
+        raise Rpn_E_Runtime_Error("!PF: Type error ({})".format(typename(new)))
+    if new.value() < 0:
+        raise Rpn_E_Runtime_Error("!PF: Cannot be negative")
+
 
 def int_nom_to_eff(int_nom):
-    global tvm_F08_Cont
     global tvm_CF, tvm_PF
 
     CF = tvm_CF.obj().value()
     PF = tvm_PF.obj().value()
 
-    if tvm_F08_Cont:
+    if flag_test(flag_continuous):
+        # int_eff = e^(i/PF) - 1
         int_eff = math.expm1(i_nom / PF)
     else:
-        # Can this be improved?
-        int_eff = (1.0 + int_nom / CF) ** ((CF / PF) - 1.0)
+        # int_eff = (1+i/CF)^(CF/PF) - 1
+        int_eff = (1.0 + int_nom / CF) ** (CF / PF) - 1.0
     return int_eff
+
+
+def int_eff_to_nom(int_eff):
+    global tvm_CF, tvm_PF
+
+    CF = tvm_CF.obj().value()
+    PF = tvm_PF.obj().value()
+
+    if flag_test(flag_continuous):
+        # int_nom = LN[ (1+int_eff)^PF ]
+        int_nom = math.log( (1.0 + int_eff) ** PF )
+    else:
+        # int_nom = CF * [ (1+int_eff)^(PF/CF) - 1]
+        int_nom = CF * ( (1.0 + int_eff) ** (PF/CF) - 1.0 )
+    return int_nom
 
 
 def update_tvm_vars(varname_not_used, val_not_used):
     global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
     global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
-    global tvm_F08_Cont, tvm_F09_Beg
 
     # A = (1+i)^n - 1
     if tvm_n.defined() and tvm_i.defined():
@@ -6098,7 +6206,7 @@ def update_tvm_vars(varname_not_used, val_not_used):
     pass
 
     # X = Begin/End flag
-    tvm_X = tvm_F09_Beg
+    tvm_X = flag_value(flag_begin)
 
 
 def any_undefined_p(var_list):
@@ -6323,7 +6431,13 @@ def flag_set(flag):
     global flags_vec
     if flag < 0 or flag > flag_max - 1:
         raise Rpn_E_Fatal("{}: Flag {} out of range".format(whoami(), flag))
-    flags_vec |= 1<<flag
+    flags_vec |= (1<<flag)
+
+def flag_value(flag):
+    global flags_vec
+    if flag < 0 or flag > flag_max - 1:
+        raise Rpn_E_Fatal("{}: Flag {} out of range".format(whoami(), flag))
+    return bool_to_int(flag_test(flag))
 
 def flag_test(flag):
     global flags_vec
@@ -6893,6 +7007,7 @@ def initialize():
 def define_variables():
     global sharpout, scr_columns, scr_rows
     global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
+    global tvm_CF, tvm_PF
 
     sharpout = defvar('#OUT', Rpn_Integer(0), protected=True, readonly=True, noshadow=True)
     scr_columns = defvar('COLS', Rpn_Integer(0), protected=True)
@@ -6901,13 +7016,13 @@ def define_variables():
     scr_rows = defvar('ROWS', Rpn_Integer(0), protected=True)
     defvar('VER',  Rpn_Float(rpn_version), protected=True, readonly=True, noshadow=True)
 
-    tvm_n   = defvar('N',    None, protected=True, pre_hook=validate_N,   post_hook=update_tvm_vars, doc="TVM: Number of payments")
-    tvm_i   = defvar('INT',  None, protected=True, pre_hook=validate_INT, post_hook=update_tvm_vars, doc="TVM: Interest rate")
-    tvm_PV  = defvar('PV',   None, protected=True, pre_hook=validate_PV,  post_hook=update_tvm_vars, doc="TVM: Present Value")
-    tvm_PMT = defvar('PMT',  None, protected=True, pre_hook=validate_PMT, post_hook=update_tvm_vars, doc="TVM: Payment amount")
-    tvm_FV  = defvar('FV',   None, protected=True, pre_hook=validate_FV,  post_hook=update_tvm_vars, doc="TVM: Future Value")
-    tvm_CF  = defvar('CF',   None, protected=True, pre_hook=validate_CF,  post_hook=update_tvm_vars, doc="TVM: Compounding Frequency")
-    tvm_PF  = defvar('PF',   None, protected=True, pre_hook=validate_PF,  post_hook=update_tvm_vars, doc="TVM: Payment Frequency")
+    tvm_n   = defvar('N',    None, protected=True, noshadow=True, pre_hook=validate_N,   post_hook=update_tvm_vars, doc="TVM: Number of payments")
+    tvm_i   = defvar('INT',  None, protected=True, noshadow=True, pre_hook=validate_INT, post_hook=update_tvm_vars, doc="TVM: Interest rate")
+    tvm_PV  = defvar('PV',   None, protected=True, noshadow=True, pre_hook=validate_PV,  post_hook=update_tvm_vars, doc="TVM: Present Value")
+    tvm_PMT = defvar('PMT',  None, protected=True, noshadow=True, pre_hook=validate_PMT, post_hook=update_tvm_vars, doc="TVM: Payment amount")
+    tvm_FV  = defvar('FV',   None, protected=True, noshadow=True, pre_hook=validate_FV,  post_hook=update_tvm_vars, doc="TVM: Future Value")
+    tvm_CF  = defvar('CF',   None, protected=True, noshadow=True, pre_hook=validate_CF,  post_hook=update_tvm_vars, doc="TVM: Compounding Frequency")
+    tvm_PF  = defvar('PF',   None, protected=True, noshadow=True, pre_hook=validate_PF,  post_hook=update_tvm_vars, doc="TVM: Payment Frequency")
 
 
 def main():
@@ -6933,9 +7048,12 @@ def main_loop():
     global show_x
     show_x = False    # Reset, because some argv may have set it to True
 
-    w_ver()
+    lnwriteln("RPN version {}".format(rpn_version))
     if not param_stack.empty():
-        w_dot_s()
+        if param_stack.size() == 1:
+            w_dup(); w_dot(); w_cr()
+        else:
+            w_dot_s()
 
     while True:
         try:
