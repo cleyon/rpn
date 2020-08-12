@@ -64,6 +64,9 @@ matrix_max        = 1000
 precision_max     = 48          # more than 10 or 12 is not really practical
 rational_re       = r'(\d+)::(\d+)'
 rational_pat      = re.compile(rational_re)
+register          = dict()
+reg_min           = 10
+reg_max           = 100         # R00..R99; further restricted by reg_size
 show_x            = False
 stat_list         = []
 time_re           = r'^[-+]?(\d+)\.(\d{,2})(\d*)$'
@@ -3789,6 +3792,15 @@ def w_clflag():
     flags_vec = 0
 
 
+@defword(name='clreg', doc="""]
+Clear all registers.""")
+def w_clreg():
+    global register
+    register = dict()
+    for i in range(reg_max):
+        register[i] = Rpn_Float(0.0)
+
+
 @defword(name='clrst', doc="""\
 Clear the return stack.
 
@@ -5383,6 +5395,22 @@ def w_randint():
     param_stack.push(Rpn_Integer(r))
 
 
+@defword(name='rcl', doc="""\
+Recall value of register X  ( reg -- val )""")
+def w_rcl():
+    global register, reg_size
+
+    x = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(x)
+        raise TypeError("rcl: Type error ({})".format(typename(x)))
+    reg = x.value()
+    if reg < 0 or reg > reg_size.obj().value() - 1:
+        param_stack.push(x)
+        raise ValueError("rcl: Register '{}' out of range (0..{} expected)".format(reg, reg_size.obj().value() - 1))
+    param_stack.push(register[reg])
+
+
 @defword(name='rdepth', print_x=True, doc="""\
 Current number of elements on return stack  ( -- n )""")
 def w_rdepth():
@@ -5548,17 +5576,6 @@ def w_sf():
     flag_set(flag)
 
 
-@defword(name='shflag', print_x=False, doc="""\
-Show status of all flags ( -- )""")
-def w_shflag():
-    global scr_columns
-    flags = []
-    for f in range(flag_max):
-        flags.append("%02d:%s" % (f, "YES" if flag_test(f) else "no "))
-
-    list_in_columns(flags, scr_columns.obj().value() - 1)
-
-
 @defword(name='shdebug', print_x=False, doc="""\
 Show all debug levels""")
 def w_showdebug():
@@ -5572,6 +5589,17 @@ def w_showdebug():
     for key in sorted(dbgs, key=str.casefold):
         sorted_dbgs.append(dbgs[key])
     list_in_columns(sorted_dbgs, scr_columns.obj().value() - 1)
+
+
+@defword(name='shflag', print_x=False, doc="""\
+Show status of all flags ( -- )""")
+def w_shflag():
+    global scr_columns
+    flags = []
+    for f in range(flag_max):
+        flags.append("%02d:%s" % (f, "YES" if flag_test(f) else "no "))
+
+    list_in_columns(flags, scr_columns.obj().value() - 1)
 
 
 @defword(name='show', doc="""\
@@ -5588,6 +5616,17 @@ def w_shstat():
         print("No statistics data")
     else:
         print(stat_list)
+
+
+@defword(name='shreg', print_x=False, doc="""\
+Show status of all registers ( -- )""")
+def w_shreg():
+    global register, reg_size
+    regs = []
+    for r in range(reg_size.obj().value()):
+        regs.append("R%02d=%s" % (r, fmt(register[r])))
+
+    list_in_columns(regs, scr_columns.obj().value() - 1)
 
 
 @defword(name='sign', args=1, print_x=True, doc="""\
@@ -5635,6 +5674,38 @@ def w_sinh():
         param_stack.push(x)
         raise TypeError("sinh: Type error ({})".format(typename(x)))
     param_stack.push(result)
+
+
+@defword(name='size', args=1, print_x=False, doc="""\
+Set register size  ( siz -- )
+Size must be in range [10,220]""")
+def w_size():
+    x = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(x)
+        raise TypeError("size: Type error ({})".format(typename(x)))
+    new_size = x.value()
+    if new_size < reg_min or new_size > reg_max:
+        param_stack.push(x)
+        raise ValueError("size: Size '{}' out of range ({}..{} expected)".format(new_size, reg_min, reg_max))
+
+    global reg_size
+    old_size = reg_size.obj().value()
+    # If we're increasing the number of registers, zero out the newly
+    # available ones.  It is not really necessary to do this when
+    # decreasing, because those registers will no longer be available.
+    if new_size > old_size:
+        for r in range(new_size - old_size):
+            register[old_size + r] = Rpn_Float(0.0)
+
+    reg_size.set_obj(x)
+
+
+@defword(name='size?', print_x=True, doc="""\
+Return the register size to the stack  ( -- siz )""")
+def w_size_query():
+    global reg_size
+    param_stack.push(reg_size.obj())
 
 
 @defword(name='sleep', args=1, doc="""\
@@ -5718,6 +5789,28 @@ def w_stdev():
     except statistics.StatisticsError as e:
         raise Rpn_E_Runtime_Error("stdev: {}".format(str(e)))
     param_stack.push(Rpn_Float(s))
+
+
+@defword(name='sto', args=2, doc="""\
+Store value Y into register X  ( y reg -- )""")
+def w_sto():
+    global register, reg_size
+
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise TypeError("sto: Type error ({}, {})".format(typename(y), typename(x)))
+    reg = x.value()
+    if reg < 0 or reg > reg_size.obj().value() - 1:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise ValueError("sto: Register '{}' out of range (0..{} expected)".format(reg, reg_size.obj().value() - 1))
+    if type(y) in [Rpn_Float, Rpn_Complex]:
+        register[reg] = y
+    else:
+        register[reg] = Rpn_Float(y.value())
 
 
 @defword(name='swap', args=2, doc="""\
@@ -6976,6 +7069,7 @@ def initialize():
     push_scope(global_scope, "Global scope")
     define_variables()
     define_secondary_words()
+    w_clreg()
     w_clflag()
     w_clfin()
 
@@ -7005,24 +7099,23 @@ def initialize():
 
 
 def define_variables():
-    global sharpout, scr_columns, scr_rows
-    global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
-    global tvm_CF, tvm_PF
+    global sharpout, scr_columns, scr_rows, reg_size
+    global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV, tvm_CF, tvm_PF
 
-    sharpout = defvar('#OUT', Rpn_Integer(0), protected=True, readonly=True, noshadow=True)
-    scr_columns = defvar('COLS', Rpn_Integer(0), protected=True)
-    defvar('HAVE_NUMPY', Rpn_Integer(bool_to_int(have_numpy)), protected=True, readonly=True, noshadow=True)
-    defvar('HAVE_SCIPY', Rpn_Integer(bool_to_int(have_scipy)), protected=True, readonly=True, noshadow=True)
-    scr_rows = defvar('ROWS', Rpn_Integer(0), protected=True)
-    defvar('VER',  Rpn_Float(rpn_version), protected=True, readonly=True, noshadow=True)
-
-    tvm_n   = defvar('N',    None, protected=True, noshadow=True, pre_hook=validate_N,   post_hook=update_tvm_vars, doc="TVM: Number of payments")
-    tvm_i   = defvar('INT',  None, protected=True, noshadow=True, pre_hook=validate_INT, post_hook=update_tvm_vars, doc="TVM: Interest rate")
-    tvm_PV  = defvar('PV',   None, protected=True, noshadow=True, pre_hook=validate_PV,  post_hook=update_tvm_vars, doc="TVM: Present Value")
-    tvm_PMT = defvar('PMT',  None, protected=True, noshadow=True, pre_hook=validate_PMT, post_hook=update_tvm_vars, doc="TVM: Payment amount")
-    tvm_FV  = defvar('FV',   None, protected=True, noshadow=True, pre_hook=validate_FV,  post_hook=update_tvm_vars, doc="TVM: Future Value")
-    tvm_CF  = defvar('CF',   None, protected=True, noshadow=True, pre_hook=validate_CF,  post_hook=update_tvm_vars, doc="TVM: Compounding Frequency")
-    tvm_PF  = defvar('PF',   None, protected=True, noshadow=True, pre_hook=validate_PF,  post_hook=update_tvm_vars, doc="TVM: Payment Frequency")
+    sharpout    = defvar('#OUT',  Rpn_Integer(0), protected=True, readonly=True, noshadow=True)
+    tvm_CF      = defvar('CF',    None, protected=True, noshadow=True, pre_hook=validate_CF,  post_hook=update_tvm_vars, doc="TVM: Compounding Frequency")
+    scr_columns = defvar('COLS',  Rpn_Integer(0), protected=True)
+    tvm_FV      = defvar('FV',    None, protected=True, noshadow=True, pre_hook=validate_FV,  post_hook=update_tvm_vars, doc="TVM: Future Value")
+    tvm_i       = defvar('INT',   None, protected=True, noshadow=True, pre_hook=validate_INT, post_hook=update_tvm_vars, doc="TVM: Interest rate")
+    tvm_n       = defvar('N',     None, protected=True, noshadow=True, pre_hook=validate_N,   post_hook=update_tvm_vars, doc="TVM: Number of payments")
+    _           = defvar('NUMPY', Rpn_Integer(bool_to_int(have_numpy)), protected=True, readonly=True, noshadow=True)
+    tvm_PF      = defvar('PF',    None, protected=True, noshadow=True, pre_hook=validate_PF,  post_hook=update_tvm_vars, doc="TVM: Payment Frequency")
+    tvm_PMT     = defvar('PMT',   None, protected=True, noshadow=True, pre_hook=validate_PMT, post_hook=update_tvm_vars, doc="TVM: Payment amount")
+    tvm_PV      = defvar('PV',    None, protected=True, noshadow=True, pre_hook=validate_PV,  post_hook=update_tvm_vars, doc="TVM: Present Value")
+    scr_rows    = defvar('ROWS',  Rpn_Integer(0), protected=True)
+    _           = defvar('SCIPY', Rpn_Integer(bool_to_int(have_scipy)), protected=True, readonly=True, noshadow=True)
+    reg_size    = defvar('SIZE',  Rpn_Integer(20), protected=True, noshadow=True, readonly=True)
+    _           = defvar('VER',   Rpn_Float(rpn_version), protected=True, readonly=True, noshadow=True)
 
 
 def main():
