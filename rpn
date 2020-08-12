@@ -6994,11 +6994,13 @@ def sigquit_handler(signum, frame):
 # changes come too fast.  Consider using shutil.get_terminal_size()
 def sigwinch_handler(signum, frame):
     global scr_columns, scr_rows
-    stty_size = subprocess.check_output(['stty', 'size']).decode().split()
-    if len(stty_size) != 2:
-        return
+    tty_rows = 0
+    tty_columns = 0
+    if sys.stdin.isatty():
+        stty_size = subprocess.check_output(['stty', 'size']).decode().split()
+        if len(stty_size) == 2:
+            tty_rows, tty_columns = stty_size
 
-    tty_rows, tty_columns = stty_size
     #lnwriteln("{} x {}".format(tty_rows, tty_columns))
     if int(tty_columns) == 0:
         env_cols = os.getenv("COLUMNS")
