@@ -50,6 +50,7 @@ if have_numpy:
 angle_mode        = "d"         # r=Radians, d=Degrees, g=Gradians
 date_re           = r'^(\d{1,2})\.(\d{2})(\d{4})$'
 date_pat          = re.compile(date_re)
+debug_internal    = False
 default_protected = True
 display_style     = "s"         # s=Standard, f=Fixed, e=Scientific
 display_precision = 4
@@ -241,9 +242,6 @@ It is caught in main_loop."""
 #       D E B U G G I N G
 #
 #############################################################################
-debug_enabled     = False
-#debug_enabled     = True
-
 debug_levels = {
     "catch"                     : 0,
     "defvar"                    : 0,
@@ -268,6 +266,7 @@ debug_levels = {
     "show"                      : 0,
     "token"                     : 0,
     "trace"                     : 0,
+    "tvm"                       : 3,
 }
 
 
@@ -288,38 +287,42 @@ def whoami():
         whoami = whoami[2:]
     return whoami
 
-def enable_debug():
-    global debug_enabled
-    debug_enabled = True
+def debug_enabled_p():
+    global debugging
+    try:
+        retval = debugging.obj().value() != 0
+    except NameError:
+        retval = debug_internal
+    return retval
 
-def disable_debug():
-    global debug_enabled
-    debug_enabled = False
+def set_debugging(f):
+    global debugging
+    debugging.set_obj(Rpn_Integer(1 if f else 0))
 
-def set_debug(resource, level = 1):
+def set_debug_level(resource, level = 1):
     global debug_levels
 
     if resource not in debug_levels:
-        print("set_debug: Resource '{}' not valid".format(resource)) # OK
+        print("set_debug_level: Resource '{}' not valid".format(resource)) # OK
         traceback.print_stack(file=sys.stderr)
         sys.exit(1)             # Harsh!
 
     if level < 0 or level > 9:
-        raise Rpn_E_Fatal("set_debug: Level {} out of range (0..9 expected)".format(level))
+        raise Rpn_E_Fatal("set_debug_level: Level {} out of range (0..9 expected)".format(level))
     debug_levels[resource] = level
 
 def dbg(resource, level = 1, text = None):
     '''Note that a level of -1 will always be True and possibly print the text.
 This can be useful to quickly turn a debugging statement on unilaterally;
 just change "dbg(res,1,xxx)" to "dbg(res,-1,xxx)".'''
-    global debug_enabled, debug_levels
+    global debug_levels
 
     if resource not in debug_levels:
         print("dbg: Resource '{}' not valid".format(resource)) # OK
         traceback.print_stack(file=sys.stderr)
         sys.exit(1)             # Harsh!
 
-    if not debug_enabled or level == 0:
+    if not debug_enabled_p() or level == 0:
         return False
     flag = debug_levels[resource] >= level
     if flag and text is not None:
@@ -1806,7 +1809,7 @@ class Rpn_Word:
             raise Rpn_E_Fatal("Invalid word name '{}'".format(name))
         if defn is None:
             raise Rpn_E_Fatal("{}: defn is None".format(name))
-        dbg(whoami(), 3, "defn is {}".format(type(defn)))
+        #dbg(whoami(), 3, "defn is {}".format(type(defn)))
 
         if "args" in kwargs:
             self._args = kwargs['args']
@@ -3616,7 +3619,9 @@ Set "Begin" (annuity due) financial mode.
 
 Do not confuse this with the "begin" command, which starts a loop.""")
 def w_beg():
+    global tvm_X
     flag_set(flag_begin)
+    tvm_X = flag_value(flag_begin)
 
 
 @defword(name='begin', doc="""\
@@ -3983,9 +3988,8 @@ def w_date_minus():
 
 @defword(name='dbg.token', hidden=True)
 def w_dbg_token():
-    global debug_enabled
-    debug_enabled = True
-    set_debug("token", 3 if debug_enabled else 0)
+    set_debugging(True)
+    set_debug_level("token", 3)
 
 
 @defword(name='ddays', args=2, print_x=True, doc="""\
@@ -4019,9 +4023,8 @@ def w_ddays():
 @defword(name='debug', doc="""\
 Toggle debugging state""")
 def w_debug():
-    global debug_enabled
-    debug_enabled = not debug_enabled
-    lnwriteln("debug: Debugging is now {}".format("enabled" if debug_enabled else "disabled"))
+    set_debugging(not debug_enabled_p())
+    lnwriteln("debug: Debugging is now {}".format("enabled" if debug_enabled_p() else "disabled"))
 
 
 @defword(name='deg', doc="""\
@@ -4206,7 +4209,9 @@ def w_emit():
 @defword(name='end', doc="""\
 Set "End" (ordinary annuity) financial mode.""")
 def w_end():
+    global tvm_X
     flag_clear(flag_begin)
+    tvm_X = flag_value(flag_begin)
 
 
 @defword(name='endcase', doc="""\
@@ -5559,7 +5564,7 @@ def w_setdebug():
         param_stack.push(x)
         string_stack.push(resource)
         raise ValueError("{}: Resource '{}' is not valid".format(whoami(), resource.value()))
-    set_debug(resource.value(), level)
+    set_debug_level(resource.value(), level)
 
 
 @defword(name='sf', args=1, doc="""\
@@ -5580,7 +5585,7 @@ def w_sf():
 Show all debug levels""")
 def w_showdebug():
     global scr_columns
-    lnwriteln("Debugging is {}".format("enabled" if debug_enabled else "disabled"))
+    lnwriteln("Debugging is {}".format("ENABLED" if debug_enabled_p() else "DISABLED"))
 
     dbgs = dict()
     for (resource, level) in debug_levels.items():
@@ -5915,14 +5920,12 @@ def w_timeinfo():
 @defword(name='trace', doc="""\
 Toggle tracing state""")
 def w_trace():
-    global debug_enabled
-    tracing = dbg("trace", 1)
-    if tracing:
-        set_debug("trace", 0)
+    if dbg("trace"):
+        set_debug_level("trace", 0)
         lnwriteln("trace: Tracing is now disabled")
     else:
-        debug_enabled = True
-        set_debug("trace", 1)
+        set_debugging(True)
+        set_debug_level("trace", 1)
         lnwriteln("trace: Tracing is now enabled")
 
 
@@ -6000,7 +6003,7 @@ def w_variable():
 @defword(name='vars', print_x=False, doc="""\
 List variables and their values""")
 def w_vars():
-    global debug_enabled, scr_columns
+    global scr_columns
     for (i, scope) in scope_stack.items_top_to_bottom():
         if scope_stack.size() > 1:
             lnwriteln("Scope {}".format(scope.name()))
@@ -6012,7 +6015,7 @@ def w_vars():
             vars[var.name()] = "{}:[undef]".format(var.name()) if not var.defined() else \
                                "{}={}{}".format(var.name(),
                                                 var.obj().value(),
-                                                "(" + typename(var.obj()) + ")" if debug_enabled else "")
+                                                "(" + typename(var.obj()) + ")" if debug_enabled_p() else "")
         sorted_vars = []
         for key in sorted(vars, key=str.casefold):
             sorted_vars.append(vars[key])
@@ -6066,6 +6069,327 @@ def w_words():
 
 
 
+# # Migrate the perl
+#
+# #*****************************************************************************
+# #
+# #       T I M E   V A L U E   O F   M O N E Y
+# #
+# #       http://www.getobjects.com/Components/Finance/TVM/formulas.html
+# #
+# #       TVM calculations are notoriously sensitive to round-off errors.
+# #       Sadly, I do not take the necessary precautions here; the
+# #       implementations are straightforward translations of the equations.
+# #
+# #       Another enhancement would be to use high precision
+# #       functions for LN 1+X and e^X-1.
+# #
+# #*****************************************************************************
+# use strict;
+# use warnings;
+#
+# my (     $N,      $IpYR,      $PV,      $PMT,      $FV);
+# my ($NEED_N, $NEED_IpYR, $NEED_PV, $NEED_PMT, $NEED_FV) = (1, 2, 4, 8, 16);
+# my ($PpYR, $Beg);
+#
+# $N    = Variable->new("N",    0);
+# $IpYR = Variable->new("I%YR", 0);
+# $PV   = Variable->new("PV",   0);
+# $PMT  = Variable->new("PMT",  0);
+# $FV   = Variable->new("FV",   0);
+#
+# $PpYR = Variable->new("P/YR", 0, 12);
+# $Beg  = Variable->new("BEG",  1,  0);
+#
+#
+# Cmd->new("clfin", 0, "Clear financial variables
+# Also sets End mode and 12 payments per year.", 1, sub
+# {
+#     $N   ->undefine();
+#     $IpYR->undefine();
+#     $PV  ->undefine();
+#     $PMT ->undefine();
+#     $FV  ->undefine();
+#
+#     $PpYR->set_value(12);
+#     $Beg ->set_value(0);
+#
+#     State->disable_stack_show();
+# });
+#
+#
+# Cmd->new("shfin", 0, "Show financial variables", 1, sub
+# {
+#     ::writeln "N:    " . (($N   ->defined) ? State->format_number($N   ->val) : "Undefined");
+#     ::writeln "I%YR: " . (($IpYR->defined) ? State->format_number($IpYR->val) : "Undefined");
+#     ::writeln "PV:   " . (($PV  ->defined) ? State->format_number($PV  ->val) : "Undefined");
+#     ::writeln "PMT:  " . (($PMT ->defined) ? State->format_number($PMT ->val) : "Undefined");
+#     ::writeln "FV:   " . (($FV  ->defined) ? State->format_number($FV  ->val) : "Undefined");
+#     ::writeln "P/YR: " . (($PpYR->defined) ? State->format_number($PpYR->val) : "Undefined");
+#     ::writeln "Mode: " . (($Beg ->defined) ? ($Beg->val == 1 ? "BEGIN":"END") : "Undefined");
+#
+#     State->disable_stack_show();
+# });
+#
+#
+# Cmd->new("beg", 0, "Set Begin financial mode
+#
+# WARNING:
+# Do not confuse this with the BEGIN command.", 1, sub
+# {
+#     $Beg->set_value(1);
+# });
+#
+#
+# Cmd->new("end", 0, "Set End financial mode", 1, sub
+# {
+#     $Beg->set_value(0);
+# });
+#
+#
+# # These equations do not depend on BEG/END mode?
+# Cmd->new("N", 0, "Solve for Number of payments", 1, sub
+# {
+#     return if (not fin_okay("N", $NEED_IpYR | $NEED_PV | $NEED_FV));
+#     my $ip = interest_rate();
+#     my $log_ip_1 = log(1.0 + $ip);
+#     my $n = log(($FV->val * $ip) / ($PV->val * $ip)) / $log_ip_1;
+#     $N->set_value($n);
+#     $::stack->Push($n);
+# });
+#
+#
+# # quartile_root_finder is not well-tested for pathological cases.
+# Cmd->new("I%YR", 0, "Solve for Interest rate
+#
+# DEFINITION:
+#                         [           (1+ip)^N - 1 ]
+# 0 = [ PV * (1+ip)^N ] + [ (PMT*k) * ------------ ] + FV
+#                         [                ip      ]", 1, sub
+# {
+#     return if (not fin_okay("I%YR", $NEED_N | $NEED_PV | $NEED_PMT | $NEED_FV));
+#     my $interest_func = sub {
+#         my $ip = shift;
+#         if ($ip == 0.0) {
+#             ::writeln "I%YR(interest_func): ip cannot be zero";
+#             exit(1);
+#         }
+#         my $k = k_helper();
+#         my $i = ($PV->val * (1.0+$ip)**$N->val)
+#               + (($PMT->val * $k) * (((1.0+$ip)**$N->val - 1) / $ip))
+#               + $FV->val;
+#         #::writeln "interest_func($ip) = $i";
+#         return $i;
+#     };
+#
+#     my $i = quartile_root_finder(0.000001, 0.01, 1e-12, $interest_func);
+#     my $iyr = $i * 100.0 * $PpYR->val;
+#     $IpYR->set_value($iyr);
+#     $::stack->Push($iyr);
+#     State->disable_stack_show();
+# });
+#
+#
+# Cmd->new("PV", 0, "Solve for Present value
+#
+# DEFINITION:
+#       ( PMT * k      )       1         PMT * k
+# PV = (  ------- - FV  ) * --------  -  -------
+#       (   ip         )    (1+ip)^N       ip
+#
+# k = 1 if END, 1+ip if BEGIN", 1, sub
+# {
+#     return if (not fin_okay("PV", $NEED_N | $NEED_IpYR | $NEED_PMT | $NEED_FV));
+#     my $ip = interest_rate();
+#     my $k = k_helper();
+#     my $pmt_k_ip = $PMT->val * $k / $ip;
+#     my $pv = ($pmt_k_ip - $FV->val) / ((1.0 + $ip)**$N->val) - $pmt_k_ip;
+#     $PV->set_value($pv);
+#     $::stack->Push($pv);
+# });
+#
+#
+# Cmd->new("PMT", 0, "Solve for Payment
+#
+# DEFINITION:
+#        (         PV + FV     )    -ip
+# PMT = (  PV + --------------  ) * ---
+#        (       (1+ip)^N - 1  )     k
+#
+# k = 1 if END, 1+ip if BEGIN", 1, sub
+# {
+#     return if (not fin_okay("PMT", $NEED_N | $NEED_IpYR | $NEED_PV | $NEED_FV));
+#     my $ip = interest_rate();
+#     my $k = k_helper();
+#     my $pmt = ($PV->val + ($PV->val + $FV->val) / ((1.0 + $ip)**$N->val - 1.0)) * (-$ip / $k);
+#     $PMT->set_value($pmt);
+#     $::stack->Push($pmt);
+# });
+#
+#
+# Cmd->new("FV", 0, "Solve for Future value
+#
+# DEFINITION:
+#      PMT * k         N    (      PMT * k )
+# FV = ------- - (1+ip)  * (  PV + -------  )
+#        ip                 (        ip    )
+#
+# k = 1 if END, 1+ip if BEGIN", 1, sub
+# {
+#     return if (not fin_okay("FV", $NEED_N | $NEED_IpYR | $NEED_PV | $NEED_PMT));
+#     my $ip = interest_rate();
+#     my $k = k_helper();
+#     my $pmt_k_ip = $PMT->val * $k / $ip;
+#     my $fv = $pmt_k_ip - ((1.0+$ip)**$N->val * ($PV->val + $pmt_k_ip));
+#     $FV->set_value($fv);
+#     $::stack->Push($fv);
+# });
+#
+#
+# sub interest_rate
+# {
+#     return ($IpYR->val / 100.0) / $PpYR->val;
+# }
+#
+#
+# sub k_helper
+# {
+#     my $k;
+#     if (not $Beg->defined or $Beg->val == 0) {
+#         # End mode
+#         $k = 1.0;
+#     } elsif ($Beg->defined and $Beg->val == 1) {
+#         # Begin mode
+#         $k = 1.0 + interest_rate();
+#     } else {
+#         ::writeln "k_helper: Problem determining BEG/END mode";
+#         exit(1);
+#     }
+#     return $k;
+# }
+#
+#
+# # Quartile algorithm by Namir Shammas, presented at the HHC2005 conference.
+# #
+# # "It is a root-bracketing algorithm that improves on the Bisection method.
+# #
+# # The most common two root-bracketing methods are:
+# # 1. The Bisection method.  This method compares the sign of function values.
+# # 2. The Regula Falsi method uses the function values (as) weights to
+# #    determine the new guess.
+# #
+# # The Quartile method compares the absolute function values to determine the
+# # next guess.  Thus, its approach lies somewhere in between the above two
+# # methods.  If you look at the pseudo code and change alpha to 0.5, you get
+# # the Bisection method.  Thus, the Bisection method is a special case of the
+# # Quartile method, where the new guess is systematically taken as the middle
+# # of the root-bracketing interval."
+# #
+# # Pseudo code:
+# #   let alpha = 0.25
+# #   let FA = F(A)
+# #   let FB = F(B)
+# #   do
+# #      if ABS(FA) < ABS(FB) then
+# #         Xm = A + alpha * (B - A)
+# #      else
+# #         Xm = A + (1 - alpha) * (B - A)
+# #      end
+# #
+# #      let Fm = F(Xm)
+# #      if Fm * FA > 0 then
+# #         A = Xm
+# #         FA = Fm
+# #      else
+# #         B = Xm
+# #         FB = Fm
+# #      end
+# #   loop until Abs(A - B) < Tolr
+# #
+# #   Root = (A + B) / 2
+# #
+# sub quartile_root_finder
+# {
+#     my $A     = shift;
+#     my $B     = shift;
+#     my $Tolr  = shift;
+#     my $F     = shift;
+#
+#     my $alpha = 0.25;
+#     my $FA    = &$F($A);
+#     my $FB    = &$F($B);
+#     my ($Xm, $Fm);
+#
+#     do {
+#         if (abs($FA) < abs($FB)) {
+#             $Xm = $A + $alpha * ($B - $A);
+#         } else {
+#             $Xm = $A + (1.0 - $alpha) * ($B - $A);
+#         }
+#
+#         $Fm = &$F($Xm);
+#         if ($Fm * $FA > 0) {
+#             $A = $Xm;
+#             $FA = $Fm;
+#         } else {
+#             $B = $Xm;
+#             $FB = $Fm;
+#         }
+#     } until (abs($A - $B) < $Tolr);
+#
+#     return ($A + $B) / 2.0;
+# }
+#
+#
+# sub fin_okay
+# {
+#     my $cmd     = shift;
+#     my $needVar = shift;
+#
+#     # Set these to default values if they're not defined
+#     $PpYR->set_value(12) if (not $PpYR->defined);
+#     $Beg ->set_value(0)  if (not $Beg ->defined);
+#
+#     if ($PpYR->val == 0) {
+#         ::writeln "P/YR cannot be zero; resetting to 12, which may be incorrect";
+#         $PpYR->set_value(12);
+#     }
+#
+#     if ($needVar & $NEED_N and not $N->defined) {
+#         ::writeln "$cmd: Financials not initialized [need N]";
+#         State->disable_stack_show();
+#         return 0;
+#     }
+#
+#     if ($needVar & $NEED_IpYR and not $IpYR->defined) {
+#         ::writeln "$cmd: Financials not initialized [need I%YR]";
+#         State->disable_stack_show();
+#         return 0;
+#     }
+#
+#     if ($needVar & $NEED_PV and not $PV->defined) {
+#         ::writeln "$cmd: Financials not initialized [need PV]";
+#         State->disable_stack_show();
+#         return 0;
+#     }
+#
+#     if ($needVar & $NEED_PMT and not $PMT->defined) {
+#         ::writeln "$cmd: Financials not initialized [need PMT]";
+#         State->disable_stack_show();
+#         return 0;
+#     }
+#
+#     if ($needVar & $NEED_FV and not $FV->defined) {
+#         ::writeln "$cmd: Financials not initialized [need FV]";
+#         State->disable_stack_show();
+#         return 0;
+#     }
+#
+#     return 1;
+# }
+
+
+
 #############################################################################
 #
 #       T V M   W O R D S
@@ -6074,56 +6398,75 @@ def w_words():
 @defword(name='clfin', doc="""\
 Clear financial variables""")
 def w_clfin():
-    global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
-    global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
+    global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV
+    global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF, tvm_INT_eff
 
-    tvm_n  .set_obj(None)
-    tvm_i  .set_obj(None)
-    tvm_PV .set_obj(None)
-    tvm_PMT.set_obj(None)
-    tvm_FV .set_obj(None)
-    tvm_CF .set_obj(Rpn_Integer(1))
-    tvm_PF .set_obj(Rpn_Integer(1))
+    flag_clear(flag_continuous) # Clear (0, default)=Discrete compounding;   Set (1)=Continuous compounding
+    flag_clear(flag_begin)      # Clear (0, default)=End (ordinary annuity); Set (1)=Begin (annuity due)
+
+    tvm_N   .set_obj(None)
+    tvm_INT .set_obj(None)
+    tvm_PV  .set_obj(None)
+    tvm_PMT .set_obj(None)
+    tvm_FV  .set_obj(None)
+    tvm_CF  .set_obj(Rpn_Integer(12))
+    tvm_PF  .set_obj(Rpn_Integer(12))
 
     tvm_A  = None
     tvm_B  = None
     tvm_C  = None
-    tvm_X  = None
-    flag_clear(flag_continuous) # Clear (0, default)=Discrete compounding;   Set (1)=Continuous compounding
-    flag_clear(flag_begin)      # Clear (0, default)=End (ordinary annuity); Set (1)=Begin (annuity due)
+    tvm_X  = flag_value(flag_begin)
+    tvm_INT_eff = 0.0
 
 
 @defword(name='N', print_x=True, doc="""\
-Solve for N (number of payments)""")
+Solve for Number of payments (N)
+
+DEFINITION:
+    log((FV*i)/(PV*i))
+N = ------------------
+        log(1 + i)""")
 def w_N():
-    global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
-    global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
+    global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV
+    global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF, tvm_INT_eff
 
-    if any_undefined_p([tvm_i, tvm_PV, tvm_PMT, tvm_FV]):
-        raise Rpn_E_Runtime_Error("N: Need i, PV, PMT, and FV")
+    if any_undefined_p([tvm_INT, tvm_PV, tvm_FV]):
+        raise Rpn_E_Runtime_Error("N: Need i, PV, and FV")
 
-    # n = ln[(C-FV)/(C+PV)] / ln(1+i)
+    update_tvm_vars(None, None)
+
     FV = tvm_FV.obj().value()
     PV = tvm_PV.obj().value()
-    i  = tvm_i .obj().value()
-    n = math.log((tvm_C - FV) / (tvm_C + PV)) / math.log1p(i)
-    result = Rpn_Float(n)
-    tvm_n.set_obj(result)
+
+    # The FI way:
+    # n = ln[(C-FV)/(C+PV)] / ln(1+i)
+    # i  = tvm_INT .obj().value()
+    # n = math.log((tvm_C - FV) / (tvm_C + PV)) / math.log1p(i)
+    quot1 = (tvm_C - FV) / (tvm_C + PV)
+    #print("quot1={}".format(quot1))
+
+    n_fi = math.log(quot1) / math.log1p(tvm_INT_eff/100.0)
+    dbg("tvm", 1, "n_fi={}".format(n_fi))
+
+    result = Rpn_Float(n_fi)
+    tvm_N.set_obj(result)
     param_stack.push(result)
 
 
 @defword(name='INT', print_x=True, doc="""\
-Solve for INT (interest rate).
+Solve for INTerest rate (INT)
 
 Do not confuse this with the "INT" command, which truncates values to integers.""")
 def w_INT():
-    global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
+    global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV
     global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
 
-    if any_undefined_p([tvm_n, tvm_PV, tvm_PMT, tvm_FV]):
+    if any_undefined_p([tvm_N, tvm_PV, tvm_PMT, tvm_FV]):
         raise Rpn_E_Runtime_Error("PV: Need n, PV, PMT, and FV")
 
-    n   = tvm_n  .obj().value()
+    update_tvm_vars(None, None)
+
+    N   = tvm_N  .obj().value()
     PV  = tvm_PV .obj().value()
     PMT = tvm_PMT.obj().value()
     FV  = tvm_FV .obj().value()
@@ -6132,57 +6475,98 @@ def w_INT():
     # For PMT == 0, i is solved using LBL 09
     # For PMT != 0, i must be solved by iteration
     i[0] = abs(PMT / (abs(PV) + abs(FV))) \
-         + abs((abs(pv) + abs(FV)) / (n**3 * PMT))
+         + abs((abs(PV) + abs(FV)) / (N**3 * PMT))
     raise Rpn_E_Runtime_Error("INT: Not implemented yet")
 
 
 @defword(name='PV', print_x=True, doc="""\
-Solve for PV (present value)""")
+Solve for Present Value (PV)
+
+DEFINITION:
+      ( PMT * k      )       1         PMT * k
+PV = (  ------- - FV  ) * --------  -  -------
+      (   ip         )    (1+ip)^N       ip
+
+k = 1 if END, 1+ip if BEGIN""")
 def w_PV():
-    global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
+    global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV
     global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
 
-    if any_undefined_p([tvm_n, tvm_i, tvm_PMT, tvm_FV]):
+    if any_undefined_p([tvm_N, tvm_INT, tvm_PMT, tvm_FV]):
         raise Rpn_E_Runtime_Error("PV: Need n, i, PMT, and FV")
 
-    # PV = -[FV + (A*C)] / (A+1)
+    update_tvm_vars(None, None)
+
     FV = tvm_FV.obj().value()
-    PV = -1.0 * (FV + (tvm_A * tvm_C)) / (tvm_A + 1.0)
-    result = Rpn_Float(PV)
+
+    # The FI way:
+    # PV = -[FV + (A*C)] / (A+1)
+    pv_fi = -1.0 * (FV + (tvm_A * tvm_C)) / (tvm_A + 1.0)
+    dbg("tvm", 1, "pv_fi={}".format(pv_fi))
+
+    result = Rpn_Float(pv_fi)
     tvm_PV.set_obj(result)
     param_stack.push(result)
 
 
 @defword(name='PMT', print_x=True, doc="""\
-Solve for PMT (payment amount)""")
+Solve for PayMenT amount (PMT)
+
+DEFINITION:
+       (         PV + FV     )    -ip
+PMT = (  PV + --------------  ) * ---
+       (       (1+ip)^N - 1  )     k
+
+k = 1 if END, 1+ip if BEGIN""")
 def w_PMT():
-    global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
+    global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV
     global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
 
-    if any_undefined_p([tvm_n, tvm_i, tvm_PV, tvm_FV]):
+    if any_undefined_p([tvm_N, tvm_INT, tvm_PV, tvm_FV]):
         raise Rpn_E_Runtime_Error("PMT: Need n, i, PV, and FV")
 
-    # PMT = -[FV + PV(A+1)] / (A*B)
+    update_tvm_vars(None, None)
+
+    N  = tvm_N.obj().value()
+    PV = tvm_PV.obj().value()
     FV = tvm_FV.obj().value()
-    PMT = -1.0 * (FV + PV*(tvm_A+1.0)) / (tvm_A * tvm_B)
-    result = Rpn_Float(PMT)
+
+    # The FI way:
+    # PMT = -[FV + PV(A+1)] / (A*B)
+    pmt_fi = -1.0 * (FV + PV*(tvm_A+1.0)) / (tvm_A * tvm_B)
+    dbg("tvm", 1, "pmt_fi={}".format(pmt_fi))
+
+    result = Rpn_Float(pmt_fi)
     tvm_PMT.set_obj(result)
     param_stack.push(result)
 
 
 @defword(name='FV', print_x=True, doc="""\
-Solve for FV (future value)""")
+Solve for Future Value (FV)
+
+DEFINITION:
+     PMT * k         N    (      PMT * k )
+FV = ------- - (1+ip)  * (  PV + -------  )
+       ip                 (        ip    )
+
+k = 1 if END, 1+ip if BEGIN""")
 def w_FV():
-    global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
+    global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV
     global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
 
-    if any_undefined_p([tvm_n, tvm_i, tvm_PV, tvm_PMT]):
+    if any_undefined_p([tvm_N, tvm_INT, tvm_PV, tvm_PMT]):
         raise Rpn_E_Runtime_Error("FV: Need n, i, PV, and PMT")
 
+    update_tvm_vars(None, None)
+
+    PV  = tvm_PV .obj().value()
+
+    # The FI way:
     # FV = -[PV + A(PV + C)]
-    PV = tvm_PV.obj().value()
-    FV = -1.0 * (PV + tvm_A*(PV + tvm_C))
-    result = Rpn_Float(FV)
+    fv_fi = -1.0 * (PV + tvm_A*(PV + tvm_C))
+    dbg("tvm", 1, "fv_fi={}".format(fv_fi))
+
+    result = Rpn_Float(fv_fi)
     tvm_FV.set_obj(result)
     param_stack.push(result)
 
@@ -6190,24 +6574,27 @@ def w_FV():
 @defword(name='shfin', print_x=False, doc="""\
 Show financial variables""")
 def w_shfin():
-    global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
-    global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
+    global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV
+    global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF, tvm_INT_eff
 
-    writeln("N:           {}".format(fmt(tvm_n  .obj().value()) if tvm_n  .defined() else "[Not set]"))
-    writeln("INT:         {}".format(fmt(tvm_i  .obj().value()) if tvm_i  .defined() else "[Not set]"))
+    writeln("=========")
+    writeln("N:           {}".format(fmt(tvm_N  .obj().value()) if tvm_N  .defined() else "[Not set]"))
+    writeln("INT:         {}".format(fmt(tvm_INT.obj().value()) if tvm_INT.defined() else "[Not set]"))
     writeln("PV:          {}".format(fmt(tvm_PV. obj().value()) if tvm_PV .defined() else "[Not set]"))
     writeln("PMT:         {}".format(fmt(tvm_PMT.obj().value()) if tvm_PMT.defined() else "[Not set]"))
     writeln("FV:          {}".format(fmt(tvm_FV .obj().value()) if tvm_FV .defined() else "[Not set]"))
     writeln("Compounding: {}".format("CONTINUOUS (flag {} is set)".format(flag_continuous) if flag_test(flag_continuous) else "DISCRETE (flag {} is clear)".format(flag_continuous)))
     writeln("Begin/End:   {}".format("BEGIN (flag {} is set)"     .format(flag_begin)      if flag_test(flag_begin)      else "END (flag {} is clear)"     .format(flag_begin)))
-    writeln("CF:          {}".format(fmt(tvm_CF .obj().value()) if tvm_CF .defined() else "[Not set]"))
-    writeln("PF:          {}".format(fmt(tvm_PF .obj().value()) if tvm_PF .defined() else "[Not set]"))
-    if True or debug_enabled:   # XXX
+    writeln("CF:          {}".format(fmt(tvm_CF  .obj().value()) if tvm_CF  .defined() else "[Not set]"))
+    writeln("PF:          {}".format(fmt(tvm_PF  .obj().value()) if tvm_PF  .defined() else "[Not set]"))
+    if True or dbg("tvm"):
         writeln("---------")
+        writeln("int_eff:     {}".format(tvm_INT_eff if tvm_INT_eff is not None else "[Not set]"))
         writeln("A:           {}".format(tvm_A if tvm_A is not None else "[Not set]"))
         writeln("B:           {}".format(tvm_B if tvm_B is not None else "[Not set]"))
         writeln("C:           {}".format(tvm_C if tvm_C is not None else "[Not set]"))
         writeln("X:           {}".format(tvm_X if tvm_X is not None else "[Not set]"))
+    writeln("=========")
 
 
 def validate_N(varname, old, new):
@@ -6256,10 +6643,15 @@ def int_nom_to_eff(int_nom):
 
     if flag_test(flag_continuous):
         # int_eff = e^(i/PF) - 1
-        int_eff = math.expm1(i_nom / PF)
+        int_eff = math.expm1(int_nom / PF)
     else:
         # int_eff = (1+i/CF)^(CF/PF) - 1
-        int_eff = (1.0 + int_nom / CF) ** (CF / PF) - 1.0
+        #int_eff = (1.0 + int_nom / CF) ** (CF / PF) - 1.0
+        int_eff = (1.0 + (int_nom / CF)) ** (CF / PF) - 1.0
+
+    dbg("tvm", 3, "int_nom_to_eff ({}): NOM={} -> EFF={}".format(
+        "Continuous" if flag_test(flag_continuous) else "Discrete",
+        int_nom, int_eff))
     return int_eff
 
 
@@ -6275,31 +6667,40 @@ def int_eff_to_nom(int_eff):
     else:
         # int_nom = CF * [ (1+int_eff)^(PF/CF) - 1]
         int_nom = CF * ( (1.0 + int_eff) ** (PF/CF) - 1.0 )
+
+    dbg("tvm", 3, "int_eff_to_nom ({}): EFF={} -> NOM={}".format(
+        "Continuous" if flag_test(flag_continuous) else "Discrete",
+        int_eff, int_nom))
     return int_nom
 
 
 def update_tvm_vars(varname_not_used, val_not_used):
-    global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV
-    global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
+    global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV
+    global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF, tvm_INT_eff
+
+    if not tvm_INT.defined():
+        return
+
+    tvm_INT_eff = int_nom_to_eff(tvm_INT.obj().value())
+    dbg("tvm", 3, "update_tvm_vars: tvm_INT_eff={}".format(tvm_INT_eff))
+
+    # X = Begin/End flag
+    tvm_X = flag_value(flag_begin)
 
     # A = (1+i)^n - 1
-    if tvm_n.defined() and tvm_i.defined():
-        #tvm_A = ((1.0 + tvm_i.obj().value()) ** tvm_n.obj().value()) - 1.0 # Literal, but less accurate
-        tvm_A = math.expm1( math.log1p(tvm_i.obj().value()) * tvm_n.obj().value() )
+    if tvm_N.defined() and tvm_INT.defined():
+        tvm_A = math.expm1( math.log1p(tvm_INT_eff/100) * tvm_N.obj().value() )
+        dbg("tvm", 3, "A={}".format(tvm_A))
 
     # B = (1+iX)/i
-    if tvm_i.defined():
-        tvm_B = (1.0 + tvm_i.obj().value() * tvm_X) / tvm_i.obj().value()
+    if tvm_INT.defined():
+        tvm_B = (1.0 + tvm_INT_eff/100 * tvm_X) / (tvm_INT_eff/100)
+        dbg("tvm", 3, "B={}".format(tvm_B))
 
     # C = PMT * B
     if tvm_PMT.defined() and tvm_B is not None:
         tvm_C = tvm_PMT.obj().value() * tvm_B
-
-    # D = (1+i)^(n-1)
-    pass
-
-    # X = Begin/End flag
-    tvm_X = flag_value(flag_begin)
+        dbg("tvm", 3, "C={}".format(tvm_C))
 
 
 def any_undefined_p(var_list):
@@ -6307,6 +6708,7 @@ def any_undefined_p(var_list):
         if not var.defined():
             return True
     return False
+
 
 
 
@@ -6331,9 +6733,11 @@ def execute(executable):
     except Rpn_E_Runtime_Error as e:
         lnwriteln(str(e))
     except TypeError as e:
+        #traceback.print_stack(file=sys.stderr)
         lnwriteln(str(e))
-    except ValueError as e:
-        lnwriteln(str(e))
+    # except ValueError as e:
+    #     traceback.print_stack(file=sys.stderr)
+    #     lnwriteln(str(e))
 
 
 def memoize(f):
@@ -6472,6 +6876,17 @@ PHI = (1 + sqrt(5)) / 2"
 
 def define_tertiary_words():
     eval_string("""
+: f1
+  clfin
+  36 !N
+  10.5 !INT
+  7250 1500 - !PV
+  0 !FV
+  \ 12 !CF  12 !PF
+  36 !CF 36 !PF
+  shfin
+  PMT
+;
 """)
 
 
@@ -6931,8 +7346,7 @@ def parse_args():
 
     for opt, arg in opts:
         if opt == "-d":
-            global debug_enabled
-            debug_enabled = True
+            set_debugging(True)
         elif opt == "-f":
             try:
                 load_file(arg)
@@ -6981,7 +7395,6 @@ def pop_scope(why):
 
 def push_scope(scope, why):
     dbg("scope", 2, "Push {} due to {}".format(repr(scope), why))
-    #dbg("scope", 1, "Push {}".format(repr(scope)))
     scope_stack.push(scope)
 
 
@@ -7101,17 +7514,18 @@ def initialize():
 
 
 def define_variables():
-    global sharpout, scr_columns, scr_rows, reg_size
-    global tvm_n, tvm_i, tvm_PV, tvm_PMT, tvm_FV, tvm_CF, tvm_PF
+    global sharpout, debugging, scr_columns, scr_rows, reg_size
+    global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV, tvm_CF, tvm_PF
 
     sharpout    = defvar('#OUT',  Rpn_Integer(0), protected=True, readonly=True, noshadow=True)
-    tvm_CF      = defvar('CF',    None, protected=True, noshadow=True, pre_hook=validate_CF,  post_hook=update_tvm_vars, doc="TVM: Compounding Frequency")
+    tvm_CF      = defvar('CF',    Rpn_Integer(12), protected=True, noshadow=True, pre_hook=validate_CF,  post_hook=update_tvm_vars, doc="TVM: Compounding Frequency")
     scr_columns = defvar('COLS',  Rpn_Integer(0), protected=True)
+    debugging   = defvar('DEBUG', Rpn_Integer(0), protected=True)
     tvm_FV      = defvar('FV',    None, protected=True, noshadow=True, pre_hook=validate_FV,  post_hook=update_tvm_vars, doc="TVM: Future Value")
-    tvm_i       = defvar('INT',   None, protected=True, noshadow=True, pre_hook=validate_INT, post_hook=update_tvm_vars, doc="TVM: Interest rate")
-    tvm_n       = defvar('N',     None, protected=True, noshadow=True, pre_hook=validate_N,   post_hook=update_tvm_vars, doc="TVM: Number of payments")
+    tvm_INT     = defvar('INT',   None, protected=True, noshadow=True, pre_hook=validate_INT, post_hook=update_tvm_vars, doc="TVM: Interest rate")
+    tvm_N       = defvar('N',     None, protected=True, noshadow=True, pre_hook=validate_N,   post_hook=update_tvm_vars, doc="TVM: Number of payments")
     _           = defvar('NUMPY', Rpn_Integer(bool_to_int(have_numpy)), protected=True, readonly=True, noshadow=True)
-    tvm_PF      = defvar('PF',    None, protected=True, noshadow=True, pre_hook=validate_PF,  post_hook=update_tvm_vars, doc="TVM: Payment Frequency")
+    tvm_PF      = defvar('PF',    Rpn_Integer(12), protected=True, noshadow=True, pre_hook=validate_PF,  post_hook=update_tvm_vars, doc="TVM: Payment Frequency")
     tvm_PMT     = defvar('PMT',   None, protected=True, noshadow=True, pre_hook=validate_PMT, post_hook=update_tvm_vars, doc="TVM: Payment amount")
     tvm_PV      = defvar('PV',    None, protected=True, noshadow=True, pre_hook=validate_PV,  post_hook=update_tvm_vars, doc="TVM: Present Value")
     scr_rows    = defvar('ROWS',  Rpn_Integer(0), protected=True)

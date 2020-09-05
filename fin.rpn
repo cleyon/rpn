@@ -1,0 +1,124 @@
+: chkfin
+  | eps |       1e-6 !eps
+
+  : chk_N
+    | result |   60 !result
+
+    clfin
+    1.45    !INT
+    0           !PMT
+    -217.644910137 !PV
+    234         !FV
+    12 !CF  12 !PF
+    N
+
+    ."N=" dup .
+    @result - abs  @eps < if
+      ."PASS" cr
+    else
+      ."FAIL" shfin
+    then
+  ;
+
+  : chk_INT
+    | result |  0.045432970406767303 !result
+
+    clfin
+    20          !N
+    3           !PMT
+    -80         !PV
+    100         !FV
+    INT
+
+    ."INT=" dup .
+    @result - abs  @eps < if
+      ."PASS" cr
+    else
+      ."FAIL" shfin
+    then
+  ;
+
+  : chk_PV
+    | result |    378904.96594965487 !result
+
+    clfin
+    25       12 * !N
+    4        12 / !INT
+    500e3         !PV
+    -2000         !PMT
+    0             !FV
+    1 !CF  1 !PF
+    PV
+
+    ."PV=" dup .
+    @result - abs  @eps < if
+      ."PASS" cr
+    else
+      ."FAIL" shfin
+    then
+  ;
+
+  : chk_PMT
+    | result |  -2639.1842014888507 !result
+
+    clfin
+    25       12 * !N
+    4        12 / !INT
+    500e3         !PV
+    0             !FV
+    1 !CF  1 !PF
+    PMT
+
+    ."PMT=" dup .
+    @result - abs  @eps < if
+      ."PASS" cr
+    else
+      ."FAIL" shfin
+    then
+  ;
+
+  ."Checking N... "     chk_N
+\  ."Checking INT... "   chk_INT
+  ."Checking PV... "    chk_PV         \ PV  is known to work
+  ."Checking PMT... "   chk_PMT        \ PMT is known to work
+\  ."Checking FV... "    chk_FV         \ FV  is known to work
+;
+
+\ ex1 doesn't work yet
+: ex1           \ simple interest
+  clfin
+  1 !N
+  -800 !PV
+  896 !FV
+  shfin
+  INT
+;
+
+
+: ex2           \ compound interest
+  clfin
+  12 !N
+  12 !CF 12 !PF
+  12 !INT
+  -800 !PV
+  0 !PMT
+  shfin
+  FV
+;
+
+
+: ex3           \ periodic payment
+;
+
+
+: ex4           \ conventional mortgage
+  clfin
+  12 !CF
+  12 !PF
+  13.25 !INT
+  100000 !PV
+  -1125.75 !PMT
+  0 !FV
+  shfin
+  N
+;
