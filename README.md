@@ -28,6 +28,7 @@ pip3 install --user ply
 
 - TVM
 - More math categories (plot, root solve, integrate)
+- rectangular <-> spherical coordinates
 
 ## Bugs
 
