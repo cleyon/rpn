@@ -1,0 +1,138 @@
+: chkfin
+  | eps |       1e-6 !eps
+
+  : announce_result
+    | in:desired_result |
+    @desired_result -  abs
+    @eps <  if
+      ."... PASS" cr
+    else
+      ."... FAIL!"
+      shfin
+    then
+  ;
+
+  : chk_N
+    | result |   60 !result
+
+    clfin
+    1.45    !INT
+    0           !PMT
+    -217.644910137 !PV
+    234         !FV
+    12 CPF      \ 12 !CF  12 !PF
+    N
+
+    ."N=" dup .
+    @result  announce_result
+  ;
+
+
+  : chk_INT
+    | result |  4.5432970406767303 !result
+
+    clfin
+    20          !N
+    3           !PMT
+    -80         !PV
+    100         !FV
+    INT
+
+    ."INT=" dup .
+    @result  announce_result
+  ;
+
+
+  : chk_PV
+    | result |    378904.96594965487 !result
+
+    clfin
+    25       12 * !N
+    4        12 / !INT
+    500e3         !PV
+    -2000         !PMT
+    0             !FV
+    1 CPF       \ 1 !CF  1 !PF
+    PV
+
+    ."PV=" dup .
+    @result  announce_result
+  ;
+
+
+  : chk_PMT
+    | result |  -2639.1842014888507 !result
+
+    clfin
+    25       12 * !N
+    4        12 / !INT
+    500e3         !PV
+    0             !FV
+    1 CPF       \ 1 !CF  1 !PF
+    PMT
+
+    ."PMT=" dup .
+    @result  announce_result
+  ;
+
+
+  : chk_simple_interest
+    | result |  12 !result
+
+    clfin
+    1           !N
+    -800        !PV
+    896         !FV
+    0           !PMT
+    INT  2 rnd
+    ."INT=" dup .
+    @result  announce_result
+  ;
+
+
+  : chk_compound_interest
+    | result |  901.46 !result
+
+    clfin
+    12 !N
+    12 CPF        \ 12 !CF 12 !PF
+    12 !INT
+    -800 !PV
+    0 !PMT
+    FV          2 rnd
+
+    ."FV=" dup .
+    @result  announce_result
+  ;
+
+
+  ."Checking N... "     chk_N
+  ."Checking INT... "   chk_INT
+  ."Checking PV... "    chk_PV
+  ."Checking PMT... "   chk_PMT
+
+  ."Simple interest... "  chk_simple_interest
+  ."Compound interest... "  chk_compound_interest
+;
+
+  : ex4           \ conventional mortgage
+    clfin
+    12 CPF        \ 12 !CF 12 !PF
+    13.25 !INT
+    100e3 !PV
+    -1125.75 !PMT
+    0 !FV
+    shfin
+    N
+  ;
+
+  : points
+    clfin
+    12 CPF
+    360 !N
+    72750 !PV
+    -844.33 !PMT
+    0 !FV
+    shfin
+    INT
+  ;
