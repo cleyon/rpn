@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-rpn_version = 15.5
+rpn_version = 15.6
 
 import calendar
 import cmath

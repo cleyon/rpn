@@ -26,7 +26,6 @@ pip3 install --user ply
 
 ## Enhancements
 
-- TVM
 - More math categories (plot, root solve, integrate)
 - rectangular <-> spherical coordinates
 
