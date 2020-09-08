@@ -52,8 +52,6 @@ date_re           = r'^(\d{1,2})\.(\d{2})(\d{4})$'
 date_pat          = re.compile(date_re)
 debug_internal    = False
 default_protected = True
-display_style     = "s"         # s=Standard, f=Fixed, e=Scientific
-display_precision = 4
 flag_continuous   = 8
 flag_begin        = 9
 flag_max          = 64
@@ -617,6 +615,37 @@ class Rpn_Constant:
 
     def __repr__(self):
         return "Constant[{}]".format(repr(self._variable))
+
+
+class Rpn_Display_Config:
+    def __init__(self):
+        self._style = None
+        self._prec  = None
+
+    def set_style(self, style):
+        if style not in ["std", "fix", "sci"]: # "eng"
+            raise Rpn_E_Fatal("{}: Invalid display style '{}'".format(whoami(), style))
+        self._style = style
+
+    def set_prec(self, prec):
+        global precision_max
+        if prec < 0 or prec > precision_max:
+            raise Rpn_E_Fatal("{}: Invalid display precision '{}'".format(whoami(), prec))
+        self._prec = prec
+
+    def fmt(self, x):
+        if type(x) is float and self._style in ["fix", "sci"]:
+            if self._style == "fix":
+                style_fmt_char = "f"
+            elif self._style == "sci":
+                style_fmt_char = "e"
+            return "{:.{prec}{style}}".format(x, style=style_fmt_char, prec=self._prec)
+        elif type(x) is Rpn_Float and self._style in ["fix", "sci"]:
+            return self.fmt(x.value())
+        elif type(x) is Rpn_String:
+            return x.value()
+        else:
+            return str(x)
 
 
 class Rpn_Do_Loop:
@@ -4377,7 +4406,7 @@ def w_fc_query_set():
 @defword(name='fix', args=1, print_x=False, doc="""\
 Set fixed display  ( n -- )""")
 def w_fix():
-    global display_style, display_precision, precision_max
+    global precision_max
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
@@ -4387,8 +4416,8 @@ def w_fix():
         param_stack.push(x)
         raise ValueError("fix: Precision out of range (0..{} expected)".format(precision_max))
 
-    display_style = "f"
-    display_precision = x.value()
+    disp_stack.top().set_style("fix")
+    disp_stack.top().set_prec(x.value())
 
 
 @defword(name='floor', args=1, print_x=True, doc="""\
@@ -5239,6 +5268,15 @@ def w_pick():
     param_stack.push(result)
 
 
+@defword(name='popdisp', print_x=False, doc="""\
+Pop current display configuration.""")
+def w_popdisp():
+    try:
+        disp_stack.pop()
+    except Rpn_E_Stack_Underflow:
+        raise Rpn_E_Runtime_Error("popdisp: No stashed display configurations")
+
+
 @defword(name='prompt', str_args=1, print_x=False, doc="""\
 Display prompt and await input.  This recognizes integers and floats, but
 not rationals or complex numbers.  The value is put on the stack.""")
@@ -5267,6 +5305,18 @@ def w_prompt():
         param_stack.push(Rpn_Float(float(tok.value)))
     else:
         raise Rpn_E_Runtime_Error("prompt: Could not parse '{}'".format(x))
+
+
+@defword(name='pushdisp', print_x=False, doc="""\
+Stash current display configuration.""")
+def w_pushdisp():
+    d = Rpn_Display_Config()
+    cur_style = disp_stack.top()._style
+    d.set_style(cur_style)
+    if cur_style in ["fix", "sci"]:
+        cur_prec = disp_stack.top()._prec
+        d.set_prec(cur_prec)
+    disp_stack.push(d)
 
 
 if have_scipy:
@@ -5575,7 +5625,7 @@ def w_s_plus():
 @defword(name='sci', args=1, print_x=False, doc="""\
 Set scientific display  ( n -- )""")
 def w_sci():
-    global display_style, display_precision, precision_max
+    global precision_max
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
@@ -5585,8 +5635,8 @@ def w_sci():
         param_stack.push(x)
         raise ValueError("fix: Precision out of range (0..{} expected)".format(precision_max))
 
-    display_style = "e"
-    display_precision = x.value()
+    disp_stack.top().set_style("sci")
+    disp_stack.top().set_prec(x.value())
 
 
 @defword(name='scopes', print_x=False, doc="""\
@@ -5827,8 +5877,7 @@ def w_sqrt():
 std  ( -- )
 Set display mode to standard.""")
 def w_std():
-    global display_style
-    display_style = "s"
+    disp_stack.top().set_style("std")
 
 
 @defword(name='stdev', print_x=True, doc="""\
@@ -6766,15 +6815,7 @@ def flag_test(flag):
 
 # I should really just use __format__() correctly
 def fmt(x):
-    global display_style, display_precision
-    if type(x) is float and display_style in ["f", "e"]:
-        return "{:.{prec}{style}}".format(x, style=display_style, prec=display_precision)
-    elif type(x) is Rpn_Float and display_style in ["f", "e"]:
-        return fmt(x.value())
-    elif type(x) is Rpn_String:
-        return x.value()
-    else:
-        return str(x)
+    return disp_stack.top().fmt(x)
 
 
 def generate_token_list():
@@ -7296,12 +7337,14 @@ def initialize():
 
     sys.setrecursionlimit(2000) # default is 1000
     random.seed()
+    disp_stack.push(Rpn_Display_Config())
     push_scope(global_scope, "Global scope")
     define_variables()
-    define_secondary_words()
+    w_std()
     w_clreg()
     w_clflag()
     w_clfin()
+    define_secondary_words()
 
     # Switch to user mode; words are no longer protected
     default_protected = False
