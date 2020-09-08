@@ -152,6 +152,9 @@ class Rpn_E_Runtime_Error(Rpn_Exception):
 class Rpn_E_Stack_Overflow(Rpn_Exception):
     pass
 
+class Rpn_E_Stack_Underflow(Rpn_Exception):
+    pass
+
 # 9.3.1  THROW values
 #
 # The THROW values {-255...-1} shall be used only as assigned by this
@@ -1398,9 +1401,10 @@ class Rpn_Show:
 
 
 class Rpn_Stack:
-    def __init__(self, capacity=-1):
+    def __init__(self, min_size=0, max_size=-1):
+        self._min_size = min_size
+        self._max_size = max_size
         self.clear()
-        self._cap = capacity
 
     def clear(self):
         self._stack = []
@@ -1413,14 +1417,16 @@ class Rpn_Stack:
         return self.size() == 0
 
     def push(self, item):
-        if self.size() == self._cap:
-            raise Rpn_E_Stack_Overflow("Exceeded capacity {} on {}".format(self._cap, item))
+        if self.size() == self._max_size:
+            raise Rpn_E_Stack_Overflow("Stack overflow ({}) on {}".format(self._max_size, item))
         self._nitems += 1
         self._stack.append(item)
 
     def pop(self):
         if self.empty():
             raise Rpn_E_Fatal("{}: Empty stack".format(whoami()))
+        if self.size() == self._min_size:
+            raise Rpn_E_Stack_Underflow("Stack underflow ({})".format(self._min_size))
         self._nitems -= 1
         return self._stack.pop()
 
@@ -1432,8 +1438,13 @@ class Rpn_Stack:
     def roll(self, n):
         if n < 0 or n >= self.size():
             raise Rpn_E_Fatal("{}: Bad index".format(whoami()))
+        # Prevent stack underflow in unlucky situations.  Temporarily
+        # increase the stack minimum size, because we're just going to
+        # push an item back again to restore the situation.
+        self._min_size += 1
         item = self._stack.pop(self.size() - 1 - n)
         self._nitems -= 1
+        self._min_size -= 1
         self.push(item)
 
     def top(self):
@@ -7185,7 +7196,12 @@ def prompt_string():
 
 
 def pop_scope(why):
-    scope = scope_stack.pop()
+    try:
+        scope = scope_stack.pop()
+    except Rpn_E_Stack_Underflow:
+        traceback.print_stack(file=sys.stderr)
+        raise Rpn_E_Fatal("Attempting to pop Global scope!")
+
     dbg("scope", 2, "Pop  {} due to {}".format(repr(scope), why))
     #dbg("scope", 1, "Pop  {}".format(repr(scope)))
     if scope == global_scope:
@@ -7404,10 +7420,11 @@ def end_program():
 #       M A I N
 #
 #############################################################################
+disp_stack   = Rpn_Stack(1)
 param_stack  = Rpn_Stack()
 parse_stack  = Rpn_Stack()
 return_stack = Rpn_Stack()
-scope_stack  = Rpn_Stack()
+scope_stack  = Rpn_Stack(1)
 string_stack = Rpn_Stack()
 
 lexer  = lex.lex(optimize=True)
