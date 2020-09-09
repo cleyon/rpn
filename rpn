@@ -163,6 +163,13 @@ class Rpn_E_Stack_Overflow(Rpn_Exception):
 class Rpn_E_Stack_Underflow(Rpn_Exception):
     pass
 
+class Rpn_E_Type_Error(Rpn_Exception):
+    pass
+
+class Rpn_E_Value_Error(Rpn_Exception):
+    pass
+
+
 # 9.3.1  THROW values
 #
 # The THROW values {-255...-1} shall be used only as assigned by this
@@ -365,7 +372,7 @@ class Rpn_Abort_Quote:
         flag = param_stack.pop()
         if type(flag) is not Rpn_Integer:
             param_stack.push(flag)
-            raise TypeError("abort\": Flag must be an integer")
+            raise Rpn_E_Type_Error("abort\": Flag must be an integer")
         if flag.value() != 0:
             lnwriteln("{}".format(self.stringval()))
             raise Rpn_E_Abort()
@@ -416,7 +423,7 @@ class Rpn_Begin_Until:
                 flag = param_stack.pop()
                 if type(flag) is not Rpn_Integer:
                     param_stack.push(flag)
-                    raise TypeError("until: Flag must be an integer")
+                    raise Rpn_E_Type_Error("until: Flag must be an integer")
                 if flag.value() != 0:
                     break
         except Rpn_E_Leave:
@@ -447,7 +454,7 @@ class Rpn_Begin_While:
                 flag = param_stack.pop()
                 if type(flag) is not Rpn_Integer:
                     param_stack.push(flag)
-                    raise TypeError("while: Flag must be an integer")
+                    raise Rpn_E_Type_Error("while: Flag must be an integer")
                 if flag.value() == 0:
                     break
                 self._seq2.__call__()
@@ -477,7 +484,7 @@ class Rpn_Case:
         n = param_stack.pop()
         if type(n) is not Rpn_Integer:
             param_stack.push(n)
-            raise TypeError("case: Case control parameter must be an integer")
+            raise Rpn_E_Type_Error("case: Case control parameter must be an integer")
         nval = n.value()
 
         # Determine the correct sequence to call
@@ -753,7 +760,7 @@ class Rpn_Do_Loop:
         if type(y) is not Rpn_Integer or type(x) is not Rpn_Integer:
             param_stack.push(y)
             param_stack.push(x)
-            raise TypeError("do: Loop control parameters must be integers")
+            raise Rpn_E_Type_Error("do: Loop control parameters must be integers")
         limit = y.value()
         i = x.value()
         if i == limit:
@@ -801,7 +808,7 @@ class Rpn_Do_PlusLoop:
         if type(y) is not Rpn_Integer or type(x) is not Rpn_Integer:
             param_stack.push(y)
             param_stack.push(x)
-            raise TypeError("do: Loop control parameters must be integers")
+            raise Rpn_E_Type_Error("do: Loop control parameters must be integers")
         limit = y.value()
         i = x.value()
         if i == limit:
@@ -822,7 +829,7 @@ class Rpn_Do_PlusLoop:
                 incr = param_stack.pop()
                 if type(incr) is not Rpn_Integer:
                     param_stack.push(incr)
-                    raise TypeError("+loop: Increment must be integer")
+                    raise Rpn_E_Type_Error("+loop: Increment must be integer")
                 i += incr.value()
                 _I.set_obj(Rpn_Integer(i))
                 if    incr.value() > 0 and i >= limit \
@@ -1047,7 +1054,7 @@ class Rpn_If:
         flag = param_stack.pop()
         if type(flag) is not Rpn_Integer:
             param_stack.push(flag)
-            raise TypeError("if: Flag must be an integer")
+            raise Rpn_E_Type_Error("if: Flag must be an integer")
         if flag.value() != 0:
             self._seq.__call__()
 
@@ -1073,7 +1080,7 @@ class Rpn_If_Else:
         flag = param_stack.pop()
         if type(flag) is not Rpn_Integer:
             param_stack.push(flag)
-            raise TypeError("if: Flag must be an integer")
+            raise Rpn_E_Type_Error("if: Flag must be an integer")
         if flag.value() != 0:
             self._seq1.__call__()
         else:
@@ -1619,7 +1626,7 @@ class Rpn_Store_Var:
         if param_stack.empty():
             raise Rpn_E_Runtime_Error("{}: Insufficient parameters (1 required)".format(str(self)))
         if self._modifier == '/' and param_stack.top().zerop():
-            raise ValueError("{}: X cannot be zero".format(str(self)))
+            raise Rpn_E_Value_Error("{}: X cannot be zero".format(str(self)))
 
         if var._pre_hook is not None:
             try:
@@ -2903,7 +2910,7 @@ def w_percent():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("%: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error("%: Type error ({}, {})".format(typename(y), typename(x)))
     param_stack.push(y)
     param_stack.push(result)
 
@@ -2926,7 +2933,7 @@ def w_percent_ch():
         if y.zerop():
             param_stack.push(y)
             param_stack.push(x)
-            raise ValueError("%ch: Y cannot be zero")
+            raise Rpn_E_Value_Error("%ch: Y cannot be zero")
         else:
             old = float(y.value())
             new = float(x.value())
@@ -2938,7 +2945,7 @@ def w_percent_ch():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("%ch: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error("%ch: Type error ({}, {})".format(typename(y), typename(x)))
     # The HP-32SII preserves the Y value (like %) but we do not
     param_stack.push(result)
 
@@ -2961,7 +2968,7 @@ def w_percent_t():
         if y.zerop():
             param_stack.push(y)
             param_stack.push(x)
-            raise ValueError("%t: Y cannot be zero")
+            raise Rpn_E_Value_Error("%t: Y cannot be zero")
         else:
             total  = float(y.value())
             amount = float(x.value())
@@ -2973,7 +2980,7 @@ def w_percent_t():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("%t: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error("%t: Type error ({}, {})".format(typename(y), typename(x)))
     # The HP-32SII preserves the Y value (like %) but we do not
     param_stack.push(result)
 
@@ -3007,7 +3014,7 @@ def w_star():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("*: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error("*: Type error ({}, {})".format(typename(y), typename(x)))
     param_stack.push(result)
 
 
@@ -3025,12 +3032,12 @@ def w_star_slash():
         param_stack.push(z)
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("*/: Type error ({}, {}, {})".format(typename(z), typename(y), typename(x)))
+        raise Rpn_E_Type_Error("*/: Type error ({}, {}, {})".format(typename(z), typename(y), typename(x)))
     if z.zerop():
         param_stack.push(z)
         param_stack.push(y)
         param_stack.push(x)
-        raise ValueError("*/: X cannot be zero")
+        raise Rpn_E_Value_Error("*/: X cannot be zero")
 
     param_stack.push(z)
     param_stack.push(y)
@@ -3073,7 +3080,7 @@ def w_plus():
         if x.size() != y.size():
             param_stack.push(y)
             param_stack.push(x)
-            raise ValueError("+: Conformability error: Vectors ({} and {}) are not same size".format(y, x))
+            raise Rpn_E_Value_Error("+: Conformability error: Vectors ({} and {}) are not same size".format(y, x))
         r = np.add(y.value(), x.value())
         # print(type(r))
         # print(r)
@@ -3086,7 +3093,7 @@ def w_plus():
         if x.nrows() != y.nrows() or x.ncols() != y.ncols():
             param_stack.push(y)
             param_stack.push(x)
-            raise ValueError("+: Conformability error: Matrices ({} and {}) are not same size".format(y, x))
+            raise Rpn_E_Value_Error("+: Conformability error: Matrices ({} and {}) are not same size".format(y, x))
         r = np.add(y.value(), x.value())
         # print(type(r))
         # print(r)
@@ -3094,7 +3101,7 @@ def w_plus():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("+: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error("+: Type error ({}, {})".format(typename(y), typename(x)))
     param_stack.push(result)
 
 
@@ -3131,7 +3138,7 @@ def w_minus():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("-: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error("-: Type error ({}, {})".format(typename(y), typename(x)))
     param_stack.push(result)
 
 
@@ -3179,7 +3186,7 @@ def w_dot_bin():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError(".b: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error(".b: Type error ({})".format(typename(x)))
 
     write("{} ".format(bin(x.value())))
 
@@ -3191,7 +3198,7 @@ def w_dot_oct():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError(".o: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error(".o: Type error ({})".format(typename(x)))
 
     write("{} ".format(oct(x.value())))
 
@@ -3217,7 +3224,7 @@ def w_dot_hex():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError(".x: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error(".x: Type error ({})".format(typename(x)))
 
     write("{} ".format(hex(x.value())))
 
@@ -3243,7 +3250,7 @@ def w_slash():
        and x.zerop():
         param_stack.push(y)
         param_stack.push(x)
-        raise ValueError("/: X cannot be zero")
+        raise Rpn_E_Value_Error("/: X cannot be zero")
 
     if    type(x) is Rpn_Rational and type(y) in [Rpn_Integer, Rpn_Rational] \
        or type(y) is Rpn_Rational and type(x) in [Rpn_Integer, Rpn_Rational]:
@@ -3262,7 +3269,7 @@ def w_slash():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("/: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error("/: Type error ({}, {})".format(typename(y), typename(x)))
     param_stack.push(result)
 
 
@@ -3277,11 +3284,11 @@ def w_slash_mod():
     if type(x) is not Rpn_Integer or type(y) is not Rpn_Integer:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("/mod: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error("/mod: Type error ({}, {})".format(typename(y), typename(x)))
     if x.zerop():
         param_stack.push(y)
         param_stack.push(x)
-        raise ValueError("/mod: X cannot be zero")
+        raise Rpn_E_Value_Error("/mod: X cannot be zero")
     rem =  y.value() %  x.value()
     quot = y.value() // x.value()
     param_stack.push(Rpn_Integer(rem))
@@ -3320,7 +3327,7 @@ def w_less_than():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("<: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error("<: Type error ({}, {})".format(typename(y), typename(x)))
 
 
 @defword(name='<<', args=2, print_x=True, doc="""\
@@ -3331,12 +3338,12 @@ def w_leftshift():
     if type(x) is not Rpn_Integer or type(y) is not Rpn_Integer:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("<<: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error("<<: Type error ({}, {})".format(typename(y), typename(x)))
 
     if x.value() < 0:
         param_stack.push(y)
         param_stack.push(x)
-        raise ValueError("<<: Shift amount may not be negative")
+        raise Rpn_E_Value_Error("<<: Shift amount may not be negative")
 
     param_stack.push(Rpn_Integer(y.value() << x.value()))
 
@@ -3354,7 +3361,7 @@ def w_less_than_or_equal():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("<=: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error("<=: Type error ({}, {})".format(typename(y), typename(x)))
 
 
 @defword(name='<>', args=2, print_x=True, doc="""\
@@ -3388,7 +3395,7 @@ def w_not_equal():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("<>: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error("<>: Type error ({}, {})".format(typename(y), typename(x)))
     param_stack.push(Rpn_Integer(bool_to_int(not flag)))
 
 
@@ -3423,7 +3430,7 @@ def w_equal():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("=: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error("=: Type error ({}, {})".format(typename(y), typename(x)))
     param_stack.push(Rpn_Integer(bool_to_int(flag)))
 
 
@@ -3440,7 +3447,7 @@ def w_greater_than():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError(">: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error(">: Type error ({}, {})".format(typename(y), typename(x)))
 
 
 @defword(name='>=', args=2, print_x=True, doc="""\
@@ -3456,7 +3463,7 @@ def w_less_than_or_equal():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError(">=: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error(">=: Type error ({}, {})".format(typename(y), typename(x)))
 
 
 @defword(name='>>', args=2, print_x=True, doc="""\
@@ -3467,12 +3474,12 @@ def w_rightshift():
     if type(x) is not Rpn_Integer or type(y) is not Rpn_Integer:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError(">>: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error(">>: Type error ({}, {})".format(typename(y), typename(x)))
 
     if x.value() < 0:
         param_stack.push(y)
         param_stack.push(x)
-        raise ValueError(">>: Shift amount may not be negative")
+        raise Rpn_E_Value_Error(">>: Shift amount may not be negative")
 
     param_stack.push(Rpn_Integer(y.value() >> x.value()))
 
@@ -3493,7 +3500,7 @@ Create a 2-vector from the stack  ( y x -- v )""")
            or type(y) not in [Rpn_Integer, Rpn_Rational, Rpn_Float, Rpn_Complex]:
             param_stack.push(y)
             param_stack.push(x)
-            raise TypeError(">v2: Type error ({}, {})".format(typename(y), typename(x)))
+            raise Rpn_E_Type_Error(">v2: Type error ({}, {})".format(typename(y), typename(x)))
         l = Rpn_List()
         l.append(y)
         l.append(x)
@@ -3514,7 +3521,7 @@ Create a 3-vector from the stack  ( z y x -- v )""")
             param_stack.push(z)
             param_stack.push(y)
             param_stack.push(x)
-            raise TypeError(">v3: Type error ({}, {}, {})".format(typename(z), typename(y), typename(x)))
+            raise Rpn_E_Type_Error(">v3: Type error ({}, {}, {})".format(typename(z), typename(y), typename(x)))
         l = Rpn_List()
         l.append(z)
         l.append(y)
@@ -3535,7 +3542,7 @@ def w_query_dup():
     x = param_stack.top()
     if type(x) not in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex]:
         param_stack.push(x)
-        raise TypeError("?dup: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("?dup: Type error ({})".format(typename(x)))
     if not x.zerop():
         w_dup()
 
@@ -3549,7 +3556,7 @@ def w_caret():
        or type(y) not in [Rpn_Integer, Rpn_Rational, Rpn_Float, Rpn_Complex]:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("^: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error("^: Type error ({}, {})".format(typename(y), typename(x)))
 
     r = pow(y.value(), x.value())
     if type(r) is int:
@@ -3596,7 +3603,7 @@ def w_abs():
     elif type(x) is Rpn_Vector:
         if x.size() == 0:
             param_stack.push(x)
-            raise ValueError("abs: X cannot be an empty vector")
+            raise Rpn_E_Value_Error("abs: X cannot be an empty vector")
         sumsq = 0.0
         for val in x.value():
             sumsq += val ** 2
@@ -3610,7 +3617,7 @@ def w_abs():
             raise Rpn_E_Fatal("{}: Cannot handle type {}".format(whoami(), t))
     else:
         param_stack.push(x)
-        raise TypeError("abs: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("abs: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -3623,13 +3630,13 @@ def w_acos():
             r = math.acos(float(x.value()))
         except ValueError:
             param_stack.push(x)
-            raise ValueError("acos: Argument {} out of range".format(x.value()))
+            raise Rpn_E_Value_Error("acos: Argument {} out of range".format(x.value()))
         result = Rpn_Float(convert_radians_to_mode(r))
     elif type(x) is Rpn_Complex:
         result = Rpn_Complex.from_complex(cmath.acos(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("acos: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("acos: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -3642,13 +3649,13 @@ def w_acosh():
             r = math.acosh(float(x.value()))
         except ValueError:
             param_stack.push(x)
-            raise ValueError("acosh: Argument {} out of range".format(x.value()))
+            raise Rpn_E_Value_Error("acosh: Argument {} out of range".format(x.value()))
         result = Rpn_Float(r)
     elif type(x) is Rpn_Complex:
         result = Rpn_Complex.from_complex(cmath.acosh(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("acosh: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("acosh: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -3672,16 +3679,16 @@ def w_and():
     if type(x) is not Rpn_Integer or type(y) is not Rpn_Integer:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("and: Type error ({})".format(typename(y), typename(y)))
+        raise Rpn_E_Type_Error("and: Type error ({})".format(typename(y), typename(y)))
 
     if x.value() not in [0, 1]:
         param_stack.push(y)
         param_stack.push(x)
-        raise ValueError("and: X must be TRUE (1) or FALSE (0), not {}".format(x.value()))
+        raise Rpn_E_Value_Error("and: X must be TRUE (1) or FALSE (0), not {}".format(x.value()))
     if y.value() not in [0, 1]:
         param_stack.push(y)
         param_stack.push(x)
-        raise ValueError("and: Y must be TRUE (1) or FALSE (0), not {}".format(y.value()))
+        raise Rpn_E_Value_Error("and: Y must be TRUE (1) or FALSE (0), not {}".format(y.value()))
 
     param_stack.push(Rpn_Integer(x.value() and y.value()))
 
@@ -3695,13 +3702,13 @@ def w_asin():
             r = math.asin(float(x.value()))
         except ValueError:
             param_stack.push(x)
-            raise ValueError("asin: Argument {} out of range".format(x.value()))
+            raise Rpn_E_Value_Error("asin: Argument {} out of range".format(x.value()))
         result = Rpn_Float(convert_radians_to_mode(r))
     elif type(x) is Rpn_Complex:
         result = Rpn_Complex.from_complex(cmath.asin(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("asin: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("asin: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -3714,13 +3721,13 @@ def w_asinh():
             r = math.asinh(float(x.value()))
         except ValueError:
             param_stack.push(x)
-            raise ValueError("asinh: Argument {} out of range".format(x.value()))
+            raise Rpn_E_Value_Error("asinh: Argument {} out of range".format(x.value()))
         result = Rpn_Float(r)
     elif type(x) is Rpn_Complex:
         result = Rpn_Complex.from_complex(cmath.asinh(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("asinh: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("asinh: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -3734,7 +3741,7 @@ def w_atan():
         result = Rpn_Complex.from_complex(cmath.atan(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("atan: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("atan: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -3748,7 +3755,7 @@ def w_atanh():
         result = Rpn_Complex.from_complex(cmath.atanh(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("atanh: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("atanh: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -3790,7 +3797,7 @@ def w_bitand():
     if type(x) is not Rpn_Integer or type(y) is not Rpn_Integer:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("bitand: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error("bitand: Type error ({}, {})".format(typename(y), typename(x)))
 
     param_stack.push(Rpn_Integer(y.value() & x.value()))
 
@@ -3803,7 +3810,7 @@ def w_bitor():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("bitnot: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("bitnot: Type error ({})".format(typename(x)))
 
     param_stack.push(Rpn_Integer(~ x.value()))
 
@@ -3818,7 +3825,7 @@ def w_bitor():
     if type(x) is not Rpn_Integer or type(y) is not Rpn_Integer:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("bitor: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error("bitor: Type error ({}, {})".format(typename(y), typename(x)))
 
     param_stack.push(Rpn_Integer(y.value() | x.value()))
 
@@ -3833,7 +3840,7 @@ def w_bitor():
     if type(x) is not Rpn_Integer or type(y) is not Rpn_Integer:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("bitxor: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error("bitxor: Type error ({}, {})".format(typename(y), typename(x)))
 
     param_stack.push(Rpn_Integer(y.value() ^ x.value()))
 
@@ -3883,7 +3890,7 @@ def w_ceil():
         result = Rpn_Integer(math.ceil(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("ceil: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("ceil: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -3895,14 +3902,14 @@ def w_cf():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("cf: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("cf: Type error ({})".format(typename(x)))
 
     if x.value() < 0 or x.value() >= flag_max:
         param_stack.push(x)
-        raise ValueError("cf: Flag out of range (0..{} expected)".format(flag_max - 1))
+        raise Rpn_E_Value_Error("cf: Flag out of range (0..{} expected)".format(flag_max - 1))
     if flag >= flag_fence:
         param_stack.push(x)
-        raise ValueError("sf: Flag {} cannot be modified".format(flag))
+        raise Rpn_E_Value_Error("sf: Flag {} cannot be modified".format(flag))
     clear_flag(x.value())
 
 
@@ -3921,7 +3928,7 @@ def w_chs():
         result = Rpn_Complex(-1.0*x.real(), -1.0*x.imag())
     else:
         param_stack.push(x)
-        raise TypeError("chs: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("chs: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -3987,7 +3994,7 @@ def w_comb():
     if type(x) is not Rpn_Integer or type(y) is not Rpn_Integer:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("comb: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error("comb: Type error ({}, {})".format(typename(y), typename(x)))
 
     # Python 3.8 has math.comb()
     n = y.value()
@@ -4014,7 +4021,7 @@ def w_cos():
         result = Rpn_Complex.from_complex(cmath.cos(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("cos: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("cos: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -4028,7 +4035,7 @@ def w_cosh():
         result = Rpn_Complex.from_complex(cmath.cosh(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("cosh: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("cosh: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -4044,12 +4051,12 @@ def w_d_to_jd():
     x = param_stack.pop()
     if type(x) is not Rpn_Float:
         param_stack.push(x)
-        raise TypeError("d->jd: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("d->jd: Type error ({})".format(typename(x)))
 
     (valid, dateobj, julian) = x.date_info()
     if not valid:
         param_stack.push(x)
-        raise ValueError("d->jd: {} is not a valid date".format(x.value()))
+        raise Rpn_E_Value_Error("d->jd: {} is not a valid date".format(x.value()))
 
     param_stack.push(Rpn_Integer(julian))
 
@@ -4062,7 +4069,7 @@ def w_d_to_r():
         result = Rpn_Float(convert_mode_to_radians(float(x.value()), "d"))
     else:
         param_stack.push(x)
-        raise TypeError("d->r: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("d->r: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -4079,7 +4086,7 @@ def w_dateinfo():
     x = param_stack.pop()
     if type(x) is not Rpn_Float:
         param_stack.push(x)
-        raise TypeError("dateinfo: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("dateinfo: Type error ({})".format(typename(x)))
     print(x.date_info())        # OK
 
 
@@ -4091,13 +4098,13 @@ def w_date_plus():
     if type(x) is not Rpn_Integer or type(y) is not Rpn_Float:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("date+: Type error ({})".format(typename(y), typename(y)))
+        raise Rpn_E_Type_Error("date+: Type error ({})".format(typename(y), typename(y)))
 
     (valid, dateobj, julian) = y.date_info()
     if not valid:
         param_stack.push(y)
         param_stack.push(x)
-        raise ValueError("date+: {} is not a valid date".format(y.value()))
+        raise Rpn_E_Value_Error("date+: {} is not a valid date".format(y.value()))
 
     new_julian = julian + x.value()
     dateobj = datetime.date.fromordinal(new_julian - julian_offset)
@@ -4113,13 +4120,13 @@ def w_date_minus():
     if type(x) is not Rpn_Integer or type(y) is not Rpn_Float:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("date-: Type error ({})".format(typename(y), typename(y)))
+        raise Rpn_E_Type_Error("date-: Type error ({})".format(typename(y), typename(y)))
 
     (valid, dateobj, julian) = y.date_info()
     if not valid:
         param_stack.push(y)
         param_stack.push(x)
-        raise ValueError("date-: {} is not a valid date".format(y.value()))
+        raise Rpn_E_Value_Error("date-: {} is not a valid date".format(y.value()))
 
     new_julian = julian - x.value()
     dateobj = datetime.date.fromordinal(new_julian - julian_offset)
@@ -4142,19 +4149,19 @@ def w_ddays():
     if type(x) is not Rpn_Float or type(y) is not Rpn_Float:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("ddays: Type error ({})".format(typename(y), typename(y)))
+        raise Rpn_E_Type_Error("ddays: Type error ({})".format(typename(y), typename(y)))
 
     (valid, dateobj, xjulian) = x.date_info()
     if not valid:
         param_stack.push(y)
         param_stack.push(x)
-        raise ValueError("ddays: {} is not a valid date".format(x.value()))
+        raise Rpn_E_Value_Error("ddays: {} is not a valid date".format(x.value()))
 
     (valid, dateobj, yjulian) = y.date_info()
     if not valid:
         param_stack.push(y)
         param_stack.push(x)
-        raise ValueError("ddays: {} is not a valid date".format(y.value()))
+        raise Rpn_E_Value_Error("ddays: {} is not a valid date".format(y.value()))
 
     # Y is expected to be earlier, so we subtract in this order to get a
     # positive value for "later"
@@ -4215,7 +4222,7 @@ def w_dim():
         result = Rpn_Vector(l2) # [ rows cols ]
     else:
         param_stack.push(x)
-        raise TypeError("dim: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("dim: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -4236,23 +4243,23 @@ def w_do():
 
 if have_numpy:
     @defword(name='dot', args=2, print_x=True, doc="""\
-    Vector dot product  ( vec_y vec_x -- real )""")
+Vector dot product  ( vec_y vec_x -- real )""")
     def w_dot_prod():
         x = param_stack.pop()
         y = param_stack.pop()
         if type(x) is Rpn_Vector and type(y) is Rpn_Vector:
             try:
                 r = y.value().dot(x.value())
-            except ValueError as e:
+            except ValueError:
                 param_stack.push(y)
                 param_stack.push(x)
-                raise ValueError("dot: Conformability error: Vectors ({} and {}) are not same size".format(y, x))
+                raise Rpn_E_Value_Error("dot: Conformability error: Vectors ({} and {}) are not same size".format(y, x))
 
             result = to_rpn_class(r)
         else:
             param_stack.push(y)
             param_stack.push(x)
-            raise TypeError("dot: Type error ({}, {})".format(typename(y), typename(x)))
+            raise Rpn_E_Type_Error("dot: Type error ({}, {})".format(typename(y), typename(x)))
 
         param_stack.push(result)
 
@@ -4264,12 +4271,12 @@ def w_dow():
     x = param_stack.pop()
     if type(x) is not Rpn_Float:
         param_stack.push(x)
-        raise TypeError("dow: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("dow: Type error ({})".format(typename(x)))
 
     (valid, dateobj, julian) = x.date_info()
     if not valid:
         param_stack.push(x)
-        raise ValueError("dow: {} is not a valid date".format(x.value()))
+        raise Rpn_E_Value_Error("dow: {} is not a valid date".format(x.value()))
 
     param_stack.push(Rpn_Integer(dateobj.isoweekday()))
 
@@ -4283,11 +4290,11 @@ def w_dow_dollar():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("dow$: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("dow$: Type error ({})".format(typename(x)))
     dow = x.value()
     if dow < 1 or dow > 7:
         param_stack.push(x)
-        raise ValueError("dow$: Day of week out of range (1..7 expected)")
+        raise Rpn_E_Value_Error("dow$: Day of week out of range (1..7 expected)")
     dow_abbrev = { 1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu",
                    5: "Fri", 6: "Sat", 7: "Sun" }
     string_stack.push(Rpn_String.from_string(dow_abbrev[dow]))
@@ -4324,7 +4331,7 @@ def w_e_x_minus_1():
         result = Rpn_Complex.from_complex(cmath.exp(x.value()) - 1.0)
     else:
         param_stack.push(x)
-        raise TypeError("expm1: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("expm1: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -4400,11 +4407,11 @@ def w_eng():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("eng: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("eng: Type error ({})".format(typename(x)))
 
     if x.value() < 0 or x.value() >= precision_max:
         param_stack.push(x)
-        raise ValueError("eng: Precision '{}' out of range (0..{} expected)".format(x.value(), precision_max - 1))
+        raise Rpn_E_Value_Error("eng: Precision '{}' out of range (0..{} expected)".format(x.value(), precision_max - 1))
 
     disp_stack.top().set_style("eng")
     disp_stack.top().set_prec(x.value())
@@ -4442,7 +4449,7 @@ def w_exp():
         result = Rpn_Complex.from_complex(cmath.exp(complex(x.value())))
     else:
         param_stack.push(x)
-        raise TypeError("exp: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("exp: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -4457,10 +4464,10 @@ def w_fact():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("fact: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("fact: Type error ({})".format(typename(x)))
     if x.value() < 0:
         param_stack.push(x)
-        raise ValueError("fact: X cannot be negative")
+        raise Rpn_E_Value_Error("fact: X cannot be negative")
     result = Rpn_Integer(fact_helper(x.value()))
     param_stack.push(result)
 
@@ -4477,12 +4484,12 @@ def w_fc_query():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("fc?: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("fc?: Type error ({})".format(typename(x)))
 
     flag = x.value()
     if flag < 0 or flag >= flag_max:
         param_stack.push(x)
-        raise ValueError("fc?: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
+        raise Rpn_E_Value_Error("fc?: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
     result = Rpn_Integer(bool_to_int(not flag_set_p(flag)))
     param_stack.push(result)
 
@@ -4493,12 +4500,12 @@ def w_fc_query_clear():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("fc?c: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("fc?c: Type error ({})".format(typename(x)))
 
     flag = x.value()
     if flag < 0 or flag >= flag_max:
         param_stack.push(x)
-        raise ValueError("fc?c: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
+        raise Rpn_E_Value_Error("fc?c: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
     result = Rpn_Integer(bool_to_int(not flag_set_p(flag)))
     param_stack.push(result)
     if flag < flag_fence:
@@ -4511,12 +4518,12 @@ def w_fc_query_set():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("fc?s: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("fc?s: Type error ({})".format(typename(x)))
 
     flag = x.value()
     if flag < 0 or flag >= flag_max:
         param_stack.push(x)
-        raise ValueError("fc?s: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
+        raise Rpn_E_Value_Error("fc?s: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
     result = Rpn_Integer(bool_to_int(not flag_set_p(flag)))
     param_stack.push(result)
     if flag < flag_fence:
@@ -4532,11 +4539,11 @@ def w_fix():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("fix: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("fix: Type error ({})".format(typename(x)))
 
     if x.value() < 0 or x.value() >= precision_max:
         param_stack.push(x)
-        raise ValueError("fix: Precision '{}' out of range (0..{} expected)".format(x.value(), precision_max - 1))
+        raise Rpn_E_Value_Error("fix: Precision '{}' out of range (0..{} expected)".format(x.value(), precision_max - 1))
 
     disp_stack.top().set_style("fix")
     disp_stack.top().set_prec(x.value())
@@ -4554,7 +4561,7 @@ def w_floor():
         result = Rpn_Integer(math.floor(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("floor: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("floor: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -4570,12 +4577,12 @@ def w_fs_query():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("fs?: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("fs?: Type error ({})".format(typename(x)))
 
     flag = x.value()
     if flag < 0 or flag >= flag_max:
         param_stack.push(x)
-        raise ValueError("fs?: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
+        raise Rpn_E_Value_Error("fs?: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
     result = Rpn_Integer(bool_to_int(flag_set_p(flag)))
     param_stack.push(result)
 
@@ -4586,12 +4593,12 @@ def w_fs_query_clear():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("fs?c: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("fs?c: Type error ({})".format(typename(x)))
 
     flag = x.value()
     if flag < 0 or flag >= flag_max:
         param_stack.push(x)
-        raise ValueError("fs?c: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
+        raise Rpn_E_Value_Error("fs?c: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
     result = Rpn_Integer(bool_to_int(flag_set_p(flag)))
     param_stack.push(result)
     if flag < flag_fence:
@@ -4604,12 +4611,12 @@ def w_fs_query_set():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("fs?s: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("fs?s: Type error ({})".format(typename(x)))
 
     flag = x.value()
     if flag < 0 or flag >= flag_max:
         param_stack.push(x)
-        raise ValueError("fs?s: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
+        raise Rpn_E_Value_Error("fs?s: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
     result = Rpn_Integer(bool_to_int(flag_set_p(flag)))
     param_stack.push(result)
     if flag < flag_fence:
@@ -4625,7 +4632,7 @@ def w_fsolve():
     x = param_stack.pop()
     if    type(x) not in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
         param_stack.push(x)
-        raise TypeError("fsolve: Type error ({}, {})".format(typename(x)))
+        raise Rpn_E_Type_Error("fsolve: Type error ({}, {})".format(typename(x)))
     init_guess = float(x.value())
     func_to_solve = string_stack.pop().value()
 
@@ -4661,7 +4668,7 @@ def w_gamma():
             r = math.gamma(x.value())
         except ValueError:
             param_stack.push(x)
-            raise ValueError("gamma: X cannot be a non-positive integer")
+            raise Rpn_E_Value_Error("gamma: X cannot be a non-positive integer")
         if type(x) is Rpn_Integer:
             result = Rpn_Integer(r)
         else:
@@ -4673,11 +4680,11 @@ def w_gamma():
         r = scipy.special.gamma(x.value())
         if math.isnan(r.real) or math.isnan(r.imag):
             param_stack.push(x)
-            raise ValueError("gamma: X cannot be a non-positive integer")
+            raise Rpn_E_Value_Error("gamma: X cannot be a non-positive integer")
         result = Rpn_Complex.from_complex(r)
     else:
         param_stack.push(x)
-        raise TypeError("gamma: Type error({})".format(typename(x)))
+        raise Rpn_E_Type_Error("gamma: Type error({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -4746,7 +4753,7 @@ def w_hms():
         result = Rpn_Float("%d.%02d%02d" % (hours, minutes, seconds))
     else:
         param_stack.push(x)
-        raise TypeError("hms: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("hms: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -4759,7 +4766,7 @@ def w_hms_plus():
        or type(y) not in [Rpn_Integer, Rpn_Float]:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("hms+: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error("hms+: Type error ({}, {})".format(typename(y), typename(x)))
 
     ynegative = y.value() < 0
     if type(y) is Rpn_Integer:
@@ -4769,7 +4776,7 @@ def w_hms_plus():
     if not yvalid:
         param_stack.push(y)
         param_stack.push(x)
-        raise ValueError("hms+: Time {} is not valid".format(y.value()))
+        raise Rpn_E_Value_Error("hms+: Time {} is not valid".format(y.value()))
 
     xnegative = y.value() < 0
     if type(x) is Rpn_Integer:
@@ -4779,7 +4786,7 @@ def w_hms_plus():
     if not xvalid:
         param_stack.push(y)
         param_stack.push(x)
-        raise ValueError("hms+: Time {} is not valid".format(x.value()))
+        raise Rpn_E_Value_Error("hms+: Time {} is not valid".format(x.value()))
 
     (hh, mm, ss) = normalize_hms(yhh + xhh, ymm + xmm, yss + xss)
     #print("hh=",hh,"mm=",mm,"ss=",ss)
@@ -4796,7 +4803,7 @@ def w_hms_minus():
        or type(y) not in [Rpn_Integer, Rpn_Float]:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("hms-: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error("hms-: Type error ({}, {})".format(typename(y), typename(x)))
 
     if type(y) is Rpn_Integer:
         (yvalid, yhh, ymm, yss, _) = Rpn_Float(y.value()).time_info()
@@ -4805,7 +4812,7 @@ def w_hms_minus():
     if not yvalid:
         param_stack.push(y)
         param_stack.push(x)
-        raise ValueError("hms-: Time {} is not valid".format(y.value()))
+        raise Rpn_E_Value_Error("hms-: Time {} is not valid".format(y.value()))
 
     if type(x) is Rpn_Integer:
         (xvalid, xhh, xmm, xss, _) = Rpn_Float(x.value()).time_info()
@@ -4814,7 +4821,7 @@ def w_hms_minus():
     if not xvalid:
         param_stack.push(y)
         param_stack.push(x)
-        raise ValueError("hms-: Time {} is not valid".format(x.value()))
+        raise Rpn_E_Value_Error("hms-: Time {} is not valid".format(x.value()))
 
     (hh, mm, ss) = normalize_hms(yhh - xhh, ymm - xmm, yss - xss)
     #print("hh=",hh,"mm=",mm,"ss=",ss)
@@ -4834,13 +4841,13 @@ def w_hr():
         (valid, hh, mm, ss, _) = hms.time_info()
         if not valid:
             param_stack.push(x)
-            raise ValueError("hr: Time {} is not valid".format(x.value()))
+            raise Rpn_E_Value_Error("hr: Time {} is not valid".format(x.value()))
 
         hr = float(hh) + float(mm)/60.0 + float(ss)/3600.0
         result = Rpn_Float(negative * hr)
     else:
         param_stack.push(x)
-        raise TypeError("hr: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("hr: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -4875,7 +4882,7 @@ def w_I():
 
 if have_numpy:
     @defword(name='idn', args=1, print_x=True, doc="""\
-    Create an NxN identity matrix  ( n -- mat )""")
+Create an NxN identity matrix  ( n -- mat )""")
     def w_idn():
         x = param_stack.pop()
         size = 0
@@ -4883,19 +4890,19 @@ if have_numpy:
             size = x.value()
             if size < 1 or size > matrix_max:
                 param_stack.push(x)
-                raise ValueError("idn: X out of range (1..{} expected)".format(matrix_max))
+                raise Rpn_E_Value_Error("idn: X out of range (1..{} expected)".format(matrix_max))
         elif type(x) is Rpn_Vector:
             vsize = x.size()
             if vsize != 2:
                 param_stack.push(x)
-                raise ValueError("idn: Only matrices can be created")
+                raise Rpn_E_Value_Error("idn: Only matrices can be created")
             if int(x.value()[0]) != int(x.value()[1]):
                 param_stack.push(x)
-                raise ValueError("idn: Only square matrices can be created")
+                raise Rpn_E_Value_Error("idn: Only square matrices can be created")
             size = x.value()[0]
         else:
             param_stack.push(x)
-            raise TypeError("idn: Type error ({})".format(typename(x)))
+            raise Rpn_E_Type_Error("idn: Type error ({})".format(typename(x)))
 
 
         result = Rpn_Matrix.from_numpy(np.identity(size, dtype=np.int64))
@@ -4925,7 +4932,7 @@ def w_int():
         result = Rpn_Integer(int(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("int: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("int: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -4952,11 +4959,11 @@ def w_jd_to_d():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("jd->d: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("jd->d: Type error ({})".format(typename(x)))
 
     if x.value() < 1 or x.value() > datetime.date.max.toordinal():
         param_stack.push(x)
-        raise ValueError("jd->d: X out of range (1..{} expected)".format(date.max.toordinal()))
+        raise Rpn_E_Value_Error("jd->d: X out of range (1..{} expected)".format(date.max.toordinal()))
 
     dateobj = datetime.date.fromordinal(x.value() - julian_offset)
     result = Rpn_Float("%d.%02d%04d" % (dateobj.month, dateobj.day, dateobj.year))
@@ -4971,7 +4978,7 @@ def w_inv():
     if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex] \
        and x.zerop():
         param_stack.push(x)
-        raise ValueError("inv: X cannot be zero")
+        raise Rpn_E_Value_Error("inv: X cannot be zero")
 
     if type(x) is Rpn_Integer:
         result = Rpn_Float(1.0 / float(x.value()))
@@ -4994,7 +5001,7 @@ def w_inv():
     #     # And remember that not every matrix is invertible (singular ones)
     else:
         param_stack.push(x)
-        raise TypeError("inv: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("inv: Type error ({})".format(typename(x)))
 
     param_stack.push(result)
 
@@ -5024,7 +5031,7 @@ def w_lg():
     if     type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex] \
        and x.zerop():
         param_stack.push(x)
-        raise ValueError("lg: X cannot be zero")
+        raise Rpn_E_Value_Error("lg: X cannot be zero")
 
     if    type(x) is Rpn_Integer  and x.value() > 0 \
        or type(x) is Rpn_Float    and x.value() > 0.0 \
@@ -5041,7 +5048,7 @@ def w_lg():
         result = Rpn_Complex.from_complex(cmath.log(complex(x.value()), 2))
     else:
         param_stack.push(x)
-        raise TypeError("lg: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("lg: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -5054,7 +5061,7 @@ def w_ln():
     if     type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex] \
        and x.zerop():
         param_stack.push(x)
-        raise ValueError("ln: X cannot be zero")
+        raise Rpn_E_Value_Error("ln: X cannot be zero")
 
     if    type(x) is Rpn_Integer  and x.value() > 0 \
        or type(x) is Rpn_Float    and x.value() > 0.0 \
@@ -5067,7 +5074,7 @@ def w_ln():
         result = Rpn_Complex.from_complex(cmath.log(complex(x.value())))
     else:
         param_stack.push(x)
-        raise TypeError("ln: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("ln: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -5081,7 +5088,7 @@ def w_ln_1_plus_x():
         result = Rpn_Complex.from_complex(cmath.log(x.value()) + 1.0)
     else:
         param_stack.push(x)
-        raise TypeError("lnp1: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("lnp1: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -5104,7 +5111,7 @@ def w_log():
     if     type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex] \
        and x.zerop():
         param_stack.push(x)
-        raise ValueError("log: X cannot be zero")
+        raise Rpn_E_Value_Error("log: X cannot be zero")
 
     if    type(x) is Rpn_Integer  and x.value() > 0 \
        or type(x) is Rpn_Float    and x.value() > 0.0 \
@@ -5121,7 +5128,7 @@ def w_log():
         result = Rpn_Complex.from_complex(cmath.log10(complex(x.value())))
     else:
         param_stack.push(x)
-        raise TypeError("log: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("log: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -5152,7 +5159,7 @@ def w_max():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("max: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error("max: Type error ({}, {})".format(typename(y), typename(x)))
 
 
 @defword(name='mean', print_x=True, doc="""\
@@ -5194,7 +5201,7 @@ def w_min():
     else:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("min: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error("min: Type error ({}, {})".format(typename(y), typename(x)))
 
 
 @defword(name='nip', args=2, doc="""\
@@ -5219,10 +5226,10 @@ def w_not():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("not: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("not: Type error ({})".format(typename(x)))
     if x.value() not in [0, 1]:
         param_stack.push(x)
-        raise ValueError("not: X must be TRUE (1) or FALSE (0), not {}".format(x.value()))
+        raise Rpn_E_Value_Error("not: X must be TRUE (1) or FALSE (0), not {}".format(x.value()))
 
     param_stack.push(Rpn_Integer(bool_to_int(x.zerop())))
 
@@ -5253,16 +5260,16 @@ def w_or():
     if type(x) is not Rpn_Integer or type(y) is not Rpn_Integer:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("or: Type error ({})".format(typename(y), typename(y)))
+        raise Rpn_E_Type_Error("or: Type error ({})".format(typename(y), typename(y)))
 
     if x.value() not in [0, 1]:
         param_stack.push(y)
         param_stack.push(x)
-        raise ValueError("or: X must be TRUE (1) or FALSE (0), not {}".format(x.value()))
+        raise Rpn_E_Value_Error("or: X must be TRUE (1) or FALSE (0), not {}".format(x.value()))
     if y.value() not in [0, 1]:
         param_stack.push(y)
         param_stack.push(x)
-        raise ValueError("or: Y must be TRUE (1) or FALSE (0), not {}".format(y.value()))
+        raise Rpn_E_Value_Error("or: Y must be TRUE (1) or FALSE (0), not {}".format(y.value()))
 
     param_stack.push(Rpn_Integer(x.value() or y.value()))
 
@@ -5324,7 +5331,7 @@ def w_p_to_r():
         if type(y) not in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
             param_stack.push(y)
             param_stack.push(x)
-            raise TypeError("p->r: Type error({}, {})".format(typename(y), typename(x)))
+            raise Rpn_E_Type_Error("p->r: Type error({}, {})".format(typename(y), typename(x)))
         r   = float(x.value())
         phi = convert_mode_to_radians(float(y.value()))
         xval = r * math.cos(phi)
@@ -5333,7 +5340,7 @@ def w_p_to_r():
         param_stack.push(Rpn_Float(xval))
     else:
         param_stack.push(x)
-        raise TypeError("p->r: Type error({})".format(typename(x)))
+        raise Rpn_E_Type_Error("p->r: Type error({})".format(typename(x)))
 
 
 @defword(name='perm', args=2, print_x=True, doc="""\
@@ -5350,7 +5357,7 @@ def w_perm():
     if type(y) is not Rpn_Integer or type(x) is not Rpn_Integer:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("perm: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error("perm: Type error ({}, {})".format(typename(y), typename(x)))
 
     # Python 3.8 has math.perm()
     n = y.value()
@@ -5386,11 +5393,11 @@ def w_pick():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("pick: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("pick: Type error ({})".format(typename(x)))
 
     if x.value() < 0 or x.value() >= param_stack.size():
         param_stack.push(x)
-        raise ValueError("pick: Index out of range (0..{} expected)".format(param_stack.size()-2))
+        raise Rpn_E_Value_Error("pick: Index out of range (0..{} expected)".format(param_stack.size()-2))
 
     result = param_stack.pick(x.value())
     param_stack.push(result)
@@ -5449,10 +5456,10 @@ def w_pushdisp():
 
 if have_scipy:
     @defword(name='quad', args=2, str_args=1, print_x=True, doc="""\
-    Numerical integration  ( lower upper -- err.est integral )
-    Name of function must be on string stack.
+Numerical integration  ( lower upper -- err.est integral )
+Name of function must be on string stack.
 
-    Implemented via scipy.integrate.quad()""")
+Implemented via scipy.integrate.quad()""")
     def w_quad():
         x = param_stack.pop()
         y = param_stack.pop()
@@ -5460,7 +5467,7 @@ if have_scipy:
            or type(y) not in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
             param_stack.push(y)
             param_stack.push(x)
-            raise TypeError("quad: Type error ({}, {})".format(typename(y), typename(x)))
+            raise Rpn_E_Type_Error("quad: Type error ({}, {})".format(typename(y), typename(x)))
         lower = float(y.value())
         upper = float(x.value())
         func_to_integrate = string_stack.pop().value()
@@ -5482,7 +5489,7 @@ def w_r_to_d():
     x = param_stack.pop()
     if type(x) not in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
         param_stack.push(x)
-        raise TypeError("r->d: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("r->d: Type error ({})".format(typename(x)))
     result = Rpn_Float(convert_radians_to_mode(float(x.value()), "d"))
     param_stack.push(result)
 
@@ -5515,7 +5522,7 @@ def w_r_to_p():
         if type(y) not in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
             param_stack.push(y)
             param_stack.push(x)
-            raise TypeError("r->p: Type error({}, {})".format(typename(y), typename(x)))
+            raise Rpn_E_Type_Error("r->p: Type error({}, {})".format(typename(y), typename(x)))
 
         phi = math.atan2(x.value(), y.value())
         r   = math.hypot(x.value(), y.value())
@@ -5523,7 +5530,7 @@ def w_r_to_p():
         param_stack.push(Rpn_Float(r))
     else:
         param_stack.push(x)
-        raise TypeError("r->p: Type error({})".format(typename(x)))
+        raise Rpn_E_Type_Error("r->p: Type error({})".format(typename(x)))
 
 
 @defword(name='r.s', print_x=False, doc="""\
@@ -5587,11 +5594,11 @@ def w_randint():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("randint: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("randint: Type error ({})".format(typename(x)))
 
     if x.value() < 1:
         param_stack.push(x)
-        raise ValueError("randint: n must be positive")
+        raise Rpn_E_Value_Error("randint: n must be positive")
 
     r = random.randint(1, x.value())
     param_stack.push(Rpn_Integer(r))
@@ -5605,11 +5612,11 @@ def w_rcl():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("rcl: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("rcl: Type error ({})".format(typename(x)))
     reg = x.value()
     if reg < 0 or reg >= reg_size.obj().value():
         param_stack.push(x)
-        raise ValueError("rcl: Register '{}' out of range (0..{} expected)".format(reg, reg_size.obj().value() - 1))
+        raise Rpn_E_Value_Error("rcl: Register '{}' out of range (0..{} expected)".format(reg, reg_size.obj().value() - 1))
     param_stack.push(register[reg])
 
 
@@ -5658,12 +5665,12 @@ def w_rms():
     x = param_stack.pop()
     if type(x) is not Rpn_Vector:
         param_stack.push(x)
-        raise TypeError("rms: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("rms: Type error ({})".format(typename(x)))
 
     n = x.size()
     if n == 0:
         param_stack.push(x)
-        raise ValueError("rms: X cannot be an empty vector")
+        raise Rpn_E_Value_Error("rms: X cannot be an empty vector")
     sumsq = 0.0
     for val in x.value():
         sumsq += val ** 2
@@ -5694,12 +5701,12 @@ def w_rnd():
        or type(y) not in [Rpn_Integer, Rpn_Rational, Rpn_Float, Rpn_Complex]:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("rnd: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error("rnd: Type error ({}, {})".format(typename(y), typename(x)))
     places = x.value()
     if places < 0:
         param_stack.push(y)
         param_stack.push(x)
-        raise ValueError("rnd: Round places may not be negative")
+        raise Rpn_E_Value_Error("rnd: Round places may not be negative")
 
     if type(y) in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
         r = round(float(y.value()), places)
@@ -5718,11 +5725,11 @@ def w_roll():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("roll: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("roll: Type error ({})".format(typename(x)))
 
     if x.value() < 0 or x.value() >= param_stack.size():
         param_stack.push(x)
-        raise ValueError("roll: Index out of range (0..{} expected)".format(param_stack.size()-2))
+        raise Rpn_E_Value_Error("roll: Index out of range (0..{} expected)".format(param_stack.size()-2))
 
     param_stack.roll(x.value())
 
@@ -5745,7 +5752,7 @@ def w_s_plus():
     x = param_stack.pop()
     if type(x) not in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
         param_stack.push(x)
-        raise TypeError("S+: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("S+: Type error ({})".format(typename(x)))
 
     global stat_list
     val = float(x.value())
@@ -5761,11 +5768,11 @@ def w_sci():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("sci: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("sci: Type error ({})".format(typename(x)))
 
     if x.value() < 0 or x.value() >= precision_max:
         param_stack.push(x)
-        raise ValueError("fix: Precision '{}' out of range (0..{} expected)".format(x.value(), precision_max - 1))
+        raise Rpn_E_Value_Error("fix: Precision '{}' out of range (0..{} expected)".format(x.value(), precision_max - 1))
 
     disp_stack.top().set_style("sci")
     disp_stack.top().set_prec(x.value())
@@ -5786,16 +5793,16 @@ def w_setdebug():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("setdebug: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("setdebug: Type error ({})".format(typename(x)))
     level = x.value()
     if level < 0 or level > 9:
         param_stack.push(x)
-        raise ValueError("setdebug: Level {} out of range (0..9 expected)".format(level))
+        raise Rpn_E_Value_Error("setdebug: Level {} out of range (0..9 expected)".format(level))
     resource = string_stack.pop()
     if not resource.value() in debug_levels:
         param_stack.push(x)
         string_stack.push(resource)
-        raise ValueError("{}: Resource '{}' is not valid".format(whoami(), resource.value()))
+        raise Rpn_E_Value_Error("{}: Resource '{}' is not valid".format(whoami(), resource.value()))
     set_debug_level(resource.value(), level)
 
 
@@ -5805,14 +5812,14 @@ def w_sf():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("sf: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("sf: Type error ({})".format(typename(x)))
     flag = x.value()
     if flag < 0 or flag >= flag_max:
         param_stack.push(x)
-        raise ValueError("sf: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
+        raise Rpn_E_Value_Error("sf: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
     if flag >= flag_fence:
         param_stack.push(x)
-        raise ValueError("sf: Flag {} cannot be modified".format(flag))
+        raise Rpn_E_Value_Error("sf: Flag {} cannot be modified".format(flag))
     set_flag(flag)
 
 
@@ -5884,7 +5891,7 @@ def w_sign():
         result = Rpn_Integer(r)
     else:
         param_stack.push(x)
-        raise TypeError("sign: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("sign: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -5898,7 +5905,7 @@ def w_sin():
         result = Rpn_Complex.from_complex(cmath.sin(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("sin: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("sin: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -5912,7 +5919,7 @@ def w_sinh():
         result = Rpn_Complex.from_complex(cmath.sinh(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("sinh: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("sinh: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -5923,11 +5930,11 @@ def w_size():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("size: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("size: Type error ({})".format(typename(x)))
     new_size = x.value()
     if new_size < reg_min or new_size > reg_max:
         param_stack.push(x)
-        raise ValueError("size: Size '{}' out of range ({}..{} expected)".format(new_size, reg_min, reg_max))
+        raise Rpn_E_Value_Error("size: Size '{}' out of range ({}..{} expected)".format(new_size, reg_min, reg_max))
 
     global reg_size
     old_size = reg_size.obj().value()
@@ -5955,7 +5962,7 @@ def w_sleep():
     x = param_stack.pop()
     if type(x) not in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
         param_stack.push(x)
-        raise TypeError("sleep: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("sleep: Type error ({})".format(typename(x)))
     sleep_time = float(x.value())
     time.sleep(sleep_time)
 
@@ -5975,7 +5982,7 @@ def w_sq():
         result = Rpn_Complex.from_complex(r)
     else:
         param_stack.push(x)
-        raise TypeError("sq: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("sq: Type error ({})".format(typename(x)))
 
     param_stack.push(result)
 
@@ -6006,7 +6013,7 @@ def w_sqrt():
         result = Rpn_Complex.from_complex(cmath.sqrt(complex(x.value())))
     else:
         param_stack.push(x)
-        raise TypeError("sqrt: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("sqrt: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -6045,12 +6052,12 @@ def w_sto():
     if type(x) is not Rpn_Integer:
         param_stack.push(y)
         param_stack.push(x)
-        raise TypeError("sto: Type error ({}, {})".format(typename(y), typename(x)))
+        raise Rpn_E_Type_Error("sto: Type error ({}, {})".format(typename(y), typename(x)))
     reg = x.value()
     if reg < 0 or reg >= reg_size.obj().value():
         param_stack.push(y)
         param_stack.push(x)
-        raise ValueError("sto: Register '{}' out of range (0..{} expected)".format(reg, reg_size.obj().value() - 1))
+        raise Rpn_E_Value_Error("sto: Register '{}' out of range (0..{} expected)".format(reg, reg_size.obj().value() - 1))
     if type(y) in [Rpn_Float, Rpn_Complex]:
         register[reg] = y
     else:
@@ -6078,7 +6085,7 @@ def w_tan():
         result = Rpn_Complex.from_complex(cmath.tan(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("tan: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("tan: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -6092,7 +6099,7 @@ def w_tanh():
         result = Rpn_Complex.from_complex(cmath.tanh(x.value()))
     else:
         param_stack.push(x)
-        raise TypeError("tanh: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("tanh: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -6124,7 +6131,7 @@ def w_throw():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("throw: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("throw: Type error ({})".format(typename(x)))
     if x.value() <= 0:
         param_stack.push(x)
         raise Rpn_E_Runtime_Error("throw: X must be positive")
@@ -6152,7 +6159,7 @@ def w_timeinfo():
     x = param_stack.pop()
     if type(x) is not Rpn_Float:
         param_stack.push(x)
-        raise TypeError("timeinfo: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("timeinfo: Type error ({})".format(typename(x)))
     print(x.time_info())        # OK
 
 
@@ -6214,7 +6221,7 @@ Decompose a vector into stack elements""")
         x = param_stack.pop()
         if type(x) is not Rpn_Vector:
             param_stack.push(x)
-            raise TypeError("v>: Type error ({})".format(typename(x)))
+            raise Rpn_E_Type_Error("v>: Type error ({})".format(typename(x)))
         for elem in x.value():
             param_stack.push(to_rpn_class(elem))
 
@@ -6733,10 +6740,10 @@ def execute(executable):
         pass
     except Rpn_E_Runtime_Error as e:
         lnwriteln(str(e))
-    except TypeError as e:
+    except Rpn_E_Type_Error as e:
         #traceback.print_stack(file=sys.stderr)
         lnwriteln(str(e))
-    except ValueError as e:
+    except Rpn_E_Value_Error as e:
         #traceback.print_stack(file=sys.stderr)
         lnwriteln(str(e))
 
