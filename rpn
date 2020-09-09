@@ -3764,9 +3764,7 @@ Set "Begin" (annuity due) financial mode.
 
 Do not confuse this with the "begin" command, which starts a loop.""")
 def w_beg():
-    global tvm_X
     set_flag(flag_tvm_begin_mode)
-    tvm_X = flag_int_value(flag_tvm_begin_mode)
 
 
 @defword(name='begin', doc="""\
@@ -4352,16 +4350,14 @@ def w_emit():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("emit: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("emit: Type error ({})".format(typename(x)))
     write(chr(x.value()))
 
 
 @defword(name='end', doc="""\
 Set "End" (ordinary annuity) financial mode.""")
 def w_end():
-    global tvm_X
     clear_flag(flag_tvm_begin_mode)
-    tvm_X = flag_int_value(flag_tvm_begin_mode)
 
 
 @defword(name='endcase', doc="""\
@@ -6325,8 +6321,7 @@ def w_words():
 @defword(name='clfin', doc="""\
 Clear financial variables""")
 def w_clfin():
-    global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV
-    global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF, tvm_INT_eff
+    global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV, tvm_CF, tvm_PF
 
     clear_flag(flag_tvm_continuous) # Clear (0, default)=Discrete compounding;   Set (1)=Continuous compounding
     clear_flag(flag_tvm_begin_mode)      # Clear (0, default)=End (ordinary annuity); Set (1)=Begin (annuity due)
@@ -6339,12 +6334,6 @@ def w_clfin():
     tvm_CF  .set_obj(Rpn_Integer(1))
     tvm_PF  .set_obj(Rpn_Integer(1))
 
-    tvm_A  = None
-    tvm_B  = None
-    tvm_C  = None
-    tvm_X  = flag_int_value(flag_tvm_begin_mode)
-    tvm_INT_eff = 0.0
-
 
 @defword(name='CPF', args=1, doc="""\
 Set CF and PF to N  ( n -- )""")
@@ -6354,38 +6343,38 @@ def w_cpf():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
-        raise TypeError("CPF: Type error ({})".format(typename(x)))
+        raise Rpn_E_Type_Error("CPF: Type error ({})".format(typename(x)))
     n = x.value()
     if n < 1:
         param_stack.push(x)
-        raise ValueError("CPF: N must be positive")
+        raise Rpn_E_Value_Error("CPF: N must be positive")
 
     tvm_CF.set_obj(x)
     tvm_PF.set_obj(x)
-    update_tvm_vars(None, None)
 
 
 @defword(name='N', print_x=True, doc="""\
-Solve for Number of payments (N)
+Calculate Number of payments (N)
 
 DEFINITION:
     log((FV*i)/(PV*i))
 N = ------------------
         log(1 + i)""")
 def w_N():
-    global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV
-    global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF, tvm_INT_eff
+    global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV, tvm_CF, tvm_PF
 
-    if any_undefined_p([tvm_INT, tvm_PV, tvm_FV]):
-        raise Rpn_E_Runtime_Error("N: Need INT, PV, and FV")
-
-    update_tvm_vars(None, None)
+    if any_undefined_p([tvm_INT, tvm_PV, tvm_PMT, tvm_FV]):
+        raise Rpn_E_Runtime_Error("N: Need INT, PV, PMT, and FV")
 
     FV = tvm_FV.obj().value()
     PV = tvm_PV.obj().value()
+    C  = tvm_C()
+    i  = tvm_i()
+    # if i is None:
+    #     raise Rpn_E_Fatal("{}: INT is not defined")
 
     # n = ln[(C-FV)/(C+PV)] / ln(1+i)
-    n = math.log((tvm_C - FV) / (tvm_C + PV)) / math.log1p(tvm_INT_eff/100.0)
+    n = math.log((C - FV) / (C + PV)) / math.log1p(i)
     dbg("tvm", 1, "n={}".format(n))
 
     result = Rpn_Float(n)
@@ -6394,17 +6383,14 @@ def w_N():
 
 
 @defword(name='INT', print_x=True, doc="""\
-Solve for INTerest rate (INT)
+Calculate INTerest rate (INT)
 
 Do not confuse this with the "int" command, which truncates values to integers.""")
 def w_INT():
-    global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV
-    global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
+    global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV, tvm_CF, tvm_PF
 
     if any_undefined_p([tvm_N, tvm_PV, tvm_PMT, tvm_FV]):
         raise Rpn_E_Runtime_Error("INT: Need N, PV, PMT, and FV")
-
-    update_tvm_vars(None, None)
 
     N   = tvm_N  .obj().value()
     PV  = tvm_PV .obj().value()
@@ -6432,7 +6418,7 @@ def solve_for_interest():
     dbg("tvm", 3, "i[0] = {}".format(i[0]))
 
     def f(i):
-        X = flag_int_value(flag_tvm_begin_mode)
+        X = tvm_X()
         A = math.expm1(tvm_N.obj().value() * math.log1p(i))
         B = (1.0 + i*X) / i
         C = tvm_PMT.obj().value() * B
@@ -6443,7 +6429,7 @@ def solve_for_interest():
         return res
 
     def df(i):
-        X = flag_int_value(flag_tvm_begin_mode)
+        X = tvm_X()
         A = math.expm1(tvm_N.obj().value() * math.log1p(i))
         B = (1.0 + i*X) / i
         C = tvm_PMT.obj().value() * B
@@ -6491,7 +6477,7 @@ def i_initial_guess():
 
 
 @defword(name='PV', print_x=True, doc="""\
-Solve for Present Value (PV)
+Calculate Present Value (PV)
 
 DEFINITION:
       ( PMT * k      )       1         PMT * k
@@ -6500,18 +6486,16 @@ PV = (  ------- - FV  ) * --------  -  -------
 
 k = 1 if END, 1+ip if BEGIN""")
 def w_PV():
-    global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV
-    global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
+    global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV, tvm_CF, tvm_PF
 
     if any_undefined_p([tvm_N, tvm_INT, tvm_PMT, tvm_FV]):
         raise Rpn_E_Runtime_Error("PV: Need N, INT, PMT, and FV")
 
-    update_tvm_vars(None, None)
-
     FV = tvm_FV.obj().value()
-
+    A  = tvm_A()
+    C  = tvm_C()
     # PV = -[FV + (A*C)] / (A+1)
-    pv = -1.0 * ( (FV + (tvm_A * tvm_C)) / (tvm_A+1.0) )
+    pv = -1.0 * ((FV + (A * C)) / (A + 1.0))
     dbg("tvm", 1, "pv={}".format(pv))
 
     result = Rpn_Float(pv)
@@ -6520,7 +6504,7 @@ def w_PV():
 
 
 @defword(name='PMT', print_x=True, doc="""\
-Solve for PayMenT amount (PMT)
+Calculate PayMenT amount (PMT)
 
 DEFINITION:
        (         PV + FV     )    -ip
@@ -6529,20 +6513,19 @@ PMT = (  PV + --------------  ) * ---
 
 k = 1 if END, 1+ip if BEGIN""")
 def w_PMT():
-    global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV
-    global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
+    global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV, tvm_CF, tvm_PF
 
     if any_undefined_p([tvm_N, tvm_INT, tvm_PV, tvm_FV]):
         raise Rpn_E_Runtime_Error("PMT: Need N, INT, PV, and FV")
 
-    update_tvm_vars(None, None)
-
     N  = tvm_N.obj().value()
     PV = tvm_PV.obj().value()
     FV = tvm_FV.obj().value()
+    A  = tvm_A()
+    B  = tvm_B()
 
     # PMT = -[FV + PV(A+1)] / (A*B)
-    pmt = -1.0 * ( (FV + PV*(tvm_A+1.0)) / (tvm_A * tvm_B) )
+    pmt = -1.0 * ( (FV + PV*(A+1.0)) / (A * B) )
     dbg("tvm", 1, "pmt={}".format(pmt))
 
     result = Rpn_Float(pmt)
@@ -6551,7 +6534,7 @@ def w_PMT():
 
 
 @defword(name='FV', print_x=True, doc="""\
-Solve for Future Value (FV)
+Calculate Future Value (FV)
 
 DEFINITION:
      PMT * k         N    (      PMT * k )
@@ -6560,18 +6543,17 @@ FV = ------- - (1+ip)  * (  PV + -------  )
 
 k = 1 if END, 1+ip if BEGIN""")
 def w_FV():
-    global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV
-    global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF
+    global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV, tvm_CF, tvm_PF
 
     if any_undefined_p([tvm_N, tvm_INT, tvm_PV, tvm_PMT]):
         raise Rpn_E_Runtime_Error("FV: Need N, INT, PV, and PMT")
 
-    update_tvm_vars(None, None)
-
     PV  = tvm_PV .obj().value()
+    A   = tvm_A()
+    C   = tvm_C()
 
     # FV = -[PV + A(PV + C)]
-    fv = -1.0 * ( PV + tvm_A*(PV + tvm_C) )
+    fv = -1.0 * ( PV + A*(PV + C) )
     dbg("tvm", 1, "fv={}".format(fv))
 
     result = Rpn_Float(fv)
@@ -6582,8 +6564,7 @@ def w_FV():
 @defword(name='shfin', print_x=False, doc="""\
 Show financial variables""")
 def w_shfin():
-    global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV
-    global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF, tvm_INT_eff
+    global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV, tvm_CF, tvm_PF
 
     lnwrite()
     writeln("N:           {}".format(fmt(tvm_N  .obj().value()) if tvm_N  .defined() else "[Not set]"))
@@ -6592,16 +6573,16 @@ def w_shfin():
     writeln("PMT:         {}".format(fmt(tvm_PMT.obj().value()) if tvm_PMT.defined() else "[Not set]"))
     writeln("FV:          {}".format(fmt(tvm_FV .obj().value()) if tvm_FV .defined() else "[Not set]"))
     writeln("Compounding: {}".format("CONTINUOUS (flag {} is set)".format(flag_tvm_continuous) if flag_set_p(flag_tvm_continuous) else "DISCRETE (flag {} is clear)".format(flag_tvm_continuous)))
-    writeln("Begin/End:   {}".format("BEGIN (flag {} is set)"     .format(flag_tvm_begin_mode)      if flag_set_p(flag_tvm_begin_mode)      else "END (flag {} is clear)"     .format(flag_tvm_begin_mode)))
+    writeln("Begin/End:   {}".format("BEGIN (flag {} is set)"     .format(flag_tvm_begin_mode) if flag_set_p(flag_tvm_begin_mode) else "END (flag {} is clear)"     .format(flag_tvm_begin_mode)))
     writeln("CF:          {}".format(fmt(tvm_CF  .obj().value()) if tvm_CF  .defined() else "[Not set]"))
     writeln("PF:          {}".format(fmt(tvm_PF  .obj().value()) if tvm_PF  .defined() else "[Not set]"))
     if dbg("tvm"):
         writeln("---------")
-        writeln("int_eff:     {}".format(tvm_INT_eff if tvm_INT_eff is not None else "[Not set]"))
-        writeln("A:           {}".format(tvm_A if tvm_A is not None else "[Not set]"))
-        writeln("B:           {}".format(tvm_B if tvm_B is not None else "[Not set]"))
-        writeln("C:           {}".format(tvm_C if tvm_C is not None else "[Not set]"))
-        writeln("X:           {}".format(tvm_X if tvm_X is not None else "[Not set]"))
+       #writeln("int_eff:     {}".format(tvm_INT_eff if tvm_INT_eff is not None else "[Not set]"))
+        writeln("A:           {}".format(tvm_A() if tvm_A() is not None else "[Not set]"))
+        writeln("B:           {}".format(tvm_B() if tvm_B() is not None else "[Not set]"))
+        writeln("C:           {}".format(tvm_C() if tvm_C() is not None else "[Not set]"))
+        writeln("X:           {}".format(tvm_X() if tvm_X() is not None else "[Not set]"))
 
 
 def validate_N(varname, old, new):
@@ -6680,35 +6661,50 @@ def int_eff_to_nom(int_eff):
     return int_nom
 
 
-def update_tvm_vars(varname_not_used, val_not_used):
-    global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV
-    global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF, tvm_INT_eff
-
+def tvm_i():
     if not tvm_INT.defined():
-        return
+        return None
+    i_e = int_nom_to_eff(tvm_INT.obj().value())
+    dbg("tvm", 3, "{}: i_e={}".format(whoami(), i_e))
+    return i_e / 100.0
 
-    tvm_INT_eff = int_nom_to_eff(tvm_INT.obj().value())
-    dbg("tvm", 3, "update_tvm_vars: tvm_INT_eff={}".format(tvm_INT_eff))
-    i = tvm_INT_eff/100.0
-
+def tvm_X():
     # X = Begin/End flag
-    tvm_X = flag_int_value(flag_tvm_begin_mode) # 0 or 1
+    return flag_int_value(flag_tvm_begin_mode) # 0 or 1
 
+def tvm_A():
     # A = (1+i)^n - 1
-    if tvm_N.defined():
-        n = tvm_N.obj().value()
-        tvm_A = math.expm1(n * math.log1p(i))
-        dbg("tvm", 3, "A={}".format(tvm_A))
+    if not tvm_N.defined():
+        raise Rpn_E_Fatal("{}: PMT is not defined".format(whoami()))
+    n = tvm_N.obj().value()
+    i = tvm_i()
+    if i is None:
+        return None
+    A = math.expm1(n * math.log1p(i))
+    dbg("tvm", 3, "{}: A={}".format(whoami(), A))
+    return A
 
+def tvm_B():
     # B = (1+iX)/i
-    tvm_B = (1.0 + i*tvm_X) / i
-    dbg("tvm", 3, "B={}".format(tvm_B))
+    i = tvm_i()
+    if i is None:
+        return None
+    X = tvm_X()
+    B = (1.0 + i*X) / i
+    dbg("tvm", 3, "{}: B={}".format(whoami(), B))
+    return B
 
+def tvm_C():
     # C = PMT * B
-    if tvm_PMT.defined() and tvm_B is not None:
-        pmt = tvm_PMT.obj().value()
-        tvm_C = pmt * tvm_B
-        dbg("tvm", 3, "C={}".format(tvm_C))
+    if not tvm_PMT.defined():
+        raise Rpn_E_Fatal("{}: PMT is not defined".format(whoami()))
+    PMT = tvm_PMT.obj().value()
+    B = tvm_B()
+    if B is None:
+        return None
+    C = PMT * B
+    dbg("tvm", 3, "{}: C={}".format(whoami(), C))
+    return C
 
 
 def any_undefined_p(var_list):
@@ -7554,16 +7550,16 @@ def define_variables():
     global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV, tvm_CF, tvm_PF
 
     sharpout    = defvar('#OUT',  Rpn_Integer(0), protected=True, readonly=True, noshadow=True)
-    tvm_CF      = defvar('CF',    Rpn_Integer(1), protected=True, noshadow=True, pre_hook=validate_CF,  post_hook=update_tvm_vars, doc="TVM: Compounding Frequency")
+    tvm_CF      = defvar('CF',    Rpn_Integer(1), protected=True, noshadow=True, pre_hook=validate_CF, doc="TVM: Compounding Frequency")
     scr_columns = defvar('COLS',  Rpn_Integer(0), protected=True)
     debugging   = defvar('DEBUG', Rpn_Integer(0), protected=True)
-    tvm_FV      = defvar('FV',    None, protected=True, noshadow=True, pre_hook=validate_FV,  post_hook=update_tvm_vars, doc="TVM: Future Value")
-    tvm_INT     = defvar('INT',   None, protected=True, noshadow=True, pre_hook=validate_INT, post_hook=update_tvm_vars, doc="TVM: Interest rate")
-    tvm_N       = defvar('N',     None, protected=True, noshadow=True, pre_hook=validate_N,   post_hook=update_tvm_vars, doc="TVM: Number of payments")
+    tvm_FV      = defvar('FV',    None, protected=True, noshadow=True, pre_hook=validate_FV,  doc="TVM: Future Value")
+    tvm_INT     = defvar('INT',   None, protected=True, noshadow=True, pre_hook=validate_INT, doc="TVM: Interest rate")
+    tvm_N       = defvar('N',     None, protected=True, noshadow=True, pre_hook=validate_N,   doc="TVM: Number of payments")
     _           = defvar('NUMPY', Rpn_Integer(bool_to_int(have_numpy)), protected=True, readonly=True, noshadow=True)
-    tvm_PF      = defvar('PF',    Rpn_Integer(1), protected=True, noshadow=True, pre_hook=validate_PF,  post_hook=update_tvm_vars, doc="TVM: Payment Frequency")
-    tvm_PMT     = defvar('PMT',   None, protected=True, noshadow=True, pre_hook=validate_PMT, post_hook=update_tvm_vars, doc="TVM: Payment amount")
-    tvm_PV      = defvar('PV',    None, protected=True, noshadow=True, pre_hook=validate_PV,  post_hook=update_tvm_vars, doc="TVM: Present Value")
+    tvm_PF      = defvar('PF',    Rpn_Integer(1), protected=True, noshadow=True, pre_hook=validate_PF,  doc="TVM: Payment Frequency")
+    tvm_PMT     = defvar('PMT',   None, protected=True, noshadow=True, pre_hook=validate_PMT, doc="TVM: Payment amount")
+    tvm_PV      = defvar('PV',    None, protected=True, noshadow=True, pre_hook=validate_PV,  doc="TVM: Present Value")
     scr_rows    = defvar('ROWS',  Rpn_Integer(0), protected=True)
     _           = defvar('SCIPY', Rpn_Integer(bool_to_int(have_scipy)), protected=True, readonly=True, noshadow=True)
     reg_size    = defvar('SIZE',  Rpn_Integer(20), protected=True, noshadow=True, readonly=True)
