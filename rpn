@@ -47,29 +47,39 @@ if have_numpy:
 
 
 # Global variables
-angle_mode        = "d"         # r=Radians, d=Degrees, g=Gradians
-date_re           = r'^(\d{1,2})\.(\d{2})(\d{4})$'
-date_pat          = re.compile(date_re)
-debug_internal    = False
-default_protected = True
-flag_continuous   = 8
-flag_begin        = 9
-flag_max          = 64
-force_interactive = False
-go_interactive    = True
-got_interrupt     = False
-julian_offset     = 1721424 # date.toordinal() returns 1 for 0001-01-01, so compensate
-matrix_max        = 1000
-precision_max     = 48          # more than 10 or 12 is not really practical
-rational_re       = r'(\d+)::(\d+)'
-rational_pat      = re.compile(rational_re)
-register          = dict()
-reg_min           = 10
-reg_max           = 100         # R00..R99; further restricted by reg_size
-show_x            = False
-stat_list         = []
-time_re           = r'^[-+]?(\d+)\.(\d{,2})(\d*)$'
-time_pat          = re.compile(time_re)
+angle_mode              = "d"         # r=Radians, d=Degrees, g=Gradians
+date_re                 = r'^(\d{1,2})\.(\d{2})(\d{4})$'
+date_pat                = re.compile(date_re)
+debug_internal          = False
+default_protected       = True
+flag_tvm_continuous     = 8
+flag_tvm_begin_mode     = 9
+flag_printer_enabled    = 21
+flag_decimal_point      = 28          # Set: 123,456.123  (US)   Clear: 123.456,123  (Europe)
+flag_digit_grouping     = 29          # Set: 1,234,567.01        Clear: 1234567.01
+flag_fence              = 30          # Flags >= flag_fence cannot set set by the user
+# flag_disp_fix         = 40
+# flag_disp_eng         = 41
+flag_grad               = 42
+flag_rad                = 43
+flag_printer_exists     = 55
+flag_max                = 56
+flags_vec               = 0
+force_interactive       = False
+go_interactive          = True
+got_interrupt           = False
+julian_offset           = 1721424 # date.toordinal() returns 1 for 0001-01-01, so compensate
+matrix_max              = 1000
+precision_max           = 16
+rational_re             = r'(\d+)::(\d+)'
+rational_pat            = re.compile(rational_re)
+register                = dict()
+reg_min                 = 17
+reg_max                 = 100         # R00..R99; further restricted by reg_size
+show_x                  = False
+stat_list               = []
+time_re                 = r'^[-+]?(\d+)\.(\d{,2})(\d*)$'
+time_pat                = re.compile(time_re)
 
 # DEG_PER_RAD  = 360 / TAU
 # E            = Base of natural logarithms = exp(1.0)
@@ -597,6 +607,16 @@ class Rpn_Complex:
         return "Complex[{}]".format(repr(self.value()))
 
 
+def frexp10(x):
+    """
+    Return mantissa and exponent (base 10), similar to base-2 frexp()
+    :param x: floating point number
+    :return: tuple (mantissa, exponent)
+    """
+    exp = math.floor(math.log10(x))
+    return x/10**exp, exp
+
+
 class Rpn_Constant:
     def __init__(self, var):
         self._variable = var
@@ -617,30 +637,108 @@ class Rpn_Constant:
         return "Constant[{}]".format(repr(self._variable))
 
 
+# | Mode | 40 | 41 |
+# |------+----+----|
+# | sci  |  0 |  0 |
+# | eng  |  0 |  1 |
+# | fix  |  1 |  0 |
+# | std  |  1 |  1 |
+# |------+----+----|
+#
+# | # digits | 36 | 37 | 38 | 39 |
+# |----------+----+----+----+----|
+# |        0 |  0 |  0 |  0 |  0 |
+# |        1 |  0 |  0 |  0 |  1 |
+# |        2 |  0 |  0 |  1 |  0 |
+# |        3 |  0 |  0 |  1 |  1 |
+# |        4 |  0 |  1 |  0 |  0 |
+# |        5 |  0 |  1 |  0 |  1 |
+# |        6 |  0 |  1 |  1 |  0 |
+# |        7 |  0 |  1 |  1 |  1 |
+# |        8 |  1 |  0 |  0 |  0 |
+# |        9 |  1 |  0 |  0 |  1 |
+# |       10 |  1 |  0 |  1 |  0 |
+# |       11 |  1 |  0 |  1 |  1 |
+# |       12 |  1 |  1 |  0 |  0 |
+# |       13 |  1 |  1 |  0 |  1 |
+# |       14 |  1 |  1 |  1 |  0 |
+# |       15 |  1 |  1 |  1 |  1 |
+# |----------+----+----+----+----|
 class Rpn_Display_Config:
     def __init__(self):
         self._style = None
         self._prec  = None
 
     def set_style(self, style):
-        if style not in ["std", "fix", "sci"]: # "eng"
+        if style not in ["std", "fix", "sci", "eng"]:
             raise Rpn_E_Fatal("{}: Invalid display style '{}'".format(whoami(), style))
         self._style = style
+        if style == "std":
+            for bit in range(4):
+                clear_flag(39 - bit)
 
     def set_prec(self, prec):
         global precision_max
-        if prec < 0 or prec > precision_max:
-            raise Rpn_E_Fatal("{}: Invalid display precision '{}'".format(whoami(), prec))
+        if prec < 0 or prec >= precision_max:
+            raise Rpn_E_Fatal("{}: Invalid display precision '{}' (0..{} expected)".format(whoami(), prec, precision_max - 1))
         self._prec = prec
+        for bit in range(4):
+            if prec & 1<<bit != 0:
+                set_flag(39 - bit)
+            else:
+                clear_flag(39 - bit)
+
+    def eng_notate(self, x, d=3):
+        """
+        Convert a float to a string in engineering units, with specified
+        significant digits
+        :param x: float to convert
+        :param d: number of significant digits
+        :return: string conversion of x in scientific notation
+        """
+
+        if x == 0:
+            return "0." + "0"*(d-1) + "e+00"
+        mant_sign = ""
+        if x < 0.0:
+            mant_sign = "-"
+            x = -x
+        # Normalize the number and round to get d significant digits
+        mant, exp = frexp10(x)
+        r = round(mant,d-1)
+        # Convert back to original scale
+        x = r * math.pow(10.0, exp)
+        # Get integer exponent to group by factors of 1000
+        p = int(math.floor(math.log10(x)))
+        p3 = p // 3
+        # Get root value string
+        value = x / math.pow(10.0, 3*p3)
+        numStr = "{:f}".format(value)
+        # Slice to length, avoid trailing "."
+        if numStr[d] != ".":
+            numStr = numStr[0:d+1]
+        else:
+            numStr = numStr[0:d]
+        # Prepend '-' if necessary
+        numStr = mant_sign + numStr
+        mant_str = "{}".format(numStr)
+        exp_sign = "-" if p3 < 0 else "+"
+        exp_str = "{:02d}".format(abs(3*p3))
+        return mant_str + "e" + exp_sign + exp_str
 
     def fmt(self, x):
-        if type(x) is float and self._style in ["fix", "sci"]:
+        if type(x) is float:
             if self._style == "fix":
-                style_fmt_char = "f"
+                return "{:.{prec}{style}}".format(x, style="f", prec=self._prec)
             elif self._style == "sci":
-                style_fmt_char = "e"
-            return "{:.{prec}{style}}".format(x, style=style_fmt_char, prec=self._prec)
-        elif type(x) is Rpn_Float and self._style in ["fix", "sci"]:
+                return "{:.{prec}{style}}".format(x, style="e", prec=self._prec)
+            elif self._style == "eng":
+                return self.eng_notate(x, self._prec)
+            elif self._style == "std":
+                return str(x)
+            else:
+                raise Rpn_E_Fatal("{}: Invalid style '{}'".format(whoami(), self._style))
+        elif type(x) is Rpn_Float:
             return self.fmt(x.value())
         elif type(x) is Rpn_String:
             return x.value()
@@ -3666,8 +3764,8 @@ Set "Begin" (annuity due) financial mode.
 Do not confuse this with the "begin" command, which starts a loop.""")
 def w_beg():
     global tvm_X
-    flag_set(flag_begin)
-    tvm_X = flag_value(flag_begin)
+    set_flag(flag_tvm_begin_mode)
+    tvm_X = flag_int_value(flag_tvm_begin_mode)
 
 
 @defword(name='begin', doc="""\
@@ -3805,10 +3903,13 @@ def w_cf():
         param_stack.push(x)
         raise TypeError("cf: Type error ({})".format(typename(x)))
 
-    if x.value() < 0 or x.value() > flag_max - 1:
+    if x.value() < 0 or x.value() >= flag_max:
         param_stack.push(x)
         raise ValueError("cf: Flag out of range (0..{} expected)".format(flag_max - 1))
-    flag_clear(x.value())
+    if flag >= flag_fence:
+        param_stack.push(x)
+        raise ValueError("sf: Flag {} cannot be modified".format(flag))
+    clear_flag(x.value())
 
 
 # Some HP calcs call this NEGATE, but why type 6 characters when 3 will do?
@@ -3839,8 +3940,8 @@ def w_cl_dollar_st():
 @defword(name='clflag', doc="""\
 Clear all flags  ( -- )""")
 def w_clflag():
-    global flags_vec
-    flags_vec = 0
+    for i in range(flag_fence):
+        clear_flag(i)
 
 
 @defword(name='clreg', doc="""]
@@ -4078,6 +4179,8 @@ Set angular mode to degrees""")
 def w_deg():
     global angle_mode
     angle_mode = "d"
+    clear_flag(flag_rad)
+    clear_flag(flag_grad)
 
 
 @defword(name='deg?', print_x=True, doc="""\
@@ -4217,8 +4320,8 @@ def w_E():
     param_stack.push(Rpn_Float(E))
 
 
-@defword(name='e^x-1', args=1, print_x=True, doc="""\
-Return (e^X - 1) accurately  ( n - e^x-1 )""")
+@defword(name='expm1', args=1, print_x=True, doc="""\
+Calculate (e^X)-1 accurately  ( x -- (e^x)-1 )""")
 def w_e_x_minus_1():
     x = param_stack.pop()
     if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
@@ -4227,7 +4330,7 @@ def w_e_x_minus_1():
         result = Rpn_Complex.from_complex(cmath.exp(x.value()) - 1.0)
     else:
         param_stack.push(x)
-        raise TypeError("e^x-1: Type error ({})".format(typename(x)))
+        raise TypeError("expm1: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -4256,8 +4359,8 @@ def w_emit():
 Set "End" (ordinary annuity) financial mode.""")
 def w_end():
     global tvm_X
-    flag_clear(flag_begin)
-    tvm_X = flag_value(flag_begin)
+    clear_flag(flag_tvm_begin_mode)
+    tvm_X = flag_int_value(flag_tvm_begin_mode)
 
 
 @defword(name='endcase', doc="""\
@@ -4292,6 +4395,27 @@ ENDCASE
 qv CASE, ENDCASE, OF, OTHERWISE""")
 def w_endof():
     pass                        # Grammar rules handle this word
+
+
+@defword(name='eng', args=1, print_x=False, doc="""\
+Set engineering display  ( n -- )
+
+N specifies the total number of significant digits.""")
+def w_eng():
+    global precision_max
+    x = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(x)
+        raise TypeError("eng: Type error ({})".format(typename(x)))
+
+    if x.value() < 0 or x.value() >= precision_max:
+        param_stack.push(x)
+        raise ValueError("eng: Precision '{}' out of range (0..{} expected)".format(x.value(), precision_max - 1))
+
+    disp_stack.top().set_style("eng")
+    disp_stack.top().set_prec(x.value())
+    clear_flag(40)
+    set_flag(41)
 
 
 @defword(name='epoch', print_x=True, doc="""\
@@ -4362,10 +4486,10 @@ def w_fc_query():
         raise TypeError("fc?: Type error ({})".format(typename(x)))
 
     flag = x.value()
-    if flag < 0 or flag > flag_max - 1:
+    if flag < 0 or flag >= flag_max:
         param_stack.push(x)
         raise ValueError("fc?: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
-    result = Rpn_Integer(bool_to_int(not flag_test(flag)))
+    result = Rpn_Integer(bool_to_int(not flag_set_p(flag)))
     param_stack.push(result)
 
 
@@ -4378,12 +4502,13 @@ def w_fc_query_clear():
         raise TypeError("fc?c: Type error ({})".format(typename(x)))
 
     flag = x.value()
-    if flag < 0 or flag > flag_max - 1:
+    if flag < 0 or flag >= flag_max:
         param_stack.push(x)
         raise ValueError("fc?c: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
-    result = Rpn_Integer(bool_to_int(not flag_test(flag)))
+    result = Rpn_Integer(bool_to_int(not flag_set_p(flag)))
     param_stack.push(result)
-    flag_clear(flag)
+    if flag < flag_fence:
+        clear_flag(flag)
 
 
 @defword(name='fc?s', args=1, print_x=True, doc="""\
@@ -4395,16 +4520,19 @@ def w_fc_query_set():
         raise TypeError("fc?s: Type error ({})".format(typename(x)))
 
     flag = x.value()
-    if flag < 0 or flag > flag_max - 1:
+    if flag < 0 or flag >= flag_max:
         param_stack.push(x)
         raise ValueError("fc?s: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
-    result = Rpn_Integer(bool_to_int(not flag_test(flag)))
+    result = Rpn_Integer(bool_to_int(not flag_set_p(flag)))
     param_stack.push(result)
-    flag_set(flag)
+    if flag < flag_fence:
+        set_flag(flag)
 
 
 @defword(name='fix', args=1, print_x=False, doc="""\
-Set fixed display  ( n -- )""")
+Set fixed display  ( n -- )
+
+N specifies the number of digits after the decimal point.""")
 def w_fix():
     global precision_max
     x = param_stack.pop()
@@ -4412,12 +4540,14 @@ def w_fix():
         param_stack.push(x)
         raise TypeError("fix: Type error ({})".format(typename(x)))
 
-    if x.value() < 0 or x.value() > precision_max:
+    if x.value() < 0 or x.value() >= precision_max:
         param_stack.push(x)
-        raise ValueError("fix: Precision out of range (0..{} expected)".format(precision_max))
+        raise ValueError("fix: Precision '{}' out of range (0..{} expected)".format(x.value(), precision_max - 1))
 
     disp_stack.top().set_style("fix")
     disp_stack.top().set_prec(x.value())
+    set_flag(40)
+    clear_flag(41)
 
 
 @defword(name='floor', args=1, print_x=True, doc="""\
@@ -4449,10 +4579,10 @@ def w_fs_query():
         raise TypeError("fs?: Type error ({})".format(typename(x)))
 
     flag = x.value()
-    if flag < 0 or flag > flag_max - 1:
+    if flag < 0 or flag >= flag_max:
         param_stack.push(x)
         raise ValueError("fs?: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
-    result = Rpn_Integer(bool_to_int(flag_test(flag)))
+    result = Rpn_Integer(bool_to_int(flag_set_p(flag)))
     param_stack.push(result)
 
 
@@ -4465,12 +4595,13 @@ def w_fs_query_clear():
         raise TypeError("fs?c: Type error ({})".format(typename(x)))
 
     flag = x.value()
-    if flag < 0 or flag > flag_max - 1:
+    if flag < 0 or flag >= flag_max:
         param_stack.push(x)
         raise ValueError("fs?c: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
-    result = Rpn_Integer(bool_to_int(flag_test(flag)))
+    result = Rpn_Integer(bool_to_int(flag_set_p(flag)))
     param_stack.push(result)
-    flag_clear(flag)
+    if flag < flag_fence:
+        clear_flag(flag)
 
 
 @defword(name='fs?s', print_x=True, args=1, doc="""\
@@ -4482,12 +4613,13 @@ def w_fs_query_set():
         raise TypeError("fs?s: Type error ({})".format(typename(x)))
 
     flag = x.value()
-    if flag < 0 or flag > flag_max - 1:
+    if flag < 0 or flag >= flag_max:
         param_stack.push(x)
         raise ValueError("fs?s: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
-    result = Rpn_Integer(bool_to_int(flag_test(flag)))
+    result = Rpn_Integer(bool_to_int(flag_set_p(flag)))
     param_stack.push(result)
-    flag_set(flag)
+    if flag < flag_fence:
+        set_flag(flag)
 
 
 @defword(name='fsolve', args=1, str_args=1, print_x=True, doc="""\
@@ -4574,6 +4706,8 @@ Set angular mode to gradians""")
 def w_grad():
     global angle_mode
     angle_mode = "g"
+    clear_flag(flag_rad)
+    set_flag(flag_grad)
 
 
 @defword(name='grad?', print_x=True, doc="""\
@@ -4943,8 +5077,8 @@ def w_ln():
     param_stack.push(result)
 
 
-@defword(name='ln1+x', args=1, print_x=True, doc="""\
-Return ln(1 + X) accurately  ( x - ln(1+x) )""")
+@defword(name='lnp1', args=1, print_x=True, doc="""\
+Calculate ln(1+X) accurately  ( x -- ln(1+x) )""")
 def w_ln_1_plus_x():
     x = param_stack.pop()
     if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
@@ -4953,7 +5087,7 @@ def w_ln_1_plus_x():
         result = Rpn_Complex.from_complex(cmath.log(x.value()) + 1.0)
     else:
         param_stack.push(x)
-        raise TypeError("ln1+x: Type error ({})".format(typename(x)))
+        raise TypeError("lnp1: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
@@ -5427,6 +5561,8 @@ Set angular mode to radians""")
 def w_rad():
     global angle_mode
     angle_mode = "r"
+    set_flag(flag_rad)
+    clear_flag(flag_grad)
 
 
 @defword(name='rad?', print_x=True, doc="""\
@@ -5477,7 +5613,7 @@ def w_rcl():
         param_stack.push(x)
         raise TypeError("rcl: Type error ({})".format(typename(x)))
     reg = x.value()
-    if reg < 0 or reg > reg_size.obj().value() - 1:
+    if reg < 0 or reg >= reg_size.obj().value():
         param_stack.push(x)
         raise ValueError("rcl: Register '{}' out of range (0..{} expected)".format(reg, reg_size.obj().value() - 1))
     param_stack.push(register[reg])
@@ -5623,7 +5759,9 @@ def w_s_plus():
 
 
 @defword(name='sci', args=1, print_x=False, doc="""\
-Set scientific display  ( n -- )""")
+Set scientific display  ( n -- )
+
+N specifies the number of digits after the decimal point.""")
 def w_sci():
     global precision_max
     x = param_stack.pop()
@@ -5631,12 +5769,14 @@ def w_sci():
         param_stack.push(x)
         raise TypeError("sci: Type error ({})".format(typename(x)))
 
-    if x.value() < 0 or x.value() > precision_max:
+    if x.value() < 0 or x.value() >= precision_max:
         param_stack.push(x)
-        raise ValueError("fix: Precision out of range (0..{} expected)".format(precision_max))
+        raise ValueError("fix: Precision '{}' out of range (0..{} expected)".format(x.value(), precision_max - 1))
 
     disp_stack.top().set_style("sci")
     disp_stack.top().set_prec(x.value())
+    clear_flag(40)
+    clear_flag(41)
 
 
 @defword(name='scopes', print_x=False, doc="""\
@@ -5673,10 +5813,13 @@ def w_sf():
         param_stack.push(x)
         raise TypeError("sf: Type error ({})".format(typename(x)))
     flag = x.value()
-    if flag < 0 or flag > flag_max - 1:
+    if flag < 0 or flag >= flag_max:
         param_stack.push(x)
         raise ValueError("sf: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
-    flag_set(flag)
+    if flag >= flag_fence:
+        param_stack.push(x)
+        raise ValueError("sf: Flag {} cannot be modified".format(flag))
+    set_flag(flag)
 
 
 @defword(name='shdebug', print_x=False, doc="""\
@@ -5700,7 +5843,7 @@ def w_shflag():
     global scr_columns
     flags = []
     for f in range(flag_max):
-        flags.append("%02d:%s" % (f, "YES" if flag_test(f) else "no "))
+        flags.append("%02d:%s" % (f, "YES" if flag_set_p(f) else "no "))
 
     list_in_columns(flags, scr_columns.obj().value() - 1)
 
@@ -5781,7 +5924,7 @@ def w_sinh():
 
 @defword(name='size', args=1, print_x=False, doc="""\
 Set register size  ( siz -- )
-Size must be in range [10,220]""")
+Size must be in range [10,100]""")
 def w_size():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
@@ -5878,6 +6021,8 @@ std  ( -- )
 Set display mode to standard.""")
 def w_std():
     disp_stack.top().set_style("std")
+    set_flag(40)
+    set_flag(41)
 
 
 @defword(name='stdev', print_x=True, doc="""\
@@ -5905,7 +6050,7 @@ def w_sto():
         param_stack.push(x)
         raise TypeError("sto: Type error ({}, {})".format(typename(y), typename(x)))
     reg = x.value()
-    if reg < 0 or reg > reg_size.obj().value() - 1:
+    if reg < 0 or reg >= reg_size.obj().value():
         param_stack.push(y)
         param_stack.push(x)
         raise ValueError("sto: Register '{}' out of range (0..{} expected)".format(reg, reg_size.obj().value() - 1))
@@ -6179,8 +6324,8 @@ def w_clfin():
     global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV
     global tvm_A, tvm_B, tvm_C, tvm_X, tvm_CF, tvm_PF, tvm_INT_eff
 
-    flag_clear(flag_continuous) # Clear (0, default)=Discrete compounding;   Set (1)=Continuous compounding
-    flag_clear(flag_begin)      # Clear (0, default)=End (ordinary annuity); Set (1)=Begin (annuity due)
+    clear_flag(flag_tvm_continuous) # Clear (0, default)=Discrete compounding;   Set (1)=Continuous compounding
+    clear_flag(flag_tvm_begin_mode)      # Clear (0, default)=End (ordinary annuity); Set (1)=Begin (annuity due)
 
     tvm_N   .set_obj(None)
     tvm_INT .set_obj(None)
@@ -6193,7 +6338,7 @@ def w_clfin():
     tvm_A  = None
     tvm_B  = None
     tvm_C  = None
-    tvm_X  = flag_value(flag_begin)
+    tvm_X  = flag_int_value(flag_tvm_begin_mode)
     tvm_INT_eff = 0.0
 
 
@@ -6283,7 +6428,7 @@ def solve_for_interest():
     dbg("tvm", 3, "i[0] = {}".format(i[0]))
 
     def f(i):
-        X = flag_value(flag_begin)
+        X = flag_int_value(flag_tvm_begin_mode)
         A = math.expm1(tvm_N.obj().value() * math.log1p(i))
         B = (1.0 + i*X) / i
         C = tvm_PMT.obj().value() * B
@@ -6294,7 +6439,7 @@ def solve_for_interest():
         return res
 
     def df(i):
-        X = flag_value(flag_begin)
+        X = flag_int_value(flag_tvm_begin_mode)
         A = math.expm1(tvm_N.obj().value() * math.log1p(i))
         B = (1.0 + i*X) / i
         C = tvm_PMT.obj().value() * B
@@ -6442,8 +6587,8 @@ def w_shfin():
     writeln("PV:          {}".format(fmt(tvm_PV. obj().value()) if tvm_PV .defined() else "[Not set]"))
     writeln("PMT:         {}".format(fmt(tvm_PMT.obj().value()) if tvm_PMT.defined() else "[Not set]"))
     writeln("FV:          {}".format(fmt(tvm_FV .obj().value()) if tvm_FV .defined() else "[Not set]"))
-    writeln("Compounding: {}".format("CONTINUOUS (flag {} is set)".format(flag_continuous) if flag_test(flag_continuous) else "DISCRETE (flag {} is clear)".format(flag_continuous)))
-    writeln("Begin/End:   {}".format("BEGIN (flag {} is set)"     .format(flag_begin)      if flag_test(flag_begin)      else "END (flag {} is clear)"     .format(flag_begin)))
+    writeln("Compounding: {}".format("CONTINUOUS (flag {} is set)".format(flag_tvm_continuous) if flag_set_p(flag_tvm_continuous) else "DISCRETE (flag {} is clear)".format(flag_tvm_continuous)))
+    writeln("Begin/End:   {}".format("BEGIN (flag {} is set)"     .format(flag_tvm_begin_mode)      if flag_set_p(flag_tvm_begin_mode)      else "END (flag {} is clear)"     .format(flag_tvm_begin_mode)))
     writeln("CF:          {}".format(fmt(tvm_CF  .obj().value()) if tvm_CF  .defined() else "[Not set]"))
     writeln("PF:          {}".format(fmt(tvm_PF  .obj().value()) if tvm_PF  .defined() else "[Not set]"))
     if dbg("tvm"):
@@ -6499,7 +6644,7 @@ def int_nom_to_eff(int_nom):
     CF = tvm_CF.obj().value()
     PF = tvm_PF.obj().value()
 
-    if flag_test(flag_continuous):
+    if flag_set_p(flag_tvm_continuous):
         # int_eff = e^(i/PF) - 1
         int_eff = math.expm1(int_nom / PF)
     else:
@@ -6507,7 +6652,7 @@ def int_nom_to_eff(int_nom):
         int_eff = math.expm1((CF/PF) * math.log1p(int_nom/CF))
 
     dbg("tvm", 3, "int_nom_to_eff ({}): NOM={} -> EFF={}".format(
-        "Continuous" if flag_test(flag_continuous) else "Discrete",
+        "Continuous" if flag_set_p(flag_tvm_continuous) else "Discrete",
         int_nom, int_eff))
     return int_eff
 
@@ -6518,7 +6663,7 @@ def int_eff_to_nom(int_eff):
     CF = tvm_CF.obj().value()
     PF = tvm_PF.obj().value()
 
-    if flag_test(flag_continuous):
+    if flag_set_p(flag_tvm_continuous):
         # int_nom = LN[ (1+int_eff)^PF ]
         int_nom = PF * math.log1p(int_eff)
     else:
@@ -6526,7 +6671,7 @@ def int_eff_to_nom(int_eff):
         int_nom = CF * (math.expm1((PF/CF) * math.log1p(int_eff)))
 
     dbg("tvm", 3, "int_eff_to_nom ({}): EFF={} -> NOM={}".format(
-        "Continuous" if flag_test(flag_continuous) else "Discrete",
+        "Continuous" if flag_set_p(flag_tvm_continuous) else "Discrete",
         int_eff, int_nom))
     return int_nom
 
@@ -6543,7 +6688,7 @@ def update_tvm_vars(varname_not_used, val_not_used):
     i = tvm_INT_eff/100.0
 
     # X = Begin/End flag
-    tvm_X = flag_value(flag_begin) # 0 or 1
+    tvm_X = flag_int_value(flag_tvm_begin_mode) # 0 or 1
 
     # A = (1+i)^n - 1
     if tvm_N.defined():
@@ -6594,9 +6739,9 @@ def execute(executable):
     except TypeError as e:
         #traceback.print_stack(file=sys.stderr)
         lnwriteln(str(e))
-    # except ValueError as e:
-    #     traceback.print_stack(file=sys.stderr)
-    #     lnwriteln(str(e))
+    except ValueError as e:
+        #traceback.print_stack(file=sys.stderr)
+        lnwriteln(str(e))
 
 
 def memoize(f):
@@ -6788,27 +6933,27 @@ def fact_helper(x):
     return result
 
 
-def flag_clear(flag):
+def clear_flag(flag):
     global flags_vec
-    if flag < 0 or flag > flag_max - 1:
+    if flag < 0 or flag >= flag_max:
         raise Rpn_E_Fatal("{}: Flag {} out of range".format(whoami(), flag))
     flags_vec &= ~(1<<flag)
 
-def flag_set(flag):
+def set_flag(flag):
     global flags_vec
-    if flag < 0 or flag > flag_max - 1:
+    if flag < 0 or flag >= flag_max:
         raise Rpn_E_Fatal("{}: Flag {} out of range".format(whoami(), flag))
     flags_vec |= (1<<flag)
 
-def flag_value(flag):
+def flag_int_value(flag):
     global flags_vec
-    if flag < 0 or flag > flag_max - 1:
+    if flag < 0 or flag >= flag_max:
         raise Rpn_E_Fatal("{}: Flag {} out of range".format(whoami(), flag))
-    return bool_to_int(flag_test(flag))
+    return bool_to_int(flag_set_p(flag))
 
-def flag_test(flag):
+def flag_set_p(flag):
     global flags_vec
-    if flag < 0 or flag > flag_max - 1:
+    if flag < 0 or flag >= flag_max:
         raise Rpn_E_Fatal("{}: Flag {} out of range".format(whoami(), flag))
     return True if flags_vec & 1<<flag != 0 else False
 
