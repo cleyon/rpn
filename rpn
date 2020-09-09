@@ -673,9 +673,6 @@ class Rpn_Display_Config:
         if style not in ["std", "fix", "sci", "eng"]:
             raise Rpn_E_Fatal("{}: Invalid display style '{}'".format(whoami(), style))
         self._style = style
-        if style == "std":
-            for bit in range(4):
-                clear_flag(39 - bit)
 
     def set_prec(self, prec):
         global precision_max
@@ -688,24 +685,24 @@ class Rpn_Display_Config:
             else:
                 clear_flag(39 - bit)
 
-    def eng_notate(self, x, d=3):
+    def eng_notate(self, x, sf=3):
         """
         Convert a float to a string in engineering units, with specified
-        significant digits
+        significant figures
         :param x: float to convert
-        :param d: number of significant digits
+        :param sf: number of significant figures
         :return: string conversion of x in scientific notation
         """
 
         if x == 0:
-            return "0." + "0"*(d-1) + "e+00"
+            return "0." + "0"*(sf-1) + "e+00"
         mant_sign = ""
         if x < 0.0:
             mant_sign = "-"
             x = -x
-        # Normalize the number and round to get d significant digits
+        # Normalize the number and round to get sf significant figures
         mant, exp = frexp10(x)
-        r = round(mant,d-1)
+        r = round(mant,sf-1)
         # Convert back to original scale
         x = r * math.pow(10.0, exp)
         # Get integer exponent to group by factors of 1000
@@ -713,18 +710,15 @@ class Rpn_Display_Config:
         p3 = p // 3
         # Get root value string
         value = x / math.pow(10.0, 3*p3)
-        numStr = "{:f}".format(value)
+        num_str = "{:f}".format(value)
         # Slice to length, avoid trailing "."
-        if numStr[d] != ".":
-            numStr = numStr[0:d+1]
+        if num_str[sf] != ".":
+            num_str = num_str[0:sf+1]
         else:
-            numStr = numStr[0:d]
-        # Prepend '-' if necessary
-        numStr = mant_sign + numStr
-        mant_str = "{}".format(numStr)
+            num_str = num_str[0:sf]
         exp_sign = "-" if p3 < 0 else "+"
         exp_str = "{:02d}".format(abs(3*p3))
-        return mant_str + "e" + exp_sign + exp_str
+        return mant_sign + num_str + "e" + exp_sign + exp_str
 
     def fmt(self, x):
         if type(x) is float:
@@ -4314,7 +4308,7 @@ def w_dup():
     param_stack.push(x)
 
 
-@defword(name='E', print_x=True, doc="""\
+@defword(name='E', print_x=False, doc="""\
 Constant: Base of natural logarithms ( -- 2.71828... )""")
 def w_E():
     param_stack.push(Rpn_Float(E))
@@ -4471,7 +4465,7 @@ def w_fact():
     param_stack.push(result)
 
 
-@defword(name='FALSE', print_x=True, doc="""\
+@defword(name='FALSE', print_x=False, doc="""\
 Constant: Logical false  ( -- 0 )""")
 def w_FALSE():
     param_stack.push(Rpn_Integer(0))
@@ -4648,7 +4642,7 @@ def w_fsolve():
     param_stack.push(result)
 
 
-@defword(name='GAMMA', print_x=True, doc="""\
+@defword(name='GAMMA', print_x=False, doc="""\
 Constant: Euler number ( -- 0.5772... )
 
 Do not confuse this with the "gamma" function.""")
@@ -5374,7 +5368,7 @@ def w_perm():
     param_stack.push(result)
 
 
-@defword(name='PI', print_x=True, doc="""\
+@defword(name='PI', print_x=False, doc="""\
 Constant: Pi ( -- 3.14159... )
 
 DEFINITION:
@@ -6018,11 +6012,14 @@ def w_sqrt():
 
 @defword(name='std', print_x=False, doc="""\
 std  ( -- )
+
 Set display mode to standard.""")
 def w_std():
     disp_stack.top().set_style("std")
     set_flag(40)
     set_flag(41)
+    for bit in range(4):
+        clear_flag(39 - bit)
 
 
 @defword(name='stdev', print_x=True, doc="""\
@@ -6099,7 +6096,7 @@ def w_tanh():
     param_stack.push(result)
 
 
-@defword(name='TAU', print_x=True, doc="""\
+@defword(name='TAU', print_x=False, doc="""\
 Constant: Tau ( -- 6.28318... )
 
 DEFINITION:
@@ -6171,7 +6168,7 @@ def w_trace():
         lnwriteln("trace: Tracing is now enabled")
 
 
-@defword(name='TRUE', print_x=True, doc="""\
+@defword(name='TRUE', print_x=False, doc="""\
 Constant: Logical true  ( -- 1 )""")
 def w_TRUE():
     param_stack.push(Rpn_Integer(1))
