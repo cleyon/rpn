@@ -284,7 +284,7 @@ debug_levels = {
     "show"                      : 0,
     "token"                     : 0,
     "trace"                     : 0,
-    "tvm"                       : 3,
+    "tvm"                       : 0,
 }
 
 
@@ -6017,22 +6017,29 @@ def w_shfin():
     global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV, tvm_CF, tvm_PF
 
     lnwrite()
-    writeln("N:           {}".format(fmt(tvm_N  .obj().value()) if tvm_N  .defined() else "[Not set]"))
-    writeln("INT:         {}".format(fmt(tvm_INT.obj().value()) if tvm_INT.defined() else "[Not set]"))
-    writeln("PV:          {}".format(fmt(tvm_PV. obj().value()) if tvm_PV .defined() else "[Not set]"))
-    writeln("PMT:         {}".format(fmt(tvm_PMT.obj().value()) if tvm_PMT.defined() else "[Not set]"))
-    writeln("FV:          {}".format(fmt(tvm_FV .obj().value()) if tvm_FV .defined() else "[Not set]"))
-    writeln("Compounding: {}".format("CONTINUOUS (flag {} is set)".format(flag_tvm_continuous) if flag_set_p(flag_tvm_continuous) else "DISCRETE (flag {} is clear)".format(flag_tvm_continuous)))
-    writeln("Begin/End:   {}".format("BEGIN (flag {} is set)"     .format(flag_tvm_begin_mode) if flag_set_p(flag_tvm_begin_mode) else "END (flag {} is clear)"     .format(flag_tvm_begin_mode)))
-    writeln("CF:          {}".format(fmt(tvm_CF  .obj().value()) if tvm_CF  .defined() else "[Not set]"))
-    writeln("PF:          {}".format(fmt(tvm_PF  .obj().value()) if tvm_PF  .defined() else "[Not set]"))
+    writeln("N:   {}".format(fmt(tvm_N  .obj().value()) if tvm_N  .defined() else "[Not set]"))
+    writeln("INT: {}".format(fmt(tvm_INT.obj().value()) if tvm_INT.defined() else "[Not set]"))
+    writeln("PV:  {}".format(fmt(tvm_PV. obj().value()) if tvm_PV .defined() else "[Not set]"))
+    writeln("PMT: {}".format(fmt(tvm_PMT.obj().value()) if tvm_PMT.defined() else "[Not set]"))
+    writeln("FV:  {}".format(fmt(tvm_FV .obj().value()) if tvm_FV .defined() else "[Not set]"))
+    writeln("--------------")
+    writeln("CF:  {}".format(fmt(tvm_CF .obj().value()) if tvm_CF .defined() else "[Not set]"))
+    writeln("PF:  {}".format(fmt(tvm_PF .obj().value()) if tvm_PF .defined() else "[Not set]"))
+
+    writeln("{} compounding (flag {} is {})".format("CONTINUOUS" if flag_set_p(flag_tvm_continuous) else "DISCRETE",
+                                                    flag_tvm_continuous,
+                                                    "set" if flag_set_p(flag_tvm_continuous) else "clear"))
+    writeln("{} mode (flag {} is {})".format("BEGIN" if flag_set_p(flag_tvm_begin_mode) else "END",
+                                                    flag_tvm_begin_mode,
+                                                    "set" if flag_set_p(flag_tvm_begin_mode) else "clear"))
     if dbg("tvm"):
-        writeln("---------")
-       #writeln("int_eff:     {}".format(tvm_INT_eff if tvm_INT_eff is not None else "[Not set]"))
-        writeln("A:           {}".format(tvm_A() if tvm_A() is not None else "[Not set]"))
-        writeln("B:           {}".format(tvm_B() if tvm_B() is not None else "[Not set]"))
-        writeln("C:           {}".format(tvm_C() if tvm_C() is not None else "[Not set]"))
-        writeln("X:           {}".format(tvm_X() if tvm_X() is not None else "[Not set]"))
+        writeln("----------")
+        writeln("i: {}".format(tvm_i() if tvm_i() is not None else "[undef]"))
+        writeln("A: {}".format(tvm_A() if tvm_A() is not None else "[undef]"))
+        writeln("B: {}".format(tvm_B() if tvm_B() is not None else "[undef]"))
+        writeln("C: {}".format(tvm_C() if tvm_C() is not None else "[undef]"))
+        writeln("X: {} ({} mode)".format(tvm_X() if tvm_X() is not None else "[undef]",
+                                         "BEGIN" if flag_set_p(flag_tvm_begin_mode) else "END"))
 
 
 @defword(name='shflag', print_x=False, doc="""\
@@ -6674,7 +6681,7 @@ def tvm_X():
 def tvm_A():
     # A = (1+i)^n - 1
     if not tvm_N.defined():
-        raise Rpn_E_Fatal("{}: PMT is not defined".format(whoami()))
+        return None
     n = tvm_N.obj().value()
     i = tvm_i()
     if i is None:
@@ -6696,7 +6703,7 @@ def tvm_B():
 def tvm_C():
     # C = PMT * B
     if not tvm_PMT.defined():
-        raise Rpn_E_Fatal("{}: PMT is not defined".format(whoami()))
+        return None
     PMT = tvm_PMT.obj().value()
     B = tvm_B()
     if B is None:
