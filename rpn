@@ -6823,6 +6823,35 @@ PHI = (1 + sqrt(5)) / 2"
 ;
 
 
+\ A few Euclidean functions
+: hypot         doc:"hypot  ( y x -- hypot )  Hypotenuse distance
+
+DEFINITION:
+hypot = sqrt(x^2 + y^2)"
+  | in:y in:x |
+  @y sq  @x sq  +  sqrt
+;
+
+: gcd           doc:"gcd  ( y x -- gcd )  Greatest Common Divisor"
+  begin
+    ?dup  while
+    tuck mod
+  repeat
+;
+
+: lcm           doc:"lcm  ( y x -- lcm )  Least Common Multiple
+
+DEFINITION:
+      |x * y|
+lcm = --------
+      gcd(x,y)"
+  | in:y in:x |
+  @x @y * abs
+  @x @y gcd
+  /
+;
+
+
 \ Conversion functions
 : mm->in doc:"mm->in  ( mm -- inch )  Convert millimeters to inches"
   25.4 / ;
