@@ -295,14 +295,14 @@ def typename(s):
     return t
 
 def whoami():
-    whoami = ""
+    who_i_am = ""
     previous_frame = inspect.currentframe().f_back
     if "self" in previous_frame.f_locals:
-        whoami += previous_frame.f_locals["self"].__class__.__name__ + "#"
-    whoami += previous_frame.f_code.co_name
-    if whoami[:2] == "w_":
-        whoami = whoami[2:]
-    return whoami
+        who_i_am += previous_frame.f_locals["self"].__class__.__name__ + "#"
+    who_i_am += previous_frame.f_code.co_name
+    if who_i_am[:2] == "w_":
+        who_i_am = who_i_am[2:]
+    return who_i_am
 
 def set_debug_level(resource, level = 1):
     global debug_levels
@@ -703,7 +703,7 @@ class Rpn_Display_Config:
             x = -x
         # Normalize the number and round to get sf significant figures
         mant, exp = frexp10(x)
-        r = round(mant,sf-1)
+        r = round(mant, sf-1)
         # Convert back to original scale
         x = r * math.pow(10.0, exp)
         # Get integer exponent to group by factors of 1000
@@ -4651,7 +4651,7 @@ def w_FV():
     C   = tvm_C()
 
     # FV = -[PV + A(PV + C)]
-    fv = -1.0 * ( PV + A*(PV + C) )
+    fv = -1.0 * (PV + A*(PV + C))
     dbg("tvm", 1, "fv={}".format(fv))
 
     result = Rpn_Float(fv)
@@ -5311,7 +5311,7 @@ def w_or():
     param_stack.push(Rpn_Integer(x.value() or y.value()))
 
 
-@defword(name='otherwise',  doc="""\
+@defword(name='otherwise', doc="""\
 Execute a sequence of words based on stack value.  Once a match is
 executed, no other clauses are considered.  OTHERWISE is optional.
 <n> and OF labels must be integers.
@@ -5461,7 +5461,7 @@ def w_PMT():
     B  = tvm_B()
 
     # PMT = -[FV + PV(A+1)] / (A*B)
-    pmt = -1.0 * ( (FV + PV*(A+1.0)) / (A * B) )
+    pmt = -1.0 * ((FV + PV*(A+1.0)) / (A * B))
     dbg("tvm", 1, "pmt={}".format(pmt))
 
     result = Rpn_Float(pmt)
@@ -6502,23 +6502,6 @@ def i_initial_guess():
     return i_0
 
 
-def require_int(identifier, old, new):
-    if type(new) is not Rpn_Integer:
-        raise Rpn_E_Runtime_Error("!{}: Type error ({})".format(identifier, typename(new)))
-
-def require_int_or_float(identifier, old, new):
-    if type(new) not in [Rpn_Integer, Rpn_Float]:
-        raise Rpn_E_Runtime_Error("!{}: Type error ({})".format(identifier, typename(new)))
-
-def require_positive(identifier, old, new):
-    if new.value() <= 0:
-        raise Rpn_E_Runtime_Error("!{}: Must be positive".format(identifier))
-
-def require_non_negative(identifier, old, new):
-    if new.value() < 0:
-        raise Rpn_E_Runtime_Error("!{}: Must be non-negative".format(identifier))
-
-
 def int_nom_to_eff(int_nom):
     global tvm_CF, tvm_PF
 
@@ -7210,8 +7193,7 @@ spacing : int
         columns = [items[i*nrows:(i+1)*nrows] for i in range(ncols)]
         totalwidth = indent - spacing + sum(
             spacing + max(len(item) for item in column)
-            for column in columns
-            )
+            for column in columns)
         # Stop if columns fit. Otherwise, reduce number of columns and
         # try again.
         if totalwidth <= width:
@@ -7519,6 +7501,22 @@ def initialize():
 #     print("identifier={}".format(repr(identifier)))
 #     print("obj={}".format(repr(obj)))
 
+def require_int(identifier, old, new):
+    if type(new) is not Rpn_Integer:
+        raise Rpn_E_Runtime_Error("!{}: Type error ({})".format(identifier, typename(new)))
+
+def require_int_or_float(identifier, old, new):
+    if type(new) not in [Rpn_Integer, Rpn_Float]:
+        raise Rpn_E_Runtime_Error("!{}: Type error ({})".format(identifier, typename(new)))
+
+def require_positive(identifier, old, new):
+    if new.value() <= 0:
+        raise Rpn_E_Runtime_Error("!{}: Must be positive".format(identifier))
+
+def require_non_negative(identifier, old, new):
+    if new.value() < 0:
+        raise Rpn_E_Runtime_Error("!{}: Must be non-negative".format(identifier))
+
 
 def define_variables():
     global sharpout, scr_columns, scr_rows, reg_size
@@ -7621,7 +7619,7 @@ return_stack = Rpn_Stack()
 scope_stack  = Rpn_Stack(1)
 string_stack = Rpn_Stack()
 
-lexer  = lex.lex(optimize=True)
+lexer = lex.lex(optimize=True)
 parser = yacc.yacc(start='evaluate') # , errorlog=yacc.NullLogger())
 
 if __name__ == "__main__":
