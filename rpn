@@ -50,10 +50,10 @@ if have_numpy:
 angle_mode              = "d"         # r=Radians, d=Degrees, g=Gradians
 date_re                 = r'^(\d{1,2})\.(\d{2})(\d{4})$'
 date_pat                = re.compile(date_re)
-debug_internal          = False
 default_protected       = True
 flag_tvm_continuous     = 8
 flag_tvm_begin_mode     = 9
+flag_debug_enabled      = 20
 flag_printer_enabled    = 21
 flag_decimal_point      = 28          # Set: 123,456.123  (US)   Clear: 123.456,123  (Europe)
 flag_digit_grouping     = 29          # Set: 1,234,567.01        Clear: 1234567.01
@@ -305,18 +305,6 @@ def whoami():
         whoami = whoami[2:]
     return whoami
 
-def debug_enabled_p():
-    global debugging
-    try:
-        retval = debugging.obj().value() != 0
-    except NameError:
-        retval = debug_internal
-    return retval
-
-def set_debugging(f):
-    global debugging
-    debugging.set_obj(Rpn_Integer(1 if f else 0))
-
 def set_debug_level(resource, level = 1):
     global debug_levels
 
@@ -340,7 +328,7 @@ just change "dbg(res,1,xxx)" to "dbg(res,-1,xxx)".'''
         traceback.print_stack(file=sys.stderr)
         sys.exit(1)             # Harsh!
 
-    if not debug_enabled_p() or level == 0:
+    if not flag_set_p(flag_debug_enabled) or level == 0:
         return False
     flag = debug_levels[resource] >= level
     if flag and text is not None:
@@ -3142,19 +3130,6 @@ def w_minus():
     param_stack.push(result)
 
 
-@defword(name='-rot', args=3, doc="""\
-Rotate top stack element back to third spot,
-pulling others down  ( z y x -- x z y )
-Equivalent to ROT ROT""")
-def w_minus_rot():
-    x = param_stack.pop()
-    y = param_stack.pop()
-    z = param_stack.pop()
-    param_stack.push(x)
-    param_stack.push(z)
-    param_stack.push(y)
-
-
 @defword(name='.', args=1, print_x=False, doc="""\
 Print top stack value  ( x -- )
 A space is also printed after the number, but no newline.
@@ -3528,12 +3503,6 @@ Create a 3-vector from the stack  ( z y x -- v )""")
         l.append(x)
         v = Rpn_Vector(l)
         param_stack.push(v)
-
-
-@defword(name='?cr', print_x=False, doc="""\
-Print a newline only if necessary to return to left margin""")
-def w_cr():
-    lnwrite()
 
 
 @defword(name='?dup', args=1, doc="""\
@@ -4169,7 +4138,7 @@ def w_date_minus():
 
 @defword(name='dbg.token', hidden=True)
 def w_dbg_token():
-    set_debugging(True)
+    set_flag(flag_debug_enabled)
     set_debug_level("token", 3)
 
 
@@ -4201,13 +4170,6 @@ def w_ddays():
     param_stack.push(Rpn_Integer(xjulian - yjulian))
 
 
-@defword(name='debug', doc="""\
-Toggle debugging state""")
-def w_debug():
-    set_debugging(not debug_enabled_p())
-    lnwriteln("debug: Debugging is now {}".format("enabled" if debug_enabled_p() else "disabled"))
-
-
 @defword(name='deg', doc="""\
 Set angular mode to degrees""")
 def w_deg():
@@ -4215,13 +4177,6 @@ def w_deg():
     angle_mode = "d"
     clear_flag(flag_rad)
     clear_flag(flag_grad)
-
-
-@defword(name='deg?', print_x=True, doc="""\
-Test if angular mode is degrees  ( -- flag )""")
-def w_deg_query():
-    global angle_mode
-    param_stack.push(Rpn_Integer(bool_to_int(angle_mode == "d")))
 
 
 @defword(name='depth', print_x=True, doc="""\
@@ -4503,12 +4458,6 @@ def w_fact():
     param_stack.push(result)
 
 
-@defword(name='FALSE', print_x=False, doc="""\
-Constant: Logical false  ( -- 0 )""")
-def w_FALSE():
-    param_stack.push(Rpn_Integer(0))
-
-
 @defword(name='fc?', args=1, print_x=True, doc="""\
 Test if flag is clear  ( -- bool )""")
 def w_fc_query():
@@ -4770,13 +4719,6 @@ def w_grad():
     set_flag(flag_grad)
 
 
-@defword(name='grad?', print_x=True, doc="""\
-Test if angular mode is gradians  ( -- flag )""")
-def w_grad_query():
-    global angle_mode
-    param_stack.push(Rpn_Integer(bool_to_int(angle_mode == "g")))
-
-
 @defword(name='help', doc="""\
 Show documentation for the following word.""")
 def w_help():
@@ -4908,18 +4850,6 @@ def w_hr():
         param_stack.push(x)
         raise Rpn_E_Type_Error("hr: Type error ({})".format(typename(x)))
     param_stack.push(result)
-
-
-@defword(name='i', print_x=True, doc="""\
-Imaginary unit (0,1)  ( -- i )
-
-DEFINITION:
-i = sqrt(-1)
-
-Do not confuse this with the "I" command,
-which returns the index of a DO loop.""")
-def w_i():
-    param_stack.push(Rpn_Complex(0,1))
 
 
 @defword(name='I', doc="""\
@@ -5318,15 +5248,6 @@ def w_N():
     result = Rpn_Float(n)
     tvm_N.set_obj(result)
     param_stack.push(result)
-
-
-@defword(name='nip', args=2, doc="""\
-Drop second stack element  ( y x -- x )
-Equivalent to SWAP DROP.  J.V. Noble calls this PLUCK.""")
-def w_nip():
-    x = param_stack.pop()
-    y = param_stack.pop()
-    param_stack.push(x)
 
 
 @defword(name='not', args=1, print_x=True, doc="""\
@@ -5739,13 +5660,6 @@ def w_rad():
     clear_flag(flag_grad)
 
 
-@defword(name='rad?', print_x=True, doc="""\
-Test if angular mode is radians  ( -- flag )""")
-def w_rad_query():
-    global angle_mode
-    param_stack.push(Rpn_Integer(bool_to_int(angle_mode == "r")))
-
-
 @defword(name='rand', print_x=True, doc="""\
 Random number  ( -- r )
 r is a float in range [0,1)
@@ -6000,7 +5914,7 @@ def w_sf():
 Show all debug levels""")
 def w_showdebug():
     global scr_columns
-    lnwriteln("Debugging is {}".format("ENABLED" if debug_enabled_p() else "DISABLED"))
+    lnwriteln("Debugging is {}".format("ENABLED" if flag_set_p(flag_debug_enabled) else "disabled"))
 
     dbgs = dict()
     for (resource, level) in debug_levels.items():
@@ -6316,6 +6230,23 @@ def w_TAU():
     param_stack.push(Rpn_Float(TAU))
 
 
+@defword(name='tf', args=1, doc="""\
+Toggle flag  ( f -- )""")
+def w_tf():
+    x = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("tf: Type error ({})".format(typename(x)))
+    flag = x.value()
+    if flag < 0 or flag >= flag_max:
+        param_stack.push(x)
+        raise Rpn_E_Value_Error("tf: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
+    if flag >= flag_fence:
+        param_stack.push(x)
+        raise Rpn_E_Value_Error("tf: Flag {} cannot be modified".format(flag))
+    toggle_flag(flag)
+
+
 @defword(name='then', args=1, doc="""\
 Execute a conditional test.  xxx is executed if <flag> is non-zero.
 <flag> IF xxx [ ELSE yyy ] THEN
@@ -6374,28 +6305,9 @@ def w_trace():
         set_debug_level("trace", 0)
         lnwriteln("trace: Tracing is now disabled")
     else:
-        set_debugging(True)
+        set_flag(flag_debug_enabled)
         set_debug_level("trace", 1)
-        lnwriteln("trace: Tracing is now enabled")
-
-
-@defword(name='TRUE', print_x=False, doc="""\
-Constant: Logical true  ( -- 1 )""")
-def w_TRUE():
-    param_stack.push(Rpn_Integer(1))
-    global show_x
-    show_x = True
-
-
-@defword(name='tuck', args=2, doc="""\
-Duplicate top stack element into third position  ( y x -- x y x )
-Equivalent to SWAP OVER.  J.V. Noble calls this UNDER.""")
-def w_tuck():
-    x = param_stack.pop()
-    y = param_stack.pop()
-    param_stack.push(x)
-    param_stack.push(y)
-    param_stack.push(x)
+        lnwriteln("trace: Tracing is now ENABLED")
 
 
 @defword(name='undef', doc="""\
@@ -6465,7 +6377,7 @@ def w_vars():
             vars[var.name()] = "{}:[undef]".format(var.name()) if not var.defined() else \
                                "{}={}{}".format(var.name(),
                                                 var.obj().value(),
-                                                "(" + typename(var.obj()) + ")" if debug_enabled_p() else "")
+                                                "(" + typename(var.obj()) + ")" if flag_set_p(flag_debug_enabled) else "")
         sorted_vars = []
         for key in sorted(vars, key=str.casefold):
             sorted_vars.append(vars[key])
@@ -6801,6 +6713,23 @@ def convert_radians_to_mode(r, force_mode=None):
 
 def define_secondary_words():
     eval_string("""
+: TRUE          doc:"TRUE  ( -- 1 )
+Constant: Logical true"
+  1 ;
+
+: FALSE         doc:"FALSE  ( -- 0 )
+Constant: Logical false"
+  0 ;
+
+: i             doc:"i  ( -- i )  Imaginary unit (0,1)
+
+DEFINITION:
+i = sqrt(-1)
+
+Do not confuse this with the I command,
+which returns the index of a DO loop."
+  (0,1) ;
+
 : PHI           doc:"PHI  ( -- 1.618... )   Golden ratio
 
 DEFINITION:
@@ -6810,6 +6739,11 @@ PHI = (1 + sqrt(5)) / 2"
 : BL            doc:"BL  ( -- 32 )   ASCII code for a space character"
   32 ;
 
+: ?cr           doc:"?cr  Print a newline only if necessary to return to left margin"
+  @#OUT 0 > if
+    cr
+  then ;
+
 : space         doc:"space   Display one space character"
   BL emit ;
 
@@ -6817,9 +6751,34 @@ PHI = (1 + sqrt(5)) / 2"
   | in:N |
   @N 0 do space loop ;
 
-: mod           doc:"mod  ( y x -- remainder )  Remainder"
-  | in:y in:x |
-  @y @x /mod  drop ;
+
+\ Stack manipulation
+: -rot          doc:"-rot  ( z y x -- x z y )  Rotate back
+Rotate top stack element back to third spot, pulling others down.
+Equivalent to ROT ROT"
+  depth 3 < if
+    ."-rot: Insufficient parameters (3 required)" cr
+  else
+    rot rot
+  then ;
+
+: nip           doc:"nip  ( y x -- x )
+Drop second stack element
+Equivalent to SWAP DROP.  J.V. Noble calls this PLUCK."
+  depth 2 < if
+    ."nip: Insufficient parameters (2 required)" cr
+  else
+    swap drop
+  then ;
+
+: tuck          doc:"tuck  ( y x -- x y x )
+Duplicate top stack element into third position
+Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
+  depth 2 < if
+    ."tuck: Insufficient parameters (2 required)" cr
+  else
+    swap over
+  then ;
 
 : sum           doc:"sum  ( ... -- sum )  Sum all numbers on the stack"
   depth 0= if
@@ -6830,6 +6789,28 @@ PHI = (1 + sqrt(5)) / 2"
       then
   then
 ;
+
+
+: debug         doc:"debug  ( -- )  Toggle debugging state"
+  20 tf
+  20 fs? if
+    ."Debugging is now ENABLED"
+  else
+    ."Debugging is now disabled"
+  cr then ;
+
+: deg?          doc:"deg?  ( -- flag )  Test if angular mode is degrees"
+  42 fc?  43 fc?  and ;
+
+: rad?          doc:"rad?  ( -- flag )  Test if angular mode is radians"
+  42 fc?  43 fs?  and ;
+
+: grad?         doc:"grad?  ( -- flag )  Test if angular mode is gradians"
+  42 fs?  43 fc?  and ;
+
+: mod           doc:"mod  ( y x -- remainder )  Remainder"
+  | in:y in:x |
+  @y @x /mod  drop ;
 
 
 \ A few Euclidean functions
@@ -6915,17 +6896,6 @@ lcm = --------
 
 def define_tertiary_words():
     eval_string("""
-: f1
-  clfin
-  36 !N
-  10.5 !INT
-  7250 1500 - !PV
-  0 !FV
-  \ 12 !CF  12 !PF
-  36 !CF 36 !PF
-  shfin
-  PMT
-;
 """)
 
 
@@ -6979,6 +6949,15 @@ def set_flag(flag):
     if flag < 0 or flag >= flag_max:
         raise Rpn_E_Fatal("{}: Flag {} out of range".format(whoami(), flag))
     flags_vec |= (1<<flag)
+
+def toggle_flag(flag):
+    global flags_vec
+    if flag < 0 or flag >= flag_max:
+        raise Rpn_E_Fatal("{}: Flag {} out of range".format(whoami(), flag))
+    if flag_set_p(flag):
+        clear_flag(flag)
+    else:
+        set_flag(flag)
 
 def flag_int_value(flag):
     global flags_vec
@@ -7377,7 +7356,7 @@ def parse_args():
 
     for opt, arg in opts:
         if opt == "-d":
-            set_debugging(True)
+            set_flag(flag_debug_enabled)
         elif opt == "-f":
             try:
                 load_file(arg)
@@ -7552,13 +7531,12 @@ def initialize():
 
 
 def define_variables():
-    global sharpout, debugging, scr_columns, scr_rows, reg_size
+    global sharpout, scr_columns, scr_rows, reg_size
     global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV, tvm_CF, tvm_PF
 
     sharpout    = defvar('#OUT',  Rpn_Integer(0), protected=True, readonly=True, noshadow=True)
     tvm_CF      = defvar('CF',    Rpn_Integer(1), protected=True, noshadow=True, pre_hook=validate_CF, doc="TVM: Compounding Frequency")
     scr_columns = defvar('COLS',  Rpn_Integer(0), protected=True)
-    debugging   = defvar('DEBUG', Rpn_Integer(0), protected=True)
     tvm_FV      = defvar('FV',    None, protected=True, noshadow=True, pre_hook=validate_FV,  doc="TVM: Future Value")
     tvm_INT     = defvar('INT',   None, protected=True, noshadow=True, pre_hook=validate_INT, doc="TVM: Interest rate")
     tvm_N       = defvar('N',     None, protected=True, noshadow=True, pre_hook=validate_N,   doc="TVM: Number of payments")

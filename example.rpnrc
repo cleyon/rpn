@@ -5,7 +5,6 @@
 : pi    PI    ;
 : q     bye   ;
 : s     swap  ;
-: xroot inv ^ ;
 
 \ Example of word definition
 : dice
