@@ -183,15 +183,15 @@ class Rpn_E_Value_Error(Rpn_Exception):
 # the range {-4095...-1}.
 
 throw_code_name = {
-     -1: 'ABORT',
-     -2: 'ABORT"',
-     -3: 'Stack overflow',
-     -4: 'Stack underflow',
-     -5: 'Return stack overflow',
-     -6: 'Return stack underflow',
-     -7: 'DO-loops nested too deeply during execution',
-     -8: 'Dictionary overflow',
-     -9: 'Invalid memory address',
+    -1 : 'ABORT',
+    -2 : 'ABORT"',
+    -3 : 'Stack overflow',
+    -4 : 'Stack underflow',
+    -5 : 'Return stack overflow',
+    -6 : 'Return stack underflow',
+    -7 : 'DO-loops nested too deeply during execution',
+    -8 : 'Dictionary overflow',
+    -9 : 'Invalid memory address',
     -10: 'Division by zero',
     -11: 'Result out of range',
     -12: 'Argument type mismatch',
@@ -292,8 +292,7 @@ def typename(s):
     t = type(s).__name__
     if t[:4] == "Rpn_":
         return t[4:]
-    else:
-        return t
+    return t
 
 def whoami():
     whoami = ""
@@ -680,7 +679,7 @@ class Rpn_Display_Config:
             else:
                 clear_flag(39 - bit)
 
-    def eng_notate(self, x, sf=3):
+    def eng_notate(self, x):
         """
         Convert a float to a string in engineering units, with specified
         significant figures
@@ -689,6 +688,7 @@ class Rpn_Display_Config:
         :return: string conversion of x in scientific notation
         """
 
+        sf = self._prec
         if x == 0:
             return "0." + "0"*(sf-1) + "e+00"
         mant_sign = ""
@@ -719,20 +719,18 @@ class Rpn_Display_Config:
         if type(x) is float:
             if self._style == "fix":
                 return "{:.{prec}{style}}".format(x, style="f", prec=self._prec)
-            elif self._style == "sci":
+            if self._style == "sci":
                 return "{:.{prec}{style}}".format(x, style="e", prec=self._prec)
-            elif self._style == "eng":
-                return self.eng_notate(x, self._prec)
-            elif self._style == "std":
+            if self._style == "eng":
+                return self.eng_notate(x)
+            if self._style == "std":
                 return str(x)
-            else:
-                raise Rpn_E_Fatal("{}: Invalid style '{}'".format(whoami(), self._style))
-        elif type(x) is Rpn_Float:
+            raise Rpn_E_Fatal("{}: Invalid style '{}'".format(whoami(), self._style))
+        if type(x) is Rpn_Float:
             return self.fmt(x.value())
-        elif type(x) is Rpn_String:
+        if type(x) is Rpn_String:
             return x.value()
-        else:
-            return str(x)
+        return str(x)
 
 
 class Rpn_Do_Loop:
@@ -1139,7 +1137,6 @@ class Rpn_List:
 
     def __call__(self):
         dbg("trace", 2, "trace({})".format(repr(self)))
-        caught_exit = False
         for item in self.listval():
             # lnwriteln("{}: {}.__call__()".format(whoami(), item))
             item.__call__()
@@ -1299,8 +1296,7 @@ class Rpn_Recurse:
     def __repr__(self):
         if self.target() is None:
             return "Recurse[]"
-        else:
-            return "RWord[{}]".format(repr(self.target().name()))
+        return "RWord[{}]".format(repr(self.target().name()))
 
 
 class Rpn_Scope:
@@ -1370,9 +1366,6 @@ class Rpn_Scope:
     def variable(self, identifier):
         return self._variables.get(identifier)
 
-    def words(self):
-        return self._words
-
     def visible_variables(self):
         return list(filter(lambda x: not x[1].hidden(), self.variables().items()))
 
@@ -1382,12 +1375,11 @@ class Rpn_Scope:
     def decorate_varname(self, varname):
         if varname in self.in_varnames() and varname in self.out_varnames():
             return "inout:{}".format(varname)
-        elif varname in self.in_varnames():
+        if varname in self.in_varnames():
             return "in:{}".format(varname)
-        elif varname in self.out_varnames():
+        if varname in self.out_varnames():
             return "out:{}".format(varname)
-        else:
-            return varname
+        return varname
 
     def __str__(self):
         # XXX Fix variable visibility
@@ -1462,7 +1454,7 @@ class Rpn_Sequence:
                         raise Rpn_E_Runtime_Error("{}: {}: Variable '{}' has vanished!".format(whoami(), self.scope_template().name(), varname))
                     if not var.defined():
                         # Undo any previous param_stack pushes if we come across an out variable that's not defined
-                        for x in range(param_stack_pushes):
+                        for _ in range(param_stack_pushes):
                             param_stack.pop()
                         raise Rpn_E_Runtime_Error("{}: Variable '{}' was never set".format(self.scope_template().name(), varname))
                     dbg(whoami(), 1, "{} is {}".format(varname, repr(var.obj())))
@@ -1667,7 +1659,7 @@ class Rpn_String:
         return self._value
 
     def set_value(self, val):
-        self._value == val
+        self._value = val
 
     def __call__(self):
         dbg("trace", 1, "trace({})".format(repr(self)))
@@ -1739,9 +1731,8 @@ class Rpn_Token_Mgr:
                             lnwriteln("[Interrupt; once more to quit]")
                             got_interrupt = True
                             continue
-                        else:
-                            lnwriteln("[Interrupt]")
-                            raise Rpn_E_Top_Level()
+                        lnwriteln("[Interrupt]")
+                        raise Rpn_E_Top_Level()
                     else:
                         got_interrupt = False
 
@@ -2003,12 +1994,11 @@ class Rpn_Word:
     def as_definition(self):
         if typename(self._defn) == 'function':
             return self.name()
-        elif type(self._defn) is Rpn_Sequence:
+        if type(self._defn) is Rpn_Sequence:
             return ": {} {}{} ;".format(self.name(),
                                         'doc:"{}"\n'.format(self.doc()) if self.doc() is not None and len(self.doc()) > 0 else "",
                                         str(self._defn))
-        else:
-            raise Rpn_E_Fatal("{}: Unhandled type {}".format(whoami(), type(self._defn)))
+        raise Rpn_E_Fatal("{}: Unhandled type {}".format(whoami(), type(self._defn)))
 
     def __str__(self):
         return self.name()
@@ -2063,7 +2053,6 @@ tokens = [
     'AT_SIGN',
     'CLOSE_BRACKET',
     'CLOSE_PAREN',
-#   'CMPLX',
     'COLON',
     'COMMA',
     'DOC_STR',
@@ -2352,9 +2341,9 @@ def p_catch(p):
     if word is None:
         lnwriteln("catch: '{}' not found".format(name))
         raise SyntaxError
-    else:
-        dbg("catch", 1, "{}: Creating Rpn_Catch obj for {}".format(whoami(), word))
-        p[0] = Rpn_Catch(word, scope)
+
+    dbg("catch", 1, "{}: Creating Rpn_Catch obj for {}".format(whoami(), word))
+    p[0] = Rpn_Catch(word, scope)
 
 
 def p_colon_def(p):
@@ -2432,8 +2421,8 @@ def p_forget(p):
     if word is None:
         lnwriteln("forget: '{}' not found".format(name))
         raise SyntaxError
-    else:
-        p[0] = Rpn_Forget(word, scope)
+
+    p[0] = Rpn_Forget(word, scope)
 
 
 def p_help(p):
@@ -2471,10 +2460,10 @@ def p_help(p):
     if word is None:
         lnwriteln("help: '{}' not found".format(name))
         raise SyntaxError
-    else:
-        p[0] = Rpn_Help(name, word.doc() if word.doc() is not None \
-                                        and len(word.doc()) > 0 \
-                        else "No help available for '{}'".format(name))
+
+    p[0] = Rpn_Help(name, word.doc() if word.doc() is not None \
+                                    and len(word.doc()) > 0 \
+                    else "No help available for '{}'".format(name))
 
 
 def p_if_then(p):
@@ -2497,8 +2486,8 @@ def p_show(p):
     if word is None:
         lnwriteln("show: '{}' not found".format(name))
         raise SyntaxError
-    else:
-        p[0] = Rpn_Show(word, scope)
+
+    p[0] = Rpn_Show(word, scope)
 
 
 def p_store_var(p):
@@ -2532,16 +2521,17 @@ def p_word(p):
     if word is None:
         lnwriteln("Word '{}' not found".format(name))
         raise SyntaxError
-    else:
-        #print("p_word: word is of type '{}'".format(type(word)))
-        p[0] = word
+
+    #print("p_word: word is of type '{}'".format(type(word)))
+    p[0] = word
 
 
 def p_sequence(p):
     '''sequence : locals_scope executables_list'''
 
     # `locals_scope' is an Rpn_Scope; `executables_list' is an Rpn_List
-    scope = pop_scope("p_sequence() is finishing")
+    #scope = pop_scope("p_sequence() is finishing")
+    pop_scope("p_sequence() is finishing")
     p[0] = Rpn_Sequence(p[1], p[2])
 
 
@@ -2922,14 +2912,14 @@ def w_percent_ch():
             param_stack.push(y)
             param_stack.push(x)
             raise Rpn_E_Value_Error("%ch: Y cannot be zero")
+
+        old = float(y.value())
+        new = float(x.value())
+        r = (new - old) * 100.0 / old
+        if type(x) is Rpn_Integer and type(y) is Rpn_Integer and r.is_integer():
+            result = Rpn_Integer(r)
         else:
-            old = float(y.value())
-            new = float(x.value())
-            r = (new - old) * 100.0 / old
-            if type(x) is Rpn_Integer and type(y) is Rpn_Integer and r.is_integer():
-                result = Rpn_Integer(r)
-            else:
-                result = Rpn_Float(r)
+            result = Rpn_Float(r)
     else:
         param_stack.push(y)
         param_stack.push(x)
@@ -2957,14 +2947,14 @@ def w_percent_t():
             param_stack.push(y)
             param_stack.push(x)
             raise Rpn_E_Value_Error("%t: Y cannot be zero")
+
+        total  = float(y.value())
+        amount = float(x.value())
+        r = amount * 100.0 / total
+        if type(x) is Rpn_Integer and type(y) is Rpn_Integer and r.is_integer():
+            result = Rpn_Integer(r)
         else:
-            total  = float(y.value())
-            amount = float(x.value())
-            r = amount * 100.0 / total
-            if type(x) is Rpn_Integer and type(y) is Rpn_Integer and r.is_integer():
-                result = Rpn_Integer(r)
-            else:
-                result = Rpn_Float(r)
+            result = Rpn_Float(r)
     else:
         param_stack.push(y)
         param_stack.push(x)
@@ -3427,7 +3417,7 @@ def w_greater_than():
 
 @defword(name='>=', args=2, print_x=True, doc="""\
 Test if Y is greater than or equal to X  ( y x -- flag )""")
-def w_less_than_or_equal():
+def w_greater_than_or_equal():
     x = param_stack.pop()
     y = param_stack.pop()
     if     type(x) in [Rpn_Integer, Rpn_Rational, Rpn_Float] \
@@ -3648,7 +3638,7 @@ def w_and():
     if type(x) is not Rpn_Integer or type(y) is not Rpn_Integer:
         param_stack.push(y)
         param_stack.push(x)
-        raise Rpn_E_Type_Error("and: Type error ({})".format(typename(y), typename(y)))
+        raise Rpn_E_Type_Error("and: Type error ({}, {})".format(typename(y), typename(y)))
 
     if x.value() not in [0, 1]:
         param_stack.push(y)
@@ -3773,7 +3763,7 @@ def w_bitand():
 bitnot  ( i1 -- NOT i1 )  Bitwise NOT
 
 Perform a bitwise boolean NOT on an integer.  Sometimes known as INVERT.""")
-def w_bitor():
+def w_bitnot():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
@@ -3801,7 +3791,7 @@ def w_bitor():
 bitxor  ( i2 i1 -- i2 XOR i1 )  Bitwise XOR
 
 Perform a bitwise boolean Exclusive OR on two integers""")
-def w_bitor():
+def w_bitxor():
     x = param_stack.pop()
     y = param_stack.pop()
     if type(x) is not Rpn_Integer or type(y) is not Rpn_Integer:
@@ -3870,14 +3860,14 @@ def w_cf():
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
         raise Rpn_E_Type_Error("cf: Type error ({})".format(typename(x)))
-
-    if x.value() < 0 or x.value() >= flag_max:
+    flag = x.value()
+    if flag < 0 or flag >= flag_max:
         param_stack.push(x)
-        raise Rpn_E_Value_Error("cf: Flag out of range (0..{} expected)".format(flag_max - 1))
+        raise Rpn_E_Value_Error("cf: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
     if flag >= flag_fence:
         param_stack.push(x)
-        raise Rpn_E_Value_Error("sf: Flag {} cannot be modified".format(flag))
-    clear_flag(x.value())
+        raise Rpn_E_Value_Error("cf: Flag {} cannot be modified".format(flag))
+    clear_flag(flag)
 
 
 # Some HP calcs call this NEGATE, but why type 6 characters when 3 will do?
@@ -4055,7 +4045,7 @@ def w_d_to_jd():
         param_stack.push(x)
         raise Rpn_E_Type_Error("d->jd: Type error ({})".format(typename(x)))
 
-    (valid, dateobj, julian) = x.date_info()
+    (valid, _, julian) = x.date_info() # middle value is dateobj
     if not valid:
         param_stack.push(x)
         raise Rpn_E_Value_Error("d->jd: {} is not a valid date".format(x.value()))
@@ -4100,7 +4090,7 @@ def w_date_plus():
     if type(x) is not Rpn_Integer or type(y) is not Rpn_Float:
         param_stack.push(y)
         param_stack.push(x)
-        raise Rpn_E_Type_Error("date+: Type error ({})".format(typename(y), typename(y)))
+        raise Rpn_E_Type_Error("date+: Type error ({}, {})".format(typename(y), typename(y)))
 
     (valid, dateobj, julian) = y.date_info()
     if not valid:
@@ -4122,7 +4112,7 @@ def w_date_minus():
     if type(x) is not Rpn_Integer or type(y) is not Rpn_Float:
         param_stack.push(y)
         param_stack.push(x)
-        raise Rpn_E_Type_Error("date-: Type error ({})".format(typename(y), typename(y)))
+        raise Rpn_E_Type_Error("date-: Type error ({}, {})".format(typename(y), typename(y)))
 
     (valid, dateobj, julian) = y.date_info()
     if not valid:
@@ -4151,15 +4141,15 @@ def w_ddays():
     if type(x) is not Rpn_Float or type(y) is not Rpn_Float:
         param_stack.push(y)
         param_stack.push(x)
-        raise Rpn_E_Type_Error("ddays: Type error ({})".format(typename(y), typename(y)))
+        raise Rpn_E_Type_Error("ddays: Type error ({}, {})".format(typename(y), typename(y)))
 
-    (valid, dateobj, xjulian) = x.date_info()
+    (valid, _, xjulian) = x.date_info() # middle value is dateobj
     if not valid:
         param_stack.push(y)
         param_stack.push(x)
         raise Rpn_E_Value_Error("ddays: {} is not a valid date".format(x.value()))
 
-    (valid, dateobj, yjulian) = y.date_info()
+    (valid, _, yjulian) = y.date_info() # middle value is dateobj
     if not valid:
         param_stack.push(y)
         param_stack.push(x)
@@ -4261,7 +4251,7 @@ def w_dow():
         param_stack.push(x)
         raise Rpn_E_Type_Error("dow: Type error ({})".format(typename(x)))
 
-    (valid, dateobj, julian) = x.date_info()
+    (valid, dateobj, _) = x.date_info() # third value is julian
     if not valid:
         param_stack.push(x)
         raise Rpn_E_Value_Error("dow: {} is not a valid date".format(x.value()))
@@ -4612,8 +4602,8 @@ def w_fsolve():
     x = param_stack.pop()
     if    type(x) not in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
         param_stack.push(x)
-        raise Rpn_E_Type_Error("fsolve: Type error ({}, {})".format(typename(x)))
-    init_guess = float(x.value())
+        raise Rpn_E_Type_Error("fsolve: Type error ({})".format(typename(x)))
+    #init_guess = float(x.value())
     func_to_solve = string_stack.pop().value()
 
     # XXX There are probably error conditions/exceptions I need to catch
@@ -4769,7 +4759,7 @@ def w_hms_plus():
         param_stack.push(x)
         raise Rpn_E_Type_Error("hms+: Type error ({}, {})".format(typename(y), typename(x)))
 
-    ynegative = y.value() < 0
+    #ynegative = y.value() < 0
     if type(y) is Rpn_Integer:
         (yvalid, yhh, ymm, yss, _) = Rpn_Float(y.value()).time_info()
     else:
@@ -4779,7 +4769,7 @@ def w_hms_plus():
         param_stack.push(x)
         raise Rpn_E_Value_Error("hms+: Time {} is not valid".format(y.value()))
 
-    xnegative = y.value() < 0
+    #xnegative = y.value() < 0
     if type(x) is Rpn_Integer:
         (xvalid, xhh, xmm, xss, _) = Rpn_Float(x.value()).time_info()
     else:
@@ -4863,10 +4853,9 @@ def w_I():
     (_I, _) = lookup_variable('_I')
     if _I is None:
         raise Rpn_E_Runtime_Error("'I' not valid here, only in DO loops")
-    elif type(_I.obj()) is not Rpn_Integer:
-        raise FatalError("I is not an Rpn_Integer")
-    else:
-        param_stack.push(_I.obj())
+    if type(_I.obj()) is not Rpn_Integer:
+        raise Rpn_E_Fatal("I is not an Rpn_Integer")
+    param_stack.push(_I.obj())
 
 
 if have_numpy:
@@ -4963,10 +4952,9 @@ def w_J():
     (_J, _) = lookup_variable('_I', 2)
     if _J is None:
         raise Rpn_E_Runtime_Error("'J' not valid here, only in nested DO loops")
-    elif type(_J.obj()) is not Rpn_Integer:
-        raise FatalError("J is not an Rpn_Integer")
-    else:
-        param_stack.push(_J.obj())
+    if type(_J.obj()) is not Rpn_Integer:
+        raise Rpn_E_Fatal("J is not an Rpn_Integer")
+    param_stack.push(_J.obj())
 
 
 @defword(name='jd->d', args=1, print_x=True, doc="""\
@@ -4982,7 +4970,7 @@ def w_jd_to_d():
 
     if x.value() < 1 or x.value() > datetime.date.max.toordinal():
         param_stack.push(x)
-        raise Rpn_E_Value_Error("jd->d: X out of range (1..{} expected)".format(date.max.toordinal()))
+        raise Rpn_E_Value_Error("jd->d: X out of range (1..{} expected)".format(datetime.date.max.toordinal()))
 
     dateobj = datetime.date.fromordinal(x.value() - julian_offset)
     result = Rpn_Float("%d.%02d%04d" % (dateobj.month, dateobj.day, dateobj.year))
@@ -5055,7 +5043,7 @@ def w_lg():
     if    type(x) is Rpn_Integer  and x.value() > 0 \
        or type(x) is Rpn_Float    and x.value() > 0.0 \
        or type(x) is Rpn_Rational and x.value() > 0:
-        r = Rpn_Float(math.log2(float(x.value())))
+        r = math.log2(float(x.value()))
         if type(x) is Rpn_Integer and r.is_integer():
             result = Rpn_Integer(r)
         else:
@@ -5297,7 +5285,7 @@ def w_or():
     if type(x) is not Rpn_Integer or type(y) is not Rpn_Integer:
         param_stack.push(y)
         param_stack.push(x)
-        raise Rpn_E_Type_Error("or: Type error ({})".format(typename(y), typename(y)))
+        raise Rpn_E_Type_Error("or: Type error ({}, {})".format(typename(y), typename(y)))
 
     if x.value() not in [0, 1]:
         param_stack.push(y)
@@ -5455,7 +5443,6 @@ def w_PMT():
     if any_undefined_p([tvm_N, tvm_INT, tvm_PV, tvm_FV]):
         raise Rpn_E_Runtime_Error("PMT: Need N, INT, PV, and FV")
 
-    N  = tvm_N.obj().value()
     PV = tvm_PV.obj().value()
     FV = tvm_FV.obj().value()
     A  = tvm_A()
@@ -5496,7 +5483,7 @@ def w_prompt():
         finally:
             sharpout.set_obj(Rpn_Integer(0))
 
-    error = False
+    #error = False
     newlexer = lexer.clone()
     newlexer.input(x)
     tok = newlexer.token()
@@ -5944,8 +5931,8 @@ def w_shfin():
                                                     flag_tvm_continuous,
                                                     "set" if flag_set_p(flag_tvm_continuous) else "clear"))
     writeln("{} mode (flag {} is {})".format("BEGIN" if flag_set_p(flag_tvm_begin_mode) else "END",
-                                                    flag_tvm_begin_mode,
-                                                    "set" if flag_set_p(flag_tvm_begin_mode) else "clear"))
+                                             flag_tvm_begin_mode,
+                                             "set" if flag_set_p(flag_tvm_begin_mode) else "clear"))
     if dbg("tvm"):
         writeln("----------")
         writeln("i: {}".format(tvm_i() if tvm_i() is not None else "[undef]"))
@@ -6366,21 +6353,21 @@ def w_variable():
 List variables and their values""")
 def w_vars():
     global scr_columns
-    for (i, scope) in scope_stack.items_top_to_bottom():
+    for (_, scope) in scope_stack.items_top_to_bottom():
         if scope_stack.size() > 1:
             lnwriteln("Scope {}".format(scope.name()))
-        vars = dict()
+        my_vars = dict()
         for varname in scope.variables():
             var = scope.variable(varname)
             if var.hidden():
                 continue
-            vars[var.name()] = "{}:[undef]".format(var.name()) if not var.defined() else \
-                               "{}={}{}".format(var.name(),
-                                                var.obj().value(),
-                                                "(" + typename(var.obj()) + ")" if flag_set_p(flag_debug_enabled) else "")
+            my_vars[var.name()] = "{}:[undef]".format(var.name()) if not var.defined() else \
+                                  "{}={}{}".format(var.name(),
+                                                   var.obj().value(),
+                                                   "(" + typename(var.obj()) + ")" if flag_set_p(flag_debug_enabled) else "")
         sorted_vars = []
-        for key in sorted(vars, key=str.casefold):
-            sorted_vars.append(vars[key])
+        for key in sorted(my_vars, key=str.casefold):
+            sorted_vars.append(my_vars[key])
         list_in_columns(sorted_vars, scr_columns.obj().value() - 1)
 
 
@@ -6489,7 +6476,7 @@ def i_initial_guess():
         if PV == 0:
             i_0 = abs((FV + n*PMT) / denom)
         else:
-            i_0 = abs((fv - n*PMT) / denom)
+            i_0 = abs((FV - n*PMT) / denom)
     else:
         # PV case
         if PV*PMT < 0:
@@ -6680,8 +6667,10 @@ def comb_helper(n, r):
     result = 1
     j = 1
     while j <= r:
-        result *= n; n -= 1
-        result /= j; j += 1
+        result *= n
+        n -= 1
+        result /= j
+        j += 1
     return result
 
 
@@ -6690,12 +6679,11 @@ def convert_mode_to_radians(x, force_mode=None):
     mode = force_mode if force_mode is not None else angle_mode
     if mode == "r":
         return x
-    elif mode == "d":
+    if mode == "d":
         return x / DEG_PER_RAD
-    elif mode == "g":
+    if mode == "g":
         return x / GRAD_PER_RAD
-    else:
-        raise Rpn_E_Fatal("{}: Bad angle_mode '{}'".format(whoami(), mode))
+    raise Rpn_E_Fatal("{}: Bad angle_mode '{}'".format(whoami(), mode))
 
 
 def convert_radians_to_mode(r, force_mode=None):
@@ -6703,12 +6691,11 @@ def convert_radians_to_mode(r, force_mode=None):
     mode = force_mode if force_mode is not None else angle_mode
     if mode == "r":
         return r
-    elif mode == "d":
+    if mode == "d":
         return r * DEG_PER_RAD
-    elif mode == "g":
+    if mode == "g":
         return r * GRAD_PER_RAD
-    else:
-        raise Rpn_E_Fatal("{}: Bad angle_mode '{}'".format(whoami(), mode))
+    raise Rpn_E_Fatal("{}: Bad angle_mode '{}'".format(whoami(), mode))
 
 
 def define_secondary_words():
@@ -6969,7 +6956,7 @@ def flag_set_p(flag):
     global flags_vec
     if flag < 0 or flag >= flag_max:
         raise Rpn_E_Fatal("{}: Flag {} out of range".format(whoami(), flag))
-    return True if flags_vec & 1<<flag != 0 else False
+    return bool(flags_vec & 1<<flag != 0)
 
 
 # I should really just use __format__() correctly
@@ -7191,7 +7178,8 @@ class _Getch:
             self.impl = _Getch_Unix()
 
 
-    def __call__(self): return self.impl()
+    def __call__(self):
+        return self.impl()
 
 
 # Jeffrey Magedanz - https://stackoverflow.com/posts/42602689/revisions
@@ -7237,8 +7225,7 @@ spacing : int
         # try again.
         if totalwidth <= width:
             break
-        else:
-            ncols -= 1
+        ncols -= 1
 
     # Pad all items to column width
     for i, column in enumerate(columns):
@@ -7325,26 +7312,24 @@ def to_python_class(n):
     t = type(n)
     if t is np.int64:
         return int(n)
-    elif t is np.float64:
+    if t is np.float64:
         return float(n)
-    elif t is np.complex128:
+    if t is np.complex128:
         return complex(n)
-    else:
-        raise Rpn_E_Fatal("{}: Cannot handle type {}".format(whoami(), t))
+    raise Rpn_E_Fatal("{}: Cannot handle type {}".format(whoami(), t))
 
 
 def to_rpn_class(n):
     t = type(n)
     if t is np.int64:
         return Rpn_Integer(n)
-    elif t is float:
+    if t is float:
         return Rpn_Float(n)
-    elif t is Fraction:
+    if t is Fraction:
         return Rpn_Rational.from_Fraction(n)
-    elif t is complex:
+    if t is complex:
         return Rpn_Complex.from_complex(n)
-    else:
-        raise Rpn_E_Fatal("{}: Cannot handle type {}".format(whoami(), t))
+    raise Rpn_E_Fatal("{}: Cannot handle type {}".format(whoami(), t))
 
 
 def parse_args():
@@ -7551,7 +7536,6 @@ def define_variables():
 
 
 def main():
-    global script_file
     try:
         initialize()
         if go_interactive:
@@ -7576,7 +7560,9 @@ def main_loop():
     lnwriteln("RPN version {}".format(rpn_version))
     if not param_stack.empty():
         if param_stack.size() == 1:
-            w_dup(); w_dot(); w_cr()
+            w_dup()
+            w_dot()
+            w_cr()
         else:
             w_dot_s()
 
@@ -7601,14 +7587,16 @@ def end_program():
 
     if not string_stack.empty():
         if string_stack.size() == 1:
-            w_dollar_dot(); w_cr()
+            w_dollar_dot()
+            w_cr()
         else:
             lnwriteln("Strings:")
             w_dollar_dot_s()
 
     if not param_stack.empty():
         if param_stack.size() == 1:
-            w_dot(); w_cr()
+            w_dot()
+            w_cr()
         else:
             lnwriteln("Stack:")
             w_dot_s()
