@@ -106,6 +106,28 @@
   ;
 
 
+  : chk_15c
+    \ http://www.voidware.com/tvm.htm
+    \
+    \ An accountant is paid $0.01 per second every day and night for a
+    \ year.  The money is deposited directly into her bank account which
+    \ pays 10% interest compounded every second.  What is the correct bank
+    \ balance after one year?
+
+    | result |   331667.006690776891780341908435 !result
+
+    clfin
+    365 24 * 60 * 60 *  !N
+    10 @N /             !INT
+    0                   !PV
+    -0.01               !PMT
+    FV
+
+    ."FV=" dup .
+    @result  announce_result
+  ;
+
+
   ."Checking N... "     chk_N
   ."Checking INT... "   chk_INT
   ."Checking PV... "    chk_PV
@@ -113,26 +135,28 @@
 
   ."Simple interest... "  chk_simple_interest
   ."Compound interest... "  chk_compound_interest
+
+  ."Extreme HP-15C example... " chk_15c
 ;
 
-  : ex4           \ conventional mortgage
-    clfin
-    12 CPF        \ 12 !CF 12 !PF
-    13.25 !INT
-    100e3 !PV
-    -1125.75 !PMT
-    0 !FV
-    shfin
-    N
-  ;
+: ex4           \ conventional mortgage
+  clfin
+  12 CPF        \ 12 !CF 12 !PF
+  13.25 !INT
+  100e3 !PV
+  -1125.75 !PMT
+  0 !FV
+  shfin
+  N
+;
 
-  : points
-    clfin
-    12 CPF
-    360 !N
-    72750 !PV
-    -844.33 !PMT
-    0 !FV
-    shfin
-    INT
-  ;
+: points
+  clfin
+  12 CPF
+  360 !N
+  72750 !PV
+  -844.33 !PMT
+  0 !FV
+  shfin
+  INT
+;
