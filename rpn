@@ -663,10 +663,16 @@ class Rpn_Display_Config:
         self._style = None
         self._prec  = None
 
+    def style(self):
+        return self._style
+
     def set_style(self, style):
         if style not in ["std", "fix", "sci", "eng"]:
             raise Rpn_E_Fatal("{}: Invalid display style '{}'".format(whoami(), style))
         self._style = style
+
+    def prec(self):
+        return self._prec
 
     def set_prec(self, prec):
         global precision_max
@@ -688,7 +694,7 @@ class Rpn_Display_Config:
         :return: string conversion of x in scientific notation
         """
 
-        sf = self._prec
+        sf = self.prec()
         if x == 0:
             return "0." + "0"*(sf-1) + "e+00"
         mant_sign = ""
@@ -717,15 +723,15 @@ class Rpn_Display_Config:
 
     def fmt(self, x):
         if type(x) is float:
-            if self._style == "fix":
-                return "{:.{prec}{style}}".format(x, style="f", prec=self._prec)
-            if self._style == "sci":
-                return "{:.{prec}{style}}".format(x, style="e", prec=self._prec)
-            if self._style == "eng":
+            if self.style() == "fix":
+                return "{:.{prec}{style}}".format(x, style="f", prec=self.prec())
+            if self.style() == "sci":
+                return "{:.{prec}{style}}".format(x, style="e", prec=self.prec())
+            if self.style() == "eng":
                 return self.eng_notate(x)
-            if self._style == "std":
+            if self.style() == "std":
                 return str(x)
-            raise Rpn_E_Fatal("{}: Invalid style '{}'".format(whoami(), self._style))
+            raise Rpn_E_Fatal("{}: Invalid style '{}'".format(whoami(), self.style()))
         if type(x) is Rpn_Float:
             return self.fmt(x.value())
         if type(x) is Rpn_String:
@@ -1608,9 +1614,9 @@ class Rpn_Store_Var:
         if self._modifier == '/' and param_stack.top().zerop():
             raise Rpn_E_Value_Error("{}: X cannot be zero".format(str(self)))
 
-        if var._pre_hook is not None:
+        for pre_hook_func in var.pre_hooks():
             try:
-                var._pre_hook(self.identifier(), var.obj(), param_stack.top())
+                pre_hook_func(self.identifier(), var.obj(), param_stack.top())
             except Rpn_E_Runtime_Error as e:
                 lnwriteln(str(e))
                 return
@@ -1630,8 +1636,8 @@ class Rpn_Store_Var:
         obj = param_stack.pop()
         var.set_obj(obj)
 
-        if var._post_hook is not None:
-            var._post_hook(self.identifier(), obj)
+        for post_hook_func in var.post_hooks():
+            post_hook_func(self.identifier(), obj)
 
     def patch_recurse(self, new_word):
         pass
@@ -1747,16 +1753,16 @@ class Rpn_Variable:
         if not Rpn_Variable.name_valid_p(rawname):
             raise Rpn_E_Fatal("Invalid variable name '{}'".format(rawname))
 
-        self._constant  = False
-        self._doc       = None
-        self._hidden    = False
-        self._rawname   = rawname
-        self._noshadow  = False
-        self._protected = False
-        self._readonly  = False
-        self._rpnobj    = obj
-        self._pre_hook  = None
-        self._post_hook = None
+        self._constant   = False
+        self._doc        = None
+        self._hidden     = False
+        self._rawname    = rawname
+        self._noshadow   = False
+        self._protected  = False
+        self._readonly   = False
+        self._rpnobj     = obj
+        self._pre_hooks  = []
+        self._post_hooks = []
 
         # `constant' is created by user word "constant".  Constants are
         # initialized from the paramteter stack and cannot be modified
@@ -1801,27 +1807,27 @@ class Rpn_Variable:
             self._readonly = kwargs["readonly"]
             del kwargs["readonly"]
 
-        # `pre_hook' is a function that is called before a user-mode
-        # "!VAR" or "undef VAR".  It is called with the following
-        # parameters: variable name, old object (be sure to take
-        # .value()), and the new proposed value.  For "undef", new value
-        # is None.  If system wants to prevent the change, the pre_hook
-        # function should raise a Rpn_E_Runtime_Error exception.
-        # Nothing needs to be returned.
-        if "pre_hook" in kwargs:
-            self._pre_hook = kwargs["pre_hook"]
-            del kwargs["pre_hook"]
+        # `pre_hooks' is a list of functions that are called before a
+        # user-mode "!VAR" or "undef VAR".  It is called with the
+        # following parameters: variable name, old object (be sure to
+        # take .value()), and the new proposed value.  For "undef", new
+        # value is None.  If system wants to prevent the change, the
+        # pre_hook function should raise a Rpn_E_Runtime_Error
+        # exception.  Nothing needs to be returned.
+        if "pre_hooks" in kwargs:
+            self._pre_hooks = kwargs["pre_hooks"]
+            del kwargs["pre_hooks"]
 
-        # `post_hook' is a function that is called after a user-mode
-        # "!VAR" or "undef VAR".  It is used to update other things that
-        # depend on the variable's new value.  Two parameters are
-        # passed: the variable name, and some object: usually the new
-        # value object, but if the variable is deleted then None will be
-        # passed.  Nothing needs to be returned, and no exceptions
-        # should be raised.
-        if "post_hook" in kwargs:
-            self._post_hook = kwargs["post_hook"]
-            del kwargs["post_hook"]
+        # `post_hooks' is a list of functions that are called after a
+        # user-mode "!VAR" or "undef VAR".  It is used to update other
+        # things that depend on the variable's new value.  Two
+        # parameters are passed: the variable name, and some object:
+        # usually the new value object, but if the variable is deleted
+        # then None will be passed.  Nothing needs to be returned, and
+        # no exceptions should be raised.
+        if "post_hooks" in kwargs:
+            self._post_hooks = kwargs["post_hooks"]
+            del kwargs["post_hooks"]
 
         # If there are any keywords left over, they must be ones we
         # don't know about and we want to flag them as errors.
@@ -1861,6 +1867,12 @@ class Rpn_Variable:
 
     def readonly(self):
         return self._readonly
+
+    def pre_hooks(self):
+        return self._pre_hooks
+
+    def post_hooks(self):
+        return self._post_hooks
 
     def __str__(self):
         return str(self._rawname)
@@ -2738,16 +2750,16 @@ def p_undef(p):
         lnwriteln("UNDEF: '{}' out of scope".format(ident))
         raise SyntaxError
 
-    if var._pre_hook is not None:
+    for pre_hook_func in var.pre_hooks():
         try:
-            var._pre_hook(ident, var.obj(), None)
+            pre_hook_func(ident, var.obj(), None)
         except Rpn_E_Runtime_Error as e:
             lnwriteln(str(e))
             return
 
     scope_stack.top().delete_variable(ident)
-    if var._post_hook is not None:
-        var._post_hook(ident, None)
+    for post_hook_func in var.post_hooks():
+        post_hook_func(ident, None)
 
 
 def p_variable(p):
@@ -2814,7 +2826,7 @@ def p_fetch_var(p):
 #############################################################################
 global_scope = Rpn_Scope("GLOBAL")
 
-class defword(object):
+class defword():
     """Register the following word definition in the global scope"""
 
     def __init__(self, **kwargs):
@@ -5500,10 +5512,10 @@ def w_prompt():
 Stash current display configuration.""")
 def w_pushdisp():
     d = Rpn_Display_Config()
-    cur_style = disp_stack.top()._style
+    cur_style = disp_stack.top().style()
     d.set_style(cur_style)
     if cur_style in ["fix", "sci"]:
-        cur_prec = disp_stack.top()._prec
+        cur_prec = disp_stack.top().prec()
         d.set_prec(cur_prec)
     disp_stack.push(d)
 
@@ -6490,42 +6502,21 @@ def i_initial_guess():
     return i_0
 
 
-def validate_N(varname, old, new):
-    if type(new) not in [Rpn_Integer, Rpn_Float]:
-        raise Rpn_E_Runtime_Error("!N: Type error ({})".format(typename(new)))
-    if new.value() < 0:
-        raise Rpn_E_Runtime_Error("!N: Cannot be negative")
-
-def validate_INT(varname, old, new):
-    if type(new) not in [Rpn_Integer, Rpn_Float]:
-        raise Rpn_E_Runtime_Error("!INT: Type error ({})".format(typename(new)))
-    if new.value() < 0:
-        # Technically not true (the best kind of true)
-        raise Rpn_E_Runtime_Error("!INT: Cannot be negative")
-
-def validate_PV(varname, old, new):
-    if type(new) not in [Rpn_Integer, Rpn_Float]:
-        raise Rpn_E_Runtime_Error("!PV: Type error ({})".format(typename(new)))
-
-def validate_PMT(varname, old, new):
-    if type(new) not in [Rpn_Integer, Rpn_Float]:
-        raise Rpn_E_Runtime_Error("!PMT: Type error ({})".format(typename(new)))
-
-def validate_FV(varname, old, new):
-    if type(new) not in [Rpn_Integer, Rpn_Float]:
-        raise Rpn_E_Runtime_Error("!FV: Type error ({})".format(typename(new)))
-
-def validate_CF(varname, old, new):
+def require_int(identifier, old, new):
     if type(new) is not Rpn_Integer:
-        raise Rpn_E_Runtime_Error("!CF: Type error ({})".format(typename(new)))
-    if new.value() < 0:
-        raise Rpn_E_Runtime_Error("!CF: Cannot be negative")
+        raise Rpn_E_Runtime_Error("!{}: Type error ({})".format(identifier, typename(new)))
 
-def validate_PF(varname, old, new):
-    if type(new) is not Rpn_Integer:
-        raise Rpn_E_Runtime_Error("!PF: Type error ({})".format(typename(new)))
+def require_int_or_float(identifier, old, new):
+    if type(new) not in [Rpn_Integer, Rpn_Float]:
+        raise Rpn_E_Runtime_Error("!{}: Type error ({})".format(identifier, typename(new)))
+
+def require_positive(identifier, old, new):
+    if new.value() <= 0:
+        raise Rpn_E_Runtime_Error("!{}: Must be positive".format(identifier))
+
+def require_non_negative(identifier, old, new):
     if new.value() < 0:
-        raise Rpn_E_Runtime_Error("!PF: Cannot be negative")
+        raise Rpn_E_Runtime_Error("!{}: Must be non-negative".format(identifier))
 
 
 def int_nom_to_eff(int_nom):
@@ -7515,21 +7506,35 @@ def initialize():
         eval_string(s)
 
 
+# def example_pre_hook_func(identifier, old_obj, new_obj):
+#     print("example_pre_hook_func:")
+#     print("identifier={}".format(repr(identifier)))
+#     print("old_obj={}".format(repr(old_obj)))
+#     print("new_obj={}".format(repr(new_obj)))
+#     if new_obj.value() < 0:
+#         raise Rpn_E_Runtime_Error("{} cannot be negative".format(identifier))
+#
+# def example_post_hook_func(identifier, obj):
+#     print("example_post_hook_func:")
+#     print("identifier={}".format(repr(identifier)))
+#     print("obj={}".format(repr(obj)))
+
+
 def define_variables():
     global sharpout, scr_columns, scr_rows, reg_size
     global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV, tvm_CF, tvm_PF
 
     sharpout    = defvar('#OUT',  Rpn_Integer(0), protected=True, readonly=True, noshadow=True)
-    tvm_CF      = defvar('CF',    Rpn_Integer(1), protected=True, noshadow=True, pre_hook=validate_CF, doc="TVM: Compounding Frequency")
-    scr_columns = defvar('COLS',  Rpn_Integer(0), protected=True)
-    tvm_FV      = defvar('FV',    None, protected=True, noshadow=True, pre_hook=validate_FV,  doc="TVM: Future Value")
-    tvm_INT     = defvar('INT',   None, protected=True, noshadow=True, pre_hook=validate_INT, doc="TVM: Interest rate")
-    tvm_N       = defvar('N',     None, protected=True, noshadow=True, pre_hook=validate_N,   doc="TVM: Number of payments")
+    tvm_CF      = defvar('CF',    Rpn_Integer(1), protected=True, noshadow=True, pre_hooks=[require_int, require_positive], doc="TVM: Compounding Frequency")
+    scr_columns = defvar('COLS',  Rpn_Integer(0), protected=True, pre_hooks=[require_int, require_positive])
+    tvm_FV      = defvar('FV',    None, protected=True, noshadow=True, pre_hooks=[require_int_or_float],  doc="TVM: Future Value")
+    tvm_INT     = defvar('INT',   None, protected=True, noshadow=True, pre_hooks=[require_int_or_float, require_non_negative], doc="TVM: Interest rate")
+    tvm_N       = defvar('N',     None, protected=True, noshadow=True, pre_hooks=[require_int_or_float, require_positive],   doc="TVM: Number of payments")
     _           = defvar('NUMPY', Rpn_Integer(bool_to_int(have_numpy)), protected=True, readonly=True, noshadow=True)
-    tvm_PF      = defvar('PF',    Rpn_Integer(1), protected=True, noshadow=True, pre_hook=validate_PF,  doc="TVM: Payment Frequency")
-    tvm_PMT     = defvar('PMT',   None, protected=True, noshadow=True, pre_hook=validate_PMT, doc="TVM: Payment amount")
-    tvm_PV      = defvar('PV',    None, protected=True, noshadow=True, pre_hook=validate_PV,  doc="TVM: Present Value")
-    scr_rows    = defvar('ROWS',  Rpn_Integer(0), protected=True)
+    tvm_PF      = defvar('PF',    Rpn_Integer(1), protected=True, noshadow=True, pre_hooks=[require_int, require_positive],  doc="TVM: Payment Frequency")
+    tvm_PMT     = defvar('PMT',   None, protected=True, noshadow=True, pre_hooks=[require_int_or_float], doc="TVM: Payment amount")
+    tvm_PV      = defvar('PV',    None, protected=True, noshadow=True, pre_hooks=[require_int_or_float],  doc="TVM: Present Value")
+    scr_rows    = defvar('ROWS',  Rpn_Integer(0), protected=True, readonly=True)
     _           = defvar('SCIPY', Rpn_Integer(bool_to_int(have_scipy)), protected=True, readonly=True, noshadow=True)
     reg_size    = defvar('SIZE',  Rpn_Integer(20), protected=True, noshadow=True, readonly=True)
     _           = defvar('VER',   Rpn_Float(rpn_version), protected=True, readonly=True, noshadow=True)
@@ -7543,7 +7548,7 @@ def main():
     except Rpn_E_End_Program:
         pass
     except Rpn_E_Fatal as e:
-        if len(e._message) > 0:
+        if len(str(e)) > 0:
             lnwriteln("Fatal error: {}".format(e))
         sys.exit(1)
     except Rpn_E_Throw as e:
