@@ -1,0 +1,59 @@
+* Rectangular coords:
+  (x, y, z)
+
+: rct->sph
+  \ To convert rectangular to spherical:
+  r     = math.sqrt(x**2 + y**2 + z**2)
+  phi   = math.atan2(y, x)
+  theta = math.acos(z/r)
+;
+
+: rct->cyl
+  \ To convert rectangular to cylindrical:
+  rho = math.sqrt(x**2 + y**2)
+  phi = 0                       if x==0 and y==0
+      = math.asin(y/rho)        if x >= 0
+      = math.atan2(y, x)        if x > 0        <====
+      = -math.asin(y/rho)+PI    if x < 0
+  z = z
+;
+
+* Spherical coords:
+  (r, thega, phi)       # ISO / physics convention
+  - r : radial distance
+  - theta : inclination/polar angle
+  - phi : azimuthal angle
+
+: sph->rct
+  \ To convert spherical to rectangular:
+  x = r * math.sin(theta) * math.cos(phi)
+  y = r * math.sin(theta) * math.sin(phi)
+  z = r * math.cos(theta)
+;
+
+: sph->cyl
+  \ To convert spherical to cylindrical:
+  rho = r * math.sin(theta)
+  phi = phi
+  z   = r * math.cos(theta)
+;
+
+* Cylindrical coords
+  (rho, phi, z)
+  - rho : axial radius
+  - phi : azimuth
+  - z : elevation
+
+: cyl->sph
+  \ To convert cylindrical to spherical:
+  r     = math.sqrt(rho**2 + z**2)
+  theta = math.atan2(rho, z)
+  phi   = phi
+;
+
+: cyl->rct
+  \ To convert cylindrical to rectangular:
+  x = rho * math.cos(phi)
+  y = rho * math.sin(phi)
+  z = z
+;
