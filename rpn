@@ -1326,9 +1326,13 @@ class Rpn_Scope:
     def set_word(self, identifier, word):
         if type(word) is not Rpn_Word:
             raise Rpn_E_Fatal("{}: Word {} is not an Rpn_Word".format(whoami(), identifier))
-        # XXX
-        if default_protected and (word.doc() is None or len(word.doc()) == 0) and not word.hidden():
-            print("Warning: Word '{}' has no documentation".format(identifier))
+
+        if default_protected:
+            if (word.doc() is None or len(word.doc()) == 0) and not word.hidden():
+                print("Warning: Word '{}' has no documentation".format(identifier))
+            # if word.args() is None:
+            #     print("Warning: Word '{}' has no args!".format(identifier))
+
         self._words[identifier] = word
 
     def delete_word(self, identifier):
@@ -2876,6 +2880,32 @@ def w_dollar_dot_s_bang():
         lnwriteln(repr(string_stack))
 
 
+@defword(name='$clst', print_x=False, doc="""\
+Clear the string stack""")
+def w_dollar_clst():
+    string_stack.clear()
+
+
+@defword(name='$depth', doc="""\
+String stack depth  ( -- n )""")
+def w_dollar_depth():
+    param_stack.push(Rpn_Integer(string_stack.size()))
+
+
+@defword(name='$drop', str_args=1, doc="""\
+Drop top of string stack  ( -- )""")
+def w_dollar_drop():
+    string_stack.pop()
+
+
+@defword(name='$len', str_args=1, doc="""\
+Length of top element of string stack  ( -- n )""")
+def w_dollar_drop():
+    s = string_stack.top()
+    r = len(s.value())
+    param_stack.push(Rpn_Integer(r))
+
+
 @defword(name='%', args=2, print_x=True, doc="""\
 Percentage  ( base rate -- base percent )
 
@@ -3097,7 +3127,7 @@ def w_plus():
 
 @defword(name='+loop', doc="""\
 Execute a definite loop.
-<limit> <initial> DO xxx <incr> +LOOP
+<limit> <initial> DO ... <incr> +LOOP
 
 The iteration counter is available via I.  LEAVE will exit the loop early.
 
@@ -3286,7 +3316,7 @@ def w_colon():
 
 @defword(name=';', doc="""\
 Terminate WORD definition  ( -- )
-: WORD  [def ...] ;""")
+: WORD  [def ...]  ;""")
 def w_semicolon():
     pass                        # Grammar rules handle this word
 
@@ -3559,7 +3589,7 @@ def w_abort_quote():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='abs', print_x=True, doc="""\
+@defword(name='abs', args=1, print_x=True, doc="""\
 Absolute value  ( x -- |x| )
 
 NOTE: For complex numbers, ABS return the modulus (as a float).""")
@@ -3593,7 +3623,8 @@ def w_abs():
 
 
 @defword(name='acos', args=1, print_x=True, doc="""\
-Inverse cosine  ( cosine -- angle )""")
+Inverse cosine  ( cosine -- angle )
+|x| <= 1""")
 def w_acos():
     x = param_stack.pop()
     if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
@@ -3604,7 +3635,12 @@ def w_acos():
             raise Rpn_E_Value_Error("acos: Argument {} out of range".format(x.value()))
         result = Rpn_Float(convert_radians_to_mode(r))
     elif type(x) is Rpn_Complex:
-        result = Rpn_Complex.from_complex(cmath.acos(x.value()))
+        try:
+            r = cmath.acos(x.value())
+        except ValueError:
+            param_stack.push(x)
+            raise Rpn_E_Value_Error("acos: Argument {} out of range".format(x.value()))
+        result = Rpn_Complex.from_complex(r)
     else:
         param_stack.push(x)
         raise Rpn_E_Type_Error("acos: Type error ({})".format(typename(x)))
@@ -3612,7 +3648,10 @@ def w_acos():
 
 
 @defword(name='acosh', args=1, print_x=True, doc="""\
-Inverse hyperbolic cosine  ( cosine_h -- angle )""")
+Inverse hyperbolic cosine  ( cosine_h -- angle )
+
+DEFINITION:
+acosh(x) = ln(x + sqrt(x^2 - 1)), x >= 1""")
 def w_acosh():
     x = param_stack.pop()
     if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
@@ -3623,7 +3662,12 @@ def w_acosh():
             raise Rpn_E_Value_Error("acosh: Argument {} out of range".format(x.value()))
         result = Rpn_Float(r)
     elif type(x) is Rpn_Complex:
-        result = Rpn_Complex.from_complex(cmath.acosh(x.value()))
+        try:
+            r = cmath.acosh(x.value())
+        except ValueError:
+            param_stack.push(x)
+            raise Rpn_E_Value_Error("acosh: Argument {} out of range".format(x.value()))
+        result = Rpn_Complex.from_complex(r)
     else:
         param_stack.push(x)
         raise Rpn_E_Type_Error("acosh: Type error ({})".format(typename(x)))
@@ -3632,7 +3676,7 @@ def w_acosh():
 
 @defword(name='again', doc="""\
 Execute an indefinite loop forever.
-BEGIN xxx AGAIN
+BEGIN ... AGAIN
 
 LEAVE will exit the loop early.
 
@@ -3665,7 +3709,8 @@ def w_and():
 
 
 @defword(name='asin', args=1, print_x=True, doc="""\
-Inverse sine  ( sine -- angle )""")
+Inverse sine  ( sine -- angle )
+|x| <= 1""")
 def w_asin():
     x = param_stack.pop()
     if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
@@ -3676,7 +3721,12 @@ def w_asin():
             raise Rpn_E_Value_Error("asin: Argument {} out of range".format(x.value()))
         result = Rpn_Float(convert_radians_to_mode(r))
     elif type(x) is Rpn_Complex:
-        result = Rpn_Complex.from_complex(cmath.asin(x.value()))
+        try:
+            r = cmath.asin(x.value())
+        except ValueError:
+            param_stack.push(x)
+            raise Rpn_E_Value_Error("asin: Argument {} out of range".format(x.value()))
+        result = Rpn_Complex.from_complex(r)
     else:
         param_stack.push(x)
         raise Rpn_E_Type_Error("asin: Type error ({})".format(typename(x)))
@@ -3684,7 +3734,10 @@ def w_asin():
 
 
 @defword(name='asinh', args=1, print_x=True, doc="""\
-Inverse hyperbolic sine  ( sine_h -- angle )""")
+Inverse hyperbolic sine  ( sine_h -- angle )
+
+DEFINITION:
+asinh(x) = ln(x + sqrt(x^2 + 1))""")
 def w_asinh():
     x = param_stack.pop()
     if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
@@ -3695,35 +3748,94 @@ def w_asinh():
             raise Rpn_E_Value_Error("asinh: Argument {} out of range".format(x.value()))
         result = Rpn_Float(r)
     elif type(x) is Rpn_Complex:
-        result = Rpn_Complex.from_complex(cmath.asinh(x.value()))
+        try:
+            r = cmath.asinh(x.value())
+        except ValueError:
+            param_stack.push(x)
+            raise Rpn_E_Value_Error("asinh: Argument {} out of range".format(x.value()))
+        result = Rpn_Complex.from_complex(r)
     else:
         param_stack.push(x)
         raise Rpn_E_Type_Error("asinh: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
-@defword(name='atan', print_x=True, doc="""\
-Inverse tangent  ( tangent -- angle )""")
+@defword(name='atan', args=1, print_x=True, doc="""\
+Inverse tangent  ( tangent -- angle )
+
+NOTE:
+Consider using atan2 instead, especially if you are computing atan(y/x).""")
 def w_atan():
     x = param_stack.pop()
     if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
-        result = Rpn_Float(convert_radians_to_mode(math.atan(float(x.value()))))
+        try:
+            r = math.atan(float(x.value()))
+        except ValueError:
+            param_stack.push(x)
+            raise Rpn_E_Value_Error("atan: Argument {} out of range".format(x.value()))
+        result = Rpn_Float(convert_radians_to_mode(r))
     elif type(x) is Rpn_Complex:
-        result = Rpn_Complex.from_complex(cmath.atan(x.value()))
+        try:
+            r = cmath.atan(x.value())
+        except ValueError:
+            param_stack.push(x)
+            raise Rpn_E_Value_Error("atan: Argument {} out of range".format(x.value()))
+        result = Rpn_Complex.from_complex(r)
     else:
         param_stack.push(x)
         raise Rpn_E_Type_Error("atan: Type error ({})".format(typename(x)))
     param_stack.push(result)
 
 
-@defword(name='atanh', print_x=True, doc="""\
-Inverse hyperbolic tangent  ( tangent_h -- angle )""")
+@defword(name='atan2', args=2, print_x=True, doc="""\
+Inverse tangent of y/x  ( y x -- angle )""")
+def w_atan2():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
+        try:
+            r = math.atan2(float(y.value()), float(x.value()))
+        except ValueError:
+            param_stack.push(y)
+            param_stack.push(x)
+            raise Rpn_E_Value_Error("atan2: Invalid arguments ({} {})".format(y.value(), x.value()))
+        result = Rpn_Float(convert_radians_to_mode(r))
+    elif type(x) is Rpn_Complex:
+        # Python cmath doesn't have atan2, so fake it
+        if x.zerop():
+            param_stack.push(y)
+            param_stack.push(x)
+            raise Rpn_E_Value_Error("atan2: Invalid arguments ({} {})".format(y.value(), x.value()))
+        r = cmath.atan(y / x)
+        result = Rpn_Complex.from_complex(r)
+    else:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("atan2: Type error ({} {})".format(typename(y), typename(x)))
+    param_stack.push(result)
+
+
+@defword(name='atanh', args=1, print_x=True, doc="""\
+Inverse hyperbolic tangent  ( tangent_h -- angle )
+
+DEFINITION:
+atanh(x) = 1/2 ln((1+x) / (1-x)), |x| < 1""")
 def w_atanh():
     x = param_stack.pop()
     if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
-        result = Rpn_Float(math.atanh(float(x.value())))
+        try:
+            r = math.atanh(float(x.value()))
+        except ValueError:
+            param_stack.push(x)
+            raise Rpn_E_Value_Error("atanh: Argument {} out of range".format(x.value()))
+        result = Rpn_Float(r)
     elif type(x) is Rpn_Complex:
-        result = Rpn_Complex.from_complex(cmath.atanh(x.value()))
+        try:
+            r = cmath.atanh(x.value())
+        except ValueError:
+            param_stack.push(x)
+            raise Rpn_E_Value_Error("atanh: Argument {} out of range".format(x.value()))
+        result = Rpn_Complex.from_complex(r)
     else:
         param_stack.push(x)
         raise Rpn_E_Type_Error("atanh: Type error ({})".format(typename(x)))
@@ -3740,9 +3852,9 @@ def w_beg():
 
 @defword(name='begin', doc="""\
 Execute an indefinite loop.
-BEGIN xxx AGAIN
-BEGIN xxx <flag> UNTIL
-BEGIN xxx <flag> WHILE yyy REPEAT
+BEGIN ... AGAIN
+BEGIN ... <flag> UNTIL
+BEGIN ... <flag> WHILE ... REPEAT
 
 LEAVE will exit the loop early.  Note that the effect of the test in
 BEGIN...WHILE is opposite that in BEGIN...UNTIL.  The loop repeats
@@ -3828,10 +3940,10 @@ like any word; however the integer value is available to the sequence
 in variable "caseval".
 
 <n> CASE
-  <x> OF xxx ENDOF
-  <y> OF yyy ENDOF
-  <z> OF zzz ENDOF
-  [ OTHERWISE ooo ]
+  <x> OF ... ENDOF
+  <y> OF ... ENDOF
+  <z> OF ... ENDOF
+  [ OTHERWISE ... ]
 ENDCASE
 
 qv ENDCASE, ENDOF, OF, OTHERWISE""")
@@ -3901,12 +4013,6 @@ def w_chs():
     param_stack.push(result)
 
 
-@defword(name='cl$st', doc="""\
-Clear the string stack""")
-def w_cl_dollar_st():
-    string_stack.clear()
-
-
 @defword(name='clfin', doc="""\
 Clear financial variables""")
 def w_clfin():
@@ -3940,7 +4046,7 @@ def w_clreg():
         register[i] = Rpn_Float(0.0)
 
 
-@defword(name='clrst', doc="""\
+@defword(name='clrst', print_x=False, doc="""\
 Clear the return stack.
 
 Do not confuse this with the "clst" command, which clears the parameter stack.""")
@@ -3955,7 +4061,7 @@ def w_clstat():
     stat_list = []
 
 
-@defword(name='clst', doc="""\
+@defword(name='clst', print_x=False, doc="""\
 Clear the stack
 
 Do not confuse this with the "clrst" command, which clears the return stack.
@@ -4012,7 +4118,12 @@ def w_cos():
 
 
 @defword(name='cosh', args=1, print_x=True, doc="""\
-Hyperbolic cosine  ( angle -- cosine_h )""")
+Hyperbolic cosine  ( angle -- cosine_h )
+
+DEFINITION:
+          e^x + e^(-x)
+cosh(x) = ------------
+               2""")
 def w_cosh():
     x = param_stack.pop()
     if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
@@ -4172,8 +4283,23 @@ def w_ddays():
     param_stack.push(Rpn_Integer(xjulian - yjulian))
 
 
+@defword(name='DEG', print_x=False, doc="""\
+Constant: Degrees per radian  ( -- 57.29577... )
+
+DEFINITION:
+DEG == 360/TAU == 180/PI
+
+WARNING:
+Do not confuse this with \"deg\" (which sets the angular mode to degrees).""")
+def w_DEG():
+    param_stack.push(Rpn_Float(DEG_PER_RAD))
+
+
 @defword(name='deg', doc="""\
-Set angular mode to degrees""")
+Set angular mode to degrees.
+
+WARNING:
+Do not confuse this with \"DEG\" (which is the number of degress per radian).""")
 def w_deg():
     global angle_mode
     angle_mode = "d"
@@ -4218,8 +4344,8 @@ def w_dim():
 
 @defword(name='do', doc="""\
 Execute a definite loop.
-<limit> <initial> DO xxx        LOOP
-<limit> <initial> DO xxx <incr> +LOOP
+<limit> <initial> DO ...        LOOP
+<limit> <initial> DO ... <incr> +LOOP
 
 The iteration counter is available via I.  LEAVE will exit the loop early.
 
@@ -4300,8 +4426,7 @@ def w_drop():
 Duplicate top stack element  ( x -- x x )
 Equivalent to 0 PICK""")
 def w_dup():
-    x = param_stack.pop()
-    param_stack.push(x)
+    x = param_stack.top()
     param_stack.push(x)
 
 
@@ -4326,9 +4451,8 @@ def w_e_x_minus_1():
 
 
 @defword(name='else', args=1, doc="""\
-Execute a conditional test.  xxx is executed if <flag> is non-zero,
-otherwise yyy is executed.
-<flag> IF xxx [ ELSE yyy ] THEN
+Execute a conditional test.
+<flag> IF ... [ ELSE ... ] THEN
 
 qv IF, THEN""")
 def w_else():
@@ -4358,10 +4482,10 @@ executed, no other clauses are considered.  OTHERWISE is optional.
 <n> and OF labels must be integers.
 
 <n> CASE
-  <x> OF xxx ENDOF
-  <y> OF yyy ENDOF
-  <z> OF zzz ENDOF
-  [ OTHERWISE aaa ]
+  <x> OF ... ENDOF
+  <y> OF ... ENDOF
+  <z> OF ... ENDOF
+  [ OTHERWISE ... ]
 ENDCASE
 
 qv CASE, ENDOF, OF, OTHERWISE""")
@@ -4375,10 +4499,10 @@ executed, no other clauses are considered.  OTHERWISE is optional.
 <n> and OF labels must be integers.
 
 <n> CASE
-  <x> OF xxx ENDOF
-  <y> OF yyy ENDOF
-  <z> OF zzz ENDOF
-  [ OTHERWISE aaa ]
+  <x> OF ... ENDOF
+  <y> OF ... ENDOF
+  <z> OF ... ENDOF
+  [ OTHERWISE ... ]
 ENDCASE
 
 qv CASE, ENDCASE, OF, OTHERWISE""")
@@ -4553,6 +4677,22 @@ def w_forget():
     pass                        # Grammar rules handle this word
 
 
+# HP-41 calls this FRC, HP-42 calls this FP.  I like FRAC (which appeared
+# on the HP-34C) because it is very clear but still short enough.
+@defword(name='frac', print_x=True, args=1, doc="""\
+Fractional part ( x.q -- 0.q )""")
+def w_frac():
+    x = param_stack.pop()
+    if type(x) is Rpn_Integer:
+        param_stack.push(Rpn_Integer(0))
+    elif type(x) in [Rpn_Rational, Rpn_Float]:
+        result = Rpn_Float(x.value() - int(x.value()))
+        param_stack.push(result)
+    else:
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("frac: Type error ({})".format(typename(x)))
+
+
 @defword(name='fs?', print_x=True, args=1, doc="""\
 Test if flag is set  ( -- bool )""")
 def w_fs_query():
@@ -4660,7 +4800,10 @@ def w_FV():
 
 
 @defword(name='GAMMA', print_x=False, doc="""\
-Constant: Euler number ( -- 0.5772... )
+Constant: Euler-Mascheroni number ( -- 0.5772... )
+
+DEFINITION:
+GAMMA = lim(n->inf, (-ln n + SUM(k=1,n, 1/k)))
 
 Do not confuse this with the "gamma" function.""")
 def w_GAMMA():
@@ -4675,7 +4818,7 @@ def w_gamma():
     x = param_stack.pop()
     if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
         try:
-            r = math.gamma(x.value())
+            r = math.gamma(float(x.value()))
         except ValueError:
             param_stack.push(x)
             raise Rpn_E_Value_Error("gamma: X cannot be a non-positive integer")
@@ -4901,8 +5044,8 @@ Create an NxN identity matrix  ( n -- mat )""")
 
 @defword(name='if', args=1, doc="""\
 Test condition  ( flag -- )
-Execute a conditional test.  xxx is executed if <flag> is non-zero.
-<flag> IF xxx [ ELSE yyy ] THEN
+Execute a conditional test.
+<flag> IF ... [ ELSE ... ] THEN
 
 qv ELSE, THEN""")
 def w_if():
@@ -4928,6 +5071,7 @@ def w_INT():
     #   i = (FV/PV)^(1/n) - 1
     # For PMT != 0, i must be solved by iteration
     if PMT == 0:
+        # XXX Trap math exceptions
         i_eff = math.expm1(math.log(-1.0*(FV/PV)) / N)
     else:
         i_eff = solve_for_interest()
@@ -4940,10 +5084,11 @@ def w_INT():
 
 
 @defword(name='int', args=1, print_x=True, doc="""\
-Integer  ( x -- int )   Truncate to integer
+int  ( x -- int )   Truncate to integer
 
 The result is whatever Python's int() function returns.  Do not confuse this
-with the "INT" command, which solves for financial interest rates.""")
+with the "INT" command, which solves for financial interest rates.
+Consider using floor or ceil instead.""")
 def w_int():
     x = param_stack.pop()
     if type(x) is Rpn_Integer:
@@ -5102,9 +5247,15 @@ Calculate ln(1+X) accurately  ( x -- ln(1+x) )""")
 def w_ln_1_plus_x():
     x = param_stack.pop()
     if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
+        if float(x.value()) == -1.0:
+            param_stack.push(x)
+            raise Rpn_E_Value_Error("lnp1: X cannot be -1")
         result = Rpn_Float(math.log1p(x.value()))
     elif type(x) is Rpn_Complex:
-        result = Rpn_Complex.from_complex(cmath.log(x.value()) + 1.0)
+        if x.value() == complex(-1,0):
+            param_stack.push(x)
+            raise Rpn_E_Value_Error("lnp1: X cannot be (-1,0)")
+        result = Rpn_Complex.from_complex(cmath.log(x.value() + complex(1,0)))
     else:
         param_stack.push(x)
         raise Rpn_E_Type_Error("lnp1: Type error ({})".format(typename(x)))
@@ -5153,7 +5304,7 @@ def w_log():
 
 @defword(name='loop', doc="""\
 Execute a definite loop.
-<limit> <initial> DO xxx LOOP
+<limit> <initial> DO ... LOOP
 
 The iteration counter is available via I.  LEAVE will exit the loop early.
 
@@ -5277,10 +5428,10 @@ executed, no other clauses are considered.  OTHERWISE is optional.
 <n> and OF labels must be integers.
 
 <n> CASE
-  <x> OF xxx ENDOF
-  <y> OF yyy ENDOF
-  <z> OF zzz ENDOF
-  [ OTHERWISE aaa ]
+  <x> OF ... ENDOF
+  <y> OF ... ENDOF
+  <z> OF ... ENDOF
+  [ OTHERWISE ... ]
 ENDCASE
 
 qv CASE, ENDCASE, ENDOF, OTHERWISE""")
@@ -5317,10 +5468,10 @@ executed, no other clauses are considered.  OTHERWISE is optional.
 <n> and OF labels must be integers.
 
 <n> CASE
-  <x> OF xxx ENDOF
-  <y> OF yyy ENDOF
-  <z> OF zzz ENDOF
-  [ OTHERWISE aaa ]
+  <x> OF ... ENDOF
+  <y> OF ... ENDOF
+  <z> OF ... ENDOF
+  [ OTHERWISE ... ]
 ENDCASE
 
 qv CASE, ENDCASE, ENDOF, OF""")
@@ -5413,7 +5564,7 @@ def w_perm():
 
 
 @defword(name='PI', print_x=False, doc="""\
-Constant: Pi ( -- 3.14159... )
+Constant: Pi  ( -- 3.14159... )
 
 DEFINITION:
 PI == TAU/2
@@ -5617,8 +5768,8 @@ def w_r_to_p():
             param_stack.push(x)
             raise Rpn_E_Type_Error("r->p: Type error({}, {})".format(typename(y), typename(x)))
 
-        phi = math.atan2(x.value(), y.value())
-        r   = math.hypot(x.value(), y.value())
+        phi = math.atan2(y.value(), x.value())
+        r   = math.hypot(y.value(), x.value())
         param_stack.push(Rpn_Float(convert_radians_to_mode(phi)))
         param_stack.push(Rpn_Float(r))
     else:
@@ -5690,7 +5841,7 @@ def w_randint():
     param_stack.push(Rpn_Integer(r))
 
 
-@defword(name='rcl', doc="""\
+@defword(name='rcl', args=1, doc="""\
 Recall value of register X  ( reg -- val )""")
 def w_rcl():
     global register, reg_size
@@ -5728,7 +5879,7 @@ def w_recurse():
 
 @defword(name='repeat', doc="""\
 Execute an indefinite loop while a condition is satisfied.
-BEGIN xxx <flag> WHILE yyy REPEAT
+BEGIN ... <flag> WHILE ... REPEAT
 
 LEAVE will exit the loop early.  Note that the effect of the test in
 BEGIN...WHILE is opposite that in BEGIN...UNTIL.  The loop repeats
@@ -6026,8 +6177,42 @@ def w_sin():
     param_stack.push(result)
 
 
+@defword(name='sinc', args=1, print_x=True, doc="""\
+Sine cardinal (sampling function)  ( x -- sinc )
+
+DEFINITION:
+           sin x
+sinc(x) = -------
+             x
+
+sinc(0) == 1""")
+def w_sinc():
+    x = param_stack.pop()
+    if type(x) not in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex]:
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("sinc: Type error ({})".format(typename(x)))
+    if type(x) is Rpn_Complex:
+        if x.zerop():
+            r = complex(1.0, 0.0)
+        else:
+            r = cmath.sin(x.value()) / x.value()
+        result = Rpn_Complex.from_complex(r)
+    else:
+        if x.zerop():
+            r = 1.0
+        else:
+            r = math.sin(convert_mode_to_radians(float(x.value()))) / x.value()
+        result = Rpn_Float(r)
+    param_stack.push(result)
+
+
 @defword(name='sinh', args=1, print_x=True, doc="""\
-Hyperbolic sine  ( angle -- sine_h )""")
+Hyperbolic sine  ( angle -- sine_h )
+
+DEFINITION:
+          e^x - e^(-x)
+sinh(x) = ------------
+               2""")
 def w_sinh():
     x = param_stack.pop()
     if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
@@ -6192,14 +6377,26 @@ def w_swap():
 
 
 @defword(name='tan', args=1, print_x=True, doc="""\
-Tangent  ( angle -- tangent )""")
+Tangent  ( angle -- tangent )
+
+NOTE:
+Angle must not be 90 degrees (TAU/4 radians)""")
 def w_tan():
     x = param_stack.pop()
     if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
-        angle = convert_mode_to_radians(x.value())
-        result = Rpn_Float(math.tan(angle))
+        try:
+            r = math.tan(convert_mode_to_radians(x.value()))
+        except ValueError:
+            param_stack.push(x)
+            raise Rpn_E_Value_Error("tan: Argument {} out of range".format(x.value()))
+        result = Rpn_Float(r)
     elif type(x) is Rpn_Complex:
-        result = Rpn_Complex.from_complex(cmath.tan(x.value()))
+        try:
+            r = cmath.tan(x.value())
+        except ValueError:
+            param_stack.push(x)
+            raise Rpn_E_Value_Error("tan: Argument {} out of range".format(x.value()))
+        result = Rpn_Complex.from_complex(r)
     else:
         param_stack.push(x)
         raise Rpn_E_Type_Error("tan: Type error ({})".format(typename(x)))
@@ -6207,7 +6404,10 @@ def w_tan():
 
 
 @defword(name='tanh', args=1, print_x=True, doc="""\
-Hyperbolic tangent  ( angle -- tangent_h )""")
+Hyperbolic tangent  ( angle -- tangent_h )
+
+DEFINITION:
+tanh(x) = sinh(x) / cosh(x)""")
 def w_tanh():
     x = param_stack.pop()
     if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
@@ -6247,8 +6447,8 @@ def w_tf():
 
 
 @defword(name='then', args=1, doc="""\
-Execute a conditional test.  xxx is executed if <flag> is non-zero.
-<flag> IF xxx [ ELSE yyy ] THEN
+Execute a conditional test.
+<flag> IF ... [ ELSE ... ] THEN
 
 qv ELSE, IF""")
 def w_then():
@@ -6318,7 +6518,7 @@ def w_undef():
 
 @defword(name='until', doc="""\
 Execute an indefinite loop until a condition is satisfied.
-BEGIN xxx <flag> UNTIL
+BEGIN ... <flag> UNTIL
 
 LEAVE will exit the loop early.  Note that the effect of the test in
 BEGIN...WHILE is opposite that in BEGIN...UNTIL.  The loop repeats
@@ -6407,7 +6607,7 @@ def w_vlist():
 
 @defword(name='while', doc="""\
 Execute an indefinite loop while a condition is satisfied.
-BEGIN xxx <flag> WHILE yyy REPEAT
+BEGIN ... <flag> WHILE ... REPEAT
 
 LEAVE will exit the loop early.  Note that the effect of the test in
 BEGIN...WHILE is opposite that in BEGIN...UNTIL.  The loop repeats
@@ -6415,7 +6615,7 @@ while something is true, rather than until it becomes true.
 
 qv AGAIN, BEGIN, LEAVE, REPEAT, UNTIL""")
 def w_while():
-    pass                        # Grammer rules handle this word
+    pass                        # Grammar rules handle this word
 
 
 @defword(name='words', print_x=False, doc="""\
@@ -6829,13 +7029,13 @@ lcm = --------
   9 * 5 / 32 + ;
 
 : g->oz doc:"g->oz  ( g -- oz )  Convert grams to ounces"
-  28.34952    / ;
+  28.349523 / ;
 
 : gal->l  doc:"gal->l  ( gal -- liter )  Convert gallons to liters"
-  3.78541 * ;
+  3.7854118 * ;
 
 : l->gal  doc:"l->gal  ( liter -- gal )  Convert liters to gallons"
-  3.78541 / ;
+  3.7854118 / ;
 
 : kg->lb doc:"kg->lb  ( kg -- lb )  Convert kilograms to pounds"
   0.45359237 / ;
@@ -6844,7 +7044,7 @@ lcm = --------
 \   16.3871     / ;
 
 : oz->g    doc:"oz->g  ( oz -- g )  Convert ounces to grams"
-  28.34952    * ;
+  28.349523 * ;
 
 : lb->kg   doc:"lb->kg  ( lb -- kg )  Convert pounds to kilograms"
   0.45359237 * ;
