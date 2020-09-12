@@ -343,6 +343,31 @@ just change "dbg(res,1,xxx)" to "dbg(res,-1,xxx)".'''
 #       S U P P O R T   C L A S S E S
 #
 #############################################################################
+class Rpn_Stackable:
+    def __init__(self):
+        self._value = None
+        self._label = None
+
+    def value(self):
+        return self._value
+
+    def set_value(self, val):
+        self._value = val
+
+    def label(self):
+        return self._label
+
+    def set_label(self, label):
+        self._label = label
+
+    def __call__(self):
+        dbg("trace", 1, "trace({})".format(repr(self)))
+        param_stack.push(self)
+
+    def patch_recurse(self, _):
+        pass
+
+
 class Rpn_Abort_Quote:
     def __init__(self, val):
         if len(val) < 7 or val[0:6] != 'abort"' or val[-1] != '"':
@@ -564,16 +589,14 @@ class Rpn_Catch:
         return "Catch[{}]".format(repr(self._word.name()))
 
 
-class Rpn_Complex:
+class Rpn_Complex(Rpn_Stackable):
     def __init__(self, real=0.0, imag=0.0):
+        super().__init__()
         self.set_real_imag(real, imag)
 
     @classmethod
     def from_complex(cls, cplx):
         return cls(cplx.real, cplx.imag)
-
-    def value(self):
-        return self._value
 
     def real(self):
         return self.value().real
@@ -582,20 +605,15 @@ class Rpn_Complex:
         return self.value().imag
 
     def set_real_imag(self, real, imag):
-        self._value = complex(float(real), float(imag))
+        self.set_value(complex(float(real), float(imag)))
 
     def zerop(self):
         return self.real() == 0.0 and self.imag() == 0.0
 
-    def __call__(self):
-        dbg("trace", 1, "trace({})".format(repr(self)))
-        param_stack.push(self)
-
-    def patch_recurse(self, new_word):
-        pass
-
     def __str__(self):
-        return "({},{})".format(fmt(self.real()), fmt(self.imag()))
+        s = "({},{})".format(fmt(self.real()), fmt(self.imag()))
+        l = " {" + "{}".format(self.label()) + "}" if self.label() is not None else ""
+        return s + l
 
     def __repr__(self):
         return "Complex[{}]".format(repr(self.value()))
@@ -733,7 +751,9 @@ class Rpn_Display_Config:
                 return str(x)
             raise Rpn_E_Fatal("{}: Invalid style '{}'".format(whoami(), self.style()))
         if type(x) is Rpn_Float:
-            return self.fmt(x.value())
+            s = self.fmt(x.value())
+            l = " {" + "{}".format(x.label()) + "}" if x.label() is not None else ""
+            return s + l
         if type(x) is Rpn_String:
             return x.value()
         return str(x)
@@ -914,19 +934,10 @@ class Rpn_Fetch_Var:
                                     self.identifier())
 
 
-class Rpn_Float:
+class Rpn_Float(Rpn_Stackable):
     def __init__(self, val=0.0):
-        self._value = float(val)
-
-    def __call__(self):
-        dbg("trace", 1, "trace({})".format(repr(self)))
-        param_stack.push(self)
-
-    def value(self):
-        return self._value
-
-    def set_value(self, val):
-        self._value = float(val)
+        super().__init__()
+        self.set_value(float(val))
 
     def zerop(self):
         return self.value() == 0.0
@@ -975,11 +986,10 @@ Failure:  (False, None, None, None, None)"""
             timeobj = None
         return (True, hh, mm, ss, timeobj)
 
-    def patch_recurse(self, new_word):
-        pass
-
     def __str__(self):
-        return "{}".format(self.value()) # sprintf
+        l = " {" + "{}".format(self.label()) + "}" if self.label() is not None else ""
+        s = "{}".format(self.value())
+        return s + l
 
     def __repr__(self):
         return "Float[{}]".format(repr(self.value()))
@@ -1089,28 +1099,18 @@ class Rpn_If_Else:
         return "IfElse[{}, {}]".format(repr(self._seq1), repr(self._seq2))
 
 
-class Rpn_Integer:
+class Rpn_Integer(Rpn_Stackable):
     def __init__(self, val=0):
-        self._value = int(val)
-
-    def value(self):
-        return self._value
-
-    def set_value(self, val):
-        self._value = int(val)
+        super().__init__()
+        self.set_value(int(val))
 
     def zerop(self):
         return self.value() == 0
 
-    def __call__(self):
-        dbg("trace", 1, "trace({})".format(repr(self)))
-        param_stack.push(self)
-
-    def patch_recurse(self, new_word):
-        pass
-
     def __str__(self):
-        return "{}".format(self.value()) # sprintf
+        s = "{}".format(self.value())
+        l = " {" + "{}".format(self.label()) + "}" if self.label() is not None else ""
+        return s + l
 
     def __repr__(self):
         return "Integer[{}]".format(repr(self.value()))
@@ -1231,9 +1231,10 @@ class Rpn_Queue:
         self._q.put(item)
 
 
-class Rpn_Rational:
+class Rpn_Rational(Rpn_Stackable):
     def __init__(self, num=0, denom=1):
-        self._value = Fraction(int(num), int(denom))
+        super().__init__()
+        self.set_value(Fraction(int(num), int(denom)))
 
     @classmethod
     def from_Fraction(cls, frac):
@@ -1245,9 +1246,6 @@ class Rpn_Rational:
         if match is None:
             raise Rpn_E_Fatal("Rational pattern failed to match '{}'".format(s))
         return cls(match.group(1), match.group(2))
-
-    def value(self):
-        return self._value
 
     def numerator(self):
         return self.value().numerator
@@ -1261,15 +1259,10 @@ class Rpn_Rational:
     def zerop(self):
         return self.numerator() == 0
 
-    def __call__(self):
-        dbg("trace", 1, "trace({})".format(repr(self)))
-        param_stack.push(self)
-
-    def patch_recurse(self, new_word):
-        pass
-
     def __str__(self):
-        return "{}::{}".format(self.numerator(), self.denominator())
+        s = "{}::{}".format(self.numerator(), self.denominator())
+        l = " [{}]".format(self.label()) if self.label() is not None else ""
+        return s + l
 
     def __repr__(self):
         return "Rational[{}]".format(repr(self.value()))
@@ -5769,9 +5762,15 @@ def w_r_to_p():
             raise Rpn_E_Type_Error("r->p: Type error({}, {})".format(typename(y), typename(x)))
 
         phi = math.atan2(y.value(), x.value())
-        r   = math.hypot(y.value(), x.value())
-        param_stack.push(Rpn_Float(convert_radians_to_mode(phi)))
-        param_stack.push(Rpn_Float(r))
+        phi_obj = Rpn_Float(convert_radians_to_mode(phi))
+        phi_obj.set_label("phi")
+
+        r = math.hypot(y.value(), x.value())
+        r_obj = Rpn_Float(r)
+        r_obj.set_label("r")
+
+        param_stack.push(phi_obj)
+        param_stack.push(r_obj)
     else:
         param_stack.push(x)
         raise Rpn_E_Type_Error("r->p: Type error({})".format(typename(x)))
@@ -7497,6 +7496,8 @@ def to_rpn_class(n):
     if t is np.int64:
         return Rpn_Integer(n)
     if t is float:
+        return Rpn_Float(n)
+    if t is np.float64:
         return Rpn_Float(n)
     if t is Fraction:
         return Rpn_Rational.from_Fraction(n)
