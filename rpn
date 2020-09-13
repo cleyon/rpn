@@ -5704,6 +5704,59 @@ def w_pick():
     param_stack.push(result)
 
 
+@defword(name='plot', args=2, str_args=1, print_x=False, doc="""\
+Simple ASCII function plot ( xlow xhigh -- ) [ FN -- ]
+FN is the (string) name of a function which must implement ( x -- y ).
+Y-axis is autoscaled.
+
+EXAMPLE:
+rad  80 !COL  24 !ROWS
+TAU chs TAU "sin" plot  =>
+
+      1.000 |____________________________________*_____________________|
+            |     ****                   :     ** *                    |
+            |    *    *                  :    *    *                   |
+            |   *      *                 :          *                  |
+            |                            :   *       *                 |
+            |  *        *                :  *                          |
+            | *                          :            *                |
+            |            *               : *                           |
+            |*                           :             *               |
+            |             *              :*                            |
+            *                            :              *              |
+            |--------------*-------------+-----------------------------*
+            |                            *               *             |
+            |               *            :                            *|
+            |                           *:                *            |
+            |                *           :                           * |
+            |                          * :                 *        *  |
+            |                 *       *  :                             |
+            |                  *         :                  *      *   |
+            |                   *    *   :                   *    *    |
+     -1.000 |____________________****_________________________****_____|
+             -6.283                                                   6.283""")
+def w_plot():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if    type(x) not in [Rpn_Integer, Rpn_Rational, Rpn_Float] \
+       or type(y) not in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("plot: Type error ({}, {})".format(typename(y), typename(x)))
+    func_to_plot = string_stack.pop().value()
+    # XXX - look up func_to_plot, error if not defined
+    x_high = float(x.value())
+    x_low  = float(y.value())
+
+    # XXX There are probably error conditions/exceptions I need to catch
+    def func(x):
+        param_stack.push(Rpn_Float(x))
+        eval_string(func_to_plot)
+        return param_stack.pop().value()
+
+    plot_helper(func, x_low, x_high)
+
+
 @defword(name='PMT', print_x=True, doc="""\
 Calculate PayMenT amount (PMT)
 
@@ -6986,6 +7039,83 @@ def comb_helper(n, r):
     return result
 
 
+def plot_helper(func, x_low, x_high):
+    global scr_rows, scr_columns
+    cols = scr_columns.obj().value()
+    rows = scr_rows.obj().value()
+
+    ISCR   = cols - 20
+    JSCR   = rows -  3
+    BLANK  = ' '
+    VERT   = '|'
+    VZERO  = ':'
+    HORIZ  = '_'
+    HZERO  = '-'
+    ORIGIN = '+'
+    FF     = '*'
+    scr = [[BLANK for i in range(1,JSCR+2)] for j in range(1,ISCR+2)]
+
+    # Build frame
+    for j in range(1, JSCR+1):
+        scr[1][j] = VERT
+        scr[ISCR][j] = VERT
+    for i in range(2, ISCR):
+        scr[i][1] = HORIZ
+        scr[i][JSCR] = HORIZ
+        for j in range(2, JSCR):
+            scr[i][j] = BLANK
+
+    if x_low > x_high:
+        x_low, x_high = x_high, x_low
+    x = x_low
+    dx = (x_high - x_low) / (ISCR - 1)
+    dxi = (ISCR - 1) / (x_high - x_low)
+    iz = 1 - int(x_low * dxi)
+
+    y = [0.0] * (ISCR+1)
+    ysml, ybig = 0.0, 0.0
+    for i in range(1, ISCR+1):
+        y[i] = func(x)
+        ysml = min(ysml, y[i])
+        ybig = max(ybig, y[i])
+        x += dx
+
+    if ybig == ysml:
+        ybig = ysml + 1.0
+    dyj = (JSCR - 1) / (ybig - ysml)
+    jz = 1 - int(ysml * dyj)
+
+    # Build axes
+    for i in range(2, ISCR):
+        for j in range(2, JSCR):
+            if i == iz:
+                scr[i][j] = VZERO
+            if j == jz:
+                scr[i][j] = HZERO
+            if i == iz and j == jz:
+                scr[i][j] = ORIGIN
+
+    # Populate data points
+    for i in range(1, ISCR+1):
+        j = 1 + int((y[i] - ysml) * dyj)
+        scr[i][j] = FF
+
+    # Display plot
+    write(" {:10.3f} ".format(ybig))
+    for i in range(1, ISCR+1):
+        write(scr[i][JSCR])
+    writeln()
+    for j in range(JSCR-1, 1, -1):
+        write(" " * 12)
+        for i in range(1, ISCR+1):
+            write(scr[i][j])
+        writeln()
+    write(" {:10.3f} ".format(ysml))
+    for i in range(1, ISCR+1):
+        write(scr[i][1])
+    lnwriteln("         {:10.3f} {} {:10.3f}".format(x_low, " "*(cols-36), x_high))
+
+
 def angle_mode_label():
     global angle_mode
     if angle_mode == "r":
@@ -7883,7 +8013,7 @@ def define_variables():
     tvm_PF      = defvar('PF',    Rpn_Integer(1), protected=True, noshadow=True, pre_hooks=[require_int, require_positive],  doc="TVM: Payment Frequency")
     tvm_PMT     = defvar('PMT',   None, protected=True, noshadow=True, pre_hooks=[require_int_or_float], doc="TVM: Payment amount")
     tvm_PV      = defvar('PV',    None, protected=True, noshadow=True, pre_hooks=[require_int_or_float],  doc="TVM: Present Value")
-    scr_rows    = defvar('ROWS',  Rpn_Integer(0), protected=True, readonly=True)
+    scr_rows    = defvar('ROWS',  Rpn_Integer(0), protected=True, pre_hooks=[require_int, require_positive])
     _           = defvar('SCIPY', Rpn_Integer(bool_to_int(have_scipy)), protected=True, readonly=True, noshadow=True)
     reg_size    = defvar('SIZE',  Rpn_Integer(20), protected=True, noshadow=True, readonly=True)
     _           = defvar('VER',   Rpn_Float(rpn_version), protected=True, readonly=True, noshadow=True)
