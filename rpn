@@ -612,7 +612,7 @@ class Rpn_Complex(Rpn_Stackable):
 
     def __str__(self):
         s = "({},{})".format(fmt(self.real()), fmt(self.imag()))
-        l = " {" + "{}".format(self.label()) + "}" if self.label() is not None else ""
+        l = "  \ " + "{}".format(self.label()) if self.label() is not None else ""
         return s + l
 
     def __repr__(self):
@@ -739,7 +739,7 @@ class Rpn_Display_Config:
         exp_str = "{:02d}".format(abs(3*p3))
         return mant_sign + num_str + "e" + exp_sign + exp_str
 
-    def fmt(self, x):
+    def fmt(self, x, show_label=True):
         if type(x) is float:
             if self.style() == "fix":
                 return "{:.{prec}{style}}".format(x, style="f", prec=self.prec())
@@ -752,7 +752,9 @@ class Rpn_Display_Config:
             raise Rpn_E_Fatal("{}: Invalid style '{}'".format(whoami(), self.style()))
         if type(x) is Rpn_Float:
             s = self.fmt(x.value())
-            l = " {" + "{}".format(x.label()) + "}" if x.label() is not None else ""
+            l = ""
+            if show_label and x.label() is not None:
+                l = "  \ " + "{}".format(x.label())
             return s + l
         if type(x) is Rpn_String:
             return x.value()
@@ -987,7 +989,7 @@ Failure:  (False, None, None, None, None)"""
         return (True, hh, mm, ss, timeobj)
 
     def __str__(self):
-        l = " {" + "{}".format(self.label()) + "}" if self.label() is not None else ""
+        l = "  \ " + "{}".format(self.label()) if self.label() is not None else ""
         s = "{}".format(self.value())
         return s + l
 
@@ -1109,7 +1111,7 @@ class Rpn_Integer(Rpn_Stackable):
 
     def __str__(self):
         s = "{}".format(self.value())
-        l = " {" + "{}".format(self.label()) + "}" if self.label() is not None else ""
+        l = "  \ " + "{}".format(self.label()) if self.label() is not None else ""
         return s + l
 
     def __repr__(self):
@@ -1261,7 +1263,7 @@ class Rpn_Rational(Rpn_Stackable):
 
     def __str__(self):
         s = "{}::{}".format(self.numerator(), self.denominator())
-        l = " [{}]".format(self.label()) if self.label() is not None else ""
+        l = "  \ {}".format(self.label()) if self.label() is not None else ""
         return s + l
 
     def __repr__(self):
@@ -2848,6 +2850,12 @@ class defword():
         return wrapped_f
 
 
+@defword(name='#->$', args=1, print_x=False, doc="""\
+Convert top of stack to string  ( n -- )""")
+def w_num_to_dollar():
+    string_stack.push(Rpn_String('"{}"'.format(fmt(param_stack.pop(), False))))
+
+
 @defword(name='$.', str_args=1, print_x=False, doc="""\
 Print top item from string stack  [ str -- ]
 No extraneous white space or newline is printed.""")
@@ -2871,6 +2879,25 @@ def w_dollar_dot_s():
 def w_dollar_dot_s_bang():
     if not string_stack.empty():
         lnwriteln(repr(string_stack))
+
+
+@defword(name='$=', str_args=2, doc="""\
+Test if two strings are equal  ( -- flag )""")
+def w_dollar_equal():
+    s1 = string_stack.pop()
+    s2 = string_stack.pop()
+    param_stack.push(Rpn_Integer(bool_to_int(s1.value() == s2.value())))
+
+
+@defword(name='$cat', str_args=2, doc="""\
+Concatentate two strings.
+
+EXAMPLE:
+"foo" "bar" $cat "baz" $cat  =>  "foobarbaz" """)
+def w_dollar_cat():
+    s1 = string_stack.pop()
+    s2 = string_stack.pop()
+    string_stack.push(Rpn_String.from_string(s2.value() + s1.value()))
 
 
 @defword(name='$clst', print_x=False, doc="""\
@@ -2899,6 +2926,15 @@ def w_dollar_drop():
     param_stack.push(Rpn_Integer(r))
 
 
+@defword(name='$swap', str_args=2, doc="""\
+Exchange top two string stack elements  [ "y" "x" -- "x" "y" ]""")
+def w_dollar_swap():
+    sx = string_stack.pop()
+    sy = string_stack.pop()
+    string_stack.push(sx)
+    string_stack.push(sy)
+
+
 @defword(name='%', args=2, print_x=True, doc="""\
 Percentage  ( base rate -- base percent )
 
@@ -2920,6 +2956,7 @@ def w_percent():
             result = Rpn_Integer(r)
         else:
             result = Rpn_Float(r)
+        result.set_label("%")
     else:
         param_stack.push(y)
         param_stack.push(x)
@@ -2955,6 +2992,7 @@ def w_percent_ch():
             result = Rpn_Integer(r)
         else:
             result = Rpn_Float(r)
+        result.set_label("%ch")
     else:
         param_stack.push(y)
         param_stack.push(x)
@@ -2990,6 +3028,7 @@ def w_percent_t():
             result = Rpn_Integer(r)
         else:
             result = Rpn_Float(r)
+        result.set_label("%t")
     else:
         param_stack.push(y)
         param_stack.push(x)
@@ -3627,6 +3666,7 @@ def w_acos():
             param_stack.push(x)
             raise Rpn_E_Value_Error("acos: Argument {} out of range".format(x.value()))
         result = Rpn_Float(convert_radians_to_mode(r))
+        result.set_label(angle_mode_label())
     elif type(x) is Rpn_Complex:
         try:
             r = cmath.acos(x.value())
@@ -3713,6 +3753,7 @@ def w_asin():
             param_stack.push(x)
             raise Rpn_E_Value_Error("asin: Argument {} out of range".format(x.value()))
         result = Rpn_Float(convert_radians_to_mode(r))
+        result.set_label(angle_mode_label())
     elif type(x) is Rpn_Complex:
         try:
             r = cmath.asin(x.value())
@@ -3767,6 +3808,7 @@ def w_atan():
             param_stack.push(x)
             raise Rpn_E_Value_Error("atan: Argument {} out of range".format(x.value()))
         result = Rpn_Float(convert_radians_to_mode(r))
+        result.set_label(angle_mode_label())
     elif type(x) is Rpn_Complex:
         try:
             r = cmath.atan(x.value())
@@ -3793,6 +3835,7 @@ def w_atan2():
             param_stack.push(x)
             raise Rpn_E_Value_Error("atan2: Invalid arguments ({} {})".format(y.value(), x.value()))
         result = Rpn_Float(convert_radians_to_mode(r))
+        result.set_label(angle_mode_label())
     elif type(x) is Rpn_Complex:
         # Python cmath doesn't have atan2, so fake it
         if x.zerop():
@@ -3987,6 +4030,16 @@ def w_cf():
     clear_flag(flag)
 
 
+@defword(name='chr', args=1, print_x=False, doc="""\
+chr  ( x -- )  Push string for a single ASCII character.""")
+def w_chr():
+    x = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("chr: Type error ({})".format(typename(x)))
+    string_stack.push(Rpn_String('"{}"'.format(chr(x.value()))))
+
+
 # Some HP calcs call this NEGATE, but why type 6 characters when 3 will do?
 @defword(name='chs', args=1, print_x=True, doc="""\
 Negation (change sign)  ( x -- -x )""")
@@ -4014,13 +4067,18 @@ def w_clfin():
     clear_flag(flag_tvm_continuous) # Clear (0, default)=Discrete compounding;   Set (1)=Continuous compounding
     clear_flag(flag_tvm_begin_mode) # Clear (0, default)=End (ordinary annuity); Set (1)=Begin (annuity due)
 
+    cf = Rpn_Integer(1)
+    cf.set_label("CF")
+    pf = Rpn_Integer(1)
+    pf.set_label("PF")
+
     tvm_N   .set_obj(None)
     tvm_INT .set_obj(None)
     tvm_PV  .set_obj(None)
     tvm_PMT .set_obj(None)
     tvm_FV  .set_obj(None)
-    tvm_CF  .set_obj(Rpn_Integer(1))
-    tvm_PF  .set_obj(Rpn_Integer(1))
+    tvm_CF  .set_obj(cf)
+    tvm_PF  .set_obj(pf)
 
 
 @defword(name='clflag', doc="""\
@@ -4144,7 +4202,9 @@ def w_cpf():
         raise Rpn_E_Value_Error("CPF: N must be positive")
 
     tvm_CF.set_obj(x)
+    tvm_CF.set_label("CF")
     tvm_PF.set_obj(x)
+    tvm_PF.set_label("PF")
 
 
 @defword(name='cr', print_x=False, doc="""\
@@ -4166,7 +4226,9 @@ def w_d_to_jd():
         param_stack.push(x)
         raise Rpn_E_Value_Error("d->jd: {} is not a valid date".format(x.value()))
 
-    param_stack.push(Rpn_Integer(julian))
+    result = Rpn_Integer(julian)
+    result.set_label("Julian day")
+    param_stack.push(result)
 
 
 @defword(name='d->r', args=1, print_x=True, doc="""\
@@ -4175,6 +4237,7 @@ def w_d_to_r():
     x = param_stack.pop()
     if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
         result = Rpn_Float(convert_mode_to_radians(float(x.value()), "d"))
+        result.set_label("Rad")
     else:
         param_stack.push(x)
         raise Rpn_E_Type_Error("d->r: Type error ({})".format(typename(x)))
@@ -4185,7 +4248,9 @@ def w_d_to_r():
 Current date  ( -- MM.DDYYYY )""")
 def w_date():
     d = datetime.date.today().strftime("%m.%d%Y")
-    param_stack.push(Rpn_Float(d))
+    result = Rpn_Float(d)
+    result.set_label("MM.DDYYYY (Current)")
+    param_stack.push(result)
 
 
 @defword(name='dateinfo', args=1, hidden=True, print_x=False, doc="""\
@@ -4217,6 +4282,7 @@ def w_date_plus():
     new_julian = julian + x.value()
     dateobj = datetime.date.fromordinal(new_julian - julian_offset)
     result = Rpn_Float("%d.%02d%04d" % (dateobj.month, dateobj.day, dateobj.year))
+    result.set_label("DD.MMYYYY")
     param_stack.push(result)
 
 
@@ -4239,6 +4305,7 @@ def w_date_minus():
     new_julian = julian - x.value()
     dateobj = datetime.date.fromordinal(new_julian - julian_offset)
     result = Rpn_Float("%d.%02d%04d" % (dateobj.month, dateobj.day, dateobj.year))
+    result.set_label("DD.MMYYYY")
     param_stack.push(result)
 
 
@@ -4273,6 +4340,8 @@ def w_ddays():
 
     # Y is expected to be earlier, so we subtract in this order to get a
     # positive value for "later"
+    result = Rpn_Integer(xjulian - yjulian)
+    result.set_label("Delta days")
     param_stack.push(Rpn_Integer(xjulian - yjulian))
 
 
@@ -4285,7 +4354,9 @@ DEG == 360/TAU == 180/PI
 WARNING:
 Do not confuse this with \"deg\" (which sets the angular mode to degrees).""")
 def w_DEG():
-    param_stack.push(Rpn_Float(DEG_PER_RAD))
+    result = Rpn_Float(DEG_PER_RAD)
+    result.set_label("Deg/Rad")
+    param_stack.push(result)
 
 
 @defword(name='deg', doc="""\
@@ -4387,7 +4458,9 @@ def w_dow():
         param_stack.push(x)
         raise Rpn_E_Value_Error("dow: {} is not a valid date".format(x.value()))
 
-    param_stack.push(Rpn_Integer(dateobj.isoweekday()))
+    result = Rpn_Integer(dateobj.isoweekday())
+    result.set_label("Day of week")
+    param_stack.push(result)
 
 
 @defword(name='dow$', args=1, print_x=False, doc="""\
@@ -4426,7 +4499,9 @@ def w_dup():
 @defword(name='E', print_x=False, doc="""\
 Constant: Base of natural logarithms ( -- 2.71828... )""")
 def w_E():
-    param_stack.push(Rpn_Float(E))
+    result = Rpn_Float(E)
+    result.set_label("E")
+    param_stack.push(result)
 
 
 @defword(name='expm1', args=1, print_x=True, doc="""\
@@ -4453,7 +4528,7 @@ def w_else():
 
 
 @defword(name='emit', args=1, print_x=False, doc="""\
-emit  ( x -- )    Print a single ASCII character
+emit  ( x -- )  Print a single ASCII character
 No space or newline is appended.""")
 def w_emit():
     x = param_stack.pop()
@@ -4528,7 +4603,9 @@ def w_eng():
 Seconds since epoch  ( -- secs )""")
 def w_epoch():
     now = calendar.timegm(time.gmtime())
-    param_stack.push(Rpn_Integer(now))
+    result = Rpn_Integer(now)
+    result.set_label("Epoch")
+    param_stack.push(result)
 
 
 @defword(name='eval', str_args=1, doc="""\
@@ -4750,6 +4827,7 @@ def w_fsolve():
         raise Rpn_E_Type_Error("fsolve: Type error ({})".format(typename(x)))
     #init_guess = float(x.value())
     func_to_solve = string_stack.pop().value()
+    # XXX - look up func_to_solve, error if not defined
 
     # XXX There are probably error conditions/exceptions I need to catch
     def func(x):
@@ -4761,6 +4839,7 @@ def w_fsolve():
     # The return value of fsolve is a numpy array of length n for a root
     # finding problem with n variables.
     result = Rpn_Float(r[0])
+    result.set_label("fsolve")
     param_stack.push(result)
 
 
@@ -4788,6 +4867,7 @@ def w_FV():
     dbg("tvm", 1, "fv={}".format(fv))
 
     result = Rpn_Float(fv)
+    result.set_label("FV")
     tvm_FV.set_obj(result)
     param_stack.push(result)
 
@@ -4800,7 +4880,9 @@ GAMMA = lim(n->inf, (-ln n + SUM(k=1,n, 1/k)))
 
 Do not confuse this with the "gamma" function.""")
 def w_GAMMA():
-    param_stack.push(Rpn_Float(GAMMA))
+    result = Rpn_Float(GAMMA)
+    result.set_label("GAMMA")
+    param_stack.push(result)
 
 
 @defword(name='gamma', args=1, print_x=True, doc="""\
@@ -4831,6 +4913,7 @@ def w_gamma():
     else:
         param_stack.push(x)
         raise Rpn_E_Type_Error("gamma: Type error({})".format(typename(x)))
+    result.set_label("gamma")
     param_stack.push(result)
 
 
@@ -4845,7 +4928,9 @@ if sys.version_info >= (3,8):
             m = statistics.geometric_mean(stat_list)
         except statistics.StatisticsError as e:
             raise Rpn_E_Runtime_Error("gmean: {}".format(str(e)))
-        param_stack.push(Rpn_Float(m))
+        result = Rpn_Float(m)
+        result.set_label("gmean")
+        param_stack.push(result)
 
 
 @defword(name='grad', doc="""\
@@ -4873,7 +4958,9 @@ def w_hmean():
         m = statistics.harmonic_mean(stat_list)
     except statistics.StatisticsError as e:
         raise Rpn_E_Runtime_Error("hmean: {}".format(str(e)))
-    param_stack.push(Rpn_Float(m))
+    result = Rpn_Float(m)
+    result.set_label("hmean")
+    param_stack.push(result)
 
 
 @defword(name='hms', args=1, print_x=True, doc="""\
@@ -4893,6 +4980,7 @@ def w_hms():
     else:
         param_stack.push(x)
         raise Rpn_E_Type_Error("hms: Type error ({})".format(typename(x)))
+    result.set_label("HH.MMSS")
     param_stack.push(result)
 
 
@@ -4930,6 +5018,7 @@ def w_hms_plus():
     (hh, mm, ss) = normalize_hms(yhh + xhh, ymm + xmm, yss + xss)
     #print("hh=",hh,"mm=",mm,"ss=",ss)
     result = Rpn_Float("%d.%02d%02d" % (hh, mm, ss))
+    result.set_label("HH.MMSS")
     param_stack.push(result)
 
 
@@ -4965,6 +5054,7 @@ def w_hms_minus():
     (hh, mm, ss) = normalize_hms(yhh - xhh, ymm - xmm, yss - xss)
     #print("hh=",hh,"mm=",mm,"ss=",ss)
     result = Rpn_Float("%d.%02d%02d" % (hh, mm, ss))
+    result.set_label("HH.MMSS")
     param_stack.push(result)
 
 
@@ -4987,6 +5077,7 @@ def w_hr():
     else:
         param_stack.push(x)
         raise Rpn_E_Type_Error("hr: Type error ({})".format(typename(x)))
+    result.set_label("HH.nnn")
     param_stack.push(result)
 
 
@@ -5072,6 +5163,7 @@ def w_INT():
     i = int_eff_to_nom(i_eff)
     dbg("tvm", 1, "i={}".format(i))
     result = Rpn_Float(100.0 * i)
+    result.set_label("INT")
     tvm_INT.set_obj(result)
     param_stack.push(result)
 
@@ -5107,6 +5199,26 @@ def w_J():
     param_stack.push(_J.obj())
 
 
+@defword(name='jd->$', args=1, doc="""\
+Convert julian day number to ISO date string  ( julian -- "YYYY-MM-DD" )
+
+EXAMPLE:
+2369915 jd->$  ==>  "1776-07-04" """)
+def w_jd_to_dollar():
+    x = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("jd->$: Type error ({})".format(typename(x)))
+
+    if x.value() < 1 or x.value() > datetime.date.max.toordinal():
+        param_stack.push(x)
+        raise Rpn_E_Value_Error("jd->$: X out of range (1..{} expected)".format(datetime.date.max.toordinal()))
+
+    dateobj = datetime.date.fromordinal(x.value() - julian_offset)
+    result = Rpn_String("\"%d-%02d-%02d\"" % (dateobj.year, dateobj.month, dateobj.day))
+    string_stack.push(result)
+
+
 @defword(name='jd->d', args=1, print_x=True, doc="""\
 Convert julian day number to date  ( julian -- MM.DDYYYY )
 
@@ -5124,6 +5236,7 @@ def w_jd_to_d():
 
     dateobj = datetime.date.fromordinal(x.value() - julian_offset)
     result = Rpn_Float("%d.%02d%04d" % (dateobj.month, dateobj.day, dateobj.year))
+    result.set_label("MM.DDYYYY")
     param_stack.push(result)
 
 
@@ -5335,7 +5448,9 @@ def w_mean():
         m = statistics.mean(stat_list)
     except statistics.StatisticsError as e:
         raise Rpn_E_Runtime_Error("mean: {}".format(str(e)))
-    param_stack.push(Rpn_Float(m))
+    result = Rpn_Float(m)
+    result.set_label("mean")
+    param_stack.push(result)
 
 
 @defword(name='median', print_x=True, doc="""\
@@ -5348,7 +5463,9 @@ def w_median():
         m = statistics.median(stat_list)
     except statistics.StatisticsError as e:
         raise Rpn_E_Runtime_Error("median: {}".format(str(e)))
-    param_stack.push(Rpn_Float(m))
+    result = Rpn_Float(m)
+    result.set_label("median")
+    param_stack.push(result)
 
 
 @defword(name='min', args=2, print_x=True, doc="""\
@@ -5390,6 +5507,7 @@ def w_N():
     dbg("tvm", 1, "n={}".format(n))
 
     result = Rpn_Float(n)
+    result.set_label("N")
     tvm_N.set_obj(result)
     param_stack.push(result)
 
@@ -5564,7 +5682,9 @@ PI == TAU/2
 
 Consider using TAU instead of PI to simplify your equations.""")
 def w_PI():
-    param_stack.push(Rpn_Float(PI))
+    result = Rpn_Float(PI)
+    result.set_label("PI")
+    param_stack.push(result)
 
 
 @defword(name='pick', args=1, doc="""\
@@ -5609,6 +5729,7 @@ def w_PMT():
     dbg("tvm", 1, "pmt={}".format(pmt))
 
     result = Rpn_Float(pmt)
+    result.set_label("PMT")
     tvm_PMT.set_obj(result)
     param_stack.push(result)
 
@@ -5687,6 +5808,7 @@ def w_PV():
     dbg("tvm", 1, "pv={}".format(pv))
 
     result = Rpn_Float(pv)
+    result.set_label("PV")
     tvm_PV.set_obj(result)
     param_stack.push(result)
 
@@ -5708,6 +5830,7 @@ Implemented via scipy.integrate.quad()""")
         lower = float(y.value())
         upper = float(x.value())
         func_to_integrate = string_stack.pop().value()
+        # XXX - look up func_to_integrate, error if not defined
 
         # XXX There are probably error conditions/exceptions I need to catch
         def func(x):
@@ -5716,8 +5839,12 @@ Implemented via scipy.integrate.quad()""")
             return param_stack.pop().value()
 
         (res, err) = scipy.integrate.quad(func, lower, upper)
-        param_stack.push(Rpn_Float(err))
-        param_stack.push(Rpn_Float(res))
+        err_obj = Rpn_Float(err)
+        err_obj.set_label("error")
+        param_stack.push(err_obj)
+        res_obj = Rpn_Float(res)
+        res_obj.set_label("quad")
+        param_stack.push(res_obj)
 
 
 @defword(name='r->d', args=1, print_x=True, doc="""\
@@ -5728,6 +5855,7 @@ def w_r_to_d():
         param_stack.push(x)
         raise Rpn_E_Type_Error("r->d: Type error ({})".format(typename(x)))
     result = Rpn_Float(convert_radians_to_mode(float(x.value()), "d"))
+    result.set_label("Deg")
     param_stack.push(result)
 
 
@@ -5811,7 +5939,7 @@ def w_rad():
 
 @defword(name='rand', print_x=True, doc="""\
 Random number  ( -- r )
-r is a float in range [0,1)
+r is a float in range: 0 <= r < 1
 
 qv RANDINT""")
 def w_rand():
@@ -5820,7 +5948,7 @@ def w_rand():
 
 @defword(name='randint', args=1, print_x=True, doc="""\
 Random integer between 1 and n  ( n -- r )
-r is an integer in range [1,n]
+r is an integer in range: 1 <= r <= n
 
 EXAMPLE:
 : threeD6  3 0 do 6 randint loop + + ;
@@ -5914,13 +6042,14 @@ def w_rms():
     rval = to_python_class(sumsq)
     t = type(rval)
     if t is float:
-        r = Rpn_Float(math.sqrt(rval))
+        result = Rpn_Float(math.sqrt(rval))
     elif t is complex:
-        r = Rpn_Complex.from_complex(cmath.sqrt(rval))
+        result = Rpn_Complex.from_complex(cmath.sqrt(rval))
     else:
         raise Rpn_E_Fatal("{}: Cannot handle type {}".format(whoami(), t))
 
-    param_stack.push(r)
+    result.set_label("rms")
+    param_stack.push(result)
 
 
 @defword(name='rnd', args=2, print_x=True, doc="""\
@@ -6202,6 +6331,8 @@ def w_sinc():
         else:
             r = math.sin(convert_mode_to_radians(float(x.value()))) / x.value()
         result = Rpn_Float(r)
+
+    result.set_label("sinc")
     param_stack.push(result)
 
 
@@ -6340,7 +6471,9 @@ def w_stdev():
         s = statistics.stdev(stat_list)
     except statistics.StatisticsError as e:
         raise Rpn_E_Runtime_Error("stdev: {}".format(str(e)))
-    param_stack.push(Rpn_Float(s))
+    result = Rpn_Float(s)
+    result.set_label("stdev")
+    param_stack.push(result)
 
 
 @defword(name='sto', args=2, doc="""\
@@ -6425,7 +6558,9 @@ Constant: Tau ( -- 6.28318... )
 DEFINITION:
 Number of radians in a circle.""")
 def w_TAU():
-    param_stack.push(Rpn_Float(TAU))
+    result = Rpn_Float(TAU)
+    result.set_label("TAU")
+    param_stack.push(result)
 
 
 @defword(name='tf', args=1, doc="""\
@@ -6476,14 +6611,18 @@ def w_throw():
 Current time  ( -- HH.MMSS )""")
 def w_time():
     t = datetime.datetime.now().strftime("%H.%M%S")
-    param_stack.push(Rpn_Float(t))
+    result = Rpn_Float(t)
+    result.set_label("HH.MMSS (Current)")
+    param_stack.push(result)
 
 
 @defword(name='time!', print_x=True, doc="""\
 High precision clock time  ( -- HH.MMSSssss )""")
 def w_time_bang():
     t = datetime.datetime.now().strftime("%H.%M%S%f")
-    param_stack.push(Rpn_Float(t))
+    result = Rpn_Float(t)
+    result.set_label("HH.MMSSssss (Current)")
+    param_stack.push(result)
 
 
 @defword(name='timeinfo', args=1, hidden=True, print_x=False, doc="""\
@@ -6845,6 +6984,17 @@ def comb_helper(n, r):
         result /= j
         j += 1
     return result
+
+
+def angle_mode_label():
+    global angle_mode
+    if angle_mode == "r":
+        return "Rad"
+    if angle_mode == "d":
+        return "Deg"
+    if angle_mode == "g":
+        return "Grad"
+    raise Rpn_E_Fatal("Bad angle_mode '{}'".format(angle_mode))
 
 
 def convert_mode_to_radians(x, force_mode=None):
