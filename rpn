@@ -263,9 +263,11 @@ It is caught in main_loop."""
 debug_levels = {
     "catch"                     : 0,
     "defvar"                    : 0,
+    "dollar_in"                 : 0,
     "eval_string"               : 0,
     "lookup_varname"            : 0,
     "lookup_variable"           : 0,
+    "number_in"                 : 0,
     "p_define_word"             : 0,
     "p_executable"              : 0,
     "p_execute"                 : 0,
@@ -1652,13 +1654,11 @@ class Rpn_Store_Var:
 
 class Rpn_String:
     def __init__(self, val):
-        if len(val) < 2 or val[0] != '"' or val[-1] != '"':
-            raise Rpn_E_Fatal("{}: Malformed string: '{}'".format(whoami(), val))
-        self._value = val[1:-1]
+        self._value = val
 
     @classmethod
     def from_string(cls, s):
-        return cls('"{}"'.format(s))
+        return cls("{}".format(s))
 
     def value(self):
         return self._value
@@ -1749,6 +1749,8 @@ class Rpn_Token_Mgr:
 
 class Rpn_Variable:
     def __init__(self, rawname, obj=None, **kwargs):
+        global default_protected
+
         if not Rpn_Variable.name_valid_p(rawname):
             raise Rpn_E_Fatal("Invalid variable name '{}'".format(rawname))
 
@@ -1757,7 +1759,7 @@ class Rpn_Variable:
         self._hidden     = False
         self._rawname    = rawname
         self._noshadow   = False
-        self._protected  = False
+        self._protected  = default_protected
         self._readonly   = False
         self._rpnobj     = obj
         self._pre_hooks  = []
@@ -2672,7 +2674,10 @@ def p_complex(p):
 def p_string(p):
     '''string : STRING'''
 
-    p[0] = Rpn_String(p[1])
+    s = p[1]
+    if len(s) < 2 or s[0] != '"' or s[-1] != '"':
+        raise Rpn_E_Fatal("{}: Malformed string: '{}'".format(whoami(), s))
+    p[0] = Rpn_String(s[1:-1])
 
 
 def p_vector(p):
@@ -2853,7 +2858,37 @@ class defword():
 @defword(name='#->$', args=1, print_x=False, doc="""\
 Convert top of stack to string  ( n -- )""")
 def w_num_to_dollar():
-    string_stack.push(Rpn_String('"{}"'.format(fmt(param_stack.pop(), False))))
+    string_stack.push(Rpn_String("{}".format(fmt(param_stack.pop(), False))))
+
+
+@defword(name='#in', print_x=False, doc="""\
+Read numeric input from the user.  #IN recognizes integers and floats,
+but not rationals or complex numbers.  The value is put on the stack.
+No prompt is provided.
+
+qv PROMPT""")
+def w_number_in():
+    global sharpout
+    x = ''
+    while len(x) == 0:
+        try:
+            x = input()
+            dbg(whoami(), 1, "#in: '{}'".format(x))
+        except EOFError:
+            raise Rpn_E_Runtime_Error()
+        finally:
+            sharpout.set_obj(Rpn_Integer(0))
+
+    newlexer = lexer.clone()
+    newlexer.input(x)
+    tok = newlexer.token()
+
+    if tok.type == 'INTEGER':
+        param_stack.push(Rpn_Integer(int(tok.value)))
+    elif tok.type == 'FLOAT':
+        param_stack.push(Rpn_Float(float(tok.value)))
+    else:
+        raise Rpn_E_Runtime_Error("#in: Could not parse '{}'".format(x))
 
 
 @defword(name='$.', str_args=1, print_x=False, doc="""\
@@ -2866,6 +2901,25 @@ def w_dollar_dot():
 @defword(name='$.!', hidden=True, print_x=False, str_args=1)
 def w_dollar_dot_bang():
     lnwriteln(repr(string_stack.top()))
+
+
+@defword(name='$in', print_x=False, doc="""\
+Read a string from the keyboard.  THe value is placed on the string stack.
+No prompt is provided.""")
+def w_dollar_in():
+    global sharpout
+    x = ''
+    while len(x) == 0:
+        try:
+            x = input()
+            dbg(whoami(), 1, "$in: '{}'".format(x))
+        except EOFError:
+            raise Rpn_E_Runtime_Error()
+        finally:
+            sharpout.set_obj(Rpn_Integer(0))
+
+    string_stack.push(Rpn_String(x))
+
 
 
 @defword(name='$.s', print_x=False, doc="""\
@@ -2943,7 +2997,7 @@ Base is maintained in Y.
 DEFINTION:
                  rate
 percent = base * ----
-                  100""")
+                 100""")
 def w_percent():
     x = param_stack.pop()
     y = param_stack.pop()
@@ -3718,6 +3772,21 @@ def w_again():
     pass                        # Grammar rules handle this word
 
 
+@defword(name='alog', args=1, print_x=True, doc="""\
+Common exponential [antilogarithm]  ( x -- 10^x )""")
+def w_alog():
+    x = param_stack.pop()
+    if type(x) not in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex]:
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("alog: Type error ({})".format(typename(x)))
+    r = 10.0 ** x.value()
+    if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
+        result = Rpn_Float(r)
+    elif type(x) is Rpn_Complex:
+        result = Rpn_Complex.from_complex(r)
+    param_stack.push(result)
+
+
 @defword(name='and', args=2, print_x=True, doc="""\
 Logical AND  ( flag flag -- flag )
 (This is not a bitwise AND - use BITAND for that.)""")
@@ -4037,7 +4106,7 @@ def w_chr():
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
         raise Rpn_E_Type_Error("chr: Type error ({})".format(typename(x)))
-    string_stack.push(Rpn_String('"{}"'.format(chr(x.value()))))
+    string_stack.push(Rpn_String("{}".format(chr(x.value()))))
 
 
 # Some HP calcs call this NEGATE, but why type 6 characters when 3 will do?
@@ -4608,6 +4677,57 @@ def w_epoch():
     param_stack.push(result)
 
 
+@defword(name='erf', args=1, print_x=True, doc="""\
+Error function  ( x -- erf[x] )""")
+def w_erf():
+    x = param_stack.pop()
+    if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
+        try:
+            r = math.erf(float(x.value()))
+        except ValueError:
+            param_stack.push(x)
+            raise Rpn_E_Value_Error("erf: Invalid argument")
+        result = Rpn_Float(r)
+    elif type(x) is Rpn_Complex:
+        if not have_scipy:
+            param_stack.push(x)
+            raise Rpn_E_Runtime_Error("erf: Complex support requires 'scipy' library")
+        r = scipy.special.erf(x.value())
+        result = Rpn_Complex.from_complex(r)
+    else:
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("erf: Type error({})".format(typename(x)))
+    result.set_label("erf")
+    param_stack.push(result)
+
+
+@defword(name='erfc', args=1, print_x=True, doc="""\
+Complementary error function  ( x -- erfc[x] )
+
+DEFINITION:
+erfc(x) = 1 - erf(x)""")
+def w_erfc():
+    x = param_stack.pop()
+    if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
+        try:
+            r = math.erfc(float(x.value()))
+        except ValueError:
+            param_stack.push(x)
+            raise Rpn_E_Value_Error("erfc: Invalid argument")
+        result = Rpn_Float(r)
+    elif type(x) is Rpn_Complex:
+        if not have_scipy:
+            param_stack.push(x)
+            raise Rpn_E_Runtime_Error("erfc: Complex support requires 'scipy' library")
+        r = scipy.special.erfc(x.value())
+        result = Rpn_Complex.from_complex(r)
+    else:
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("erfc: Type error({})".format(typename(x)))
+    result.set_label("erfc")
+    param_stack.push(result)
+
+
 @defword(name='eval', str_args=1, doc="""\
 Evaluate string on top of stack as a command sequence.""")
 def w_eval():
@@ -4641,7 +4761,9 @@ Factorial ( x -- x! )
 DEFINITION:
 x! = x * (x-1) * (x-2) ... * 2 * 1
 0! = 1
-X cannot be negative.""")
+X cannot be negative.
+
+qv gamma""")
 def w_fact():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
@@ -4739,6 +4861,27 @@ def w_floor():
         param_stack.push(x)
         raise Rpn_E_Type_Error("floor: Type error ({})".format(typename(x)))
     param_stack.push(result)
+
+
+@defword(name='fmod', args=2, print_x=True, doc="""\
+Floating point remainder  ( y x -- rem )
+
+Return the remainder of dividing y by x.  Preferred for floats;
+'mod' is preferred for integers.""")
+def w_fmod():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if    type(x) not in [Rpn_Integer, Rpn_Rational, Rpn_Float] \
+       or type(y) not in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("fmod: Type error ({}, {})".format(typename(y), typename(x)))
+    if x.zerop():
+        param_stack.push(y)
+        param_stack.push(x)
+        raise Rpn_E_Value_Error("fmod: X cannot be zero")
+    r = math.fmod(float(y.value()), float(x.value()))
+    param_stack.push(Rpn_Float(r))
 
 
 @defword(name='forget', doc="""\
@@ -5215,7 +5358,7 @@ def w_jd_to_dollar():
         raise Rpn_E_Value_Error("jd->$: X out of range (1..{} expected)".format(datetime.date.max.toordinal()))
 
     dateobj = datetime.date.fromordinal(x.value() - julian_offset)
-    result = Rpn_String("\"%d-%02d-%02d\"" % (dateobj.year, dateobj.month, dateobj.day))
+    result = Rpn_String("%d-%02d-%02d" % (dateobj.year, dateobj.month, dateobj.day))
     string_stack.push(result)
 
 
@@ -5794,36 +5937,6 @@ def w_popdisp():
         disp_stack.pop()
     except Rpn_E_Stack_Underflow:
         raise Rpn_E_Runtime_Error("popdisp: No stashed display configurations")
-
-
-@defword(name='prompt', str_args=1, print_x=False, doc="""\
-Display prompt and await input.  This recognizes integers and floats, but
-not rationals or complex numbers.  The value is put on the stack.""")
-def w_prompt():
-    global sharpout
-    x = ''
-    prompt = string_stack.pop().value()
-    write(prompt)
-    while len(x) == 0:
-        try:
-            x = input()
-            dbg(whoami(), 1, "{}: '{}'".format(whoami(), x))
-        except EOFError:
-            raise Rpn_E_Runtime_Error()
-        finally:
-            sharpout.set_obj(Rpn_Integer(0))
-
-    #error = False
-    newlexer = lexer.clone()
-    newlexer.input(x)
-    tok = newlexer.token()
-
-    if tok.type == 'INTEGER':
-        param_stack.push(Rpn_Integer(int(tok.value)))
-    elif tok.type == 'FLOAT':
-        param_stack.push(Rpn_Float(float(tok.value)))
-    else:
-        raise Rpn_E_Runtime_Error("prompt: Could not parse '{}'".format(x))
 
 
 @defword(name='pushdisp', print_x=False, doc="""\
@@ -7184,6 +7297,13 @@ PHI = (1 + sqrt(5)) / 2"
     cr
   then ;
 
+: prompt        doc:"prompt  ( -- n ) [ text -- ]  Prompt for numeric input"
+  $depth 0 = if
+    ."prompt: Insufficient string parameters (1 required)" cr
+  else
+    $. #in
+  then ;
+
 : space         doc:"space   Display one space character"
   BL emit ;
 
@@ -7944,7 +8064,7 @@ def initialize():
     w_clfin()
     define_secondary_words()
 
-    # Switch to user mode; words are no longer protected
+    # Switch to user mode; words & variables are no longer protected
     default_protected = False
     define_tertiary_words()
 
@@ -8003,20 +8123,21 @@ def define_variables():
     global sharpout, scr_columns, scr_rows, reg_size
     global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV, tvm_CF, tvm_PF
 
-    sharpout    = defvar('#OUT',  Rpn_Integer(0), protected=True, readonly=True, noshadow=True)
-    tvm_CF      = defvar('CF',    Rpn_Integer(1), protected=True, noshadow=True, pre_hooks=[require_int, require_positive], doc="TVM: Compounding Frequency")
-    scr_columns = defvar('COLS',  Rpn_Integer(0), protected=True, pre_hooks=[require_int, require_positive])
-    tvm_FV      = defvar('FV',    None, protected=True, noshadow=True, pre_hooks=[require_int_or_float],  doc="TVM: Future Value")
-    tvm_INT     = defvar('INT',   None, protected=True, noshadow=True, pre_hooks=[require_int_or_float, require_non_negative], doc="TVM: Interest rate")
-    tvm_N       = defvar('N',     None, protected=True, noshadow=True, pre_hooks=[require_int_or_float, require_positive],   doc="TVM: Number of payments")
-    _           = defvar('NUMPY', Rpn_Integer(bool_to_int(have_numpy)), protected=True, readonly=True, noshadow=True)
-    tvm_PF      = defvar('PF',    Rpn_Integer(1), protected=True, noshadow=True, pre_hooks=[require_int, require_positive],  doc="TVM: Payment Frequency")
-    tvm_PMT     = defvar('PMT',   None, protected=True, noshadow=True, pre_hooks=[require_int_or_float], doc="TVM: Payment amount")
-    tvm_PV      = defvar('PV',    None, protected=True, noshadow=True, pre_hooks=[require_int_or_float],  doc="TVM: Present Value")
-    scr_rows    = defvar('ROWS',  Rpn_Integer(0), protected=True, pre_hooks=[require_int, require_positive])
-    _           = defvar('SCIPY', Rpn_Integer(bool_to_int(have_scipy)), protected=True, readonly=True, noshadow=True)
-    reg_size    = defvar('SIZE',  Rpn_Integer(20), protected=True, noshadow=True, readonly=True)
-    _           = defvar('VER',   Rpn_Float(rpn_version), protected=True, readonly=True, noshadow=True)
+    # Variables defined here are all protected=True by default
+    sharpout    = defvar('#OUT',  Rpn_Integer(0), readonly=True, noshadow=True)
+    tvm_CF      = defvar('CF',    Rpn_Integer(1), noshadow=True, pre_hooks=[require_int, require_positive], doc="TVM: Compounding Frequency")
+    scr_columns = defvar('COLS',  Rpn_Integer(0), pre_hooks=[require_int, require_positive])
+    tvm_FV      = defvar('FV',    None, noshadow=True, pre_hooks=[require_int_or_float],  doc="TVM: Future Value")
+    tvm_INT     = defvar('INT',   None, noshadow=True, pre_hooks=[require_int_or_float, require_non_negative], doc="TVM: Interest rate")
+    tvm_N       = defvar('N',     None, noshadow=True, pre_hooks=[require_int_or_float, require_positive],   doc="TVM: Number of payments")
+    _           = defvar('NUMPY', Rpn_Integer(bool_to_int(have_numpy)), readonly=True, noshadow=True)
+    tvm_PF      = defvar('PF',    Rpn_Integer(1), noshadow=True, pre_hooks=[require_int, require_positive],  doc="TVM: Payment Frequency")
+    tvm_PMT     = defvar('PMT',   None, noshadow=True, pre_hooks=[require_int_or_float], doc="TVM: Payment amount")
+    tvm_PV      = defvar('PV',    None, noshadow=True, pre_hooks=[require_int_or_float],  doc="TVM: Present Value")
+    scr_rows    = defvar('ROWS',  Rpn_Integer(0), pre_hooks=[require_int, require_positive])
+    _           = defvar('SCIPY', Rpn_Integer(bool_to_int(have_scipy)), readonly=True, noshadow=True)
+    reg_size    = defvar('SIZE',  Rpn_Integer(20), noshadow=True, readonly=True)
+    _           = defvar('VER',   Rpn_Float(rpn_version), readonly=True, noshadow=True)
 
 
 def main():
