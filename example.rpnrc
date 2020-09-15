@@ -1,3 +1,5 @@
+."RPN " @VER . cr
+
 \ Convenient abbreviations
 : c     clst  ;
 : d     drop  ;

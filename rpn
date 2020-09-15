@@ -908,6 +908,8 @@ class Rpn_Fetch_Var:
                 # The variable remains undefined
             else:
                 raise Rpn_E_Runtime_Error("{}: Variable is not defined".format(str(self)))
+        elif type(var.obj()) is Rpn_String:
+            string_stack.push(var.obj())
         else:
             if self._modifier is not None and param_stack.empty():
                 raise Rpn_E_Runtime_Error("{}: Insufficient parameters (1 required)".format(str(self)))
@@ -2351,7 +2353,7 @@ def p_catch(p):
     name = p[2]
     (word, scope) = lookup_word(name)
     if word is None:
-        lnwriteln("catch: '{}' not found".format(name))
+        lnwriteln("catch: Word '{}' not found".format(name))
         raise SyntaxError
 
     dbg("catch", 1, "{}: Creating Rpn_Catch obj for {}".format(whoami(), word))
@@ -2431,7 +2433,7 @@ def p_forget(p):
     name = p[2]
     (word, scope) = lookup_word(name)
     if word is None:
-        lnwriteln("forget: '{}' not found".format(name))
+        lnwriteln("forget: Word '{}' not found".format(name))
         raise SyntaxError
 
     p[0] = Rpn_Forget(word, scope)
@@ -2470,7 +2472,7 @@ def p_help(p):
     name = p[2]
     (word, _) = lookup_word(name)
     if word is None:
-        lnwriteln("help: '{}' not found".format(name))
+        lnwriteln("help: Word '{}' not found".format(name))
         raise SyntaxError
 
     p[0] = Rpn_Help(name, word.doc() if word.doc() is not None \
@@ -2496,7 +2498,7 @@ def p_show(p):
     name = p[2]
     (word, scope) = lookup_word(name)
     if word is None:
-        lnwriteln("show: '{}' not found".format(name))
+        lnwriteln("show: Word '{}' not found".format(name))
         raise SyntaxError
 
     p[0] = Rpn_Show(word, scope)
@@ -2517,7 +2519,7 @@ def p_store_var(p):
     dbg(whoami(), 1, "{}: Looking up {}".format(whoami(), ident))
     (varname, _) = lookup_varname(ident)
     if varname is None:
-        lnwriteln("!{}: Variable not found".format(ident))
+        lnwriteln("!: Variable '{}' not found".format(ident))
         raise SyntaxError
     p[0] = Rpn_Store_Var(ident, modifier)
 
@@ -2745,11 +2747,11 @@ def p_undef(p):
         raise SyntaxError
 
     if var.protected():
-        lnwriteln("UNDEF: '{}' is protected".format(ident))
+        lnwriteln("UNDEF: Variable '{}' protected".format(ident))
         raise SyntaxError
 
     if scope != scope_stack.top():
-        lnwriteln("UNDEF: '{}' out of scope".format(ident))
+        lnwriteln("UNDEF: Variable '{}' out of scope".format(ident))
         raise SyntaxError
 
     for pre_hook_func in var.pre_hooks():
@@ -2808,12 +2810,12 @@ def p_fetch_var(p):
     else:
         modifier = None
     if not Rpn_Variable.name_valid_p(ident):
-        writeln("@{}: Variable name is not valid".format(ident))
+        writeln("@: Variable name '{}' not valid".format(ident))
         raise SyntaxError
     dbg(whoami(), 1, "{}: Looking up {}".format(whoami(), ident))
     (varname, _) = lookup_varname(ident)
     if varname is None:
-        writeln("@{}: Variable not found".format(ident))
+        writeln("@: Variable '{}' not found".format(ident))
         raise SyntaxError
     p[0] = Rpn_Fetch_Var(ident, modifier)
 
@@ -8341,6 +8343,8 @@ def initialize():
     # Attempt to load the user's init file
     init_file = os.path.expanduser("~/.rpnrc")
     if os.path.isfile(init_file):
+        (rpnrc, _) = lookup_variable('RPNRC')
+        rpnrc.set_obj(Rpn_String(init_file))
         load_file(init_file)
 
     # Parse command line
@@ -8400,6 +8404,7 @@ def define_variables():
     tvm_PMT     = defvar('PMT',   None, noshadow=True, pre_hooks=[require_int_or_float], doc="TVM: Payment amount")
     tvm_PV      = defvar('PV',    None, noshadow=True, pre_hooks=[require_int_or_float],  doc="TVM: Present Value")
     scr_rows    = defvar('ROWS',  Rpn_Integer(0), pre_hooks=[require_int, require_positive])
+    _           = defvar('RPNRC', Rpn_String(""), readonly=True, hidden=True)
     _           = defvar('SCIPY', Rpn_Integer(bool_to_int(have_scipy)), readonly=True, noshadow=True)
     reg_size    = defvar('SIZE',  Rpn_Integer(20), noshadow=True, readonly=True)
     _           = defvar('VER',   Rpn_Float(rpn_version), readonly=True, noshadow=True)
@@ -8427,7 +8432,14 @@ def main_loop():
     global show_x
     show_x = False    # Reset, because some argv may have set it to True
 
-    lnwriteln("RPN version {}".format(rpn_version))
+    # Non-existence of ~/.rpnrc is indicator of novice mode
+    (rpnrc, _) = lookup_variable('RPNRC')
+    init_file = rpnrc.obj().value()
+    if len(init_file) == 0:
+        lnwriteln("RPN version {}".format(rpn_version))
+        lnwriteln("Type ? for information, HELP <word> for help on a specific word")
+        lnwriteln("Type bye to exit")
+
     if not param_stack.empty():
         if param_stack.size() == 1:
             w_dup()
