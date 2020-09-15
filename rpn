@@ -58,8 +58,8 @@ flag_printer_enabled    = 21
 flag_decimal_point      = 28          # Set: 123,456.123  (US)   Clear: 123.456,123  (Europe)
 flag_digit_grouping     = 29          # Set: 1,234,567.01        Clear: 1234567.01
 flag_fence              = 30          # Flags >= flag_fence cannot set set by the user
-# flag_disp_fix         = 40
-# flag_disp_eng         = 41
+flag_disp_fix           = 40
+flag_disp_eng           = 41
 flag_grad               = 42
 flag_rad                = 43
 flag_printer_exists     = 55
@@ -3612,6 +3612,19 @@ def w_rightshift():
     param_stack.push(Rpn_Integer(y.value() >> x.value()))
 
 
+@defword(name='>c', args=2, doc="""\
+Construct a complex number from two reals  ( y x -- complex[x,y] )""")
+def w_to_c():
+        x = param_stack.pop()
+        y = param_stack.pop()
+        if    type(x) not in [Rpn_Integer, Rpn_Rational, Rpn_Float] \
+           or type(y) not in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
+            param_stack.push(y)
+            param_stack.push(x)
+            raise Rpn_E_Type_Error(">c: Type error ({}, {})".format(typename(y), typename(x)))
+        param_stack.push(Rpn_Complex(float(x.value()), float(y.value())))
+
+
 @defword(name='>r', args=1, doc="""\
 Push X onto return stack  ( x -- )""")
 def w_to_r():
@@ -4070,6 +4083,17 @@ def w_bitxor():
 Exit program""")
 def w_bye():
     raise Rpn_E_End_Program()
+
+
+@defword(name='c>', args=1, doc="""\
+c>  ( c -- y x )  Extract imaginary and real parts of a complex number""")
+def w_c_from():
+        x = param_stack.pop()
+        if type(x) is not Rpn_Complex:
+            param_stack.push(x)
+            raise Rpn_E_Type_Error("c>: Type error ({})".format(typename(x)))
+        param_stack.push(Rpn_Float(x.imag()))
+        param_stack.push(Rpn_Float(x.real()))
 
 
 @defword(name='case', doc="""\
@@ -4737,8 +4761,8 @@ def w_eng():
 
     disp_stack.top().set_style("eng")
     disp_stack.top().set_prec(x.value())
-    clear_flag(40)
-    set_flag(41)
+    clear_flag(flag_disp_fix)
+    set_flag(flag_disp_eng)
 
 
 @defword(name='epoch', print_x=True, doc="""\
@@ -4918,8 +4942,8 @@ def w_fix():
 
     disp_stack.top().set_style("fix")
     disp_stack.top().set_prec(x.value())
-    set_flag(40)
-    clear_flag(41)
+    set_flag(flag_disp_fix)
+    clear_flag(flag_disp_eng)
 
 
 @defword(name='floor', args=1, print_x=True, doc="""\
@@ -5444,7 +5468,7 @@ def w_J():
 
 
 @defword(name='jd->$', args=1, doc="""\
-Convert julian day number to ISO date string  ( julian -- "YYYY-MM-DD" )
+Convert julian day number to ISO date string  ( julian -- ) [ -- "YYYY-MM-DD" ]
 
 EXAMPLE:
 2369915 jd->$  ==>  "1776-07-04" """)
@@ -5847,24 +5871,22 @@ def w_over():
 
 @defword(name='p->r', print_x=True, doc="""\
 Convert polar coordinates to rectangular.
-The parameters can be either two reals or one complex.
+The parameter(s) can be either two reals, or one complex.
 
-Real:      ( phi r -- y x )
-Complex:   ( cp -- cr )
-  cp : (r, phi)
-  cr : (x, y)
+Real:      ( theta r   -- y x   )
+Complex:   ( (r,theta) -- (x,y) )
 
 DEFINITION:
-x = r * cos(phi)
-y = r * sin(phi)""")
+x = r * cos(theta)
+y = r * sin(theta)""")
 def w_p_to_r():
     if param_stack.empty():
         raise Rpn_E_Runtime_Error("p->r: Insufficient parameters (1 or 2 required)")
     x = param_stack.pop()
     if type(x) is Rpn_Complex:
-        r   = x.real()
-        phi = convert_mode_to_radians(x.imag())
-        result = Rpn_Complex.from_complex(cmath.rect(r, phi))
+        r      = x.real()
+        theta  = convert_mode_to_radians(x.imag())
+        result = Rpn_Complex.from_complex(cmath.rect(r, theta))
         param_stack.push(result)
     elif type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
         if param_stack.empty():
@@ -5875,10 +5897,11 @@ def w_p_to_r():
             param_stack.push(y)
             param_stack.push(x)
             raise Rpn_E_Type_Error("p->r: Type error({}, {})".format(typename(y), typename(x)))
-        r   = float(x.value())
-        phi = convert_mode_to_radians(float(y.value()))
-        xval = r * math.cos(phi)
-        yval = r * math.sin(phi)
+
+        r     = float(x.value())
+        theta = convert_mode_to_radians(float(y.value()))
+        xval  = r * math.cos(theta)
+        yval  = r * math.sin(theta)
         param_stack.push(Rpn_Float(yval))
         param_stack.push(Rpn_Float(xval))
     else:
@@ -6128,23 +6151,21 @@ def w_r_to_d():
 
 @defword(name='r->p', print_x=True, doc="""\
 Convert rectangular coordinates to polar.
-The parameters can be either two reals, or one complex.
+The parameter(s) can be either two reals, or one complex.
 
-Real:      ( y x -- phi r )
-Complex:   ( cr -- cp )
-  cr : (x, y)
-  cp : (r, phi)
+Real:      ( y x   -- theta r   )
+Complex:   ( (x,y) -- (r,theta) )
 
 DEFINITION:
-r   = hypot(x, y) == sqrt(x^2 + y^2)
-phi = atan2(x, y)""")
+r     = hypot(x, y) == sqrt(x^2 + y^2)
+theta = atan(y / x) == atan2(y, x)""")
 def w_r_to_p():
     if param_stack.empty():
         raise Rpn_E_Runtime_Error("r->p: Insufficient parameters (1 or 2 required)")
     x = param_stack.pop()
     if type(x) is Rpn_Complex:
-        (r, phi) = cmath.polar(x.value())
-        result = Rpn_Complex(r, convert_radians_to_mode(phi))
+        (r, theta) = cmath.polar(x.value())
+        result = Rpn_Complex(r, convert_radians_to_mode(theta))
         param_stack.push(result)
     elif type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
         if param_stack.empty():
@@ -6156,15 +6177,15 @@ def w_r_to_p():
             param_stack.push(x)
             raise Rpn_E_Type_Error("r->p: Type error({}, {})".format(typename(y), typename(x)))
 
-        phi = math.atan2(y.value(), x.value())
-        phi_obj = Rpn_Float(convert_radians_to_mode(phi))
-        phi_obj.set_label("phi")
+        theta = math.atan2(y.value(), x.value())
+        theta_obj = Rpn_Float(convert_radians_to_mode(theta))
+        theta_obj.set_label("theta_" + angle_mode_label())
 
         r = math.hypot(y.value(), x.value())
         r_obj = Rpn_Float(r)
         r_obj.set_label("r")
 
-        param_stack.push(phi_obj)
+        param_stack.push(theta_obj)
         param_stack.push(r_obj)
     else:
         param_stack.push(x)
@@ -6249,6 +6270,51 @@ def w_rcl():
         param_stack.push(x)
         raise Rpn_E_Value_Error("rcl: Register '{}' out of range (0..{} expected)".format(reg, reg_size.obj().value() - 1))
     param_stack.push(register[reg])
+
+
+@defword(name='rct->sph', args=3, doc="""\
+Convert rectangular coordinates to spherical  ( z y x -- phi theta r )
+
+DEFINITION:
+phi   = atan(y/x)      == atan2(y, x)
+theta = acos(z / r)
+r     = hypot(x, y, z) == sqrt(x^2 + y^2 + z^2)""")
+def w_rct_to_sph():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    z = param_stack.pop()
+    if    type(x) not in [Rpn_Integer, Rpn_Rational, Rpn_Float] \
+       or type(y) not in [Rpn_Integer, Rpn_Rational, Rpn_Float] \
+       or type(z) not in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
+        param_stack.push(z)
+        param_stack.push(y)
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("rct->sph: Type error ({}, {}, {})".format(typename(z), typename(y), typename(x)))
+    if x.zerop() and y.zerop() and z.zerop():
+        param_stack.push(z)
+        param_stack.push(y)
+        param_stack.push(x)
+        return
+
+    xval = float(x.value())
+    yval = float(y.value())
+    zval = float(z.value())
+
+    r     = math.sqrt(xval**2 + yval**2 + zval**2)
+    r_obj = Rpn_Float(r)
+    r_obj.set_label("r")
+
+    theta     = math.acos(zval / r)
+    theta_obj = Rpn_Float(convert_radians_to_mode(theta))
+    theta_obj.set_label("theta_" + angle_mode_label())
+
+    phi     = math.atan2(yval, xval)
+    phi_obj = Rpn_Float(convert_radians_to_mode(phi))
+    phi_obj.set_label("phi_" + angle_mode_label())
+
+    param_stack.push(phi_obj)
+    param_stack.push(theta_obj)
+    param_stack.push(r_obj)
 
 
 @defword(name='rdepth', print_x=True, doc="""\
@@ -6408,8 +6474,8 @@ def w_sci():
 
     disp_stack.top().set_style("sci")
     disp_stack.top().set_prec(x.value())
-    clear_flag(40)
-    clear_flag(41)
+    clear_flag(flag_disp_fix)
+    clear_flag(flag_disp_eng)
 
 
 @defword(name='scopes', print_x=False, doc="""\
@@ -6666,6 +6732,43 @@ def w_sleep():
     time.sleep(sleep_time)
 
 
+@defword(name='sph->rct', args=3, doc="""\
+Convert spherical coordinates to rectangular  ( phi theta r -- z y x )
+
+DEFINITION:
+x = r * sin(theta) * cos(phi)
+y = r * sin(theta) * sin(phi)
+z = r * cos(theta)""")
+def w_sph_to_rct():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    z = param_stack.pop()
+    if    type(x) not in [Rpn_Integer, Rpn_Rational, Rpn_Float] \
+       or type(y) not in [Rpn_Integer, Rpn_Rational, Rpn_Float] \
+       or type(z) not in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
+        param_stack.push(z)
+        param_stack.push(y)
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("sph->rct: Type error ({}, {}, {})".format(typename(z), typename(y), typename(x)))
+    if x.zerop() and y.zerop() and z.zerop():
+        param_stack.push(z)
+        param_stack.push(y)
+        param_stack.push(x)
+        return
+
+    r     = float(x.value())
+    theta = convert_mode_to_radians(float(y.value()))
+    phi   = convert_mode_to_radians(float(z.value()))
+
+    x_coord = r * math.sin(theta) * math.cos(phi)
+    y_coord = r * math.sin(theta) * math.sin(phi)
+    z_coord = r * math.cos(theta)
+
+    param_stack.push(Rpn_Float(z_coord))
+    param_stack.push(Rpn_Float(y_coord))
+    param_stack.push(Rpn_Float(x_coord))
+
+
 @defword(name='sq', args=1, print_x=True, doc="""\
 Square  ( x -- x^2 )""")
 def w_sq():
@@ -6722,8 +6825,8 @@ std  ( -- )
 Set display mode to standard.""")
 def w_std():
     disp_stack.top().set_style("std")
-    set_flag(40)
-    set_flag(41)
+    set_flag(flag_disp_fix)
+    set_flag(flag_disp_eng)
     for bit in range(4):
         clear_flag(39 - bit)
 
