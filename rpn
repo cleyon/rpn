@@ -1326,9 +1326,9 @@ class Rpn_Scope:
 
         if default_protected:
             if (word.doc() is None or len(word.doc()) == 0) and not word.hidden():
-                print("Warning: Word '{}' has no documentation".format(identifier))
+                print("Warning: Word '{}' has no documentation".format(identifier)) # OK
             # if word.args() is None:
-            #     print("Warning: Word '{}' has no args!".format(identifier))
+            #     print("Warning: Word '{}' has no args!".format(identifier)) # OK
 
         self._words[identifier] = word
 
@@ -1472,7 +1472,6 @@ class Rpn_Sequence:
 
     def patch_recurse(self, new_word):
         for idx, elem in enumerate(self.seq().items()):
-            #print("idx={}, elem={}".format(idx, type(elem)))
             self.seq()[idx].patch_recurse(new_word)
 
     def scope_template(self):
@@ -2535,7 +2534,6 @@ def p_word(p):
         lnwriteln("Word '{}' not found".format(name))
         raise SyntaxError
 
-    #print("p_word: word is of type '{}'".format(type(word)))
     p[0] = word
 
 
@@ -3341,6 +3339,33 @@ def w_dot_oct():
         raise Rpn_E_Type_Error(".o: Type error ({})".format(typename(x)))
 
     write("{} ".format(oct(x.value())))
+
+
+@defword(name='.r', args=2, print_x=False, doc="""\
+Print N right-justified in WIDTH  ( n width -- )
+
+This never outputs more than WIDTH characters, and will silently truncate the
+representation to fit.  It is wise to check the size of your values before
+printing - you have been warned!  No space is printed after the number.""")
+def w_dot_r():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise Rpn_E_Type_Error(".r: Width must be an integer ({})".format(typename(x)))
+    width = x.value()
+    if width < 0:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise Rpn_E_Value_Error(".r: Width must not be negative")
+    if width == 0:
+        return
+
+    s = fmt(y, False)       # No label
+    if len(s) > width:
+        s = s[:width]       # This seems a bit harsh, but it's documented
+    write("{:>{width}}".format(s, width=width))
 
 
 @defword(name='.s', print_x=False, doc="""\
@@ -4426,7 +4451,7 @@ def w_dateinfo():
     if type(x) is not Rpn_Float:
         param_stack.push(x)
         raise Rpn_E_Type_Error("dateinfo: Type error ({})".format(typename(x)))
-    print(x.date_info())        # OK
+    writeln("dateinfo: {}".format(x.date_info()))
 
 
 @defword(name='date+', args=2, print_x=True, doc="""\
@@ -5508,6 +5533,35 @@ def w_jd_to_d():
     param_stack.push(result)
 
 
+if have_scipy:
+    @defword(name='Jv', args=2, print_x=True, doc="""\
+Jv  ( order x -- J_v(x) )
+
+Bessel function of the first kind of real order and complex argument.
+Implemented via scipy.special.jv(order, x)""")
+    def w_Jv():
+        x = param_stack.pop()
+        y = param_stack.pop()
+        if    type(x) not in [Rpn_Integer, Rpn_Rational, Rpn_Float, Rpn_Complex] \
+           or type(y) not in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
+            param_stack.push(y)
+            param_stack.push(x)
+            raise Rpn_E_Type_Error("Jv: Type error ({}, {})".format(typename(y), typename(x)))
+        order = float(y.value())
+        xval = x.value()
+        r = scipy.special.jv(order, xval)
+        if type(r) is np.float64 and math.isnan(r):
+            param_stack.push(y)
+            param_stack.push(x)
+            raise Rpn_E_Type_Error("Jv: Not a number")
+
+        if type(x) is Rpn_Complex:
+            result = Rpn_Complex.from_complex(r)
+        else:
+            result = Rpn_Float(r)
+        param_stack.push(result)
+
+
 @defword(name='inv', args=1, print_x=True, doc="""\
 Inverse  ( x -- 1/x )
 X cannot be zero.""")
@@ -6108,7 +6162,14 @@ if have_scipy:
 Numerical integration  ( lower upper -- err.est integral )
 Name of function must be on string stack.
 
-Implemented via scipy.integrate.quad()""")
+Implemented via scipy.integrate.quad()
+
+EXAMPLE: Integrate a bessel function jv(2.5, x) along the interval [0,4.5]:
+
+: J2.5  2.5 swap Jv ;
+0 4.5 "J2.5" quad .s  =>
+1: 7.866317216380692e-09  \ error
+0: 1.1178179380783249  \ quad""")
     def w_quad():
         x = param_stack.pop()
         y = param_stack.pop()
@@ -6589,9 +6650,9 @@ Print the statistics list""")
 def w_shstat():
     global stat_list
     if len(stat_list) == 0:
-        print("No statistics data")
+        writeln("No statistics data")
     else:
-        print(stat_list)
+        writeln(stat_list)
 
 
 @defword(name='shreg', print_x=False, doc="""\
@@ -7002,7 +7063,7 @@ def w_timeinfo():
     if type(x) is not Rpn_Float:
         param_stack.push(x)
         raise Rpn_E_Type_Error("timeinfo: Type error ({})".format(typename(x)))
-    print(x.time_info())        # OK
+    writeln("timeinfo: {}".format(x.time_info()))
 
 
 @defword(name='trace', doc="""\
@@ -7737,8 +7798,8 @@ def flag_set_p(flag):
 
 
 # I should really just use __format__() correctly
-def fmt(x):
-    return disp_stack.top().fmt(x)
+def fmt(x, show_label=True):
+    return disp_stack.top().fmt(x, show_label)
 
 
 def generate_token_list():
@@ -8211,17 +8272,17 @@ def write(s=""):
     newline = s.find("\n")
     while newline != -1:
         substring = s[:newline]
-        print(substring)
+        print(substring)       # OK
         outval = 0
         s = s[newline+1:]
         newline = s.find("\n")
     outval += len(s)
-    print(s, end='', flush=True)
+    print(s, end='', flush=True) # OK
     sharpout.set_obj(Rpn_Integer(outval))
 
 def writeln(s=""):
     global sharpout
-    print(s, flush=True)
+    print(s, flush=True)       # OK
     sharpout.set_obj(Rpn_Integer(0))
 
 def lnwrite(s=""):
@@ -8356,7 +8417,7 @@ def main():
             lnwriteln("Fatal error: {}".format(e))
         sys.exit(1)
     except Rpn_E_Throw as e:
-        print("Uncaught exception: throw {}".format(e))
+        print("Uncaught exception: throw {}".format(e)) # OK
         sys.exit(1)
 
     end_program()
