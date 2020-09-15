@@ -3272,7 +3272,42 @@ def w_dot_quote():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='.b', args=1, print_x=False, doc="""\
+@defword(name='.all', args=1, print_x=False, doc="""\
+Print X in a variety of formats  ( x -- )""")
+def w_dot_all():
+    x = param_stack.pop()
+    xval = x.value()
+
+    out = "{}".format(fmt(x))
+    more = ""
+    if type(x) is Rpn_Integer:
+        more += "  Hex={}".format(hex(x.value()))
+        more += "  Oct={}".format(oct(x.value()))
+
+        ascii_char = ["NUL", "SOH", "STX", "ETX", "EOT", "ENQ", "ACK", "BEL",
+                      "BS",  "HT",  "LF",  "VT",  "FF",  "CR",  "SO",  "SI",
+                      "DLE", "DC1", "DC2", "DC3", "DC4", "NAK", "SYN", "ETB",
+                      "CAN", "EM",  "SUB", "ESC", "FS",  "GS",  "RS",  "US",
+                      "SP",  "!",   "\"",  "#",   "\$",  "%",   "&",   "'",
+                      "(",   ")",   "*",   "+",   ",",   "-",   ".",   "/",
+                      "0",   "1",   "2",   "3",   "4",   "5",   "6",   "7",
+                      "8",   "9",   ":",   ";",   "<",   "=",   ">",   "?",
+                      "@",   "A",   "B",   "C",   "D",   "E",   "F",   "G",
+                      "H",   "I",   "J",   "K",   "L",   "M",   "N",   "O",
+                      "P",   "Q",   "R",   "S",   "T",   "U",   "V",   "W",
+                      "X",   "Y",   "Z",   "[",   "\\",  "]",   "^",   "_",
+                      "`",   "a",   "b",   "c",   "d",   "e",   "f",   "g",
+                      "h",   "i",   "j",   "k",   "l",   "m",   "n",   "o",
+                      "p",   "q",   "r",   "s",   "t",   "u",   "v",   "w",
+                      "x",   "y",   "z",   "{",   "|",   "}",   "~",   "DEL"]
+        if xval >= 0 and xval <= 127:
+            more += "  Char={}".format(ascii_char[xval])
+
+    out += more
+    writeln(out)
+
+
+@defword(name='.bin', args=1, print_x=False, doc="""\
 Print X in binary  ( i -- )
 X must be an integer.""")
 def w_dot_bin():
@@ -3284,7 +3319,19 @@ def w_dot_bin():
     write("{} ".format(bin(x.value())))
 
 
-@defword(name='.o', args=1, print_x=False, doc="""\
+@defword(name='.hex', args=1, print_x=False, doc="""\
+Print X in hexadecimal  ( i -- )
+X must be an integer.""")
+def w_dot_hex():
+    x = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(x)
+        raise Rpn_E_Type_Error(".x: Type error ({})".format(typename(x)))
+
+    write("{} ".format(hex(x.value())))
+
+
+@defword(name='.oct', args=1, print_x=False, doc="""\
 Print X in octal  ( i -- )
 X must be an integer.""")
 def w_dot_oct():
@@ -3308,18 +3355,6 @@ Print stack non-destructively""")
 def w_dot_s_bang():
     if not param_stack.empty():
         lnwriteln(repr(param_stack))
-
-
-@defword(name='.x', args=1, print_x=False, doc="""\
-Print X in hexadecimal  ( i -- )
-X must be an integer.""")
-def w_dot_hex():
-    x = param_stack.pop()
-    if type(x) is not Rpn_Integer:
-        param_stack.push(x)
-        raise Rpn_E_Type_Error(".x: Type error ({})".format(typename(x)))
-
-    write("{} ".format(hex(x.value())))
 
 
 @defword(name='/', args=2, print_x=True, doc="""\
@@ -4282,6 +4317,44 @@ def w_cr():
     writeln()
 
 
+def sum3(y):
+    return int(y * 365.25) - int(y / 100) + int(y / 400)
+
+def m306(m):
+    return int(m * 30.6001)
+
+@defword(name='d->hp', args=1, print_x=True, doc="""\
+Convert date to HP day number  ( MM.DDYYYY -- day# )
+
+Day # 0 = October 15, 1582""")
+def w_d_to_hp():
+    day0_julian = 2299160
+    x = param_stack.pop()
+    if type(x) is not Rpn_Float:
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("d->hp: Type error ({})".format(typename(x)))
+
+    (valid, dateobj, julian) = x.date_info()
+    if not valid:
+        param_stack.push(x)
+        raise Rpn_E_Value_Error("d->hp: {} is not a valid date".format(x.value()))
+
+    if dateobj.month < 3:
+        m = dateobj.month + 13
+        y = dateobj.year - 1
+    else:
+        m = dateobj.month + 1
+        y = dateobj.year
+
+    daynum = sum3(y) + m306(m) + dateobj.day - 578164
+    if julian - daynum + day0_julian != 0:
+        lnwriteln("d->hp: Result differs from Julian")
+
+    result = Rpn_Integer(daynum)
+    result.set_label("HP day")
+    param_stack.push(result)
+
+
 @defword(name='d->jd', args=1, print_x=True, doc="""\
 Convert date to Julian day number ( MM.DDYYYY -- julian )""")
 def w_d_to_jd():
@@ -5201,6 +5274,34 @@ def w_hms_minus():
     param_stack.push(result)
 
 
+@defword(name='hp->d', args=1, print_x=True, doc="""\
+Convert HP day number to date  ( day# -- MM.DDYYYY )
+
+Day # 0 = October 15, 1582""")
+def w_hp_to_d():
+    x = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("hp->d: Type error ({})".format(typename(x)))
+
+    daynum = x.value()
+    if daynum < 0 or daynum > datetime.date.max.toordinal():
+        param_stack.push(x)
+        raise Rpn_E_Value_Error("hp->d: X out of range")
+
+    # dateobj = datetime.date.fromordinal(x.value() - julian_offset)
+    # result = Rpn_Float("%d.%02d%04d" % (dateobj.month, dateobj.day, dateobj.year))
+    d0 = daynum + 578164
+    y0 = int((d0 - 121.5) / 365.2425)
+    # m0 = int((d0 - sum3(y0)) / 30.6001)
+    # while m0 < 4:
+    #     y0 -= 1
+    #     m0 = int((d0 -
+    #
+    # result.set_label("MM.DDYYYY")
+    # param_stack.push(result)
+
+
 @defword(name='hr', args=1, print_x=True, doc="""\
 Convert hours/minutes/seconds to decimal hours  ( HH.MMSS -- HH.nnn )""")
 def w_hr():
@@ -5853,30 +5954,30 @@ FN is the (string) name of a function which must implement ( x -- y ).
 Y-axis is autoscaled.
 
 EXAMPLE:
-rad  80 !COL  24 !ROWS
+rad  80 !COLS  24 !ROWS
 TAU chs TAU "sin" plot  =>
 
-      1.000 |____________________________________*_____________________|
-            |     ****                   :     ** *                    |
-            |    *    *                  :    *    *                   |
-            |   *      *                 :          *                  |
-            |                            :   *       *                 |
-            |  *        *                :  *                          |
-            | *                          :            *                |
-            |            *               : *                           |
-            |*                           :             *               |
-            |             *              :*                            |
-            *                            :              *              |
-            |--------------*-------------+-----------------------------*
-            |                            *               *             |
-            |               *            :                            *|
-            |                           *:                *            |
-            |                *           :                           * |
-            |                          * :                 *        *  |
-            |                 *       *  :                             |
-            |                  *         :                  *      *   |
-            |                   *    *   :                   *    *    |
-     -1.000 |____________________****_________________________****_____|
+      1.000 :------------------------------------*---------------------:
+            :     ****                   |     ** *                    :
+            :    *    *                  |    *    *                   :
+            :   *      *                 |          *                  :
+            :                            |   *       *                 :
+            :  *        *                |  *                          :
+            : *                          |            *                :
+            :            *               | *                           :
+            :*                           |             *               :
+            :             *              |*                            :
+            *                            |              *              :
+            :==============*=============+=============================*
+            :                            *               *             :
+            :               *            |                            *:
+            :                           *|                *            :
+            :                *           |                           * :
+            :                          * |                 *        *  :
+            :                 *       *  |                             :
+            :                  *         |                  *      *   :
+            :                   *    *   |                   *    *    :
+     =1.000 :--------------------****-------------------------****-----:
              -6.283                                                   6.283""")
 def w_plot():
     x = param_stack.pop()
@@ -7160,10 +7261,10 @@ def plot_helper(func, x_low, x_high):
     ISCR   = cols - 20
     JSCR   = rows -  3
     BLANK  = ' '
-    VERT   = '|'
-    VZERO  = ':'
-    HORIZ  = '_'
-    HZERO  = '-'
+    VERT   = ':'
+    VZERO  = '|'
+    HORIZ  = '-'
+    HZERO  = '='
     ORIGIN = '+'
     FF     = '*'
     scr = [[BLANK for i in range(1,JSCR+2)] for j in range(1,ISCR+2)]
