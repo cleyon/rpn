@@ -908,7 +908,7 @@ class Rpn_Fetch_Var:
                 # The variable remains undefined
             else:
                 raise Rpn_E_Runtime_Error("{}: Variable is not defined".format(str(self)))
-        elif type(var.obj()) is Rpn_String:
+        elif self._modifier == '$' or type(var.obj()) is Rpn_String:
             string_stack.push(var.obj())
         else:
             if self._modifier is not None and param_stack.empty():
@@ -1605,25 +1605,29 @@ class Rpn_Store_Var:
     def __call__(self):
         dbg("trace", 1, "trace({})".format(repr(self)))
         (var, _) = lookup_variable(self.identifier())
+        stringp = bool(self._modifier == '$')
         if var is None:
             raise Rpn_E_Fatal("{}: Variable has vanished!".format(str(self)))
         if var.readonly():
             raise Rpn_E_Runtime_Error("{}: Variable cannot be modified".format(str(self)))
         if var.constant():
             raise Rpn_E_Runtime_Error("{}: Constant cannot be modified".format(str(self)))
-        if param_stack.empty():
+        if stringp and string_stack.empty():
+            raise Rpn_E_Runtime_Error("{}: Insufficient string parameters (1 required)".format(str(self)))
+        if not stringp and param_stack.empty():
             raise Rpn_E_Runtime_Error("{}: Insufficient parameters (1 required)".format(str(self)))
         if self._modifier == '/' and param_stack.top().zerop():
             raise Rpn_E_Value_Error("{}: X cannot be zero".format(str(self)))
 
+        top = string_stack.top() if stringp else param_stack.top()
         for pre_hook_func in var.pre_hooks():
             try:
-                pre_hook_func(self.identifier(), var.obj(), param_stack.top())
+                pre_hook_func(self.identifier(), var.obj(), top)
             except Rpn_E_Runtime_Error as e:
                 lnwriteln(str(e))
                 return
 
-        if self._modifier is not None:
+        if not stringp and self._modifier is not None:
             param_stack.push(var.obj())
             w_swap()
             if self._modifier == '+':
@@ -1635,7 +1639,7 @@ class Rpn_Store_Var:
             elif self._modifier == '/':
                 w_slash()
 
-        obj = param_stack.pop()
+        obj = string_stack.pop() if stringp else param_stack.pop()
         var.set_obj(obj)
 
         for post_hook_func in var.post_hooks():
@@ -2508,13 +2512,13 @@ def p_store_var(p):
     '''store_var : EXCLAM IDENTIFIER'''
 
     ident = p[2]
-    if ident[0] in ['+', '-', '*', '/']:
+    if ident[0] in ['+', '-', '*', '/', '$']:
         modifier = ident[0]
         ident = ident[1:]
     else:
         modifier = None
     if not Rpn_Variable.name_valid_p(ident):
-        lnwriteln("!{}: Variable name is not valid".format(ident))
+        lnwriteln("!: Variable name '{}' not valid".format(ident))
         raise SyntaxError
     dbg(whoami(), 1, "{}: Looking up {}".format(whoami(), ident))
     (varname, _) = lookup_varname(ident)
@@ -2804,7 +2808,7 @@ def p_fetch_var(p):
     '''fetch_var : AT_SIGN IDENTIFIER'''
 
     ident = p[2]
-    if ident[0] in ['+', '-', '*', '/', '?']:
+    if ident[0] in ['+', '-', '*', '/', '?', '$']:
         modifier = ident[0]
         ident = ident[1:]
     else:
@@ -3698,6 +3702,38 @@ Create a 3-vector from the stack  ( z y x -- v )""")
         param_stack.push(v)
 
 
+@defword(name='?', print_x=False, doc="""\
+?[topic]   Display information on a variety of topics""")
+def w_info():
+    print("""\
+rpn is a general-purpose calculator and programming language based loosely
+on Forth and Hewlett-Packard calculators.
+
+The following topics provide additional information:
+    ?datatypes
+    ?variables""")
+
+
+@defword(name='?datatypes', print_x=False, hidden=True, doc='')
+def w_info_datatypes():
+    print("""\
+rpn supports the following datatypes, which may be placed directly on the
+parameter stack.  Examples are also shown.
+
+- Integer       1234
+- Float         3.14159
+- Rational      355::113
+- Complex       (1.2, 3.4)
+- Vector        [1 2 3 4]
+- Matrix        [[1 0 0 0]
+                 [0 1 0 0]
+                 [0 0 1 0]
+                 [0 0 0 1]]
+
+Additionally, a String datatype is defined, which are placed on a separate
+string stack.  "This is a sample string" """)
+
+
 @defword(name='?dup', args=1, doc="""\
 Duplicate top stack element if non-zero  ( x -- x x | 0 )""")
 def w_query_dup():
@@ -3707,6 +3743,31 @@ def w_query_dup():
         raise Rpn_E_Type_Error("?dup: Type error ({})".format(typename(x)))
     if not x.zerop():
         w_dup()
+
+
+@defword(name='?variables', print_x=False, hidden=True, doc='')
+def w_info_variables():
+    print("""\
+Data from the stack may be stored in variables.  The syntax to store an object
+is !VAR.  For example, to store the constant Pi (3.14...) into variable "mypi",
+type:
+        PI !mypi
+Note that variables must be declared before they may be used.  To declare a
+variable, which is initially created in an undefined state, type:
+        variable mypi
+Then the above example will work.  Variables local to a function can be defined
+as follows:
+        : myfunc  | x y z |   . . .  ;
+x, y, and z will be locally defined only in the function "myfunc".
+
+Values stored in variables may be pushed onto the stack with @VAR.
+
+Note how this syntax differs from Forth's.  In Forth, one would say
+        VAR @
+This syntax is not allowed in Rpn because the "address" of a variable is never
+exposed, and so it cannot ever be placed, however briefly, on the stack.  This
+also means the that problem of accessing illegal memory cannot arise: the
+variable is either findable by the system through its name, or it is not.""")
 
 
 @defword(name='^', args=2, print_x=True, doc="""\
