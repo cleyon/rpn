@@ -1171,10 +1171,11 @@ class Rpn_List:
         return "List[" + ", ".join([ repr(item) for item in self.listval() ]) + "]"
 
 
-class Rpn_Matrix:
+class Rpn_Matrix(Rpn_Stackable):
     def __init__(self, vals):
         if not have_numpy:
             raise Rpn_E_Runtime_Error("Matrices require 'numpy' library")
+        super().__init__()
         #lnwriteln("{}: vals={}".format(whoami(), repr(vals)))
         self._nrows = len(vals)
         cols = -1
@@ -1190,18 +1191,15 @@ class Rpn_Matrix:
         self._ncols = cols
         #lnwriteln("{} rows x {} columns".format(self.nrows(), self.ncols()))
         #print("vecs", vecs)
-        self._np_value = np.array(vecs)
+        self.set_value(np.array(vecs))
         #print("val",repr(self.value()))
 
     @classmethod
     def from_numpy(cls, x):
         obj = cls(Rpn_List())
         obj._nrows, obj._ncols = x.shape
-        obj.set_np(x)
+        obj.set_value(x)
         return obj
-
-    def set_np(self, np_obj):
-        self._np_value = np_obj
 
     def nrows(self):
         return self._nrows
@@ -1209,18 +1207,11 @@ class Rpn_Matrix:
     def ncols(self):
         return self._ncols
 
-    def __call__(self):
-        dbg("trace", 1, "trace({})".format(repr(self)))
-        param_stack.push(self)
-
-    def patch_recurse(self, new_word):
-        pass
-
     def __str__(self):
-        return str(self._np_value)
+        return str(self.value())
 
     def __repr__(self):
-        return "Matrix[{}]".format(repr(self._np_value))
+        return "Matrix[{}]".format(repr(self.value()))
 
 
 class Rpn_Queue:
@@ -1887,44 +1878,32 @@ class Rpn_Variable:
         return "Variable[{},addr={},value={}]".format(self._rawname, hex(id(self)), repr(self.obj()))
 
 
-class Rpn_Vector:
+class Rpn_Vector(Rpn_Stackable):
     def __init__(self, vals):
         if not have_numpy:
             raise Rpn_E_Runtime_Error("Vectors require 'numpy' library")
+        super().__init__()
         if type(vals) is not Rpn_List:
             raise Rpn_E_Fatal("{}: vals is not an Rpn_List ({})".format(whoami(), repr(vals)))
-        self._np_value = np.array([ elem.value() for elem in vals.listval() ])
+        self.set_value(np.array([ elem.value() for elem in vals.listval() ]))
 
     @classmethod
     def from_numpy(cls, x):
         obj = cls(Rpn_List())
         # print(type(obj))
         # print("from_numpy: {}".format(repr(obj)))
-        obj.set_np(x)
+        obj.set_value(x)
         # print("from_numpy: {}".format(repr(obj)))
         return obj
-
-    def value(self):
-        return self._np_value
-
-    def set_np(self, np_obj):
-        self._np_value = np_obj
 
     def size(self):
         return self.value().size
 
-    def __call__(self):
-        dbg("trace", 1, "trace({})".format(repr(self)))
-        param_stack.push(self)
-
-    def patch_recurse(self, new_word):
-        pass
-
     def __str__(self):
-        return "[ " + " ".join([ str(to_rpn_class(e)) for e in self._np_value ]) +" ]"
+        return "[ " + " ".join([ str(to_rpn_class(e)) for e in self.value() ]) +" ]"
 
     def __repr__(self):
-        return "Vector[{}]".format(repr(self._np_value))
+        return "Vector[{}]".format(repr(self.value()))
 
 
 class Rpn_Word:
@@ -7139,6 +7118,22 @@ def w_trace():
         set_flag(flag_debug_enabled)
         set_debug_level("trace", 1)
         lnwriteln("trace: Tracing is now ENABLED")
+
+
+@defword(name='trn', args=1, doc="""\
+Transpose a matrix  ( mat -- mat_T )""")
+def w_trn():
+    x = param_stack.pop()
+    if type(x) is Rpn_Vector:
+        # Transposing a vector is allowed but has no effect.
+        # It does NOT "convert a 1-D array into a 2D column vector".
+        param_stack.push(x)
+        return
+    if type(x) is not Rpn_Matrix:
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("trn: Type error ({})".format(typename(x)))
+    t = Rpn_Matrix.from_numpy(np.matrix.transpose(x.value()))
+    param_stack.push(t)
 
 
 @defword(name='undef', doc="""\
