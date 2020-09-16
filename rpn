@@ -19,6 +19,7 @@ import signal
 import statistics
 import subprocess
 import sys
+import tempfile         # edit
 import time
 import traceback
 
@@ -1900,7 +1901,10 @@ class Rpn_Vector(Rpn_Stackable):
         return self.value().size
 
     def __str__(self):
-        return "[ " + " ".join([ str(to_rpn_class(e)) for e in self.value() ]) +" ]"
+        if self.size() == 0:
+            return "[]"
+        else:
+            return "[ " + " ".join([ str(to_rpn_class(e)) for e in self.value() ]) +" ]"
 
     def __repr__(self):
         return "Vector[{}]".format(repr(self.value()))
@@ -4613,10 +4617,11 @@ def w_depth():
 @defword(name='dim', args=1, print_x=True, doc="""\
 Dimension(s) of X.
 
-For integers, floats, and rationals (scalars), return 0.
-For complex numbers, return 2.
-For vectors of length N, return a vector [N].
-For an M-row by N-col matrix, return a vector [M N].""")
+For integers, floats, and rationals (scalars):
+                              return 0
+For complex numbers:          return 2
+For vectors of length N:      return a vector [N]
+For an M-row by N-col matrix: return a vector [M N]""")
 def w_dim():
     x = param_stack.pop()
     if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
@@ -4735,6 +4740,30 @@ def w_E():
     result = Rpn_Float(E)
     result.set_label("E")
     param_stack.push(result)
+
+
+@defword(name='edit', hidden=True, doc="""\
+Edit some text""")
+def w_edit():
+    env = os.environ
+    if "VISUAL" in env:
+        editor = env.get("VISUAL")
+    elif "EDITOR" in env:
+        editor = env.get("EDITOR")
+    else:
+        editor = "ed"
+
+    # Set initial value
+    initial_value = b"Initial string"
+
+    with tempfile.NamedTemporaryFile(suffix=".tmp") as tf:
+        tf.write(initial_value)
+        tf.flush()
+        subprocess.call([ editor, tf.name ])
+        tf.seek(0)
+        edited_message = tf.read()
+
+    print(edited_message.decode("utf-8"))
 
 
 @defword(name='expm1', args=1, print_x=True, doc="""\
@@ -7254,6 +7283,34 @@ def w_words():
     list_in_columns(sorted([ x[0] for x in global_scope.unprotected_words() ],
                            key=str.casefold), scr_columns.obj().value() - 1)
 
+
+@defword(name='zer', args=1, print_x=False, doc="""\
+zero  ( v -- m )  Create a zero vector or matrix""")
+def w_zer():
+    x = param_stack.pop()
+    if type(x) is not Rpn_Vector:
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("zer: Type error ({})".format(typename(x)))
+    xs = x.size()
+
+    if xs == 1:
+        size = int(x.value().item(0))
+        if size <= 0:
+            param_stack.push(x)
+            raise Rpn_E_Value_Error("zer: Dimension must be positive")
+        z = Rpn_Vector.from_numpy(np.zeros(size))
+        param_stack.push(z)
+    elif xs == 2:
+        rows = int(x.value().item(0))
+        cols = int(x.value().item(1))
+        if rows <= 0 or cols <= 0:
+            param_stack.push(x)
+            raise Rpn_E_Value_Error("zer: Dimensions must be positive")
+        z = Rpn_Matrix.from_numpy(np.zeros((rows, cols)))
+        param_stack.push(z)
+    else:
+        param_stack.push(x)
+        raise Rpn_E_Runtime_Error("zero: Dimension vector must have only 1 or 2 elements")
 
 
 
