@@ -3,6 +3,7 @@
 import calendar
 import cmath
 import datetime
+import fcntl
 from   fractions import Fraction
 import getopt
 import inspect
@@ -18,6 +19,7 @@ import statistics
 import subprocess
 import sys
 import tempfile         # edit
+import termios
 import time
 import traceback
 import tty
@@ -57,32 +59,38 @@ flags_vec               = 0
 force_interactive       = False
 go_interactive          = True
 got_interrupt           = False
+load_init_file          = True
 rational_re             = r'(\d+)::(\d+)'
 rational_pat            = re.compile(rational_re)
 register                = dict()
-show_x                  = False
 stat_list               = []
 time_re                 = r'^[-+]?(\d+)\.(\d{,2})(\d*)$'
 time_pat                = re.compile(time_re)
 
-FLAG_TVM_CONTINUOUS     =   8
-FLAG_TVM_BEGIN_MODE     =   9
+FLAG_TVM_CONTINUOUS     =   8 # Set: Continuous compounding Clear: Discrete compounding
+FLAG_TVM_BEGIN_MODE     =   9 # Set: Begin (annuity due)    Clear: End (ordinary annuity)
+FLAG_SHOW_X             =  19 # Set: Show X at prompt       Clear: do not show X
 FLAG_DEBUG_ENABLED      =  20
 FLAG_PRINTER_ENABLED    =  21
-FLAG_DECIMAL_POINT      =  28           # Set: 123,456.123  (US)   Clear: 123.456,123  (Europe)
-FLAG_DIGIT_GROUPING     =  29           # Set: 1,234,567.01        Clear: 1234567.01
-FLAG_FENCE              =  30           # Flags >= FLAG_FENCE cannot set set by the user
+FLAG_DECIMAL_POINT      =  28 # Set: 123,456.123  (US)      Clear: 123.456,123  (Europe)
+FLAG_DIGIT_GROUPING     =  29 # Set: 1,234,567.01           Clear: 1234567.01
+FLAG_FENCE              =  30 # Flags >= FLAG_FENCE cannot set set by the user
 FLAG_DISP_FIX           =  40
 FLAG_DISP_ENG           =  41
 FLAG_GRAD               =  42
 FLAG_RAD                =  43
 FLAG_PRINTER_EXISTS     =  55
 FLAG_MAX                =  56
-JULIAN_OFFSET           = 1721424       # date.toordinal() returns 1 for 0001-01-01, so compensate
+JULIAN_OFFSET           = 1721424 # date.toordinal() returns 1 for 0001-01-01, so compensate
 PRECISION_MAX           =  16
+PX_COMPUTE              = True  # Arithmetic/Computed functions print their results
+PX_CONFIG               = None  # Stack manip, flags, modes, register, conversions, etc
+PX_CONTROL              = None  # Control structures (IF/THEN, DO/LOOP) have no effect
+PX_IO                   = False # I/O (.", .s, etc) disable printing
+PX_PREDICATE            = None  # Predicates
 MATRIX_MAX              = 999
 REG_SIZE_MIN            =  17
-REG_SIZE_MAX            = 100           # R00..R99; further restricted by SIZE
+REG_SIZE_MAX            = 100   # R00..R99; further restricted by SIZE
 
 # DEG_PER_RAD  = 360 / TAU
 # E            = Base of natural logarithms = exp(1.0)
@@ -931,8 +939,9 @@ the right thing with empty stack (uses zero)."""
                 # Fake a zero on the stack so recall arithmetic continues to work
                 param_stack.push(Rpn_Integer(0))
             param_stack.push(var.obj())
-            global show_x
-            old_show_x = show_x
+
+            # Save and restore show X flag
+            copy_flag(FLAG_SHOW_X, 54)
             if self._modifier == '+':
                 w_plus()
             elif self._modifier == '-':
@@ -941,7 +950,8 @@ the right thing with empty stack (uses zero)."""
                 w_star()
             elif self._modifier == '/':
                 w_slash()
-            show_x = old_show_x
+            copy_flag(54, FLAG_SHOW_X)
+            clear_flag(54)
 
     def patch_recurse(self, new_word):
         pass
@@ -1644,6 +1654,7 @@ The TOS is consumed as normal."""
 
         if not stringp and self._modifier is not None:
             param_stack.push(cur_obj)
+            copy_flag(FLAG_SHOW_X, 54)
             w_swap()
             if self._modifier == '+':
                 w_plus()
@@ -1653,17 +1664,15 @@ The TOS is consumed as normal."""
                 w_star()
             elif self._modifier == '/':
                 w_slash()
+            copy_flag(54, FLAG_SHOW_X)
+            clear_flag(54)
 
         old_obj = cur_obj
+        new_obj = string_stack.pop() if stringp else param_stack.pop()
         var.set_obj(new_obj)
-        cur_obj = var.obj()
-        if stringp:
-            string_stack.pop()
-        else:
-            param_stack.pop()
 
         for post_hook_func in var.post_hooks():
-            post_hook_func(self.identifier(), old_obj, cur_obj)
+            post_hook_func(self.identifier(), old_obj, new_obj)
 
     def patch_recurse(self, new_word):
         pass
@@ -1715,13 +1724,12 @@ class Rpn_Token_Mgr:
         data = ""
         global sharpout
         prompt = prompt_string()
-        global show_x
 
         # Read characters from input stream
         while data == "":
-            if show_x and not param_stack.empty():
+            if flag_set_p(FLAG_SHOW_X) and not param_stack.empty():
                 writeln("{}".format(fmt(param_stack.top())))
-            show_x = False
+            clear_flag(FLAG_SHOW_X)
 
             lnwrite()
             sharpout.set_obj(Rpn_Integer(len(prompt)))
@@ -1972,6 +1980,9 @@ class Rpn_Word:
         if "print_x" in kwargs:
             my_print_x = kwargs["print_x"]
             del kwargs["print_x"]
+        # else:
+        #     if self._protected:
+        #         print("Rpn_Word {} missing print_x".format(name))
 
         if "protected" in kwargs:
             self._protected = kwargs["protected"]
@@ -2861,8 +2872,10 @@ class defword():
             f()
             if "print_x" in self._kwargs and \
                self._kwargs["print_x"] is not None:
-                global show_x
-                show_x = self._kwargs["print_x"]
+                if self._kwargs["print_x"]:
+                    set_flag(FLAG_SHOW_X)
+                else:
+                    clear_flag(FLAG_SHOW_X)
         if "name" in self._kwargs and len(self._kwargs["name"]) > 0:
             name = self._kwargs["name"]
             del self._kwargs["name"]
@@ -2874,13 +2887,13 @@ class defword():
         return wrapped_f
 
 
-@defword(name='#->$', args=1, print_x=False, doc="""\
+@defword(name='#->$', args=1, print_x=PX_IO, doc="""\
 Convert top of stack to string  ( n -- )""")
 def w_num_to_dollar():
     string_stack.push(Rpn_String("{}".format(fmt(param_stack.pop(), False))))
 
 
-@defword(name='#in', print_x=False, doc="""\
+@defword(name='#in', print_x=PX_IO, doc="""\
 Read numeric input from the user.  #IN recognizes integers and floats,
 but not rationals or complex numbers.  The value is put on the stack.
 No prompt is provided.
@@ -2910,19 +2923,19 @@ def w_number_in():
         raise Rpn_E_Runtime_Error("#in: Could not parse '{}'".format(x))
 
 
-@defword(name='$.', str_args=1, print_x=False, doc="""\
+@defword(name='$.', str_args=1, print_x=PX_IO, doc="""\
 Print top item from string stack  [ str -- ]
 No extraneous white space or newline is printed.""")
 def w_dollar_dot():
     write(string_stack.pop().value())
 
 
-@defword(name='$.!', hidden=True, print_x=False, str_args=1)
+@defword(name='$.!', hidden=True, print_x=PX_IO, str_args=1)
 def w_dollar_dot_bang():
     lnwriteln(repr(string_stack.top()))
 
 
-@defword(name='$in', print_x=False, doc="""\
+@defword(name='$in', print_x=PX_IO, doc="""\
 Read a string from the keyboard.  THe value is placed on the string stack.
 No prompt is provided.""")
 def w_dollar_in():
@@ -2941,20 +2954,20 @@ def w_dollar_in():
 
 
 
-@defword(name='$.s', print_x=False, doc="""\
+@defword(name='$.s', print_x=PX_IO, doc="""\
 Display string stack.""")
 def w_dollar_dot_s():
     if not string_stack.empty():
         lnwriteln(string_stack)
 
 
-@defword(name='$.s!', print_x=False, hidden=True)
+@defword(name='$.s!', print_x=PX_IO, hidden=True)
 def w_dollar_dot_s_bang():
     if not string_stack.empty():
         lnwriteln(repr(string_stack))
 
 
-@defword(name='$=', str_args=2, doc="""\
+@defword(name='$=', str_args=2, print_x=PX_PREDICATE, doc="""\
 Test if two strings are equal  ( -- flag )""")
 def w_dollar_equal():
     s1 = string_stack.pop()
@@ -2962,7 +2975,7 @@ def w_dollar_equal():
     param_stack.push(Rpn_Integer(bool_to_int(s1.value() == s2.value())))
 
 
-@defword(name='$cat', str_args=2, doc="""\
+@defword(name='$cat', str_args=2, print_x=PX_IO, doc="""\
 Concatentate two strings.
 
 EXAMPLE:
@@ -2973,25 +2986,25 @@ def w_dollar_cat():
     string_stack.push(Rpn_String.from_string(s2.value() + s1.value()))
 
 
-@defword(name='$clst', print_x=False, doc="""\
+@defword(name='$clst', print_x=PX_CONFIG, doc="""\
 Clear the string stack""")
 def w_dollar_clst():
     string_stack.clear()
 
 
-@defword(name='$depth', doc="""\
+@defword(name='$depth', print_x=PX_COMPUTE, doc="""\
 String stack depth  ( -- n )""")
 def w_dollar_depth():
     param_stack.push(Rpn_Integer(string_stack.size()))
 
 
-@defword(name='$drop', str_args=1, doc="""\
+@defword(name='$drop', str_args=1, print_x=PX_CONFIG, doc="""\
 Drop top of string stack  ( -- )""")
 def w_dollar_drop():
     string_stack.pop()
 
 
-@defword(name='$len', str_args=1, doc="""\
+@defword(name='$len', str_args=1, print_x=PX_COMPUTE, doc="""\
 Length of top element of string stack  ( -- n )""")
 def w_dollar_len():
     s = string_stack.top()
@@ -2999,7 +3012,7 @@ def w_dollar_len():
     param_stack.push(Rpn_Integer(r))
 
 
-@defword(name='$swap', str_args=2, doc="""\
+@defword(name='$swap', str_args=2, print_x=PX_CONFIG, doc="""\
 Exchange top two string stack elements  [ "y" "x" -- "x" "y" ]""")
 def w_dollar_swap():
     sx = string_stack.pop()
@@ -3008,7 +3021,7 @@ def w_dollar_swap():
     string_stack.push(sy)
 
 
-@defword(name='%', args=2, print_x=True, doc="""\
+@defword(name='%', args=2, print_x=PX_COMPUTE, doc="""\
 Percentage  ( base rate -- base percent )
 
 Base is maintained in Y.
@@ -3038,7 +3051,7 @@ def w_percent():
     param_stack.push(result)
 
 
-@defword(name='%ch', args=2, print_x=True, doc="""\
+@defword(name='%ch', args=2, print_x=PX_COMPUTE, doc="""\
 Percentage change  ( old new -- %change )
 
 DEFINITION:
@@ -3074,7 +3087,7 @@ def w_percent_ch():
     param_stack.push(result)
 
 
-@defword(name='%t', args=2, print_x=True, doc="""\
+@defword(name='%t', args=2, print_x=PX_COMPUTE, doc="""\
 Percent of total  ( total amount -- %tot )
 
 DEFINITION:
@@ -3110,7 +3123,7 @@ def w_percent_t():
     param_stack.push(result)
 
 
-@defword(name='*', args=2, print_x=True, doc="""\
+@defword(name='*', args=2, print_x=PX_COMPUTE, doc="""\
 Multiplication  ( y x -- y*x )""")
 def w_star():
     """\
@@ -3143,7 +3156,7 @@ def w_star():
     param_stack.push(result)
 
 
-@defword(name='*/', args=3, print_x=True, doc="""\
+@defword(name='*/', args=3, print_x=PX_COMPUTE, doc="""\
 Multiply and divide  ( z y x -- z*y/x )
 
 X cannot be zero.""")
@@ -3171,7 +3184,7 @@ def w_star_slash():
     w_slash()
 
 
-@defword(name='+', args=2, print_x=True, doc="""\
+@defword(name='+', args=2, print_x=PX_COMPUTE, doc="""\
 Addition  ( y x -- y+x )""")
 def w_plus():
     """\
@@ -3230,7 +3243,7 @@ def w_plus():
     param_stack.push(result)
 
 
-@defword(name='+loop', doc="""\
+@defword(name='+loop', print_x=PX_CONTROL, doc="""\
 Execute a definite loop.
 <limit> <initial> DO ... <incr> +LOOP
 
@@ -3244,7 +3257,7 @@ def w_plusloop():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='-', args=2, print_x=True, doc="""\
+@defword(name='-', args=2, print_x=PX_COMPUTE, doc="""\
 Subtraction  ( y x -- y-x )""")
 def w_minus():
     x = param_stack.pop()
@@ -3267,7 +3280,7 @@ def w_minus():
     param_stack.push(result)
 
 
-@defword(name='.', args=1, print_x=False, doc="""\
+@defword(name='.', args=1, print_x=PX_IO, doc="""\
 Print top stack value  ( x -- )
 A space is also printed after the number, but no newline.
 If you need a newline, call CR.""")
@@ -3275,12 +3288,12 @@ def w_dot():
     write("{} ".format(fmt(param_stack.pop())))
 
 
-@defword(name='.!', hidden=True, print_x=False, args=1)
+@defword(name='.!', hidden=True, print_x=PX_IO, args=1)
 def w_dot_bang():
     lnwriteln(repr(param_stack.top()))
 
 
-@defword(name='."', doc="""\
+@defword(name='."', print_x=PX_IO, doc="""\
 Display string enclosed by quotation marks.
 No newline is printed afterwards.
 
@@ -3291,7 +3304,7 @@ def w_dot_quote():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='.all', args=1, print_x=False, doc="""\
+@defword(name='.all', args=1, print_x=PX_IO, doc="""\
 Print X in a variety of formats  ( x -- )""")
 def w_dot_all():
     x = param_stack.pop()
@@ -3326,7 +3339,7 @@ def w_dot_all():
     writeln(out)
 
 
-@defword(name='.bin', args=1, print_x=False, doc="""\
+@defword(name='.bin', args=1, print_x=PX_IO, doc="""\
 Print X in binary  ( i -- )
 X must be an integer.""")
 def w_dot_bin():
@@ -3338,7 +3351,7 @@ def w_dot_bin():
     write("{} ".format(bin(x.value())))
 
 
-@defword(name='.hex', args=1, print_x=False, doc="""\
+@defword(name='.hex', args=1, print_x=PX_IO, doc="""\
 Print X in hexadecimal  ( i -- )
 X must be an integer.""")
 def w_dot_hex():
@@ -3350,7 +3363,7 @@ def w_dot_hex():
     write("{} ".format(hex(x.value())))
 
 
-@defword(name='.oct', args=1, print_x=False, doc="""\
+@defword(name='.oct', args=1, print_x=PX_IO, doc="""\
 Print X in octal  ( i -- )
 X must be an integer.""")
 def w_dot_oct():
@@ -3362,7 +3375,7 @@ def w_dot_oct():
     write("{} ".format(oct(x.value())))
 
 
-@defword(name='.r', args=2, print_x=False, doc="""\
+@defword(name='.r', args=2, print_x=PX_IO, doc="""\
 Print N right-justified in WIDTH  ( n width -- )
 
 This never outputs more than WIDTH characters, and will silently truncate the
@@ -3389,21 +3402,21 @@ def w_dot_r():
     write("{:>{width}}".format(s, width=width))
 
 
-@defword(name='.s', print_x=False, doc="""\
+@defword(name='.s', print_x=PX_IO, doc="""\
 Print stack non-destructively""")
 def w_dot_s():
     if not param_stack.empty():
         lnwriteln(param_stack)
 
 
-@defword(name='.s!', hidden=True, print_x=False, doc="""\
+@defword(name='.s!', hidden=True, print_x=PX_IO, doc="""\
 Print stack non-destructively""")
 def w_dot_s_bang():
     if not param_stack.empty():
         lnwriteln(repr(param_stack))
 
 
-@defword(name='/', args=2, print_x=True, doc="""\
+@defword(name='/', args=2, print_x=PX_COMPUTE, doc="""\
 Division  ( y x -- y/x )
 X cannot be zero.""")
 def w_slash():
@@ -3447,7 +3460,7 @@ def w_slash():
     param_stack.push(result)
 
 
-@defword(name='/mod', args=2, print_x=True, doc="""\
+@defword(name='/mod', args=2, print_x=PX_COMPUTE, doc="""\
 Division quotient and remainder  ( y x -- remainder quotient )
 
 Divide integers Y by X, returning integer remainder and quotient.
@@ -3469,7 +3482,7 @@ def w_slash_mod():
     param_stack.push(Rpn_Integer(quot))
 
 
-@defword(name=':', doc="""\
+@defword(name=':', print_x=PX_CONTROL, doc="""\
 Define a new word  ( -- )
 : WORD  [def ...]  ;
 
@@ -3481,14 +3494,14 @@ def w_colon():
     pass                        # Grammar rules handle this word
 
 
-@defword(name=';', doc="""\
+@defword(name=';', print_x=PX_CONTROL, doc="""\
 Terminate WORD definition  ( -- )
 : WORD  [def ...]  ;""")
 def w_semicolon():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='<', args=2, print_x=True, doc="""\
+@defword(name='<', args=2, print_x=PX_PREDICATE, doc="""\
 Test if Y is less than X  ( y x -- flag )""")
 def w_less_than():
     x = param_stack.pop()
@@ -3504,7 +3517,7 @@ def w_less_than():
         raise Rpn_E_Type_Error("<: Type error ({}, {})".format(typename(y), typename(x)))
 
 
-@defword(name='<<', args=2, print_x=True, doc="""\
+@defword(name='<<', args=2, print_x=PX_COMPUTE, doc="""\
 <<  ( i2 i1 -- i2 << i1 )  Bitwise left shift""")
 def w_leftshift():
     x = param_stack.pop()
@@ -3522,7 +3535,7 @@ def w_leftshift():
     param_stack.push(Rpn_Integer(y.value() << x.value()))
 
 
-@defword(name='<=', args=2, print_x=True, doc="""\
+@defword(name='<=', args=2, print_x=PX_PREDICATE, doc="""\
 Test if Y is less than or equal to X  ( y x -- flag )""")
 def w_less_than_or_equal():
     x = param_stack.pop()
@@ -3538,7 +3551,7 @@ def w_less_than_or_equal():
         raise Rpn_E_Type_Error("<=: Type error ({}, {})".format(typename(y), typename(x)))
 
 
-@defword(name='<>', args=2, print_x=True, doc="""\
+@defword(name='<>', args=2, print_x=PX_PREDICATE, doc="""\
 Test if Y is not equal to X  ( y x -- flag )""")
 def w_not_equal():
     """\
@@ -3573,7 +3586,7 @@ def w_not_equal():
     param_stack.push(Rpn_Integer(bool_to_int(not flag)))
 
 
-@defword(name='=', args=2, print_x=True, doc="""\
+@defword(name='=', args=2, print_x=PX_PREDICATE, doc="""\
 Test if Y is equal to X  ( y x -- flag )""")
 def w_equal():
     """\
@@ -3608,7 +3621,7 @@ def w_equal():
     param_stack.push(Rpn_Integer(bool_to_int(flag)))
 
 
-@defword(name='>', args=2, print_x=True, doc="""\
+@defword(name='>', args=2, print_x=PX_PREDICATE, doc="""\
 Test if Y is greater than X  ( y x -- flag )""")
 def w_greater_than():
     x = param_stack.pop()
@@ -3624,7 +3637,7 @@ def w_greater_than():
         raise Rpn_E_Type_Error(">: Type error ({}, {})".format(typename(y), typename(x)))
 
 
-@defword(name='>=', args=2, print_x=True, doc="""\
+@defword(name='>=', args=2, print_x=PX_PREDICATE, doc="""\
 Test if Y is greater than or equal to X  ( y x -- flag )""")
 def w_greater_than_or_equal():
     x = param_stack.pop()
@@ -3640,7 +3653,7 @@ def w_greater_than_or_equal():
         raise Rpn_E_Type_Error(">=: Type error ({}, {})".format(typename(y), typename(x)))
 
 
-@defword(name='>>', args=2, print_x=True, doc="""\
+@defword(name='>>', args=2, print_x=PX_COMPUTE, doc="""\
 >>  ( i2 i1 -- i2 >> i1 )  Bitwise right shift""")
 def w_rightshift():
     x = param_stack.pop()
@@ -3658,7 +3671,7 @@ def w_rightshift():
     param_stack.push(Rpn_Integer(y.value() >> x.value()))
 
 
-@defword(name='>c', args=2, doc="""\
+@defword(name='>c', args=2, print_x=PX_CONFIG, doc="""\
 Construct a complex number from two reals  ( y x -- complex[x,y] )""")
 def w_to_c():
     x = param_stack.pop()
@@ -3671,14 +3684,14 @@ def w_to_c():
     param_stack.push(Rpn_Complex(float(x.value()), float(y.value())))
 
 
-@defword(name='>r', args=1, doc="""\
+@defword(name='>r', args=1, print_x=PX_CONFIG, doc="""\
 Push X onto return stack  ( x -- )""")
 def w_to_r():
     return_stack.push(param_stack.pop())
 
 
 if have_numpy:
-    @defword(name='>v2', args=2, doc="""\
+    @defword(name='>v2', args=2, print_x=PX_CONFIG, doc="""\
 Create a 2-vector from the stack  ( y x -- v )""")
     def w_to_v_2():
         x = param_stack.pop()
@@ -3696,7 +3709,7 @@ Create a 2-vector from the stack  ( y x -- v )""")
 
 
 if have_numpy:
-    @defword(name='>v3', args=3, doc="""\
+    @defword(name='>v3', args=3, print_x=PX_CONFIG, doc="""\
 Create a 3-vector from the stack  ( z y x -- v )""")
     def w_to_v_3():
         x = param_stack.pop()
@@ -3717,7 +3730,7 @@ Create a 3-vector from the stack  ( z y x -- v )""")
         param_stack.push(v)
 
 
-@defword(name='?', print_x=False, doc="""\
+@defword(name='?', print_x=PX_IO, doc="""\
 ?[topic]   Display information on a variety of topics""")
 def w_info():
     print("""\
@@ -3729,7 +3742,7 @@ The following topics provide additional information:
     ?variables""")
 
 
-@defword(name='?datatypes', print_x=False, hidden=True, doc='')
+@defword(name='?datatypes', print_x=PX_IO, hidden=True, doc='')
 def w_info_datatypes():
     print("""\
 rpn supports the following datatypes, which may be placed directly on the
@@ -3749,7 +3762,7 @@ Additionally, a String datatype is defined, which are placed on a separate
 string stack.  "This is a sample string" """)
 
 
-@defword(name='?dup', args=1, doc="""\
+@defword(name='?dup', args=1, print_x=PX_CONFIG, doc="""\
 Duplicate top stack element if non-zero  ( x -- x x | 0 )""")
 def w_query_dup():
     x = param_stack.top()
@@ -3760,7 +3773,54 @@ def w_query_dup():
         w_dup()
 
 
-@defword(name='?variables', print_x=False, hidden=True, doc='')
+@defword(name='?key', print_x=PX_IO, doc="""\
+Read keystroke with flag ( -- key 1 | 0 | -1 )
+?key will NOT block but rather return a success/fail flag to the stack.
+ASCII code of keystroke will also be returned on success.
+Keystroke WILL echo.  This works only on Unix/Linux.
+
+EXAMPLE:
+: test?key
+  doc:"Display dots until a key is pressed  ( -- key )"
+  begin  ?key case
+    -1 of cr ."I/O error" cr leave endof
+     0 of ."." 0.02 sleep endof
+     1 of cr ."Key: " .all leave endof
+    otherwise cr ."Found garbage on stack" cr .s leave
+  endcase again  ;
+
+qv key""")
+def w_query_key():
+    # Input that is not a tty doesn't get to play
+    if not sys.stdin.isatty():
+        param_stack.push(Rpn_Integer(-1))
+        return
+
+    fd = sys.stdin.fileno()
+    oldattr = termios.tcgetattr(fd)
+    newattr = termios.tcgetattr(fd)
+    newattr[3] = newattr[3] & ~termios.ICANON
+    newattr[3] = newattr[3] & ~termios.ECHO # Doesn't disable echo, not sure why not
+    termios.tcsetattr(fd, termios.TCSANOW, newattr)
+
+    oldflags = fcntl.fcntl(fd, fcntl.F_GETFL)
+    fcntl.fcntl(fd, fcntl.F_SETFL, oldflags | os.O_NONBLOCK)
+
+    try:
+        c = sys.stdin.read(1)
+        if c == '':
+            param_stack.push(Rpn_Integer(0))
+            return
+        param_stack.push(Rpn_Integer(ord(c)))
+        param_stack.push(Rpn_Integer(1))
+    except IOError:
+        param_stack.push(Rpn_Integer(-1))
+    finally:
+        termios.tcsetattr(fd, termios.TCSAFLUSH, oldattr)
+        fcntl.fcntl(fd, fcntl.F_SETFL, oldflags)
+
+
+@defword(name='?variables', print_x=PX_IO, hidden=True, doc='')
 def w_info_variables():
     print("""\
 Data from the stack may be stored in variables.  The syntax to store an object
@@ -3785,7 +3845,7 @@ also means the that problem of accessing illegal memory cannot arise: the
 variable is either findable by the system through its name, or it is not.""")
 
 
-@defword(name='^', args=2, print_x=True, doc="""\
+@defword(name='^', args=2, print_x=PX_COMPUTE, doc="""\
 Exponentiation  ( y x -- y^x )""")
 def w_caret():
     x = param_stack.pop()
@@ -3808,7 +3868,7 @@ def w_caret():
     param_stack.push(result)
 
 
-@defword(name='abort', doc="""\
+@defword(name='abort', print_x=PX_CONTROL, doc="""\
 Abort execution and return to top level
 
 qv ABORT", EXIT, LEAVE""")
@@ -3816,7 +3876,7 @@ def w_abort():
     raise Rpn_E_Abort()
 
 
-@defword(name='abort"', doc="""\
+@defword(name='abort"', print_x=PX_CONTROL, doc="""\
 Conditionally abort execution  ( flag -- )
 If flag is non-zero, abort execution and print a message
 (up to the closing quotation mark) and return to top level
@@ -3826,7 +3886,7 @@ def w_abort_quote():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='abs', args=1, print_x=True, doc="""\
+@defword(name='abs', args=1, print_x=PX_COMPUTE, doc="""\
 Absolute value  ( x -- |x| )
 
 NOTE: For complex numbers, ABS return the modulus (as a float).""")
@@ -3859,7 +3919,7 @@ def w_abs():
     param_stack.push(result)
 
 
-@defword(name='acos', args=1, print_x=True, doc="""\
+@defword(name='acos', args=1, print_x=PX_COMPUTE, doc="""\
 Inverse cosine  ( cosine -- angle )
 |x| <= 1""")
 def w_acos():
@@ -3885,7 +3945,7 @@ def w_acos():
     param_stack.push(result)
 
 
-@defword(name='acosh', args=1, print_x=True, doc="""\
+@defword(name='acosh', args=1, print_x=PX_COMPUTE, doc="""\
 Inverse hyperbolic cosine  ( cosine_h -- angle )
 
 DEFINITION:
@@ -3912,7 +3972,7 @@ def w_acosh():
     param_stack.push(result)
 
 
-@defword(name='again', doc="""\
+@defword(name='again', print_x=PX_CONTROL, doc="""\
 Execute an indefinite loop forever.
 BEGIN ... AGAIN
 
@@ -3923,7 +3983,7 @@ def w_again():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='alog', args=1, print_x=True, doc="""\
+@defword(name='alog', args=1, print_x=PX_COMPUTE, doc="""\
 Common exponential [antilogarithm]  ( x -- 10^x )""")
 def w_alog():
     x = param_stack.pop()
@@ -3938,7 +3998,7 @@ def w_alog():
     param_stack.push(result)
 
 
-@defword(name='and', args=2, print_x=True, doc="""\
+@defword(name='and', args=2, print_x=PX_PREDICATE, doc="""\
 Logical AND  ( flag flag -- flag )
 (This is not a bitwise AND - use BITAND for that.)""")
 def w_and():
@@ -3961,7 +4021,7 @@ def w_and():
     param_stack.push(Rpn_Integer(x.value() and y.value()))
 
 
-@defword(name='asin', args=1, print_x=True, doc="""\
+@defword(name='asin', args=1, print_x=PX_COMPUTE, doc="""\
 Inverse sine  ( sine -- angle )
 |x| <= 1""")
 def w_asin():
@@ -3987,7 +4047,7 @@ def w_asin():
     param_stack.push(result)
 
 
-@defword(name='asinh', args=1, print_x=True, doc="""\
+@defword(name='asinh', args=1, print_x=PX_COMPUTE, doc="""\
 Inverse hyperbolic sine  ( sine_h -- angle )
 
 DEFINITION:
@@ -4014,7 +4074,7 @@ def w_asinh():
     param_stack.push(result)
 
 
-@defword(name='atan', args=1, print_x=True, doc="""\
+@defword(name='atan', args=1, print_x=PX_COMPUTE, doc="""\
 Inverse tangent  ( tangent -- angle )
 
 NOTE:
@@ -4042,7 +4102,7 @@ def w_atan():
     param_stack.push(result)
 
 
-@defword(name='atan2', args=2, print_x=True, doc="""\
+@defword(name='atan2', args=2, print_x=PX_COMPUTE, doc="""\
 Inverse tangent of y/x  ( y x -- angle )""")
 def w_atan2():
     x = param_stack.pop()
@@ -4071,7 +4131,7 @@ def w_atan2():
     param_stack.push(result)
 
 
-@defword(name='atanh', args=1, print_x=True, doc="""\
+@defword(name='atanh', args=1, print_x=PX_COMPUTE, doc="""\
 Inverse hyperbolic tangent  ( tangent_h -- angle )
 
 DEFINITION:
@@ -4098,7 +4158,7 @@ def w_atanh():
     param_stack.push(result)
 
 
-@defword(name='beg', doc="""\
+@defword(name='beg', print_x=PX_CONFIG, doc="""\
 Set "Begin" (annuity due) financial mode.
 
 Do not confuse this with the "begin" command, which starts a loop.""")
@@ -4106,7 +4166,7 @@ def w_beg():
     set_flag(FLAG_TVM_BEGIN_MODE)
 
 
-@defword(name='begin', doc="""\
+@defword(name='begin', print_x=PX_CONTROL, doc="""\
 Execute an indefinite loop.
 BEGIN ... AGAIN
 BEGIN ... <flag> UNTIL
@@ -4124,7 +4184,7 @@ def w_begin():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='binom', args=3, print_x=True, doc="""\
+@defword(name='binom', args=3, print_x=PX_COMPUTE, doc="""\
 Binomial probability ( n k p -- prob )
 
 Return the probability of an event occurring exactly k times in n attempts,
@@ -4157,7 +4217,7 @@ def w_binom():
     param_stack.push(Rpn_Float(r))
 
 
-@defword(name='bitand', args=2, print_x=True, doc="""\
+@defword(name='bitand', args=2, print_x=PX_COMPUTE, doc="""\
 bitand  ( i2 i1 -- i2 AND i1 )  Bitwise AND
 
 Perform a bitwise boolean AND on two integers""")
@@ -4172,7 +4232,7 @@ def w_bitand():
     param_stack.push(Rpn_Integer(y.value() & x.value()))
 
 
-@defword(name='bitnot', args=1, print_x=True, doc="""\
+@defword(name='bitnot', args=1, print_x=PX_COMPUTE, doc="""\
 bitnot  ( i1 -- NOT i1 )  Bitwise NOT
 
 Perform a bitwise boolean NOT on an integer.  Sometimes known as INVERT.""")
@@ -4185,7 +4245,7 @@ def w_bitnot():
     param_stack.push(Rpn_Integer(~ x.value()))
 
 
-@defword(name='bitor', args=2, print_x=True, doc="""\
+@defword(name='bitor', args=2, print_x=PX_COMPUTE, doc="""\
 bitor  ( i2 i1 -- i2 OR i1 )  Bitwise OR
 
 Perform a bitwise boolean OR on two integers""")
@@ -4200,7 +4260,7 @@ def w_bitor():
     param_stack.push(Rpn_Integer(y.value() | x.value()))
 
 
-@defword(name='bitxor', args=2, print_x=True, doc="""\
+@defword(name='bitxor', args=2, print_x=PX_COMPUTE, doc="""\
 bitxor  ( i2 i1 -- i2 XOR i1 )  Bitwise XOR
 
 Perform a bitwise boolean Exclusive OR on two integers""")
@@ -4215,13 +4275,13 @@ def w_bitxor():
     param_stack.push(Rpn_Integer(y.value() ^ x.value()))
 
 
-@defword(name='bye', doc="""\
+@defword(name='bye', print_x=PX_CONTROL,  doc="""\
 Exit program""")
 def w_bye():
     raise Rpn_E_End_Program()
 
 
-@defword(name='c>', args=1, doc="""\
+@defword(name='c>', args=1, print_x=PX_CONFIG, doc="""\
 c>  ( c -- y x )  Extract imaginary and real parts of a complex number""")
 def w_c_from():
     x = param_stack.pop()
@@ -4232,7 +4292,7 @@ def w_c_from():
     param_stack.push(Rpn_Float(x.real()))
 
 
-@defword(name='case', doc="""\
+@defword(name='case', print_x=PX_CONTROL, doc="""\
 Execute a sequence of words based on stack value.  Once a match is
 executed, no other clauses are considered.  OTHERWISE is optional.
 <n> and OF labels must be integers.  CASE consumes the top of stack
@@ -4251,7 +4311,7 @@ def w_case():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='catch', doc="""\
+@defword(name='catch', print_x=PX_CONTROL, doc="""\
 Catch any exceptions.
 
 catch WORD
@@ -4261,7 +4321,7 @@ def w_catch():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='ceil', args=1, print_x=True, doc="""\
+@defword(name='ceil', args=1, print_x=PX_COMPUTE, doc="""\
 Ceiling  ( x -- ceil )   Smallest integer greater than or equal to X""")
 def w_ceil():
     x = param_stack.pop()
@@ -4275,7 +4335,7 @@ def w_ceil():
     param_stack.push(result)
 
 
-@defword(name='cf', args=1, doc="""\
+@defword(name='cf', args=1, print_x=PX_CONFIG, doc="""\
 Clear flag  ( f -- )
 
 Do not confuse this with "CF", which is for Compounding Frequency""")
@@ -4294,7 +4354,7 @@ def w_cf():
     clear_flag(flag)
 
 
-@defword(name='chr', args=1, print_x=False, doc="""\
+@defword(name='chr', args=1, print_x=PX_IO, doc="""\
 chr  ( x -- )  Push string for a single ASCII character.""")
 def w_chr():
     x = param_stack.pop()
@@ -4305,7 +4365,7 @@ def w_chr():
 
 
 # Some HP calcs call this NEGATE, but why type 6 characters when 3 will do?
-@defword(name='chs', args=1, print_x=True, doc="""\
+@defword(name='chs', args=1, print_x=PX_COMPUTE, doc="""\
 Negation (change sign)  ( x -- -x )""")
 def w_chs():
     x = param_stack.pop()
@@ -4323,13 +4383,13 @@ def w_chs():
     param_stack.push(result)
 
 
-@defword(name='clfin', doc="""\
+@defword(name='clfin', print_x=PX_CONFIG, doc="""\
 Clear financial variables""")
 def w_clfin():
     global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV, tvm_CF, tvm_PF
 
-    clear_flag(FLAG_TVM_CONTINUOUS) # Clear (0, default)=Discrete compounding;   Set (1)=Continuous compounding
-    clear_flag(FLAG_TVM_BEGIN_MODE) # Clear (0, default)=End (ordinary annuity); Set (1)=Begin (annuity due)
+    clear_flag(FLAG_TVM_CONTINUOUS)
+    clear_flag(FLAG_TVM_BEGIN_MODE)
 
     cf = Rpn_Integer(1)
     cf.set_label("CF")
@@ -4345,14 +4405,14 @@ def w_clfin():
     tvm_PF  .set_obj(pf)
 
 
-@defword(name='clflag', doc="""\
+@defword(name='clflag', print_x=PX_CONFIG, doc="""\
 Clear all flags  ( -- )""")
 def w_clflag():
     for i in range(FLAG_FENCE):
         clear_flag(i)
 
 
-@defword(name='clreg', doc="""]
+@defword(name='clreg', print_x=PX_CONFIG, doc="""]
 Clear all registers.""")
 def w_clreg():
     global register
@@ -4361,7 +4421,7 @@ def w_clreg():
         register[i] = Rpn_Float(0.0)
 
 
-@defword(name='clrst', print_x=False, doc="""\
+@defword(name='clrst', print_x=PX_CONFIG, doc="""\
 Clear the return stack.
 
 Do not confuse this with the "clst" command, which clears the parameter stack.""")
@@ -4369,14 +4429,14 @@ def w_clrst():
     return_stack.clear()
 
 
-@defword(name='clstat', print_x=False, doc="""\
+@defword(name='clstat', print_x=PX_CONFIG, doc="""\
 Clear the statistics array""")
 def w_clstat():
     global stat_list
     stat_list = []
 
 
-@defword(name='clst', print_x=False, doc="""\
+@defword(name='clst', print_x=PX_CONFIG, doc="""\
 Clear the stack
 
 Do not confuse this with the "clrst" command, which clears the return stack.
@@ -4387,7 +4447,7 @@ def w_clst():
     param_stack.clear()
 
 
-@defword(name='comb', args=2, print_x=True, doc="""\
+@defword(name='comb', args=2, print_x=PX_COMPUTE, doc="""\
 Combinations  ( n r -- nCr )
 Choose from N objects R at a time, without regard to ordering.
 
@@ -4411,14 +4471,14 @@ def w_comb():
     param_stack.push(result)
 
 
-@defword(name='constant', doc="""\
+@defword(name='constant', print_x=PX_CONFIG, doc="""\
 Declare a constant variable  ( n -- )
 CONSTANT <ccc>""")
 def w_constant():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='cos', args=1, print_x=True, doc="""\
+@defword(name='cos', args=1, print_x=PX_COMPUTE, doc="""\
 Cosine  ( angle -- cosine )""")
 def w_cos():
     x = param_stack.pop()
@@ -4432,7 +4492,7 @@ def w_cos():
     param_stack.push(result)
 
 
-@defword(name='cosh', args=1, print_x=True, doc="""\
+@defword(name='cosh', args=1, print_x=PX_COMPUTE, doc="""\
 Hyperbolic cosine  ( angle -- cosine_h )
 
 DEFINITION:
@@ -4451,7 +4511,7 @@ def w_cosh():
     param_stack.push(result)
 
 
-@defword(name='CPF', args=1, doc="""\
+@defword(name='CPF', args=1, print_x=PX_CONFIG, doc="""\
 Set CF and PF to N  ( n -- )""")
 def w_cpf():
     global tvm_CF, tvm_PF
@@ -4469,7 +4529,7 @@ def w_cpf():
     tvm_PF.set_obj(x)
 
 
-@defword(name='cr', print_x=False, doc="""\
+@defword(name='cr', print_x=PX_IO, doc="""\
 Print a newline""")
 def w_cr():
     writeln()
@@ -4481,7 +4541,7 @@ def sum3(y):
 def m306(m):
     return int(m * 30.6001)
 
-@defword(name='d->hp', args=1, print_x=True, doc="""\
+@defword(name='d->hp', args=1, print_x=PX_COMPUTE, doc="""\
 Convert date to HP day number  ( MM.DDYYYY -- day# )
 
 Day # 0 = October 15, 1582""")
@@ -4513,7 +4573,7 @@ def w_d_to_hp():
     param_stack.push(result)
 
 
-@defword(name='d->jd', args=1, print_x=True, doc="""\
+@defword(name='d->jd', args=1, print_x=PX_COMPUTE, doc="""\
 Convert date to Julian day number ( MM.DDYYYY -- julian )""")
 def w_d_to_jd():
     x = param_stack.pop()
@@ -4531,7 +4591,7 @@ def w_d_to_jd():
     param_stack.push(result)
 
 
-@defword(name='d->r', args=1, print_x=True, doc="""\
+@defword(name='d->r', args=1, print_x=PX_COMPUTE, doc="""\
 Convert degrees to radians ( deg -- rad )""")
 def w_d_to_r():
     x = param_stack.pop()
@@ -4544,7 +4604,7 @@ def w_d_to_r():
     param_stack.push(result)
 
 
-@defword(name='date', print_x=True, doc="""\
+@defword(name='date', print_x=PX_COMPUTE, doc="""\
 Current date  ( -- MM.DDYYYY )""")
 def w_date():
     d = datetime.date.today().strftime("%m.%d%Y")
@@ -4553,7 +4613,7 @@ def w_date():
     param_stack.push(result)
 
 
-@defword(name='dateinfo', args=1, hidden=True, print_x=False, doc="""\
+@defword(name='dateinfo', args=1, hidden=True, print_x=PX_IO, doc="""\
 Show date_info() for Float  ( x -- )""")
 def w_dateinfo():
     x = param_stack.pop()
@@ -4563,7 +4623,7 @@ def w_dateinfo():
     writeln("dateinfo: {}".format(x.date_info()))
 
 
-@defword(name='date+', args=2, print_x=True, doc="""\
+@defword(name='date+', args=2, print_x=PX_COMPUTE, doc="""\
 Add N days to date  ( date1 N -- date2 )""")
 def w_date_plus():
     x = param_stack.pop()
@@ -4586,7 +4646,7 @@ def w_date_plus():
     param_stack.push(result)
 
 
-@defword(name='date-', args=2, print_x=True, doc="""\
+@defword(name='date-', args=2, print_x=PX_COMPUTE, doc="""\
 Subtract N days from date  ( date1 N -- date2 )""")
 def w_date_minus():
     x = param_stack.pop()
@@ -4609,13 +4669,13 @@ def w_date_minus():
     param_stack.push(result)
 
 
-@defword(name='dbg.token', hidden=True)
+@defword(name='dbg.token', hidden=True, print_x=PX_CONFIG)
 def w_dbg_token():
     set_flag(FLAG_DEBUG_ENABLED)
     set_debug_level("token", 3)
 
 
-@defword(name='ddays', args=2, print_x=True, doc="""\
+@defword(name='ddays', args=2, print_x=PX_COMPUTE, doc="""\
 Number of days between two dates  ( date1 date2 -- ddays )
 Usually the earlier date is in Y, and later date in X.""")
 def w_ddays():
@@ -4645,7 +4705,7 @@ def w_ddays():
     param_stack.push(Rpn_Integer(xjulian - yjulian))
 
 
-@defword(name='DEG', print_x=False, doc="""\
+@defword(name='DEG', print_x=PX_COMPUTE, doc="""\
 Constant: Degrees per radian  ( -- 57.29577... )
 
 DEFINITION:
@@ -4659,7 +4719,7 @@ def w_DEG():
     param_stack.push(result)
 
 
-@defword(name='deg', doc="""\
+@defword(name='deg', print_x=PX_CONFIG, doc="""\
 Set angular mode to degrees.
 
 WARNING:
@@ -4671,13 +4731,13 @@ def w_deg():
     clear_flag(FLAG_GRAD)
 
 
-@defword(name='depth', print_x=True, doc="""\
+@defword(name='depth', print_x=PX_COMPUTE, doc="""\
 Current number of elements on stack  ( -- n )""")
 def w_depth():
     param_stack.push(Rpn_Integer(param_stack.size()))
 
 
-@defword(name='dim', args=1, print_x=True, doc="""\
+@defword(name='dim', args=1, print_x=PX_COMPUTE, doc="""\
 Dimension(s) of X.
 
 For integers, floats, and rationals (scalars):
@@ -4707,7 +4767,7 @@ def w_dim():
     param_stack.push(result)
 
 
-@defword(name='do', doc="""\
+@defword(name='do', print_x=PX_CONTROL, doc="""\
 Execute a definite loop.
 <limit> <initial> DO ...        LOOP
 <limit> <initial> DO ... <incr> +LOOP
@@ -4723,7 +4783,7 @@ def w_do():
 
 
 if have_numpy:
-    @defword(name='dot', args=2, print_x=True, doc="""\
+    @defword(name='dot', args=2, print_x=PX_COMPUTE, doc="""\
 Vector dot product  ( vec_y vec_x -- real )""")
     def w_dot_prod():
         x = param_stack.pop()
@@ -4745,7 +4805,7 @@ Vector dot product  ( vec_y vec_x -- real )""")
         param_stack.push(result)
 
 
-@defword(name='dow', args=1, print_x=True, doc="""\
+@defword(name='dow', args=1, print_x=PX_COMPUTE, doc="""\
 Day of week  ( MM.DDYYYY -- dow )
 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 7=Sun""")
 def w_dow():
@@ -4764,7 +4824,7 @@ def w_dow():
     param_stack.push(result)
 
 
-@defword(name='dow$', args=1, print_x=False, doc="""\
+@defword(name='dow$', args=1, print_x=PX_IO, doc="""\
 Day of week name  ( dow -- )  [ -- abbrev ]
 Return abbreviated day of week name as string.  dow should be between 1 and 7.
 
@@ -4783,13 +4843,13 @@ def w_dow_dollar():
     string_stack.push(Rpn_String.from_string(dow_abbrev[dow]))
 
 
-@defword(name='drop', args=1, print_x=False, doc="""\
+@defword(name='drop', args=1, print_x=PX_CONFIG, doc="""\
 Remove top stack element  ( x -- )""")
 def w_drop():
     param_stack.pop()
 
 
-@defword(name='dup', args=1, doc="""\
+@defword(name='dup', args=1, print_x=PX_CONFIG, doc="""\
 Duplicate top stack element  ( x -- x x )
 Equivalent to 0 PICK""")
 def w_dup():
@@ -4797,7 +4857,7 @@ def w_dup():
     param_stack.push(x)
 
 
-@defword(name='E', print_x=False, doc="""\
+@defword(name='E', print_x=PX_COMPUTE, doc="""\
 Constant: Base of natural logarithms ( -- 2.71828... )""")
 def w_E():
     result = Rpn_Float(E)
@@ -4805,7 +4865,7 @@ def w_E():
     param_stack.push(result)
 
 
-@defword(name='edit', hidden=True, doc="""\
+@defword(name='edit', hidden=True, print_x=PX_CONFIG, doc="""\
 Edit some text""")
 def w_edit():
     env = os.environ
@@ -4829,7 +4889,7 @@ def w_edit():
     print(edited_message.decode("utf-8"))
 
 
-@defword(name='expm1', args=1, print_x=True, doc="""\
+@defword(name='expm1', args=1, print_x=PX_COMPUTE, doc="""\
 Calculate (e^X)-1 accurately  ( x -- (e^x)-1 )""")
 def w_e_x_minus_1():
     x = param_stack.pop()
@@ -4843,7 +4903,7 @@ def w_e_x_minus_1():
     param_stack.push(result)
 
 
-@defword(name='else', args=1, doc="""\
+@defword(name='else', args=1, print_x=PX_CONTROL, doc="""\
 Execute a conditional test.
 <flag> IF ... [ ELSE ... ] THEN
 
@@ -4852,7 +4912,7 @@ def w_else():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='emit', args=1, print_x=False, doc="""\
+@defword(name='emit', args=1, print_x=PX_IO, doc="""\
 emit  ( x -- )  Print a single ASCII character
 No space or newline is appended.""")
 def w_emit():
@@ -4863,13 +4923,13 @@ def w_emit():
     write(chr(x.value()))
 
 
-@defword(name='end', doc="""\
+@defword(name='end', print_x=PX_CONFIG, doc="""\
 Set "End" (ordinary annuity) financial mode.""")
 def w_end():
     clear_flag(FLAG_TVM_BEGIN_MODE)
 
 
-@defword(name='endcase', doc="""\
+@defword(name='endcase', print_x=PX_CONTROL, doc="""\
 Execute a sequence of words based on stack value.  Once a match is
 executed, no other clauses are considered.  OTHERWISE is optional.
 <n> and OF labels must be integers.
@@ -4886,7 +4946,7 @@ def w_endcase():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='endof', doc="""\
+@defword(name='endof', print_x=PX_CONTROL, doc="""\
 Execute a sequence of words based on stack value.  Once a match is
 executed, no other clauses are considered.  OTHERWISE is optional.
 <n> and OF labels must be integers.
@@ -4903,7 +4963,7 @@ def w_endof():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='eng', args=1, print_x=False, doc="""\
+@defword(name='eng', args=1, print_x=PX_CONFIG, doc="""\
 Set engineering display  ( n -- )
 
 N specifies the total number of significant digits.""")
@@ -4924,7 +4984,7 @@ def w_eng():
     set_flag(FLAG_DISP_ENG)
 
 
-@defword(name='epoch', print_x=True, doc="""\
+@defword(name='epoch', print_x=PX_COMPUTE, doc="""\
 Seconds since epoch  ( -- secs )""")
 def w_epoch():
     now = calendar.timegm(time.gmtime())
@@ -4933,7 +4993,7 @@ def w_epoch():
     param_stack.push(result)
 
 
-@defword(name='erf', args=1, print_x=True, doc="""\
+@defword(name='erf', args=1, print_x=PX_COMPUTE, doc="""\
 Error function  ( x -- erf[x] )""")
 def w_erf():
     x = param_stack.pop()
@@ -4957,7 +5017,7 @@ def w_erf():
     param_stack.push(result)
 
 
-@defword(name='erfc', args=1, print_x=True, doc="""\
+@defword(name='erfc', args=1, print_x=PX_COMPUTE, doc="""\
 Complementary error function  ( x -- erfc[x] )
 
 DEFINITION:
@@ -4984,20 +5044,20 @@ def w_erfc():
     param_stack.push(result)
 
 
-@defword(name='eval', str_args=1, doc="""\
+@defword(name='eval', str_args=1, print_x=PX_CONFIG, doc="""\
 Evaluate string on top of stack as a command sequence.""")
 def w_eval():
     s = string_stack.pop().value()
     eval_string(s)
 
 
-@defword(name='exit', doc="""\
+@defword(name='exit', print_x=PX_CONTROL, doc="""\
 Terminate execution of current word""")
 def w_exit():
     raise Rpn_E_Exit()
 
 
-@defword(name='exp', args=1, print_x=True, doc="""\
+@defword(name='exp', args=1, print_x=PX_COMPUTE, doc="""\
 Natural exponential ( x -- e^x )""")
 def w_exp():
     x = param_stack.pop()
@@ -5011,7 +5071,7 @@ def w_exp():
     param_stack.push(result)
 
 
-@defword(name='fact', args=1, print_x=True, doc="""\
+@defword(name='fact', args=1, print_x=PX_COMPUTE, doc="""\
 Factorial ( x -- x! )
 
 DEFINITION:
@@ -5032,7 +5092,7 @@ def w_fact():
     param_stack.push(result)
 
 
-@defword(name='fc?', args=1, print_x=True, doc="""\
+@defword(name='fc?', args=1, print_x=PX_PREDICATE, doc="""\
 Test if flag is clear  ( -- bool )""")
 def w_fc_query():
     x = param_stack.pop()
@@ -5048,7 +5108,7 @@ def w_fc_query():
     param_stack.push(result)
 
 
-@defword(name='fc?c', args=1, print_x=True, doc="""\
+@defword(name='fc?c', args=1, print_x=PX_PREDICATE, doc="""\
 Test if flag is clear, then clear  ( -- bool )""")
 def w_fc_query_clear():
     x = param_stack.pop()
@@ -5066,7 +5126,7 @@ def w_fc_query_clear():
         clear_flag(flag)
 
 
-@defword(name='fc?s', args=1, print_x=True, doc="""\
+@defword(name='fc?s', args=1, print_x=PX_PREDICATE, doc="""\
 Test if flag is clear, then set  ( -- bool )""")
 def w_fc_query_set():
     x = param_stack.pop()
@@ -5084,7 +5144,7 @@ def w_fc_query_set():
         set_flag(flag)
 
 
-@defword(name='fib', args=1, print_x=True, doc="""\
+@defword(name='fib', args=1, print_x=PX_COMPUTE, doc="""\
 N'th Fibonacci number  ( n -- fib )
 
 DEFINITION:
@@ -5105,7 +5165,7 @@ def w_fib():
     param_stack.push(result)
 
 
-@defword(name='fix', args=1, print_x=False, doc="""\
+@defword(name='fix', args=1, print_x=PX_CONFIG, doc="""\
 Set fixed display  ( n -- )
 
 N specifies the number of digits after the decimal point.""")
@@ -5126,7 +5186,7 @@ def w_fix():
     clear_flag(FLAG_DISP_ENG)
 
 
-@defword(name='floor', args=1, print_x=True, doc="""\
+@defword(name='floor', args=1, print_x=PX_COMPUTE, doc="""\
 Floor  ( x -- floor )   Largest integer not greater than X""")
 def w_floor():
     x = param_stack.pop()
@@ -5140,7 +5200,7 @@ def w_floor():
     param_stack.push(result)
 
 
-@defword(name='fmod', args=2, print_x=True, doc="""\
+@defword(name='fmod', args=2, print_x=PX_COMPUTE, doc="""\
 Floating point remainder  ( y x -- rem )
 
 Return the remainder of dividing y by x.  Preferred for floats;
@@ -5161,7 +5221,7 @@ def w_fmod():
     param_stack.push(Rpn_Float(r))
 
 
-@defword(name='forget', doc="""\
+@defword(name='forget', print_x=PX_CONFIG, doc="""\
 Forget the definition of the following word.""")
 def w_forget():
     pass                        # Grammar rules handle this word
@@ -5169,7 +5229,7 @@ def w_forget():
 
 # HP-41 calls this FRC, HP-42 calls this FP.  I like FRAC (which appeared
 # on the HP-34C) because it is very clear but still short enough.
-@defword(name='frac', print_x=True, args=1, doc="""\
+@defword(name='frac', print_x=PX_COMPUTE, args=1, doc="""\
 Fractional part ( x.q -- 0.q )""")
 def w_frac():
     x = param_stack.pop()
@@ -5183,7 +5243,7 @@ def w_frac():
         raise Rpn_E_Type_Error("frac: Type error ({})".format(typename(x)))
 
 
-@defword(name='fs?', print_x=True, args=1, doc="""\
+@defword(name='fs?', print_x=PX_PREDICATE, args=1, doc="""\
 Test if flag is set  ( -- bool )""")
 def w_fs_query():
     x = param_stack.pop()
@@ -5199,7 +5259,7 @@ def w_fs_query():
     param_stack.push(result)
 
 
-@defword(name='fs?c', print_x=True, args=1, doc="""\
+@defword(name='fs?c', print_x=PX_PREDICATE, args=1, doc="""\
 Test if flag is set, then clear  ( -- bool )""")
 def w_fs_query_clear():
     x = param_stack.pop()
@@ -5217,7 +5277,7 @@ def w_fs_query_clear():
         clear_flag(flag)
 
 
-@defword(name='fs?s', print_x=True, args=1, doc="""\
+@defword(name='fs?s', print_x=PX_PREDICATE, args=1, doc="""\
 Test if flag is set, then set  ( -- bool )""")
 def w_fs_query_set():
     x = param_stack.pop()
@@ -5235,7 +5295,7 @@ def w_fs_query_set():
         set_flag(flag)
 
 
-@defword(name='fsolve', args=1, str_args=1, print_x=True, doc="""\
+@defword(name='fsolve', args=1, str_args=1, print_x=PX_COMPUTE, doc="""\
 Root solving  ( init.guess -- root )
 Name of function must be on string stack.
 
@@ -5263,7 +5323,7 @@ def w_fsolve():
     param_stack.push(result)
 
 
-@defword(name='FV', print_x=True, doc="""\
+@defword(name='FV', print_x=PX_COMPUTE, doc="""\
 Calculate Future Value (FV)
 
 DEFINITION:
@@ -5292,7 +5352,7 @@ def w_FV():
     param_stack.push(result)
 
 
-@defword(name='GAMMA', print_x=False, doc="""\
+@defword(name='GAMMA', print_x=PX_COMPUTE, doc="""\
 Constant: Euler-Mascheroni number ( -- 0.5772... )
 
 DEFINITION:
@@ -5305,7 +5365,7 @@ def w_GAMMA():
     param_stack.push(result)
 
 
-@defword(name='gamma', args=1, print_x=True, doc="""\
+@defword(name='gamma', args=1, print_x=PX_COMPUTE, doc="""\
 Gamma function  ( x -- gamma[x] )
 
 Do not confuse this with the constant "GAMMA".""")
@@ -5337,7 +5397,7 @@ def w_gamma():
     param_stack.push(result)
 
 
-@defword(name='gcd', args=2, doc="""\
+@defword(name='gcd', args=2, print_x=PX_COMPUTE, doc="""\
 Greatest common divisor ( y x -- gcd )
 
 : gcd  begin ?dup while tuck mod repeat ;""")
@@ -5364,7 +5424,7 @@ def w_gcd():
 
 
 if sys.version_info >= (3,8):
-    @defword(name='gmean', print_x=True, doc="""\
+    @defword(name='gmean', print_x=PX_COMPUTE, doc="""\
     Print the geometric mean of the statistics data""")
     def w_gmean():
         global stat_list
@@ -5379,7 +5439,7 @@ if sys.version_info >= (3,8):
         param_stack.push(result)
 
 
-@defword(name='grad', doc="""\
+@defword(name='grad', print_x=PX_CONFIG, doc="""\
 Set angular mode to gradians""")
 def w_grad():
     global angle_mode
@@ -5388,13 +5448,13 @@ def w_grad():
     set_flag(FLAG_GRAD)
 
 
-@defword(name='help', doc="""\
+@defword(name='help', print_x=PX_IO, doc="""\
 Show documentation for the following word.""")
 def w_help():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='hmean', print_x=True, doc="""\
+@defword(name='hmean', print_x=PX_COMPUTE, doc="""\
 Print the harmonic mean of the statistics data""")
 def w_hmean():
     global stat_list
@@ -5409,7 +5469,7 @@ def w_hmean():
     param_stack.push(result)
 
 
-@defword(name='hms', args=1, print_x=True, doc="""\
+@defword(name='hms', args=1, print_x=PX_COMPUTE, doc="""\
 Convert decimal hours to hours/minutes/seconds  ( HH.nnn -- HH.MMSS )""")
 def w_hms():
     x = param_stack.pop()
@@ -5430,7 +5490,7 @@ def w_hms():
     param_stack.push(result)
 
 
-@defword(name='hms+', args=2, print_x=True, doc="""\
+@defword(name='hms+', args=2, print_x=PX_COMPUTE, doc="""\
 Add hours/minutes/seconds  ( HH.MMSS HH.MMSS -- HH.MMSS )""")
 def w_hms_plus():
     x = param_stack.pop()
@@ -5468,7 +5528,7 @@ def w_hms_plus():
     param_stack.push(result)
 
 
-@defword(name='hms-', args=2, print_x=True, doc="""\
+@defword(name='hms-', args=2, print_x=PX_COMPUTE, doc="""\
 Subtract hours/minutes/seconds  ( HH.MMSS HH.MMSS -- HH.MMSS )""")
 def w_hms_minus():
     x = param_stack.pop()
@@ -5504,7 +5564,7 @@ def w_hms_minus():
     param_stack.push(result)
 
 
-@defword(name='hp->d', args=1, print_x=True, doc="""\
+@defword(name='hp->d', args=1, print_x=PX_COMPUTE, doc="""\
 Convert HP day number to date  ( day# -- MM.DDYYYY )
 
 Day # 0 = October 15, 1582""")
@@ -5532,7 +5592,7 @@ def w_hp_to_d():
     # param_stack.push(result)
 
 
-@defword(name='hr', args=1, print_x=True, doc="""\
+@defword(name='hr', args=1, print_x=PX_COMPUTE, doc="""\
 Convert hours/minutes/seconds to decimal hours  ( HH.MMSS -- HH.nnn )""")
 def w_hr():
     x = param_stack.pop()
@@ -5555,7 +5615,7 @@ def w_hr():
     param_stack.push(result)
 
 
-@defword(name='hypot', args=2, doc="""\
+@defword(name='hypot', args=2, print_x=PX_COMPUTE, doc="""\
 hypot  ( y x -- hypot )  Hypotenuse distance
 
 Square root of the sum of squares.
@@ -5576,7 +5636,7 @@ def w_hypot():
     param_stack.push(Rpn_Float(math.hypot(xval, yval)))
 
 
-@defword(name='I', doc="""\
+@defword(name='I', print_x=PX_CONFIG, doc="""\
 Index of DO current loop  ( -- x )
 
 Return the index of the most recent DO loop.
@@ -5593,7 +5653,7 @@ def w_I():
 
 
 if have_numpy:
-    @defword(name='idn', args=1, print_x=True, doc="""\
+    @defword(name='idn', args=1, print_x=PX_COMPUTE, doc="""\
 Create an NxN identity matrix  ( n -- mat )""")
     def w_idn():
         x = param_stack.pop()
@@ -5621,7 +5681,7 @@ Create an NxN identity matrix  ( n -- mat )""")
         param_stack.push(result)
 
 
-@defword(name='if', args=1, doc="""\
+@defword(name='if', args=1, print_x=PX_CONTROL, doc="""\
 Test condition  ( flag -- )
 Execute a conditional test.
 <flag> IF ... [ ELSE ... ] THEN
@@ -5631,7 +5691,7 @@ def w_if():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='INT', print_x=True, doc="""\
+@defword(name='INT', print_x=PX_COMPUTE, doc="""\
 Calculate INTerest rate (INT)
 
 Do not confuse this with the "int" command, which truncates values to integers.""")
@@ -5663,7 +5723,7 @@ def w_INT():
     param_stack.push(result)
 
 
-@defword(name='int', args=1, print_x=True, doc="""\
+@defword(name='int', args=1, print_x=PX_COMPUTE, doc="""\
 int  ( x -- int )   Truncate to integer
 
 The result is whatever Python's int() function returns.  Do not confuse this
@@ -5681,7 +5741,7 @@ def w_int():
     param_stack.push(result)
 
 
-@defword(name='J', doc="""\
+@defword(name='J', print_x=PX_CONFIG, doc="""\
 Index of DO outer DO loop  ( -- x )
 
 Return the index of the DO loop enclosing the current one""")
@@ -5694,7 +5754,7 @@ def w_J():
     param_stack.push(_J.obj())
 
 
-@defword(name='jd->$', args=1, doc="""\
+@defword(name='jd->$', args=1, print_x=PX_CONFIG, doc="""\
 Convert julian day number to ISO date string  ( julian -- ) [ -- "YYYY-MM-DD" ]
 
 EXAMPLE:
@@ -5714,7 +5774,7 @@ def w_jd_to_dollar():
     string_stack.push(result)
 
 
-@defword(name='jd->d', args=1, print_x=True, doc="""\
+@defword(name='jd->d', args=1, print_x=PX_COMPUTE, doc="""\
 Convert julian day number to date  ( julian -- MM.DDYYYY )
 
 EXAMPLE:
@@ -5736,7 +5796,7 @@ def w_jd_to_d():
 
 
 if have_scipy:
-    @defword(name='Jv', args=2, print_x=True, doc="""\
+    @defword(name='Jv', args=2, print_x=PX_COMPUTE, doc="""\
 Jv  ( order x -- J_v(x) )
 
 Bessel function of the first kind of real order and complex argument.
@@ -5764,7 +5824,7 @@ Implemented via scipy.special.jv(order, x)""")
         param_stack.push(result)
 
 
-@defword(name='inv', args=1, print_x=True, doc="""\
+@defword(name='inv', args=1, print_x=PX_COMPUTE, doc="""\
 Inverse  ( x -- 1/x )
 X cannot be zero.""")
 def w_inv():
@@ -5800,9 +5860,11 @@ def w_inv():
     param_stack.push(result)
 
 
-@defword(name='key', print_x=True, doc="""\
+@defword(name='key', print_x=PX_IO, doc="""\
 ASCII code of single keystroke  ( -- key )
-KEY will block until input is provided.""")
+key will block until input is provided.  Keystroke is not echoed.
+
+qv ?key""")
 def w_key():
     k = _Getch()()
     val = ord(k) if k != '' else 0
@@ -5810,7 +5872,7 @@ def w_key():
     param_stack.push(Rpn_Integer(val))
 
 
-@defword(name='lcm', args=2, doc="""\
+@defword(name='lcm', args=2, print_x=PX_COMPUTE, doc="""\
 Least common multiple ( y x -- lcm )
 
 DEFINITION:
@@ -5839,13 +5901,13 @@ def w_lcm():
         param_stack.push(Rpn_Integer(r))
 
 
-@defword(name='leave', doc="""\
+@defword(name='leave', print_x=PX_CONTROL, doc="""\
 Exit a DO or BEGIN loop immediately.""")
 def w_leave():
     raise Rpn_E_Leave
 
 
-@defword(name='lg', args=1, print_x=True, doc="""\
+@defword(name='lg', args=1, print_x=PX_COMPUTE, doc="""\
 Logarithm [base 2]  ( x -- lg )
 X cannot be zero.
 Use "ln" for the natural logarithm, and "log" for the common logarithm.""")
@@ -5875,7 +5937,7 @@ def w_lg():
     param_stack.push(result)
 
 
-@defword(name='ln', args=1, print_x=True, doc="""\
+@defword(name='ln', args=1, print_x=PX_COMPUTE, doc="""\
 Natural logarithm [base e]  ( x -- ln )
 X cannot be zero.
 Use "log" for the common (base 10) logarithm.""")
@@ -5901,7 +5963,7 @@ def w_ln():
     param_stack.push(result)
 
 
-@defword(name='lnp1', args=1, print_x=True, doc="""\
+@defword(name='lnp1', args=1, print_x=PX_COMPUTE, doc="""\
 Calculate ln(1+X) accurately  ( x -- ln(1+x) )""")
 def w_ln_1_plus_x():
     x = param_stack.pop()
@@ -5921,7 +5983,7 @@ def w_ln_1_plus_x():
     param_stack.push(result)
 
 
-@defword(name='load', str_args=1, print_x=False, doc="""\
+@defword(name='load', str_args=1, print_x=PX_CONTROL, doc="""\
 Load file specified on string stack  [ file -- ]""")
 def w_load():
     filename = string_stack.pop().value()
@@ -5931,7 +5993,7 @@ def w_load():
         load_file(filename)
 
 
-@defword(name='log', args=1, print_x=True, doc="""\
+@defword(name='log', args=1, print_x=PX_COMPUTE, doc="""\
 Common logarithm [base 10]  ( x -- log )
 X cannot be zero.
 Use "ln" for the natural (base e) logarithm.""")
@@ -5961,7 +6023,7 @@ def w_log():
     param_stack.push(result)
 
 
-@defword(name='loop', doc="""\
+@defword(name='loop', print_x=PX_CONTROL, doc="""\
 Execute a definite loop.
 <limit> <initial> DO ... LOOP
 
@@ -5975,7 +6037,7 @@ def w_loop():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='max', args=2, print_x=True, doc="""\
+@defword(name='max', args=2, print_x=PX_COMPUTE, doc="""\
 Smaller of X or Y  ( y x -- max )""")
 def w_max():
     x = param_stack.pop()
@@ -5991,7 +6053,7 @@ def w_max():
         raise Rpn_E_Type_Error("max: Type error ({}, {})".format(typename(y), typename(x)))
 
 
-@defword(name='mean', print_x=True, doc="""\
+@defword(name='mean', print_x=PX_COMPUTE, doc="""\
 Print the arithmetic mean of the statistics data""")
 def w_mean():
     global stat_list
@@ -6006,7 +6068,7 @@ def w_mean():
     param_stack.push(result)
 
 
-@defword(name='median', print_x=True, doc="""\
+@defword(name='median', print_x=PX_COMPUTE, doc="""\
 Print the median of the statistics data""")
 def w_median():
     global stat_list
@@ -6021,7 +6083,7 @@ def w_median():
     param_stack.push(result)
 
 
-@defword(name='min', args=2, print_x=True, doc="""\
+@defword(name='min', args=2, print_x=PX_COMPUTE, doc="""\
 Smaller of X or Y  ( y x -- min )""")
 def w_min():
     x = param_stack.pop()
@@ -6037,7 +6099,7 @@ def w_min():
         raise Rpn_E_Type_Error("min: Type error ({}, {})".format(typename(y), typename(x)))
 
 
-@defword(name='N', print_x=True, doc="""\
+@defword(name='N', print_x=PX_COMPUTE, doc="""\
 Calculate Number of payments (N)
 
 DEFINITION:
@@ -6065,7 +6127,7 @@ def w_N():
     param_stack.push(result)
 
 
-@defword(name='not', args=1, print_x=True, doc="""\
+@defword(name='not', args=1, print_x=PX_PREDICATE, doc="""\
 Logical not  ( flag -- !flag )
 
 Invert a flag - return TRUE (1) if x is zero, otherwise FALSE (0).
@@ -6086,7 +6148,7 @@ def w_not():
     param_stack.push(Rpn_Integer(bool_to_int(x.zerop())))
 
 
-@defword(name='of', doc="""\
+@defword(name='of', print_x=PX_CONTROL, doc="""\
 Execute a sequence of words based on stack value.  Once a match is
 executed, no other clauses are considered.  OTHERWISE is optional.
 <n> and OF labels must be integers.
@@ -6103,7 +6165,7 @@ def w_of():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='or', args=2, print_x=True, doc="""\
+@defword(name='or', args=2, print_x=PX_PREDICATE, doc="""\
 Logical OR  ( flag flag -- flag )
 NOTE: This is not a bitwise OR - use BITOR for that.""")
 def w_or():
@@ -6126,7 +6188,7 @@ def w_or():
     param_stack.push(Rpn_Integer(x.value() or y.value()))
 
 
-@defword(name='otherwise', doc="""\
+@defword(name='otherwise', print_x=PX_CONTROL, doc="""\
 Execute a sequence of words based on stack value.  Once a match is
 executed, no other clauses are considered.  OTHERWISE is optional.
 <n> and OF labels must be integers.
@@ -6143,7 +6205,7 @@ def w_otherwise():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='over', args=2, doc="""\
+@defword(name='over', args=2, print_x=PX_CONFIG, doc="""\
 Duplicate second stack element  ( y x -- y x y )
 Equivalent to 1 PICK""")
 def w_over():
@@ -6154,7 +6216,7 @@ def w_over():
     param_stack.push(y)
 
 
-@defword(name='p->r', print_x=True, doc="""\
+@defword(name='p->r', print_x=PX_COMPUTE, doc="""\
 Convert polar coordinates to rectangular.
 The parameter(s) can be either two reals, or one complex.
 
@@ -6194,7 +6256,7 @@ def w_p_to_r():
         raise Rpn_E_Type_Error("p->r: Type error({})".format(typename(x)))
 
 
-@defword(name='perm', args=2, print_x=True, doc="""\
+@defword(name='perm', args=2, print_x=PX_COMPUTE, doc="""\
 Permutations  ( n r -- nPr )
 Choose from N objects R at a time, with regard to ordering.
 
@@ -6226,7 +6288,7 @@ def w_perm():
     param_stack.push(result)
 
 
-@defword(name='PI', print_x=False, doc="""\
+@defword(name='PI', print_x=PX_COMPUTE, doc="""\
 Constant: Pi  ( -- 3.14159... )
 
 DEFINITION:
@@ -6239,7 +6301,7 @@ def w_PI():
     param_stack.push(result)
 
 
-@defword(name='pick', args=1, doc="""\
+@defword(name='pick', args=1, print_x=PX_CONFIG, doc="""\
 Pick an element from the stack  ( x -- )
 0 PICK ==> DUP, 1 PICK ==> OVER""")
 def w_pick():
@@ -6256,7 +6318,7 @@ def w_pick():
     param_stack.push(result)
 
 
-@defword(name='plot', args=2, str_args=1, print_x=False, doc="""\
+@defword(name='plot', args=2, str_args=1, print_x=PX_IO, doc="""\
 Simple ASCII function plot ( xlow xhigh -- ) [ FN -- ]
 FN is the (string) name of a function which must implement ( x -- y ).
 Y-axis is autoscaled.
@@ -6309,7 +6371,7 @@ def w_plot():
     plot_helper(func, x_low, x_high)
 
 
-@defword(name='PMT', print_x=True, doc="""\
+@defword(name='PMT', print_x=PX_COMPUTE, doc="""\
 Calculate PayMenT amount (PMT)
 
 DEFINITION:
@@ -6339,7 +6401,7 @@ def w_PMT():
     param_stack.push(result)
 
 
-@defword(name='popdisp', print_x=False, doc="""\
+@defword(name='popdisp', print_x=PX_CONFIG, doc="""\
 Pop current display configuration.""")
 def w_popdisp():
     try:
@@ -6348,7 +6410,7 @@ def w_popdisp():
         raise Rpn_E_Runtime_Error("popdisp: No stashed display configurations")
 
 
-@defword(name='pushdisp', print_x=False, doc="""\
+@defword(name='pushdisp', print_x=PX_CONFIG, doc="""\
 Stash current display configuration.""")
 def w_pushdisp():
     d = Rpn_Display_Config()
@@ -6360,7 +6422,7 @@ def w_pushdisp():
     disp_stack.push(d)
 
 
-@defword(name='PV', print_x=True, doc="""\
+@defword(name='PV', print_x=PX_COMPUTE, doc="""\
 Calculate Present Value (PV)
 
 DEFINITION:
@@ -6389,7 +6451,7 @@ def w_PV():
 
 
 if have_scipy:
-    @defword(name='quad', args=2, str_args=1, print_x=True, doc=r"""\
+    @defword(name='quad', args=2, str_args=1, print_x=PX_COMPUTE, doc=r"""\
 Numerical integration  ( lower upper -- err.est integral )
 Name of function must be on string stack.
 
@@ -6429,7 +6491,7 @@ EXAMPLE: Integrate a bessel function jv(2.5, x) along the interval [0,4.5]:
         param_stack.push(res_obj)
 
 
-@defword(name='r->d', args=1, print_x=True, doc="""\
+@defword(name='r->d', args=1, print_x=PX_COMPUTE, doc="""\
 Convert radians to degrees ( rad -- deg )""")
 def w_r_to_d():
     x = param_stack.pop()
@@ -6441,7 +6503,7 @@ def w_r_to_d():
     param_stack.push(result)
 
 
-@defword(name='r->p', print_x=True, doc="""\
+@defword(name='r->p', print_x=PX_COMPUTE, doc="""\
 Convert rectangular coordinates to polar.
 The parameter(s) can be either two reals, or one complex.
 
@@ -6484,7 +6546,7 @@ def w_r_to_p():
         raise Rpn_E_Type_Error("r->p: Type error({})".format(typename(x)))
 
 
-@defword(name='r.s', print_x=False, doc="""\
+@defword(name='r.s', print_x=PX_IO, doc="""\
 Display return stack""")
 def w_r_dot_s():
     for (i, item) in return_stack.items_bottom_to_top():
@@ -6492,7 +6554,7 @@ def w_r_dot_s():
         lnwriteln("r{}: {}".format(i, item))
 
 
-@defword(name='r>', doc="""\
+@defword(name='r>', print_x=PX_CONFIG, doc="""\
 Pop return stack onto parameter stack  ( -- x )""")
 def w_r_from():
     if return_stack.empty():
@@ -6500,7 +6562,7 @@ def w_r_from():
     param_stack.push(return_stack.pop())
 
 
-@defword(name='r@', doc="""\
+@defword(name='r@', print_x=PX_CONFIG, doc="""\
 Copy top of return stack  ( -- x )""")
 def w_r_fetch():
     if return_stack.empty():
@@ -6508,7 +6570,7 @@ def w_r_fetch():
     param_stack.push(return_stack.top())
 
 
-@defword(name='rad', doc="""\
+@defword(name='rad', print_x=PX_CONFIG, doc="""\
 Set angular mode to radians""")
 def w_rad():
     global angle_mode
@@ -6517,7 +6579,7 @@ def w_rad():
     clear_flag(FLAG_GRAD)
 
 
-@defword(name='rand', print_x=True, doc="""\
+@defword(name='rand', print_x=PX_COMPUTE, doc="""\
 Random number  ( -- r )
 r is a float in range: 0 <= r < 1
 
@@ -6526,7 +6588,7 @@ def w_rand():
     param_stack.push(Rpn_Float(random.random()))
 
 
-@defword(name='randint', args=1, print_x=True, doc="""\
+@defword(name='randint', args=1, print_x=PX_COMPUTE, doc="""\
 Random integer between 1 and n  ( n -- r )
 r is an integer in range: 1 <= r <= n
 
@@ -6548,7 +6610,7 @@ def w_randint():
     param_stack.push(Rpn_Integer(r))
 
 
-@defword(name='rcl', args=1, doc="""\
+@defword(name='rcl', args=1, print_x=PX_COMPUTE, doc="""\
 Recall value of register X  ( reg -- val )""")
 def w_rcl():
     global register
@@ -6565,7 +6627,7 @@ def w_rcl():
     param_stack.push(register[reg])
 
 
-@defword(name='rct->sph', args=3, doc="""\
+@defword(name='rct->sph', args=3, print_x=PX_COMPUTE, doc="""\
 Convert rectangular coordinates to spherical  ( z y x -- phi theta r )
 
 DEFINITION:
@@ -6610,13 +6672,13 @@ def w_rct_to_sph():
     param_stack.push(r_obj)
 
 
-@defword(name='rdepth', print_x=True, doc="""\
+@defword(name='rdepth', print_x=PX_COMPUTE, doc="""\
 Current number of elements on return stack  ( -- n )""")
 def w_rdepth():
     param_stack.push(Rpn_Integer(return_stack.size()))
 
 
-@defword(name='rdrop', doc="""\
+@defword(name='rdrop', print_x=PX_CONFIG, doc="""\
 Drop the top item from the return stack.""")
 def w_rdrop():
     if return_stack.empty():
@@ -6624,13 +6686,13 @@ def w_rdrop():
     return_stack.pop()
 
 
-@defword(name='recurse', doc="""\
+@defword(name='recurse', print_x=PX_CONTROL, doc="""\
 Recurse into current word.  Only valid in a colon definition.""")
 def w_recurse():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='repeat', doc="""\
+@defword(name='repeat', print_x=PX_CONTROL, doc="""\
 Execute an indefinite loop while a condition is satisfied.
 BEGIN ... <flag> WHILE ... REPEAT
 
@@ -6643,7 +6705,7 @@ def w_repeat():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='rms', args=1, print_x=True, doc="""\
+@defword(name='rms', args=1, print_x=PX_COMPUTE, doc="""\
 Root Mean Square  ( v -- rms )
 
 DEFINITION:
@@ -6678,7 +6740,7 @@ def w_rms():
     param_stack.push(result)
 
 
-@defword(name='rnd', args=2, print_x=True, doc="""\
+@defword(name='rnd', args=2, print_x=PX_CONFIG, doc="""\
 Round N to PLACES number of decimal places  ( n places -- rounded )
 
 NOTE: This is implemented using Python's round() function.  The behavior
@@ -6709,7 +6771,7 @@ def w_rnd():
     param_stack.push(result)
 
 
-@defword(name='roll', args=1, doc="""\
+@defword(name='roll', args=1, print_x=PX_CONFIG, doc="""\
 Roll stack elements  ( x -- )
 1 ROLL ==> SWAP, 2 ROLL ==> ROT""")
 def w_roll():
@@ -6725,7 +6787,7 @@ def w_roll():
     param_stack.roll(x.value())
 
 
-@defword(name='rot', args=3, doc="""\
+@defword(name='rot', args=3, print_x=PX_CONFIG, doc="""\
 Rotate third stack element to the top, rolling others up  ( z y x -- y x z )
 Equivalent to 2 ROLL""")
 def w_rot():
@@ -6737,7 +6799,7 @@ def w_rot():
     param_stack.push(z)
 
 
-@defword(name='S+', args=1, print_x=False, doc="""\
+@defword(name='S+', args=1, print_x=PX_CONFIG, doc="""\
 Add an element to the statistics list""")
 def w_s_plus():
     x = param_stack.pop()
@@ -6750,7 +6812,7 @@ def w_s_plus():
     stat_list.append(val)
 
 
-@defword(name='sci', args=1, print_x=False, doc="""\
+@defword(name='sci', args=1, print_x=PX_CONFIG, doc="""\
 Set scientific display  ( n -- )
 
 N specifies the number of digits after the decimal point.""")
@@ -6771,14 +6833,14 @@ def w_sci():
     clear_flag(FLAG_DISP_ENG)
 
 
-@defword(name='scopes', print_x=False, doc="""\
+@defword(name='scopes', print_x=PX_IO, doc="""\
 Print information on all available scopes.""")
 def w_scopes():
     for (i, item) in scope_stack.items_bottom_to_top():
         lnwriteln("{}: {}".format(i, item))
 
 
-@defword(name='setdebug', args=1, str_args=1, print_x=False, doc="""\
+@defword(name='setdebug', args=1, str_args=1, print_x=PX_CONFIG, doc="""\
 Set debug level  ( lev -- )  [ "facility" -- ]""")
 def w_setdebug():
     x = param_stack.pop()
@@ -6797,7 +6859,7 @@ def w_setdebug():
     set_debug_level(resource.value(), level)
 
 
-@defword(name='sf', args=1, doc="""\
+@defword(name='sf', args=1, print_x=PX_CONFIG, doc="""\
 Set flag  ( f -- )""")
 def w_sf():
     x = param_stack.pop()
@@ -6814,7 +6876,7 @@ def w_sf():
     set_flag(flag)
 
 
-@defword(name='shdebug', print_x=False, doc="""\
+@defword(name='shdebug', print_x=PX_IO, doc="""\
 Show all debug levels""")
 def w_showdebug():
     global scr_cols
@@ -6829,7 +6891,7 @@ def w_showdebug():
     list_in_columns(sorted_dbgs, scr_cols.obj().value() - 1)
 
 
-@defword(name='shfin', print_x=False, doc="""\
+@defword(name='shfin', print_x=PX_IO, doc="""\
 Show financial variables""")
 def w_shfin():
     global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV, tvm_CF, tvm_PF
@@ -6860,7 +6922,7 @@ def w_shfin():
                                          "BEGIN" if flag_set_p(FLAG_TVM_BEGIN_MODE) else "END"))
 
 
-@defword(name='shflag', print_x=False, doc="""\
+@defword(name='shflag', print_x=PX_IO, doc="""\
 Show status of all flags ( -- )""")
 def w_shflag():
     global scr_cols
@@ -6871,13 +6933,13 @@ def w_shflag():
     list_in_columns(flags, scr_cols.obj().value() - 1)
 
 
-@defword(name='show', doc="""\
+@defword(name='show', print_x=PX_IO, doc="""\
 Show the definition of the following word.""")
 def w_show():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='shstat', print_x=False, doc="""\
+@defword(name='shstat', print_x=PX_IO, doc="""\
 Print the statistics list""")
 def w_shstat():
     global stat_list
@@ -6887,7 +6949,7 @@ def w_shstat():
         writeln(stat_list)
 
 
-@defword(name='shreg', print_x=False, doc="""\
+@defword(name='shreg', print_x=PX_IO, doc="""\
 Show status of all registers ( -- )""")
 def w_shreg():
     global scr_cols, register
@@ -6899,7 +6961,7 @@ def w_shreg():
     list_in_columns(regs, scr_cols.obj().value() - 1)
 
 
-@defword(name='sign', args=1, print_x=True, doc="""\
+@defword(name='sign', args=1, print_x=PX_COMPUTE, doc="""\
 Signum  ( n -- sign )
 Returns -1, 0, or 1.""")
 def w_sign():
@@ -6918,7 +6980,7 @@ def w_sign():
     param_stack.push(result)
 
 
-@defword(name='sin', args=1, print_x=True, doc="""\
+@defword(name='sin', args=1, print_x=PX_COMPUTE, doc="""\
 Sine  ( angle -- sine )""")
 def w_sin():
     x = param_stack.pop()
@@ -6932,7 +6994,7 @@ def w_sin():
     param_stack.push(result)
 
 
-@defword(name='sinc', args=1, print_x=True, doc="""\
+@defword(name='sinc', args=1, print_x=PX_COMPUTE, doc="""\
 Sine cardinal (sampling function)  ( x -- sinc )
 
 DEFINITION:
@@ -6963,7 +7025,7 @@ def w_sinc():
     param_stack.push(result)
 
 
-@defword(name='sinh', args=1, print_x=True, doc="""\
+@defword(name='sinh', args=1, print_x=PX_COMPUTE, doc="""\
 Hyperbolic sine  ( angle -- sine_h )
 
 DEFINITION:
@@ -6982,7 +7044,7 @@ def w_sinh():
     param_stack.push(result)
 
 
-@defword(name='sleep', args=1, doc="""\
+@defword(name='sleep', args=1, print_x=PX_CONFIG, doc="""\
 Sleep for N seconds  ( n -- )
 N may be fractional.""")
 def w_sleep():
@@ -6994,7 +7056,7 @@ def w_sleep():
     time.sleep(sleep_time)
 
 
-@defword(name='sph->rct', args=3, doc="""\
+@defword(name='sph->rct', args=3, print_x=PX_COMPUTE, doc="""\
 Convert spherical coordinates to rectangular  ( phi theta r -- z y x )
 
 DEFINITION:
@@ -7031,7 +7093,7 @@ def w_sph_to_rct():
     param_stack.push(Rpn_Float(x_coord))
 
 
-@defword(name='sq', args=1, print_x=True, doc="""\
+@defword(name='sq', args=1, print_x=PX_COMPUTE, doc="""\
 Square  ( x -- x^2 )""")
 def w_sq():
     x = param_stack.pop()
@@ -7051,7 +7113,7 @@ def w_sq():
     param_stack.push(result)
 
 
-@defword(name='sqrt', args=1, print_x=True, doc="""\
+@defword(name='sqrt', args=1, print_x=PX_COMPUTE, doc="""\
 Square root  ( x -- sqrt(x) )
 Negative X returns a complex number""")
 def w_sqrt():
@@ -7081,7 +7143,7 @@ def w_sqrt():
     param_stack.push(result)
 
 
-@defword(name='std', print_x=False, doc="""\
+@defword(name='std', print_x=PX_CONFIG, doc="""\
 std  ( -- )
 
 Set display mode to standard.""")
@@ -7093,7 +7155,7 @@ def w_std():
         clear_flag(39 - bit)
 
 
-@defword(name='stdev', print_x=True, doc="""\
+@defword(name='stdev', print_x=PX_COMPUTE, doc="""\
 Print the sample standard deviation of the statistics data""")
 def w_stdev():
     global stat_list
@@ -7108,7 +7170,7 @@ def w_stdev():
     param_stack.push(result)
 
 
-@defword(name='sto', args=2, doc="""\
+@defword(name='sto', args=2, print_x=PX_CONFIG, doc="""\
 Store value Y into register X  ( y reg -- )""")
 def w_sto():
     global register
@@ -7131,7 +7193,7 @@ def w_sto():
         register[reg] = Rpn_Float(y.value())
 
 
-@defword(name='swap', args=2, doc="""\
+@defword(name='swap', args=2, print_x=PX_CONFIG, doc="""\
 Exchange top two stack elements  ( y x -- x y )
 Equivalent to 1 ROLL""")
 def w_swap():
@@ -7141,7 +7203,7 @@ def w_swap():
     param_stack.push(y)
 
 
-@defword(name='tan', args=1, print_x=True, doc="""\
+@defword(name='tan', args=1, print_x=PX_COMPUTE, doc="""\
 Tangent  ( angle -- tangent )
 
 NOTE:
@@ -7168,7 +7230,7 @@ def w_tan():
     param_stack.push(result)
 
 
-@defword(name='tanh', args=1, print_x=True, doc="""\
+@defword(name='tanh', args=1, print_x=PX_COMPUTE, doc="""\
 Hyperbolic tangent  ( angle -- tangent_h )
 
 DEFINITION:
@@ -7185,7 +7247,7 @@ def w_tanh():
     param_stack.push(result)
 
 
-@defword(name='TAU', print_x=False, doc="""\
+@defword(name='TAU', print_x=PX_COMPUTE, doc="""\
 Constant: Tau ( -- 6.28318... )
 
 DEFINITION:
@@ -7196,7 +7258,7 @@ def w_TAU():
     param_stack.push(result)
 
 
-@defword(name='tf', args=1, doc="""\
+@defword(name='tf', args=1, print_x=PX_CONFIG, doc="""\
 Toggle flag  ( f -- )""")
 def w_tf():
     x = param_stack.pop()
@@ -7213,7 +7275,7 @@ def w_tf():
     toggle_flag(flag)
 
 
-@defword(name='then', args=1, doc="""\
+@defword(name='then', args=1, print_x=PX_CONTROL, doc="""\
 Execute a conditional test.
 <flag> IF ... [ ELSE ... ] THEN
 
@@ -7222,7 +7284,7 @@ def w_then():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='throw', args=1, print_x=False, doc="""\
+@defword(name='throw', args=1, print_x=PX_CONTROL, doc="""\
 Throw an exception  ( n -- )
 
 N must be positive.
@@ -7240,7 +7302,7 @@ def w_throw():
     raise Rpn_E_Throw(x.value())
 
 
-@defword(name='time', print_x=True, doc="""\
+@defword(name='time', print_x=PX_COMPUTE, doc="""\
 Current time  ( -- HH.MMSS )""")
 def w_time():
     t = datetime.datetime.now().strftime("%H.%M%S")
@@ -7249,7 +7311,7 @@ def w_time():
     param_stack.push(result)
 
 
-@defword(name='time!', print_x=True, doc="""\
+@defword(name='time!', print_x=PX_COMPUTE, doc="""\
 High precision clock time  ( -- HH.MMSSssss )""")
 def w_time_bang():
     t = datetime.datetime.now().strftime("%H.%M%S%f")
@@ -7258,7 +7320,7 @@ def w_time_bang():
     param_stack.push(result)
 
 
-@defword(name='timeinfo', args=1, hidden=True, print_x=False, doc="""\
+@defword(name='timeinfo', args=1, hidden=True, print_x=PX_IO, doc="""\
 Show time_info() for Float  ( x -- )""")
 def w_timeinfo():
     x = param_stack.pop()
@@ -7268,7 +7330,7 @@ def w_timeinfo():
     writeln("timeinfo: {}".format(x.time_info()))
 
 
-@defword(name='trace', doc="""\
+@defword(name='trace', print_x=PX_CONFIG, doc="""\
 Toggle tracing state""")
 def w_trace():
     if dbg("trace"):
@@ -7280,7 +7342,7 @@ def w_trace():
         lnwriteln("trace: Tracing is now ENABLED")
 
 
-@defword(name='trn', args=1, doc="""\
+@defword(name='trn', args=1, print_x=PX_COMPUTE, doc="""\
 Transpose a matrix  ( mat -- mat_T )""")
 def w_trn():
     x = param_stack.pop()
@@ -7296,14 +7358,14 @@ def w_trn():
     param_stack.push(t)
 
 
-@defword(name='undef', doc="""\
+@defword(name='undef', print_x=PX_CONFIG, doc="""\
 Undefine a variable, removing it from the current scope.
 UNDEF <var>""")
 def w_undef():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='until', doc="""\
+@defword(name='until', print_x=PX_CONTROL, doc="""\
 Execute an indefinite loop until a condition is satisfied.
 BEGIN ... <flag> UNTIL
 
@@ -7317,7 +7379,7 @@ def w_until():
 
 
 if have_numpy:
-    @defword(name='v>', args=1, doc="""\
+    @defword(name='v>', args=1, print_x=PX_CONFIG, doc="""\
 Decompose a vector into stack elements""")
     def w_v_from():
         x = param_stack.pop()
@@ -7328,7 +7390,7 @@ Decompose a vector into stack elements""")
             param_stack.push(to_rpn_class(elem))
 
 
-@defword(name='var', print_x=True, doc="""\
+@defword(name='var', print_x=PX_COMPUTE, doc="""\
 Print the sample variance of the statistics data""")
 def w_var():
     global stat_list
@@ -7341,14 +7403,14 @@ def w_var():
     param_stack.push(Rpn_Float(v))
 
 
-@defword(name='variable', doc="""\
+@defword(name='variable', print_x=PX_CONFIG, doc="""\
 Declare a variable.  Initial state is undefined.
 VARIABLE <var>""")
 def w_variable():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='vars', print_x=False, doc="""\
+@defword(name='vars', print_x=PX_IO, doc="""\
 List variables and their values""")
 def w_vars():
     global scr_cols
@@ -7370,7 +7432,7 @@ def w_vars():
         list_in_columns(sorted_vars, scr_cols.obj().value() - 1)
 
 
-@defword(name='vlist', print_x=False, doc="""\
+@defword(name='vlist', print_x=PX_IO, doc="""\
 Print the list of defined words.
 Only words in the global scope are shown.
 
@@ -7392,7 +7454,7 @@ def w_vlist():
     list_in_columns(sorted_words, scr_cols.obj().value() - 1)
 
 
-@defword(name='while', doc="""\
+@defword(name='while', print_x=PX_CONTROL, doc="""\
 Execute an indefinite loop while a condition is satisfied.
 BEGIN ... <flag> WHILE ... REPEAT
 
@@ -7405,7 +7467,7 @@ def w_while():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='words', print_x=False, doc="""\
+@defword(name='words', print_x=PX_IO, doc="""\
 Print the list of user-defined words.
 
 qv VLIST""")
@@ -7415,8 +7477,8 @@ def w_words():
                            key=str.casefold), scr_cols.obj().value() - 1)
 
 
-@defword(name='zer', args=1, print_x=False, doc="""\
-zero  ( v -- m )  Create a zero vector or matrix""")
+@defword(name='zer', args=1, print_x=PX_COMPUTE, doc="""\
+zer  ( v -- m )  Create a zero vector or matrix""")
 def w_zer():
     x = param_stack.pop()
     if type(x) is not Rpn_Vector:
@@ -7775,15 +7837,20 @@ def convert_radians_to_mode(r, force_mode=None):
     raise Rpn_E_Fatal("{}: Bad angle_mode '{}'".format(whoami(), mode))
 
 
+# Secondary words are protected by default
 def define_secondary_words():
     eval_string(r"""
+\ : BEGIN_SECONDARY_WORDS----------------------------- doc:" " ;
+
 : TRUE          doc:"TRUE  ( -- 1 )
 Constant: Logical true"
-  1 ;
+  1
+  19 cf ;
 
 : FALSE         doc:"FALSE  ( -- 0 )
 Constant: Logical false"
-  0 ;
+  0
+  19 cf ;
 
 : i             doc:"i  ( -- i )  Imaginary unit (0,1)
 
@@ -7792,7 +7859,8 @@ i = sqrt(-1)
 
 Do not confuse this with the I command,
 which returns the index of a DO loop."
-  (0,1) ;
+  (0,1)
+  19 cf ;
 
 : PHI           doc:"PHI  ( -- 1.618... )   Golden ratio
 
@@ -7801,7 +7869,8 @@ PHI = (1 + sqrt(5)) / 2"
   5 sqrt 1 + 2 / ;
 
 : BL            doc:"BL  ( -- 32 )   ASCII code for a space character"
-  32 ;
+  32
+  19 cf ;
 
 : ?cr           doc:"?cr  Print a newline only if necessary to return to left margin"
   @#OUT 0 > if
@@ -7831,7 +7900,8 @@ Equivalent to ROT ROT"
     ."-rot: Insufficient parameters (3 required)" cr
   else
     rot rot
-  then ;
+  then
+  19 cf ;
 
 : nip           doc:"nip  ( y x -- x )
 Drop second stack element
@@ -7840,7 +7910,8 @@ Equivalent to SWAP DROP.  J.V. Noble calls this PLUCK."
     ."nip: Insufficient parameters (2 required)" cr
   else
     swap drop
-  then ;
+  then
+  19 cf ;
 
 : tuck          doc:"tuck  ( y x -- x y x )
 Duplicate top stack element into third position
@@ -7849,7 +7920,8 @@ Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
     ."tuck: Insufficient parameters (2 required)" cr
   else
     swap over
-  then ;
+  then
+  19 cf ;
 
 : sum           doc:"sum  ( ... -- sum )  Sum all numbers on the stack"
   depth 0= if
@@ -7932,9 +8004,11 @@ Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
 \ : in3->cm3  doc:"in3->cm3  ( in^3 -- cm^3 )  Convert cubic inches to cubic centimeters"
 \   16.3871     * ;
 
+\ : END_SECONDARY_WORDS----------------------------- doc:" " ;
 """)
 
 
+# Tertiary words are not protected
 def define_tertiary_words():
     eval_string("""
 """)
@@ -8014,6 +8088,17 @@ def toggle_flag(flag):
         clear_flag(flag)
     else:
         set_flag(flag)
+
+def copy_flag(src_flag, dst_flag):
+    global flags_vec
+    if src_flag < 0 or src_flag >= FLAG_MAX:
+        raise Rpn_E_Fatal("{}: Flag {} out of range".format(whoami(), src_flag))
+    if dst_flag < 0 or dst_flag >= FLAG_MAX:
+        raise Rpn_E_Fatal("{}: Flag {} out of range".format(whoami(), dst_flag))
+    if flag_set_p(src_flag):
+        set_flag(dst_flag)
+    else:
+        clear_flag(dst_flag)
 
 def flag_int_value(flag):
     global flags_vec
@@ -8223,11 +8308,9 @@ class _Getch_Windows:
 
 class _Getch_Unix:
     def __init__(self):
-        # import termios now or else you'll get the Unix version on the Mac
-        import termios
+        pass
 
     def __call__(self):
-        import termios
         fd = sys.stdin.fileno()
         old_settings = termios.tcgetattr(fd)
         try:
@@ -8404,7 +8487,7 @@ def to_rpn_class(n):
 
 def parse_args():
     try:
-        opts, argv = getopt.getopt(sys.argv[1:], "df:il:")
+        opts, argv = getopt.getopt(sys.argv[1:], "df:il:q")
     except getopt.GetoptError as e:
         print(str(e))           # OK
         usage()
@@ -8433,6 +8516,9 @@ def parse_args():
                 lnwriteln("-l: File '{}' does not exist".format(arg))
             except Rpn_E_Runtime_Error as e:
                 lnwriteln(str(e))
+        elif opt == "-q":
+            global load_init_file
+            load_init_file = False
         else:
             print("Unhandled option {}".format(opt)) # OK
             sys.exit(1)
@@ -8537,13 +8623,14 @@ def lnwriteln(s=""):
 #############################################################################
 def usage():
     print("""\
-Usage: rpn [-d] [-f FILE] [-i] [-l FILE] cmds...
+Usage: rpn [-d] [-f FILE] [-i] [-l FILE] [-q] cmds...
 
 -d        Enable debugging
 -f FILE   Load FILE and exit
 -i        Force interactive mode
--l FILE   Load FILE""")
-    sys.exit(64)
+-l FILE   Load FILE
+-q        Do not load init file (~/.rpnrc)""")
+    sys.exit(64)                # EX_USAGE
 
 
 def initialize():
@@ -8569,15 +8656,17 @@ def initialize():
     signal.signal(signal.SIGWINCH, sigwinch_handler)
     sigwinch_handler(0, 0)     # Read & define ROWS and COLS via stty(1)
 
-    # Attempt to load the user's init file
-    init_file = os.path.expanduser("~/.rpnrc")
-    if os.path.isfile(init_file):
-        (rpnrc, _) = lookup_variable('RPNRC')
-        rpnrc.set_obj(Rpn_String(init_file))
-        load_file(init_file)
-
     # Parse command line
     argv = parse_args()
+
+    # Hopefully load the user's init file
+    global load_init_file
+    if load_init_file:
+        init_file = os.path.expanduser("~/.rpnrc")
+        if os.path.isfile(init_file):
+            (rpnrc, _) = lookup_variable('RPNRC')
+            rpnrc.set_obj(Rpn_String(init_file))
+            load_file(init_file)
 
     if len(argv) > 0:
         global go_interactive
@@ -8683,16 +8772,15 @@ def main():
 
 
 def main_loop():
-    global show_x
-    show_x = False    # Reset, because some argv may have set it to True
+    clear_flag(FLAG_SHOW_X) # Reset, because some argv may have set it to True
 
     # Non-existence of ~/.rpnrc is indicator of novice mode
     (rpnrc, _) = lookup_variable("RPNRC")
-    init_file = rpnrc.obj().value()
-    if len(init_file) == 0:
+    if len(rpnrc.obj().value()) == 0:
         lnwriteln("RPN version {}".format(RPN_VERSION))
-        lnwriteln("Type ? for information, HELP <word> for help on a specific word")
-        lnwriteln("Type bye to exit")
+        lnwriteln("Type ? for information, help <word> for help on a specific word.")
+        lnwriteln("Type vlist for a list of all words, vars to see your variables.")
+        lnwriteln("Type .s to display the stack non-destructively, and bye to exit.")
 
     if not param_stack.empty():
         if param_stack.size() == 1:

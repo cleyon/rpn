@@ -2,10 +2,10 @@
   doc:"Play a game of craps"
   | initial_stake cash |
 
-  ."Welcome to the craps table" cr
+  ."Welcome to the craps table!" cr
   20 randint 5 * 100 +
   dup !initial_stake   dup !cash
-  ."I'll stake you " . ."quatloos to get started" cr
+  ."I'll stake you " . ."zorkmids to get started." cr
 
   : place_bet
     | valid bet |   FALSE !valid
@@ -65,7 +65,7 @@
 
     @win not if -1 !*bet then
     @bet !+cash
-    ."You now have " @cash . ."quatloos" cr
+    ."You now have " @cash . ."zorkmids." cr
   ;
 
   \ craps main code
@@ -75,10 +75,10 @@
       | diff |
       @cash @initial_stake - !diff
       @diff 0 > if
-        ."After my initial " @initial_stake . ."quatloo loan, "
-        ."you leave with " @diff . ."quatloos" cr
+        ."After my initial " @initial_stake . ."zorkmid loan, "
+        ."you leave with " @diff . ."zorkmids." cr
       else
-        ."You still owe me " @diff abs . ."quatloos!" cr
+        ."You still owe me " @diff abs . ."zorkmids!" cr
       then
       ."Thanks for playing!" cr exit
     then
