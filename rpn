@@ -7478,7 +7478,7 @@ def w_words():
 
 
 @defword(name='zer', args=1, print_x=PX_COMPUTE, doc="""\
-zero  ( v -- m )  Create a zero vector or matrix""")
+zer  ( v -- m )  Create a zero vector or matrix""")
 def w_zer():
     x = param_stack.pop()
     if type(x) is not Rpn_Vector:
