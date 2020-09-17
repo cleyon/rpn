@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-rpn_version = 15.6
-
 import calendar
 import cmath
 import datetime
@@ -19,8 +17,12 @@ import signal
 import statistics
 import subprocess
 import sys
+import tempfile         # edit
 import time
 import traceback
+import tty
+
+RPN_VERSION = 15.6
 
 try:
     import ply.lex  as lex
@@ -51,35 +53,36 @@ angle_mode              = "d"         # r=Radians, d=Degrees, g=Gradians
 date_re                 = r'^(\d{1,2})\.(\d{2})(\d{4})$'
 date_pat                = re.compile(date_re)
 default_protected       = True
-flag_tvm_continuous     = 8
-flag_tvm_begin_mode     = 9
-flag_debug_enabled      = 20
-flag_printer_enabled    = 21
-flag_decimal_point      = 28          # Set: 123,456.123  (US)   Clear: 123.456,123  (Europe)
-flag_digit_grouping     = 29          # Set: 1,234,567.01        Clear: 1234567.01
-flag_fence              = 30          # Flags >= flag_fence cannot set set by the user
-# flag_disp_fix         = 40
-# flag_disp_eng         = 41
-flag_grad               = 42
-flag_rad                = 43
-flag_printer_exists     = 55
-flag_max                = 56
 flags_vec               = 0
 force_interactive       = False
 go_interactive          = True
 got_interrupt           = False
-julian_offset           = 1721424 # date.toordinal() returns 1 for 0001-01-01, so compensate
-matrix_max              = 1000
-precision_max           = 16
 rational_re             = r'(\d+)::(\d+)'
 rational_pat            = re.compile(rational_re)
 register                = dict()
-reg_min                 = 17
-reg_max                 = 100         # R00..R99; further restricted by reg_size
 show_x                  = False
 stat_list               = []
 time_re                 = r'^[-+]?(\d+)\.(\d{,2})(\d*)$'
 time_pat                = re.compile(time_re)
+
+FLAG_TVM_CONTINUOUS     =   8
+FLAG_TVM_BEGIN_MODE     =   9
+FLAG_DEBUG_ENABLED      =  20
+FLAG_PRINTER_ENABLED    =  21
+FLAG_DECIMAL_POINT      =  28           # Set: 123,456.123  (US)   Clear: 123.456,123  (Europe)
+FLAG_DIGIT_GROUPING     =  29           # Set: 1,234,567.01        Clear: 1234567.01
+FLAG_FENCE              =  30           # Flags >= FLAG_FENCE cannot set set by the user
+FLAG_DISP_FIX           =  40
+FLAG_DISP_ENG           =  41
+FLAG_GRAD               =  42
+FLAG_RAD                =  43
+FLAG_PRINTER_EXISTS     =  55
+FLAG_MAX                =  56
+JULIAN_OFFSET           = 1721424       # date.toordinal() returns 1 for 0001-01-01, so compensate
+PRECISION_MAX           =  16
+MATRIX_MAX              = 999
+REG_SIZE_MIN            =  17
+REG_SIZE_MAX            = 100           # R00..R99; further restricted by SIZE
 
 # DEG_PER_RAD  = 360 / TAU
 # E            = Base of natural logarithms = exp(1.0)
@@ -124,35 +127,35 @@ class Rpn_Exception(Exception):
 class Rpn_E_Abort(Rpn_Exception):
     """Rpn_E_Abort is raised by the ABORT and ABORT" words.
 It clears the parameter, return, and string stacks.  Caught in p_execute."""
-    pass
+
 
 class Rpn_E_End_Program (Rpn_Exception):
     """Rpn_E_End_Program is raised when there is no more input to parse, or
 the interrupt key is signaled.  It is caught in __main__, where processing
 is halted, the exit routine prints the stack, and the program exits."""
-    pass
+
 
 class Rpn_E_Exit(Rpn_Exception):
     """Rpn_E_Exit is raised by the word EXIT and terminates execution
 of the current word."""
-    pass
+
 
 class Rpn_E_Fatal(Rpn_Exception):
     """Rpn_E_Fatal is raised whenever an internal error is detected that
 forces the program to abend.  It is caught in __main__ and causes an
 immediate program termination."""
-    pass
+
 
 class Rpn_E_Leave(Rpn_Exception):
     """Rpn_E_Leave is raised by the LEAVE word.  This is caught by
 BEGIN or DO loops, and causes an immediate exit from the enclosing loop.
 If a loop is not currently executing, it is caught in p_execute() and
 an error message is printed."""
-    pass
+
 
 class Rpn_E_Parse_Error(Rpn_Exception):
     """Rpn_E_Parse_Error is raised by p_error and is caught in eval_string()."""
-    pass
+
 
 class Rpn_E_Runtime_Error(Rpn_Exception):
     pass
@@ -245,12 +248,11 @@ throw_code_name = {
 
 class Rpn_E_Throw(Rpn_Exception):
     """Exception raised by THROW and caught by CATCH."""
-    pass
+
 
 class Rpn_E_Top_Level(Rpn_Exception):
     """Rpn_E_Top_Level causes an immediate return to the top level prompt.
 It is caught in main_loop."""
-    pass
 
 
 
@@ -263,9 +265,11 @@ It is caught in main_loop."""
 debug_levels = {
     "catch"                     : 0,
     "defvar"                    : 0,
+    "dollar_in"                 : 0,
     "eval_string"               : 0,
     "lookup_varname"            : 0,
     "lookup_variable"           : 0,
+    "number_in"                 : 0,
     "p_define_word"             : 0,
     "p_executable"              : 0,
     "p_execute"                 : 0,
@@ -327,7 +331,7 @@ just change "dbg(res,1,xxx)" to "dbg(res,-1,xxx)".'''
         traceback.print_stack(file=sys.stderr)
         sys.exit(1)             # Harsh!
 
-    if not flag_set_p(flag_debug_enabled) or level == 0:
+    if not flag_set_p(FLAG_DEBUG_ENABLED) or level == 0:
         return False
     flag = debug_levels[resource] >= level
     if flag and text is not None:
@@ -612,7 +616,7 @@ class Rpn_Complex(Rpn_Stackable):
 
     def __str__(self):
         s = "({},{})".format(fmt(self.real()), fmt(self.imag()))
-        l = "  \ " + "{}".format(self.label()) if self.label() is not None else ""
+        l = r"  \ " + "{}".format(self.label()) if self.label() is not None else ""
         return s + l
 
     def __repr__(self):
@@ -693,9 +697,9 @@ class Rpn_Display_Config:
         return self._prec
 
     def set_prec(self, prec):
-        global precision_max
-        if prec < 0 or prec >= precision_max:
-            raise Rpn_E_Fatal("{}: Invalid display precision '{}' (0..{} expected)".format(whoami(), prec, precision_max - 1))
+        global PRECISION_MAX
+        if prec < 0 or prec >= PRECISION_MAX:
+            raise Rpn_E_Fatal("{}: Invalid display precision '{}' (0..{} expected)".format(whoami(), prec, PRECISION_MAX - 1))
         self._prec = prec
         for bit in range(4):
             if prec & 1<<bit != 0:
@@ -754,7 +758,7 @@ class Rpn_Display_Config:
             s = self.fmt(x.value())
             l = ""
             if show_label and x.label() is not None:
-                l = "  \ " + "{}".format(x.label())
+                l = r"  \ " + "{}".format(x.label())
             return s + l
         if type(x) is Rpn_String:
             return x.value()
@@ -888,6 +892,18 @@ class Rpn_Dot_Quote:
 
 
 class Rpn_Fetch_Var:
+    """Fetch variable.
+
+It is normally an error to fetch an undefined variable,
+but @?VAR will return 0 if VAR is not defined.
+
+In addition to fetching the value of a variable,
+"recall arithmetic" modifies the TOS (X) value in an
+additional way: using the variable's value,
+        New TOS = Previous TOS +|-|*|/ Variable value
+The value stored in Variable is not affected.  Does
+the right thing with empty stack (uses zero)."""
+
     def __init__(self, ident, modifier=None):
         self._identifier = ident
         self._modifier   = modifier
@@ -906,11 +922,14 @@ class Rpn_Fetch_Var:
                 # The variable remains undefined
             else:
                 raise Rpn_E_Runtime_Error("{}: Variable is not defined".format(str(self)))
+        elif self._modifier == '$' or type(var.obj()) is Rpn_String:
+            string_stack.push(var.obj())
         else:
-            if self._modifier is not None and param_stack.empty():
-                raise Rpn_E_Runtime_Error("{}: Insufficient parameters (1 required)".format(str(self)))
-            if self._modifier == '/' and var.obj().zerop():
+            if self._modifier is not None and self._modifier == '/' and var.obj().zerop():
                 raise Rpn_E_Runtime_Error("{}: Cannot divide by zero".format(str(self)))
+            if self._modifier is not None and param_stack.empty():
+                # Fake a zero on the stack so recall arithmetic continues to work
+                param_stack.push(Rpn_Integer(0))
             param_stack.push(var.obj())
             global show_x
             old_show_x = show_x
@@ -964,7 +983,7 @@ Failure:  (False, None, None)"""
             return (False, None, None)
 
         # date.toordinal() returns 1 for 0001-01-01, so compensate
-        julian = dateobj.toordinal() + julian_offset
+        julian = dateobj.toordinal() + JULIAN_OFFSET
         return (True, dateobj, julian)
 
     def time_info(self):
@@ -989,7 +1008,7 @@ Failure:  (False, None, None, None, None)"""
         return (True, hh, mm, ss, timeobj)
 
     def __str__(self):
-        l = "  \ " + "{}".format(self.label()) if self.label() is not None else ""
+        l = r"  \ " + "{}".format(self.label()) if self.label() is not None else ""
         s = "{}".format(self.value())
         return s + l
 
@@ -1111,7 +1130,7 @@ class Rpn_Integer(Rpn_Stackable):
 
     def __str__(self):
         s = "{}".format(self.value())
-        l = "  \ " + "{}".format(self.label()) if self.label() is not None else ""
+        l = r"  \ " + "{}".format(self.label()) if self.label() is not None else ""
         return s + l
 
     def __repr__(self):
@@ -1167,10 +1186,11 @@ class Rpn_List:
         return "List[" + ", ".join([ repr(item) for item in self.listval() ]) + "]"
 
 
-class Rpn_Matrix:
+class Rpn_Matrix(Rpn_Stackable):
     def __init__(self, vals):
         if not have_numpy:
             raise Rpn_E_Runtime_Error("Matrices require 'numpy' library")
+        super().__init__()
         #lnwriteln("{}: vals={}".format(whoami(), repr(vals)))
         self._nrows = len(vals)
         cols = -1
@@ -1186,18 +1206,15 @@ class Rpn_Matrix:
         self._ncols = cols
         #lnwriteln("{} rows x {} columns".format(self.nrows(), self.ncols()))
         #print("vecs", vecs)
-        self._np_value = np.array(vecs)
+        self.set_value(np.array(vecs))
         #print("val",repr(self.value()))
 
     @classmethod
     def from_numpy(cls, x):
         obj = cls(Rpn_List())
         obj._nrows, obj._ncols = x.shape
-        obj.set_np(x)
+        obj.set_value(x)
         return obj
-
-    def set_np(self, np_obj):
-        self._np_value = np_obj
 
     def nrows(self):
         return self._nrows
@@ -1205,18 +1222,11 @@ class Rpn_Matrix:
     def ncols(self):
         return self._ncols
 
-    def __call__(self):
-        dbg("trace", 1, "trace({})".format(repr(self)))
-        param_stack.push(self)
-
-    def patch_recurse(self, new_word):
-        pass
-
     def __str__(self):
-        return str(self._np_value)
+        return str(self.value())
 
     def __repr__(self):
-        return "Matrix[{}]".format(repr(self._np_value))
+        return "Matrix[{}]".format(repr(self.value()))
 
 
 class Rpn_Queue:
@@ -1263,7 +1273,7 @@ class Rpn_Rational(Rpn_Stackable):
 
     def __str__(self):
         s = "{}::{}".format(self.numerator(), self.denominator())
-        l = "  \ {}".format(self.label()) if self.label() is not None else ""
+        l = r"  \ {}".format(self.label()) if self.label() is not None else ""
         return s + l
 
     def __repr__(self):
@@ -1324,9 +1334,9 @@ class Rpn_Scope:
 
         if default_protected:
             if (word.doc() is None or len(word.doc()) == 0) and not word.hidden():
-                print("Warning: Word '{}' has no documentation".format(identifier))
+                print("Warning: Word '{}' has no documentation".format(identifier)) # OK
             # if word.args() is None:
-            #     print("Warning: Word '{}' has no args!".format(identifier))
+            #     print("Warning: Word '{}' has no args!".format(identifier)) # OK
 
         self._words[identifier] = word
 
@@ -1469,8 +1479,7 @@ class Rpn_Sequence:
                 pop_scope("{} complete".format(repr(self)))
 
     def patch_recurse(self, new_word):
-        for idx, elem in enumerate(self.seq().items()):
-            #print("idx={}, elem={}".format(idx, type(elem)))
+        for idx, _ in enumerate(self.seq().items()):
             self.seq()[idx].patch_recurse(new_word)
 
     def scope_template(self):
@@ -1592,6 +1601,14 @@ class Rpn_Stack:
 
 
 class Rpn_Store_Var:
+    """Store variable.
+
+In addition to storing a value directly in a variable,
+"storage arithmetic" modifies the variable's value in an
+additional way: using the TOS value,
+        Variable New value = Previous value +|-|*|/ TOS
+The TOS is consumed as normal."""
+
     def __init__(self, ident, modifier=None):
         self._identifier = ident
         self._modifier   = modifier
@@ -1602,26 +1619,31 @@ class Rpn_Store_Var:
     def __call__(self):
         dbg("trace", 1, "trace({})".format(repr(self)))
         (var, _) = lookup_variable(self.identifier())
+        stringp = bool(self._modifier == '$')
         if var is None:
             raise Rpn_E_Fatal("{}: Variable has vanished!".format(str(self)))
         if var.readonly():
             raise Rpn_E_Runtime_Error("{}: Variable cannot be modified".format(str(self)))
         if var.constant():
             raise Rpn_E_Runtime_Error("{}: Constant cannot be modified".format(str(self)))
-        if param_stack.empty():
+        if stringp and string_stack.empty():
+            raise Rpn_E_Runtime_Error("{}: Insufficient string parameters (1 required)".format(str(self)))
+        if not stringp and param_stack.empty():
             raise Rpn_E_Runtime_Error("{}: Insufficient parameters (1 required)".format(str(self)))
         if self._modifier == '/' and param_stack.top().zerop():
             raise Rpn_E_Value_Error("{}: X cannot be zero".format(str(self)))
 
+        cur_obj = var.obj()
+        new_obj = string_stack.top() if stringp else param_stack.top()
         for pre_hook_func in var.pre_hooks():
             try:
-                pre_hook_func(self.identifier(), var.obj(), param_stack.top())
+                pre_hook_func(self.identifier(), cur_obj, new_obj)
             except Rpn_E_Runtime_Error as e:
                 lnwriteln(str(e))
                 return
 
-        if self._modifier is not None:
-            param_stack.push(var.obj())
+        if not stringp and self._modifier is not None:
+            param_stack.push(cur_obj)
             w_swap()
             if self._modifier == '+':
                 w_plus()
@@ -1632,11 +1654,16 @@ class Rpn_Store_Var:
             elif self._modifier == '/':
                 w_slash()
 
-        obj = param_stack.pop()
-        var.set_obj(obj)
+        old_obj = cur_obj
+        var.set_obj(new_obj)
+        cur_obj = var.obj()
+        if stringp:
+            string_stack.pop()
+        else:
+            param_stack.pop()
 
         for post_hook_func in var.post_hooks():
-            post_hook_func(self.identifier(), obj)
+            post_hook_func(self.identifier(), old_obj, cur_obj)
 
     def patch_recurse(self, new_word):
         pass
@@ -1652,13 +1679,11 @@ class Rpn_Store_Var:
 
 class Rpn_String:
     def __init__(self, val):
-        if len(val) < 2 or val[0] != '"' or val[-1] != '"':
-            raise Rpn_E_Fatal("{}: Malformed string: '{}'".format(whoami(), val))
-        self._value = val[1:-1]
+        self._value = val
 
     @classmethod
     def from_string(cls, s):
-        return cls('"{}"'.format(s))
+        return cls("{}".format(s))
 
     def value(self):
         return self._value
@@ -1749,6 +1774,8 @@ class Rpn_Token_Mgr:
 
 class Rpn_Variable:
     def __init__(self, rawname, obj=None, **kwargs):
+        global default_protected
+
         if not Rpn_Variable.name_valid_p(rawname):
             raise Rpn_E_Fatal("Invalid variable name '{}'".format(rawname))
 
@@ -1757,7 +1784,7 @@ class Rpn_Variable:
         self._hidden     = False
         self._rawname    = rawname
         self._noshadow   = False
-        self._protected  = False
+        self._protected  = default_protected
         self._readonly   = False
         self._rpnobj     = obj
         self._pre_hooks  = []
@@ -1880,44 +1907,34 @@ class Rpn_Variable:
         return "Variable[{},addr={},value={}]".format(self._rawname, hex(id(self)), repr(self.obj()))
 
 
-class Rpn_Vector:
+class Rpn_Vector(Rpn_Stackable):
     def __init__(self, vals):
         if not have_numpy:
             raise Rpn_E_Runtime_Error("Vectors require 'numpy' library")
+        super().__init__()
         if type(vals) is not Rpn_List:
             raise Rpn_E_Fatal("{}: vals is not an Rpn_List ({})".format(whoami(), repr(vals)))
-        self._np_value = np.array([ elem.value() for elem in vals.listval() ])
+        self.set_value(np.array([ elem.value() for elem in vals.listval() ]))
 
     @classmethod
     def from_numpy(cls, x):
         obj = cls(Rpn_List())
         # print(type(obj))
         # print("from_numpy: {}".format(repr(obj)))
-        obj.set_np(x)
+        obj.set_value(x)
         # print("from_numpy: {}".format(repr(obj)))
         return obj
-
-    def value(self):
-        return self._np_value
-
-    def set_np(self, np_obj):
-        self._np_value = np_obj
 
     def size(self):
         return self.value().size
 
-    def __call__(self):
-        dbg("trace", 1, "trace({})".format(repr(self)))
-        param_stack.push(self)
-
-    def patch_recurse(self, new_word):
-        pass
-
     def __str__(self):
-        return "[ " + " ".join([ str(to_rpn_class(e)) for e in self._np_value ]) +" ]"
+        if self.size() == 0:
+            return "[]"
+        return "[ " + " ".join([ str(to_rpn_class(e)) for e in self.value() ]) +" ]"
 
     def __repr__(self):
-        return "Vector[{}]".format(repr(self._np_value))
+        return "Vector[{}]".format(repr(self.value()))
 
 
 class Rpn_Word:
@@ -2350,7 +2367,7 @@ def p_catch(p):
     name = p[2]
     (word, scope) = lookup_word(name)
     if word is None:
-        lnwriteln("catch: '{}' not found".format(name))
+        lnwriteln("catch: Word '{}' not found".format(name))
         raise SyntaxError
 
     dbg("catch", 1, "{}: Creating Rpn_Catch obj for {}".format(whoami(), word))
@@ -2430,7 +2447,7 @@ def p_forget(p):
     name = p[2]
     (word, scope) = lookup_word(name)
     if word is None:
-        lnwriteln("forget: '{}' not found".format(name))
+        lnwriteln("forget: Word '{}' not found".format(name))
         raise SyntaxError
 
     p[0] = Rpn_Forget(word, scope)
@@ -2469,7 +2486,7 @@ def p_help(p):
     name = p[2]
     (word, _) = lookup_word(name)
     if word is None:
-        lnwriteln("help: '{}' not found".format(name))
+        lnwriteln("help: Word '{}' not found".format(name))
         raise SyntaxError
 
     p[0] = Rpn_Help(name, word.doc() if word.doc() is not None \
@@ -2495,7 +2512,7 @@ def p_show(p):
     name = p[2]
     (word, scope) = lookup_word(name)
     if word is None:
-        lnwriteln("show: '{}' not found".format(name))
+        lnwriteln("show: Word '{}' not found".format(name))
         raise SyntaxError
 
     p[0] = Rpn_Show(word, scope)
@@ -2505,18 +2522,18 @@ def p_store_var(p):
     '''store_var : EXCLAM IDENTIFIER'''
 
     ident = p[2]
-    if ident[0] in ['+', '-', '*', '/']:
+    if ident[0] in ['+', '-', '*', '/', '$']:
         modifier = ident[0]
         ident = ident[1:]
     else:
         modifier = None
     if not Rpn_Variable.name_valid_p(ident):
-        lnwriteln("!{}: Variable name is not valid".format(ident))
+        lnwriteln("!: Variable name '{}' not valid".format(ident))
         raise SyntaxError
     dbg(whoami(), 1, "{}: Looking up {}".format(whoami(), ident))
     (varname, _) = lookup_varname(ident)
     if varname is None:
-        lnwriteln("!{}: Variable not found".format(ident))
+        lnwriteln("!: Variable '{}' not found".format(ident))
         raise SyntaxError
     p[0] = Rpn_Store_Var(ident, modifier)
 
@@ -2533,7 +2550,6 @@ def p_word(p):
         lnwriteln("Word '{}' not found".format(name))
         raise SyntaxError
 
-    #print("p_word: word is of type '{}'".format(type(word)))
     p[0] = word
 
 
@@ -2672,7 +2688,10 @@ def p_complex(p):
 def p_string(p):
     '''string : STRING'''
 
-    p[0] = Rpn_String(p[1])
+    s = p[1]
+    if len(s) < 2 or s[0] != '"' or s[-1] != '"':
+        raise Rpn_E_Fatal("{}: Malformed string: '{}'".format(whoami(), s))
+    p[0] = Rpn_String(s[1:-1])
 
 
 def p_vector(p):
@@ -2742,23 +2761,28 @@ def p_undef(p):
         raise SyntaxError
 
     if var.protected():
-        lnwriteln("UNDEF: '{}' is protected".format(ident))
+        lnwriteln("UNDEF: Variable '{}' protected".format(ident))
         raise SyntaxError
 
     if scope != scope_stack.top():
-        lnwriteln("UNDEF: '{}' out of scope".format(ident))
+        lnwriteln("UNDEF: Variable '{}' out of scope".format(ident))
         raise SyntaxError
 
+    cur_obj = var.obj()
+    new_obj = None
     for pre_hook_func in var.pre_hooks():
         try:
-            pre_hook_func(ident, var.obj(), None)
+            pre_hook_func(ident, cur_obj, new_obj)
         except Rpn_E_Runtime_Error as e:
             lnwriteln(str(e))
             return
 
+    old_obj = cur_obj
     scope_stack.top().delete_variable(ident)
+    cur_obj = None
+
     for post_hook_func in var.post_hooks():
-        post_hook_func(ident, None)
+        post_hook_func(ident, old_obj, cur_obj)
 
 
 def p_variable(p):
@@ -2799,18 +2823,18 @@ def p_fetch_var(p):
     '''fetch_var : AT_SIGN IDENTIFIER'''
 
     ident = p[2]
-    if ident[0] in ['+', '-', '*', '/', '?']:
+    if ident[0] in ['+', '-', '*', '/', '?', '$']:
         modifier = ident[0]
         ident = ident[1:]
     else:
         modifier = None
     if not Rpn_Variable.name_valid_p(ident):
-        writeln("@{}: Variable name is not valid".format(ident))
+        writeln("@: Variable name '{}' not valid".format(ident))
         raise SyntaxError
     dbg(whoami(), 1, "{}: Looking up {}".format(whoami(), ident))
     (varname, _) = lookup_varname(ident)
     if varname is None:
-        writeln("@{}: Variable not found".format(ident))
+        writeln("@: Variable '{}' not found".format(ident))
         raise SyntaxError
     p[0] = Rpn_Fetch_Var(ident, modifier)
 
@@ -2853,7 +2877,37 @@ class defword():
 @defword(name='#->$', args=1, print_x=False, doc="""\
 Convert top of stack to string  ( n -- )""")
 def w_num_to_dollar():
-    string_stack.push(Rpn_String('"{}"'.format(fmt(param_stack.pop(), False))))
+    string_stack.push(Rpn_String("{}".format(fmt(param_stack.pop(), False))))
+
+
+@defword(name='#in', print_x=False, doc="""\
+Read numeric input from the user.  #IN recognizes integers and floats,
+but not rationals or complex numbers.  The value is put on the stack.
+No prompt is provided.
+
+qv PROMPT""")
+def w_number_in():
+    global sharpout
+    x = ''
+    while len(x) == 0:
+        try:
+            x = input()
+            dbg(whoami(), 1, "#in: '{}'".format(x))
+        except EOFError:
+            raise Rpn_E_Runtime_Error()
+        finally:
+            sharpout.set_obj(Rpn_Integer(0))
+
+    newlexer = lexer.clone()
+    newlexer.input(x)
+    tok = newlexer.token()
+
+    if tok.type == 'INTEGER':
+        param_stack.push(Rpn_Integer(int(tok.value)))
+    elif tok.type == 'FLOAT':
+        param_stack.push(Rpn_Float(float(tok.value)))
+    else:
+        raise Rpn_E_Runtime_Error("#in: Could not parse '{}'".format(x))
 
 
 @defword(name='$.', str_args=1, print_x=False, doc="""\
@@ -2866,6 +2920,25 @@ def w_dollar_dot():
 @defword(name='$.!', hidden=True, print_x=False, str_args=1)
 def w_dollar_dot_bang():
     lnwriteln(repr(string_stack.top()))
+
+
+@defword(name='$in', print_x=False, doc="""\
+Read a string from the keyboard.  THe value is placed on the string stack.
+No prompt is provided.""")
+def w_dollar_in():
+    global sharpout
+    x = ''
+    while len(x) == 0:
+        try:
+            x = input()
+            dbg(whoami(), 1, "$in: '{}'".format(x))
+        except EOFError:
+            raise Rpn_E_Runtime_Error()
+        finally:
+            sharpout.set_obj(Rpn_Integer(0))
+
+    string_stack.push(Rpn_String(x))
+
 
 
 @defword(name='$.s', print_x=False, doc="""\
@@ -2920,7 +2993,7 @@ def w_dollar_drop():
 
 @defword(name='$len', str_args=1, doc="""\
 Length of top element of string stack  ( -- n )""")
-def w_dollar_drop():
+def w_dollar_len():
     s = string_stack.top()
     r = len(s.value())
     param_stack.push(Rpn_Integer(r))
@@ -2943,7 +3016,7 @@ Base is maintained in Y.
 DEFINTION:
                  rate
 percent = base * ----
-                  100""")
+                 100""")
 def w_percent():
     x = param_stack.pop()
     y = param_stack.pop()
@@ -3218,7 +3291,42 @@ def w_dot_quote():
     pass                        # Grammar rules handle this word
 
 
-@defword(name='.b', args=1, print_x=False, doc="""\
+@defword(name='.all', args=1, print_x=False, doc="""\
+Print X in a variety of formats  ( x -- )""")
+def w_dot_all():
+    x = param_stack.pop()
+    xval = x.value()
+
+    out = "{}".format(fmt(x))
+    more = ""
+    if type(x) is Rpn_Integer:
+        more += "  Hex={}".format(hex(x.value()))
+        more += "  Oct={}".format(oct(x.value()))
+
+        ascii_char = ["NUL", "SOH", "STX", "ETX", "EOT", "ENQ", "ACK", "BEL",
+                      "BS",  "HT",  "LF",  "VT",  "FF",  "CR",  "SO",  "SI",
+                      "DLE", "DC1", "DC2", "DC3", "DC4", "NAK", "SYN", "ETB",
+                      "CAN", "EM",  "SUB", "ESC", "FS",  "GS",  "RS",  "US",
+                      "SP",  "!",   "\"",  "#",   "$",   "%",   "&",   "'",
+                      "(",   ")",   "*",   "+",   ",",   "-",   ".",   "/",
+                      "0",   "1",   "2",   "3",   "4",   "5",   "6",   "7",
+                      "8",   "9",   ":",   ";",   "<",   "=",   ">",   "?",
+                      "@",   "A",   "B",   "C",   "D",   "E",   "F",   "G",
+                      "H",   "I",   "J",   "K",   "L",   "M",   "N",   "O",
+                      "P",   "Q",   "R",   "S",   "T",   "U",   "V",   "W",
+                      "X",   "Y",   "Z",   "[",   "\\",  "]",   "^",   "_",
+                      "`",   "a",   "b",   "c",   "d",   "e",   "f",   "g",
+                      "h",   "i",   "j",   "k",   "l",   "m",   "n",   "o",
+                      "p",   "q",   "r",   "s",   "t",   "u",   "v",   "w",
+                      "x",   "y",   "z",   "{",   "|",   "}",   "~",   "DEL"]
+        if xval >= 0 and xval <= 127:
+            more += "  Char={}".format(ascii_char[xval])
+
+    out += more
+    writeln(out)
+
+
+@defword(name='.bin', args=1, print_x=False, doc="""\
 Print X in binary  ( i -- )
 X must be an integer.""")
 def w_dot_bin():
@@ -3230,7 +3338,19 @@ def w_dot_bin():
     write("{} ".format(bin(x.value())))
 
 
-@defword(name='.o', args=1, print_x=False, doc="""\
+@defword(name='.hex', args=1, print_x=False, doc="""\
+Print X in hexadecimal  ( i -- )
+X must be an integer.""")
+def w_dot_hex():
+    x = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(x)
+        raise Rpn_E_Type_Error(".x: Type error ({})".format(typename(x)))
+
+    write("{} ".format(hex(x.value())))
+
+
+@defword(name='.oct', args=1, print_x=False, doc="""\
 Print X in octal  ( i -- )
 X must be an integer.""")
 def w_dot_oct():
@@ -3240,6 +3360,33 @@ def w_dot_oct():
         raise Rpn_E_Type_Error(".o: Type error ({})".format(typename(x)))
 
     write("{} ".format(oct(x.value())))
+
+
+@defword(name='.r', args=2, print_x=False, doc="""\
+Print N right-justified in WIDTH  ( n width -- )
+
+This never outputs more than WIDTH characters, and will silently truncate the
+representation to fit.  It is wise to check the size of your values before
+printing - you have been warned!  No space is printed after the number.""")
+def w_dot_r():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise Rpn_E_Type_Error(".r: Width must be an integer ({})".format(typename(x)))
+    width = x.value()
+    if width < 0:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise Rpn_E_Value_Error(".r: Width must not be negative")
+    if width == 0:
+        return
+
+    s = fmt(y, False)       # No label
+    if len(s) > width:
+        s = s[:width]       # This seems a bit harsh, but it's documented
+    write("{:>{width}}".format(s, width=width))
 
 
 @defword(name='.s', print_x=False, doc="""\
@@ -3254,18 +3401,6 @@ Print stack non-destructively""")
 def w_dot_s_bang():
     if not param_stack.empty():
         lnwriteln(repr(param_stack))
-
-
-@defword(name='.x', args=1, print_x=False, doc="""\
-Print X in hexadecimal  ( i -- )
-X must be an integer.""")
-def w_dot_hex():
-    x = param_stack.pop()
-    if type(x) is not Rpn_Integer:
-        param_stack.push(x)
-        raise Rpn_E_Type_Error(".x: Type error ({})".format(typename(x)))
-
-    write("{} ".format(hex(x.value())))
 
 
 @defword(name='/', args=2, print_x=True, doc="""\
@@ -3523,6 +3658,19 @@ def w_rightshift():
     param_stack.push(Rpn_Integer(y.value() >> x.value()))
 
 
+@defword(name='>c', args=2, doc="""\
+Construct a complex number from two reals  ( y x -- complex[x,y] )""")
+def w_to_c():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if    type(x) not in [Rpn_Integer, Rpn_Rational, Rpn_Float] \
+       or type(y) not in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise Rpn_E_Type_Error(">c: Type error ({}, {})".format(typename(y), typename(x)))
+    param_stack.push(Rpn_Complex(float(x.value()), float(y.value())))
+
+
 @defword(name='>r', args=1, doc="""\
 Push X onto return stack  ( x -- )""")
 def w_to_r():
@@ -3569,6 +3717,38 @@ Create a 3-vector from the stack  ( z y x -- v )""")
         param_stack.push(v)
 
 
+@defword(name='?', print_x=False, doc="""\
+?[topic]   Display information on a variety of topics""")
+def w_info():
+    print("""\
+rpn is a general-purpose calculator and programming language based loosely
+on Forth and Hewlett-Packard calculators.
+
+The following topics provide additional information:
+    ?datatypes
+    ?variables""")
+
+
+@defword(name='?datatypes', print_x=False, hidden=True, doc='')
+def w_info_datatypes():
+    print("""\
+rpn supports the following datatypes, which may be placed directly on the
+parameter stack.  Examples are also shown.
+
+- Integer       1234
+- Float         3.14159
+- Rational      355::113
+- Complex       (1.2, 3.4)
+- Vector        [1 2 3 4]
+- Matrix        [[1 0 0 0]
+                 [0 1 0 0]
+                 [0 0 1 0]
+                 [0 0 0 1]]
+
+Additionally, a String datatype is defined, which are placed on a separate
+string stack.  "This is a sample string" """)
+
+
 @defword(name='?dup', args=1, doc="""\
 Duplicate top stack element if non-zero  ( x -- x x | 0 )""")
 def w_query_dup():
@@ -3578,6 +3758,31 @@ def w_query_dup():
         raise Rpn_E_Type_Error("?dup: Type error ({})".format(typename(x)))
     if not x.zerop():
         w_dup()
+
+
+@defword(name='?variables', print_x=False, hidden=True, doc='')
+def w_info_variables():
+    print("""\
+Data from the stack may be stored in variables.  The syntax to store an object
+is !VAR.  For example, to store the constant Pi (3.14...) into variable "mypi",
+type:
+        PI !mypi
+Note that variables must be declared before they may be used.  To declare a
+variable, which is initially created in an undefined state, type:
+        variable mypi
+Then the above example will work.  Variables local to a function can be defined
+as follows:
+        : myfunc  | x y z |   . . .  ;
+x, y, and z will be locally defined only in the function "myfunc".
+
+Values stored in variables may be pushed onto the stack with @VAR.
+
+Note how this syntax differs from Forth's.  In Forth, one would say
+        VAR @
+This syntax is not allowed in Rpn because the "address" of a variable is never
+exposed, and so it cannot ever be placed, however briefly, on the stack.  This
+also means the that problem of accessing illegal memory cannot arise: the
+variable is either findable by the system through its name, or it is not.""")
 
 
 @defword(name='^', args=2, print_x=True, doc="""\
@@ -3716,6 +3921,21 @@ LEAVE will exit the loop early.
 qv BEGIN, LEAVE, REPEAT, UNTIL, WHILE""")
 def w_again():
     pass                        # Grammar rules handle this word
+
+
+@defword(name='alog', args=1, print_x=True, doc="""\
+Common exponential [antilogarithm]  ( x -- 10^x )""")
+def w_alog():
+    x = param_stack.pop()
+    if type(x) not in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex]:
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("alog: Type error ({})".format(typename(x)))
+    r = 10.0 ** x.value()
+    if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
+        result = Rpn_Float(r)
+    elif type(x) is Rpn_Complex:
+        result = Rpn_Complex.from_complex(r)
+    param_stack.push(result)
 
 
 @defword(name='and', args=2, print_x=True, doc="""\
@@ -3883,7 +4103,7 @@ Set "Begin" (annuity due) financial mode.
 
 Do not confuse this with the "begin" command, which starts a loop.""")
 def w_beg():
-    set_flag(flag_tvm_begin_mode)
+    set_flag(FLAG_TVM_BEGIN_MODE)
 
 
 @defword(name='begin', doc="""\
@@ -3902,6 +4122,39 @@ Time Value of Money calculations.
 qv AGAIN, LEAVE, REPEAT, UNTIL, WHILE""")
 def w_begin():
     pass                        # Grammar rules handle this word
+
+
+@defword(name='binom', args=3, print_x=True, doc="""\
+Binomial probability ( n k p -- prob )
+
+Return the probability of an event occurring exactly k times in n attempts,
+where the probability of it occurring in a single attempt is p.
+
+DEFINITION:
+binom(n,k,p) = comb(n,k) * p^k * (1-p)^(n-k)""")
+def w_binom():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    z = param_stack.pop()
+    if    type(x) not in [Rpn_Integer, Rpn_Rational, Rpn_Float] \
+       or type(y) is not Rpn_Integer \
+       or type(z) is not Rpn_Integer:
+        param_stack.push(z)
+        param_stack.push(y)
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("binom: Type error ({}, {}, {})".format(typename(z), typename(y), typename(x)))
+    p = float(x.value())
+    k = y.value()
+    n = z.value()
+
+    if p == 0:
+        r = 1 if k == 0 else 0
+    elif p == 1:
+        r = 1 if k == n else 0
+    else:
+        r = comb_helper(n, k) * p**k * (1.0-p)**(n-k)
+
+    param_stack.push(Rpn_Float(r))
 
 
 @defword(name='bitand', args=2, print_x=True, doc="""\
@@ -3968,6 +4221,17 @@ def w_bye():
     raise Rpn_E_End_Program()
 
 
+@defword(name='c>', args=1, doc="""\
+c>  ( c -- y x )  Extract imaginary and real parts of a complex number""")
+def w_c_from():
+    x = param_stack.pop()
+    if type(x) is not Rpn_Complex:
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("c>: Type error ({})".format(typename(x)))
+    param_stack.push(Rpn_Float(x.imag()))
+    param_stack.push(Rpn_Float(x.real()))
+
+
 @defword(name='case', doc="""\
 Execute a sequence of words based on stack value.  Once a match is
 executed, no other clauses are considered.  OTHERWISE is optional.
@@ -4021,10 +4285,10 @@ def w_cf():
         param_stack.push(x)
         raise Rpn_E_Type_Error("cf: Type error ({})".format(typename(x)))
     flag = x.value()
-    if flag < 0 or flag >= flag_max:
+    if flag < 0 or flag >= FLAG_MAX:
         param_stack.push(x)
-        raise Rpn_E_Value_Error("cf: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
-    if flag >= flag_fence:
+        raise Rpn_E_Value_Error("cf: Flag {} out of range (0..{} expected)".format(flag, FLAG_MAX - 1))
+    if flag >= FLAG_FENCE:
         param_stack.push(x)
         raise Rpn_E_Value_Error("cf: Flag {} cannot be modified".format(flag))
     clear_flag(flag)
@@ -4037,7 +4301,7 @@ def w_chr():
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
         raise Rpn_E_Type_Error("chr: Type error ({})".format(typename(x)))
-    string_stack.push(Rpn_String('"{}"'.format(chr(x.value()))))
+    string_stack.push(Rpn_String("{}".format(chr(x.value()))))
 
 
 # Some HP calcs call this NEGATE, but why type 6 characters when 3 will do?
@@ -4064,8 +4328,8 @@ Clear financial variables""")
 def w_clfin():
     global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV, tvm_CF, tvm_PF
 
-    clear_flag(flag_tvm_continuous) # Clear (0, default)=Discrete compounding;   Set (1)=Continuous compounding
-    clear_flag(flag_tvm_begin_mode) # Clear (0, default)=End (ordinary annuity); Set (1)=Begin (annuity due)
+    clear_flag(FLAG_TVM_CONTINUOUS) # Clear (0, default)=Discrete compounding;   Set (1)=Continuous compounding
+    clear_flag(FLAG_TVM_BEGIN_MODE) # Clear (0, default)=End (ordinary annuity); Set (1)=Begin (annuity due)
 
     cf = Rpn_Integer(1)
     cf.set_label("CF")
@@ -4084,7 +4348,7 @@ def w_clfin():
 @defword(name='clflag', doc="""\
 Clear all flags  ( -- )""")
 def w_clflag():
-    for i in range(flag_fence):
+    for i in range(FLAG_FENCE):
         clear_flag(i)
 
 
@@ -4093,7 +4357,7 @@ Clear all registers.""")
 def w_clreg():
     global register
     register = dict()
-    for i in range(reg_max):
+    for i in range(REG_SIZE_MAX):
         register[i] = Rpn_Float(0.0)
 
 
@@ -4202,15 +4466,51 @@ def w_cpf():
         raise Rpn_E_Value_Error("CPF: N must be positive")
 
     tvm_CF.set_obj(x)
-    tvm_CF.set_label("CF")
     tvm_PF.set_obj(x)
-    tvm_PF.set_label("PF")
 
 
 @defword(name='cr', print_x=False, doc="""\
 Print a newline""")
 def w_cr():
     writeln()
+
+
+def sum3(y):
+    return int(y * 365.25) - int(y / 100) + int(y / 400)
+
+def m306(m):
+    return int(m * 30.6001)
+
+@defword(name='d->hp', args=1, print_x=True, doc="""\
+Convert date to HP day number  ( MM.DDYYYY -- day# )
+
+Day # 0 = October 15, 1582""")
+def w_d_to_hp():
+    day0_julian = 2299160
+    x = param_stack.pop()
+    if type(x) is not Rpn_Float:
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("d->hp: Type error ({})".format(typename(x)))
+
+    (valid, dateobj, julian) = x.date_info()
+    if not valid:
+        param_stack.push(x)
+        raise Rpn_E_Value_Error("d->hp: {} is not a valid date".format(x.value()))
+
+    if dateobj.month < 3:
+        m = dateobj.month + 13
+        y = dateobj.year - 1
+    else:
+        m = dateobj.month + 1
+        y = dateobj.year
+
+    daynum = sum3(y) + m306(m) + dateobj.day - 578164
+    if julian - daynum + day0_julian != 0:
+        lnwriteln("d->hp: Result differs from Julian")
+
+    result = Rpn_Integer(daynum)
+    result.set_label("HP day")
+    param_stack.push(result)
 
 
 @defword(name='d->jd', args=1, print_x=True, doc="""\
@@ -4260,7 +4560,7 @@ def w_dateinfo():
     if type(x) is not Rpn_Float:
         param_stack.push(x)
         raise Rpn_E_Type_Error("dateinfo: Type error ({})".format(typename(x)))
-    print(x.date_info())        # OK
+    writeln("dateinfo: {}".format(x.date_info()))
 
 
 @defword(name='date+', args=2, print_x=True, doc="""\
@@ -4280,7 +4580,7 @@ def w_date_plus():
         raise Rpn_E_Value_Error("date+: {} is not a valid date".format(y.value()))
 
     new_julian = julian + x.value()
-    dateobj = datetime.date.fromordinal(new_julian - julian_offset)
+    dateobj = datetime.date.fromordinal(new_julian - JULIAN_OFFSET)
     result = Rpn_Float("%d.%02d%04d" % (dateobj.month, dateobj.day, dateobj.year))
     result.set_label("DD.MMYYYY")
     param_stack.push(result)
@@ -4303,7 +4603,7 @@ def w_date_minus():
         raise Rpn_E_Value_Error("date-: {} is not a valid date".format(y.value()))
 
     new_julian = julian - x.value()
-    dateobj = datetime.date.fromordinal(new_julian - julian_offset)
+    dateobj = datetime.date.fromordinal(new_julian - JULIAN_OFFSET)
     result = Rpn_Float("%d.%02d%04d" % (dateobj.month, dateobj.day, dateobj.year))
     result.set_label("DD.MMYYYY")
     param_stack.push(result)
@@ -4311,7 +4611,7 @@ def w_date_minus():
 
 @defword(name='dbg.token', hidden=True)
 def w_dbg_token():
-    set_flag(flag_debug_enabled)
+    set_flag(FLAG_DEBUG_ENABLED)
     set_debug_level("token", 3)
 
 
@@ -4367,8 +4667,8 @@ Do not confuse this with \"DEG\" (which is the number of degress per radian)."""
 def w_deg():
     global angle_mode
     angle_mode = "d"
-    clear_flag(flag_rad)
-    clear_flag(flag_grad)
+    clear_flag(FLAG_RAD)
+    clear_flag(FLAG_GRAD)
 
 
 @defword(name='depth', print_x=True, doc="""\
@@ -4380,10 +4680,11 @@ def w_depth():
 @defword(name='dim', args=1, print_x=True, doc="""\
 Dimension(s) of X.
 
-For integers, floats, and rationals (scalars), return 0.
-For complex numbers, return 2.
-For vectors of length N, return a vector [N].
-For an M-row by N-col matrix, return a vector [M N].""")
+For integers, floats, and rationals (scalars):
+                              return 0
+For complex numbers:          return 2
+For vectors of length N:      return a vector [N]
+For an M-row by N-col matrix: return a vector [M N]""")
 def w_dim():
     x = param_stack.pop()
     if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
@@ -4504,6 +4805,30 @@ def w_E():
     param_stack.push(result)
 
 
+@defword(name='edit', hidden=True, doc="""\
+Edit some text""")
+def w_edit():
+    env = os.environ
+    if "VISUAL" in env:
+        editor = env.get("VISUAL")
+    elif "EDITOR" in env:
+        editor = env.get("EDITOR")
+    else:
+        editor = "ed"
+
+    # Set initial value
+    initial_value = b"Initial string"
+
+    with tempfile.NamedTemporaryFile(suffix=".tmp") as tf:
+        tf.write(initial_value)
+        tf.flush()
+        subprocess.call([ editor, tf.name ])
+        tf.seek(0)
+        edited_message = tf.read()
+
+    print(edited_message.decode("utf-8"))
+
+
 @defword(name='expm1', args=1, print_x=True, doc="""\
 Calculate (e^X)-1 accurately  ( x -- (e^x)-1 )""")
 def w_e_x_minus_1():
@@ -4541,7 +4866,7 @@ def w_emit():
 @defword(name='end', doc="""\
 Set "End" (ordinary annuity) financial mode.""")
 def w_end():
-    clear_flag(flag_tvm_begin_mode)
+    clear_flag(FLAG_TVM_BEGIN_MODE)
 
 
 @defword(name='endcase', doc="""\
@@ -4583,20 +4908,20 @@ Set engineering display  ( n -- )
 
 N specifies the total number of significant digits.""")
 def w_eng():
-    global precision_max
+    global PRECISION_MAX
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
         raise Rpn_E_Type_Error("eng: Type error ({})".format(typename(x)))
 
-    if x.value() < 0 or x.value() >= precision_max:
+    if x.value() < 0 or x.value() >= PRECISION_MAX:
         param_stack.push(x)
-        raise Rpn_E_Value_Error("eng: Precision '{}' out of range (0..{} expected)".format(x.value(), precision_max - 1))
+        raise Rpn_E_Value_Error("eng: Precision '{}' out of range (0..{} expected)".format(x.value(), PRECISION_MAX - 1))
 
     disp_stack.top().set_style("eng")
     disp_stack.top().set_prec(x.value())
-    clear_flag(40)
-    set_flag(41)
+    clear_flag(FLAG_DISP_FIX)
+    set_flag(FLAG_DISP_ENG)
 
 
 @defword(name='epoch', print_x=True, doc="""\
@@ -4605,6 +4930,57 @@ def w_epoch():
     now = calendar.timegm(time.gmtime())
     result = Rpn_Integer(now)
     result.set_label("Epoch")
+    param_stack.push(result)
+
+
+@defword(name='erf', args=1, print_x=True, doc="""\
+Error function  ( x -- erf[x] )""")
+def w_erf():
+    x = param_stack.pop()
+    if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
+        try:
+            r = math.erf(float(x.value()))
+        except ValueError:
+            param_stack.push(x)
+            raise Rpn_E_Value_Error("erf: Invalid argument")
+        result = Rpn_Float(r)
+    elif type(x) is Rpn_Complex:
+        if not have_scipy:
+            param_stack.push(x)
+            raise Rpn_E_Runtime_Error("erf: Complex support requires 'scipy' library")
+        r = scipy.special.erf(x.value())
+        result = Rpn_Complex.from_complex(r)
+    else:
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("erf: Type error({})".format(typename(x)))
+    result.set_label("erf")
+    param_stack.push(result)
+
+
+@defword(name='erfc', args=1, print_x=True, doc="""\
+Complementary error function  ( x -- erfc[x] )
+
+DEFINITION:
+erfc(x) = 1 - erf(x)""")
+def w_erfc():
+    x = param_stack.pop()
+    if type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
+        try:
+            r = math.erfc(float(x.value()))
+        except ValueError:
+            param_stack.push(x)
+            raise Rpn_E_Value_Error("erfc: Invalid argument")
+        result = Rpn_Float(r)
+    elif type(x) is Rpn_Complex:
+        if not have_scipy:
+            param_stack.push(x)
+            raise Rpn_E_Runtime_Error("erfc: Complex support requires 'scipy' library")
+        r = scipy.special.erfc(x.value())
+        result = Rpn_Complex.from_complex(r)
+    else:
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("erfc: Type error({})".format(typename(x)))
+    result.set_label("erfc")
     param_stack.push(result)
 
 
@@ -4641,7 +5017,9 @@ Factorial ( x -- x! )
 DEFINITION:
 x! = x * (x-1) * (x-2) ... * 2 * 1
 0! = 1
-X cannot be negative.""")
+X cannot be negative.
+
+qv gamma""")
 def w_fact():
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
@@ -4663,9 +5041,9 @@ def w_fc_query():
         raise Rpn_E_Type_Error("fc?: Type error ({})".format(typename(x)))
 
     flag = x.value()
-    if flag < 0 or flag >= flag_max:
+    if flag < 0 or flag >= FLAG_MAX:
         param_stack.push(x)
-        raise Rpn_E_Value_Error("fc?: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
+        raise Rpn_E_Value_Error("fc?: Flag {} out of range (0..{} expected)".format(flag, FLAG_MAX - 1))
     result = Rpn_Integer(bool_to_int(not flag_set_p(flag)))
     param_stack.push(result)
 
@@ -4679,12 +5057,12 @@ def w_fc_query_clear():
         raise Rpn_E_Type_Error("fc?c: Type error ({})".format(typename(x)))
 
     flag = x.value()
-    if flag < 0 or flag >= flag_max:
+    if flag < 0 or flag >= FLAG_MAX:
         param_stack.push(x)
-        raise Rpn_E_Value_Error("fc?c: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
+        raise Rpn_E_Value_Error("fc?c: Flag {} out of range (0..{} expected)".format(flag, FLAG_MAX - 1))
     result = Rpn_Integer(bool_to_int(not flag_set_p(flag)))
     param_stack.push(result)
-    if flag < flag_fence:
+    if flag < FLAG_FENCE:
         clear_flag(flag)
 
 
@@ -4697,13 +5075,34 @@ def w_fc_query_set():
         raise Rpn_E_Type_Error("fc?s: Type error ({})".format(typename(x)))
 
     flag = x.value()
-    if flag < 0 or flag >= flag_max:
+    if flag < 0 or flag >= FLAG_MAX:
         param_stack.push(x)
-        raise Rpn_E_Value_Error("fc?s: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
+        raise Rpn_E_Value_Error("fc?s: Flag {} out of range (0..{} expected)".format(flag, FLAG_MAX - 1))
     result = Rpn_Integer(bool_to_int(not flag_set_p(flag)))
     param_stack.push(result)
-    if flag < flag_fence:
+    if flag < FLAG_FENCE:
         set_flag(flag)
+
+
+@defword(name='fib', args=1, print_x=True, doc="""\
+N'th Fibonacci number  ( n -- fib )
+
+DEFINITION:
+fib(0) = 0
+fib(1) = 1
+fib(n) = fib(n-1) + fib(n-2)
+
+n cannot be negative.""")
+def w_fib():
+    x = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("fib: Type error ({})".format(typename(x)))
+    if x.value() < 0:
+        param_stack.push(x)
+        raise Rpn_E_Value_Error("fib: X cannot be negative")
+    result = Rpn_Integer(fib_helper(x.value()))
+    param_stack.push(result)
 
 
 @defword(name='fix', args=1, print_x=False, doc="""\
@@ -4711,20 +5110,20 @@ Set fixed display  ( n -- )
 
 N specifies the number of digits after the decimal point.""")
 def w_fix():
-    global precision_max
+    global PRECISION_MAX
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
         raise Rpn_E_Type_Error("fix: Type error ({})".format(typename(x)))
 
-    if x.value() < 0 or x.value() >= precision_max:
+    if x.value() < 0 or x.value() >= PRECISION_MAX:
         param_stack.push(x)
-        raise Rpn_E_Value_Error("fix: Precision '{}' out of range (0..{} expected)".format(x.value(), precision_max - 1))
+        raise Rpn_E_Value_Error("fix: Precision '{}' out of range (0..{} expected)".format(x.value(), PRECISION_MAX - 1))
 
     disp_stack.top().set_style("fix")
     disp_stack.top().set_prec(x.value())
-    set_flag(40)
-    clear_flag(41)
+    set_flag(FLAG_DISP_FIX)
+    clear_flag(FLAG_DISP_ENG)
 
 
 @defword(name='floor', args=1, print_x=True, doc="""\
@@ -4739,6 +5138,27 @@ def w_floor():
         param_stack.push(x)
         raise Rpn_E_Type_Error("floor: Type error ({})".format(typename(x)))
     param_stack.push(result)
+
+
+@defword(name='fmod', args=2, print_x=True, doc="""\
+Floating point remainder  ( y x -- rem )
+
+Return the remainder of dividing y by x.  Preferred for floats;
+'mod' is preferred for integers.""")
+def w_fmod():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if    type(x) not in [Rpn_Integer, Rpn_Rational, Rpn_Float] \
+       or type(y) not in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("fmod: Type error ({}, {})".format(typename(y), typename(x)))
+    if x.zerop():
+        param_stack.push(y)
+        param_stack.push(x)
+        raise Rpn_E_Value_Error("fmod: X cannot be zero")
+    r = math.fmod(float(y.value()), float(x.value()))
+    param_stack.push(Rpn_Float(r))
 
 
 @defword(name='forget', doc="""\
@@ -4772,9 +5192,9 @@ def w_fs_query():
         raise Rpn_E_Type_Error("fs?: Type error ({})".format(typename(x)))
 
     flag = x.value()
-    if flag < 0 or flag >= flag_max:
+    if flag < 0 or flag >= FLAG_MAX:
         param_stack.push(x)
-        raise Rpn_E_Value_Error("fs?: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
+        raise Rpn_E_Value_Error("fs?: Flag {} out of range (0..{} expected)".format(flag, FLAG_MAX - 1))
     result = Rpn_Integer(bool_to_int(flag_set_p(flag)))
     param_stack.push(result)
 
@@ -4788,12 +5208,12 @@ def w_fs_query_clear():
         raise Rpn_E_Type_Error("fs?c: Type error ({})".format(typename(x)))
 
     flag = x.value()
-    if flag < 0 or flag >= flag_max:
+    if flag < 0 or flag >= FLAG_MAX:
         param_stack.push(x)
-        raise Rpn_E_Value_Error("fs?c: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
+        raise Rpn_E_Value_Error("fs?c: Flag {} out of range (0..{} expected)".format(flag, FLAG_MAX - 1))
     result = Rpn_Integer(bool_to_int(flag_set_p(flag)))
     param_stack.push(result)
-    if flag < flag_fence:
+    if flag < FLAG_FENCE:
         clear_flag(flag)
 
 
@@ -4806,12 +5226,12 @@ def w_fs_query_set():
         raise Rpn_E_Type_Error("fs?s: Type error ({})".format(typename(x)))
 
     flag = x.value()
-    if flag < 0 or flag >= flag_max:
+    if flag < 0 or flag >= FLAG_MAX:
         param_stack.push(x)
-        raise Rpn_E_Value_Error("fs?s: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
+        raise Rpn_E_Value_Error("fs?s: Flag {} out of range (0..{} expected)".format(flag, FLAG_MAX - 1))
     result = Rpn_Integer(bool_to_int(flag_set_p(flag)))
     param_stack.push(result)
-    if flag < flag_fence:
+    if flag < FLAG_FENCE:
         set_flag(flag)
 
 
@@ -4917,6 +5337,32 @@ def w_gamma():
     param_stack.push(result)
 
 
+@defword(name='gcd', args=2, doc="""\
+Greatest common divisor ( y x -- gcd )
+
+: gcd  begin ?dup while tuck mod repeat ;""")
+def w_gcd():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if    type(x) is not Rpn_Integer \
+       or type(y) is not Rpn_Integer:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("gcd: Type error ({}, {})".format(typename(y), typename(x)))
+
+    xval = x.value()
+    yval = y.value()
+    if xval < 0 or yval < 0:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise Rpn_E_Value_Error("gcd: X and Y cannot be negative")
+    if xval == 0 or yval == 0:
+        param_stack.push(Rpn_Integer(0))
+    else:
+        r = gcd_helper(xval, yval)
+        param_stack.push(Rpn_Integer(r))
+
+
 if sys.version_info >= (3,8):
     @defword(name='gmean', print_x=True, doc="""\
     Print the geometric mean of the statistics data""")
@@ -4938,8 +5384,8 @@ Set angular mode to gradians""")
 def w_grad():
     global angle_mode
     angle_mode = "g"
-    clear_flag(flag_rad)
-    set_flag(flag_grad)
+    clear_flag(FLAG_RAD)
+    set_flag(FLAG_GRAD)
 
 
 @defword(name='help', doc="""\
@@ -5058,6 +5504,34 @@ def w_hms_minus():
     param_stack.push(result)
 
 
+@defword(name='hp->d', args=1, print_x=True, doc="""\
+Convert HP day number to date  ( day# -- MM.DDYYYY )
+
+Day # 0 = October 15, 1582""")
+def w_hp_to_d():
+    x = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("hp->d: Type error ({})".format(typename(x)))
+
+    daynum = x.value()
+    if daynum < 0 or daynum > datetime.date.max.toordinal():
+        param_stack.push(x)
+        raise Rpn_E_Value_Error("hp->d: X out of range")
+
+    # dateobj = datetime.date.fromordinal(x.value() - JULIAN_OFFSET)
+    # result = Rpn_Float("%d.%02d%04d" % (dateobj.month, dateobj.day, dateobj.year))
+    d0 = daynum + 578164
+    y0 = int((d0 - 121.5) / 365.2425)
+    # m0 = int((d0 - sum3(y0)) / 30.6001)
+    # while m0 < 4:
+    #     y0 -= 1
+    #     m0 = int((d0 -
+    #
+    # result.set_label("MM.DDYYYY")
+    # param_stack.push(result)
+
+
 @defword(name='hr', args=1, print_x=True, doc="""\
 Convert hours/minutes/seconds to decimal hours  ( HH.MMSS -- HH.nnn )""")
 def w_hr():
@@ -5079,6 +5553,27 @@ def w_hr():
         raise Rpn_E_Type_Error("hr: Type error ({})".format(typename(x)))
     result.set_label("HH.nnn")
     param_stack.push(result)
+
+
+@defword(name='hypot', args=2, doc="""\
+hypot  ( y x -- hypot )  Hypotenuse distance
+
+Square root of the sum of squares.
+
+DEFINITION:
+hypot = sqrt(x^2 + y^2)""")
+def w_hypot():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if    type(x) not in [Rpn_Integer, Rpn_Rational, Rpn_Float] \
+       or type(y) in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("hypot: Type error ({}, {})".format(typename(y), typename(x)))
+
+    yval = float(y.value())
+    xval = float(x.value())
+    param_stack.push(Rpn_Float(math.hypot(xval, yval)))
 
 
 @defword(name='I', doc="""\
@@ -5105,9 +5600,9 @@ Create an NxN identity matrix  ( n -- mat )""")
         size = 0
         if type(x) is Rpn_Integer:
             size = x.value()
-            if size < 1 or size > matrix_max:
+            if size < 1 or size > MATRIX_MAX:
                 param_stack.push(x)
-                raise Rpn_E_Value_Error("idn: X out of range (1..{} expected)".format(matrix_max))
+                raise Rpn_E_Value_Error("idn: X out of range (1..{} expected)".format(MATRIX_MAX))
         elif type(x) is Rpn_Vector:
             vsize = x.size()
             if vsize != 2:
@@ -5200,7 +5695,7 @@ def w_J():
 
 
 @defword(name='jd->$', args=1, doc="""\
-Convert julian day number to ISO date string  ( julian -- "YYYY-MM-DD" )
+Convert julian day number to ISO date string  ( julian -- ) [ -- "YYYY-MM-DD" ]
 
 EXAMPLE:
 2369915 jd->$  ==>  "1776-07-04" """)
@@ -5214,8 +5709,8 @@ def w_jd_to_dollar():
         param_stack.push(x)
         raise Rpn_E_Value_Error("jd->$: X out of range (1..{} expected)".format(datetime.date.max.toordinal()))
 
-    dateobj = datetime.date.fromordinal(x.value() - julian_offset)
-    result = Rpn_String("\"%d-%02d-%02d\"" % (dateobj.year, dateobj.month, dateobj.day))
+    dateobj = datetime.date.fromordinal(x.value() - JULIAN_OFFSET)
+    result = Rpn_String("%d-%02d-%02d" % (dateobj.year, dateobj.month, dateobj.day))
     string_stack.push(result)
 
 
@@ -5234,10 +5729,39 @@ def w_jd_to_d():
         param_stack.push(x)
         raise Rpn_E_Value_Error("jd->d: X out of range (1..{} expected)".format(datetime.date.max.toordinal()))
 
-    dateobj = datetime.date.fromordinal(x.value() - julian_offset)
+    dateobj = datetime.date.fromordinal(x.value() - JULIAN_OFFSET)
     result = Rpn_Float("%d.%02d%04d" % (dateobj.month, dateobj.day, dateobj.year))
     result.set_label("MM.DDYYYY")
     param_stack.push(result)
+
+
+if have_scipy:
+    @defword(name='Jv', args=2, print_x=True, doc="""\
+Jv  ( order x -- J_v(x) )
+
+Bessel function of the first kind of real order and complex argument.
+Implemented via scipy.special.jv(order, x)""")
+    def w_Jv():
+        x = param_stack.pop()
+        y = param_stack.pop()
+        if    type(x) not in [Rpn_Integer, Rpn_Rational, Rpn_Float, Rpn_Complex] \
+           or type(y) not in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
+            param_stack.push(y)
+            param_stack.push(x)
+            raise Rpn_E_Type_Error("Jv: Type error ({}, {})".format(typename(y), typename(x)))
+        order = float(y.value())
+        xval = x.value()
+        r = scipy.special.jv(order, xval)
+        if type(r) is np.float64 and math.isnan(r):
+            param_stack.push(y)
+            param_stack.push(x)
+            raise Rpn_E_Type_Error("Jv: Not a number")
+
+        if type(x) is Rpn_Complex:
+            result = Rpn_Complex.from_complex(r)
+        else:
+            result = Rpn_Float(r)
+        param_stack.push(result)
 
 
 @defword(name='inv', args=1, print_x=True, doc="""\
@@ -5284,6 +5808,35 @@ def w_key():
     val = ord(k) if k != '' else 0
     #lnwriteln("You pressed <{}>, value={}".format(k, val))
     param_stack.push(Rpn_Integer(val))
+
+
+@defword(name='lcm', args=2, doc="""\
+Least common multiple ( y x -- lcm )
+
+DEFINITION:
+              x * y
+lcm(x, y) = ---------
+            gcd(x, y)""")
+def w_lcm():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if    type(x) is not Rpn_Integer \
+       or type(y) is not Rpn_Integer:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("lcm: Type error ({}, {})".format(typename(y), typename(x)))
+
+    xval = x.value()
+    yval = y.value()
+    if xval < 0 or yval < 0:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise Rpn_E_Value_Error("lcm: X and Y cannot be negative")
+    if xval == 0 or yval == 0:
+        param_stack.push(Rpn_Integer(0))
+    else:
+        r = (xval * yval) / gcd_helper(xval, yval)
+        param_stack.push(Rpn_Integer(r))
 
 
 @defword(name='leave', doc="""\
@@ -5603,24 +6156,22 @@ def w_over():
 
 @defword(name='p->r', print_x=True, doc="""\
 Convert polar coordinates to rectangular.
-The parameters can be either two reals or one complex.
+The parameter(s) can be either two reals, or one complex.
 
-Real:      ( phi r -- y x )
-Complex:   ( cp -- cr )
-  cp : (r, phi)
-  cr : (x, y)
+Real:      ( theta r   -- y x   )
+Complex:   ( (r,theta) -- (x,y) )
 
 DEFINITION:
-x = r * cos(phi)
-y = r * sin(phi)""")
+x = r * cos(theta)
+y = r * sin(theta)""")
 def w_p_to_r():
     if param_stack.empty():
         raise Rpn_E_Runtime_Error("p->r: Insufficient parameters (1 or 2 required)")
     x = param_stack.pop()
     if type(x) is Rpn_Complex:
-        r   = x.real()
-        phi = convert_mode_to_radians(x.imag())
-        result = Rpn_Complex.from_complex(cmath.rect(r, phi))
+        r      = x.real()
+        theta  = convert_mode_to_radians(x.imag())
+        result = Rpn_Complex.from_complex(cmath.rect(r, theta))
         param_stack.push(result)
     elif type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
         if param_stack.empty():
@@ -5631,10 +6182,11 @@ def w_p_to_r():
             param_stack.push(y)
             param_stack.push(x)
             raise Rpn_E_Type_Error("p->r: Type error({}, {})".format(typename(y), typename(x)))
-        r   = float(x.value())
-        phi = convert_mode_to_radians(float(y.value()))
-        xval = r * math.cos(phi)
-        yval = r * math.sin(phi)
+
+        r     = float(x.value())
+        theta = convert_mode_to_radians(float(y.value()))
+        xval  = r * math.cos(theta)
+        yval  = r * math.sin(theta)
         param_stack.push(Rpn_Float(yval))
         param_stack.push(Rpn_Float(xval))
     else:
@@ -5710,30 +6262,30 @@ FN is the (string) name of a function which must implement ( x -- y ).
 Y-axis is autoscaled.
 
 EXAMPLE:
-rad  80 !COL  24 !ROWS
+rad  80 !COLS  24 !ROWS
 TAU chs TAU "sin" plot  =>
 
-      1.000 |____________________________________*_____________________|
-            |     ****                   :     ** *                    |
-            |    *    *                  :    *    *                   |
-            |   *      *                 :          *                  |
-            |                            :   *       *                 |
-            |  *        *                :  *                          |
-            | *                          :            *                |
-            |            *               : *                           |
-            |*                           :             *               |
-            |             *              :*                            |
-            *                            :              *              |
-            |--------------*-------------+-----------------------------*
-            |                            *               *             |
-            |               *            :                            *|
-            |                           *:                *            |
-            |                *           :                           * |
-            |                          * :                 *        *  |
-            |                 *       *  :                             |
-            |                  *         :                  *      *   |
-            |                   *    *   :                   *    *    |
-     -1.000 |____________________****_________________________****_____|
+      1.000 :------------------------------------*---------------------:
+            :     ****                   |     ** *                    :
+            :    *    *                  |    *    *                   :
+            :   *      *                 |          *                  :
+            :                            |   *       *                 :
+            :  *        *                |  *                          :
+            : *                          |            *                :
+            :            *               | *                           :
+            :*                           |             *               :
+            :             *              |*                            :
+            *                            |              *              :
+            :==============*=============+=============================*
+            :                            *               *             :
+            :               *            |                            *:
+            :                           *|                *            :
+            :                *           |                           * :
+            :                          * |                 *        *  :
+            :                 *       *  |                             :
+            :                  *         |                  *      *   :
+            :                   *    *   |                   *    *    :
+     =1.000 :--------------------****-------------------------****-----:
              -6.283                                                   6.283""")
 def w_plot():
     x = param_stack.pop()
@@ -5796,36 +6348,6 @@ def w_popdisp():
         raise Rpn_E_Runtime_Error("popdisp: No stashed display configurations")
 
 
-@defword(name='prompt', str_args=1, print_x=False, doc="""\
-Display prompt and await input.  This recognizes integers and floats, but
-not rationals or complex numbers.  The value is put on the stack.""")
-def w_prompt():
-    global sharpout
-    x = ''
-    prompt = string_stack.pop().value()
-    write(prompt)
-    while len(x) == 0:
-        try:
-            x = input()
-            dbg(whoami(), 1, "{}: '{}'".format(whoami(), x))
-        except EOFError:
-            raise Rpn_E_Runtime_Error()
-        finally:
-            sharpout.set_obj(Rpn_Integer(0))
-
-    #error = False
-    newlexer = lexer.clone()
-    newlexer.input(x)
-    tok = newlexer.token()
-
-    if tok.type == 'INTEGER':
-        param_stack.push(Rpn_Integer(int(tok.value)))
-    elif tok.type == 'FLOAT':
-        param_stack.push(Rpn_Float(float(tok.value)))
-    else:
-        raise Rpn_E_Runtime_Error("prompt: Could not parse '{}'".format(x))
-
-
 @defword(name='pushdisp', print_x=False, doc="""\
 Stash current display configuration.""")
 def w_pushdisp():
@@ -5867,11 +6389,18 @@ def w_PV():
 
 
 if have_scipy:
-    @defword(name='quad', args=2, str_args=1, print_x=True, doc="""\
+    @defword(name='quad', args=2, str_args=1, print_x=True, doc=r"""\
 Numerical integration  ( lower upper -- err.est integral )
 Name of function must be on string stack.
 
-Implemented via scipy.integrate.quad()""")
+Implemented via scipy.integrate.quad()
+
+EXAMPLE: Integrate a bessel function jv(2.5, x) along the interval [0,4.5]:
+
+: J2.5  2.5 swap Jv ;
+0 4.5 "J2.5" quad .s  =>
+1: 7.866317216380692e-09  \ error
+0: 1.1178179380783249  \ quad""")
     def w_quad():
         x = param_stack.pop()
         y = param_stack.pop()
@@ -5914,23 +6443,21 @@ def w_r_to_d():
 
 @defword(name='r->p', print_x=True, doc="""\
 Convert rectangular coordinates to polar.
-The parameters can be either two reals, or one complex.
+The parameter(s) can be either two reals, or one complex.
 
-Real:      ( y x -- phi r )
-Complex:   ( cr -- cp )
-  cr : (x, y)
-  cp : (r, phi)
+Real:      ( y x   -- theta r   )
+Complex:   ( (x,y) -- (r,theta) )
 
 DEFINITION:
-r   = hypot(x, y) == sqrt(x^2 + y^2)
-phi = atan2(x, y)""")
+r     = hypot(x, y) == sqrt(x^2 + y^2)
+theta = atan(y / x) == atan2(y, x)""")
 def w_r_to_p():
     if param_stack.empty():
         raise Rpn_E_Runtime_Error("r->p: Insufficient parameters (1 or 2 required)")
     x = param_stack.pop()
     if type(x) is Rpn_Complex:
-        (r, phi) = cmath.polar(x.value())
-        result = Rpn_Complex(r, convert_radians_to_mode(phi))
+        (r, theta) = cmath.polar(x.value())
+        result = Rpn_Complex(r, convert_radians_to_mode(theta))
         param_stack.push(result)
     elif type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
         if param_stack.empty():
@@ -5942,15 +6469,15 @@ def w_r_to_p():
             param_stack.push(x)
             raise Rpn_E_Type_Error("r->p: Type error({}, {})".format(typename(y), typename(x)))
 
-        phi = math.atan2(y.value(), x.value())
-        phi_obj = Rpn_Float(convert_radians_to_mode(phi))
-        phi_obj.set_label("phi")
+        theta = math.atan2(y.value(), x.value())
+        theta_obj = Rpn_Float(convert_radians_to_mode(theta))
+        theta_obj.set_label("theta_" + angle_mode_label())
 
         r = math.hypot(y.value(), x.value())
         r_obj = Rpn_Float(r)
         r_obj.set_label("r")
 
-        param_stack.push(phi_obj)
+        param_stack.push(theta_obj)
         param_stack.push(r_obj)
     else:
         param_stack.push(x)
@@ -5986,8 +6513,8 @@ Set angular mode to radians""")
 def w_rad():
     global angle_mode
     angle_mode = "r"
-    set_flag(flag_rad)
-    clear_flag(flag_grad)
+    set_flag(FLAG_RAD)
+    clear_flag(FLAG_GRAD)
 
 
 @defword(name='rand', print_x=True, doc="""\
@@ -6024,7 +6551,8 @@ def w_randint():
 @defword(name='rcl', args=1, doc="""\
 Recall value of register X  ( reg -- val )""")
 def w_rcl():
-    global register, reg_size
+    global register
+    (reg_size, _) = lookup_variable("SIZE")
 
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
@@ -6035,6 +6563,51 @@ def w_rcl():
         param_stack.push(x)
         raise Rpn_E_Value_Error("rcl: Register '{}' out of range (0..{} expected)".format(reg, reg_size.obj().value() - 1))
     param_stack.push(register[reg])
+
+
+@defword(name='rct->sph', args=3, doc="""\
+Convert rectangular coordinates to spherical  ( z y x -- phi theta r )
+
+DEFINITION:
+phi   = atan(y/x)      == atan2(y, x)
+theta = acos(z / r)
+r     = hypot(x, y, z) == sqrt(x^2 + y^2 + z^2)""")
+def w_rct_to_sph():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    z = param_stack.pop()
+    if    type(x) not in [Rpn_Integer, Rpn_Rational, Rpn_Float] \
+       or type(y) not in [Rpn_Integer, Rpn_Rational, Rpn_Float] \
+       or type(z) not in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
+        param_stack.push(z)
+        param_stack.push(y)
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("rct->sph: Type error ({}, {}, {})".format(typename(z), typename(y), typename(x)))
+    if x.zerop() and y.zerop() and z.zerop():
+        param_stack.push(z)
+        param_stack.push(y)
+        param_stack.push(x)
+        return
+
+    xval = float(x.value())
+    yval = float(y.value())
+    zval = float(z.value())
+
+    r     = math.sqrt(xval**2 + yval**2 + zval**2)
+    r_obj = Rpn_Float(r)
+    r_obj.set_label("r")
+
+    theta     = math.acos(zval / r)
+    theta_obj = Rpn_Float(convert_radians_to_mode(theta))
+    theta_obj.set_label("theta_" + angle_mode_label())
+
+    phi     = math.atan2(yval, xval)
+    phi_obj = Rpn_Float(convert_radians_to_mode(phi))
+    phi_obj.set_label("phi_" + angle_mode_label())
+
+    param_stack.push(phi_obj)
+    param_stack.push(theta_obj)
+    param_stack.push(r_obj)
 
 
 @defword(name='rdepth', print_x=True, doc="""\
@@ -6182,20 +6755,20 @@ Set scientific display  ( n -- )
 
 N specifies the number of digits after the decimal point.""")
 def w_sci():
-    global precision_max
+    global PRECISION_MAX
     x = param_stack.pop()
     if type(x) is not Rpn_Integer:
         param_stack.push(x)
         raise Rpn_E_Type_Error("sci: Type error ({})".format(typename(x)))
 
-    if x.value() < 0 or x.value() >= precision_max:
+    if x.value() < 0 or x.value() >= PRECISION_MAX:
         param_stack.push(x)
-        raise Rpn_E_Value_Error("fix: Precision '{}' out of range (0..{} expected)".format(x.value(), precision_max - 1))
+        raise Rpn_E_Value_Error("fix: Precision '{}' out of range (0..{} expected)".format(x.value(), PRECISION_MAX - 1))
 
     disp_stack.top().set_style("sci")
     disp_stack.top().set_prec(x.value())
-    clear_flag(40)
-    clear_flag(41)
+    clear_flag(FLAG_DISP_FIX)
+    clear_flag(FLAG_DISP_ENG)
 
 
 @defword(name='scopes', print_x=False, doc="""\
@@ -6232,10 +6805,10 @@ def w_sf():
         param_stack.push(x)
         raise Rpn_E_Type_Error("sf: Type error ({})".format(typename(x)))
     flag = x.value()
-    if flag < 0 or flag >= flag_max:
+    if flag < 0 or flag >= FLAG_MAX:
         param_stack.push(x)
-        raise Rpn_E_Value_Error("sf: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
-    if flag >= flag_fence:
+        raise Rpn_E_Value_Error("sf: Flag {} out of range (0..{} expected)".format(flag, FLAG_MAX - 1))
+    if flag >= FLAG_FENCE:
         param_stack.push(x)
         raise Rpn_E_Value_Error("sf: Flag {} cannot be modified".format(flag))
     set_flag(flag)
@@ -6244,8 +6817,8 @@ def w_sf():
 @defword(name='shdebug', print_x=False, doc="""\
 Show all debug levels""")
 def w_showdebug():
-    global scr_columns
-    lnwriteln("Debugging is {}".format("ENABLED" if flag_set_p(flag_debug_enabled) else "disabled"))
+    global scr_cols
+    lnwriteln("Debugging is {}".format("ENABLED" if flag_set_p(FLAG_DEBUG_ENABLED) else "disabled"))
 
     dbgs = dict()
     for (resource, level) in debug_levels.items():
@@ -6253,7 +6826,7 @@ def w_showdebug():
     sorted_dbgs = []
     for key in sorted(dbgs, key=str.casefold):
         sorted_dbgs.append(dbgs[key])
-    list_in_columns(sorted_dbgs, scr_columns.obj().value() - 1)
+    list_in_columns(sorted_dbgs, scr_cols.obj().value() - 1)
 
 
 @defword(name='shfin', print_x=False, doc="""\
@@ -6271,12 +6844,12 @@ def w_shfin():
     writeln("CF:  {}".format(fmt(tvm_CF .obj().value()) if tvm_CF .defined() else "[Not set]"))
     writeln("PF:  {}".format(fmt(tvm_PF .obj().value()) if tvm_PF .defined() else "[Not set]"))
 
-    writeln("{} compounding (flag {} is {})".format("CONTINUOUS" if flag_set_p(flag_tvm_continuous) else "DISCRETE",
-                                                    flag_tvm_continuous,
-                                                    "set" if flag_set_p(flag_tvm_continuous) else "clear"))
-    writeln("{} mode (flag {} is {})".format("BEGIN" if flag_set_p(flag_tvm_begin_mode) else "END",
-                                             flag_tvm_begin_mode,
-                                             "set" if flag_set_p(flag_tvm_begin_mode) else "clear"))
+    writeln("{} compounding (flag {} is {})".format("CONTINUOUS" if flag_set_p(FLAG_TVM_CONTINUOUS) else "DISCRETE",
+                                                    FLAG_TVM_CONTINUOUS,
+                                                    "set" if flag_set_p(FLAG_TVM_CONTINUOUS) else "clear"))
+    writeln("{} mode (flag {} is {})".format("BEGIN" if flag_set_p(FLAG_TVM_BEGIN_MODE) else "END",
+                                             FLAG_TVM_BEGIN_MODE,
+                                             "set" if flag_set_p(FLAG_TVM_BEGIN_MODE) else "clear"))
     if dbg("tvm"):
         writeln("----------")
         writeln("i: {}".format(tvm_i() if tvm_i() is not None else "[undef]"))
@@ -6284,18 +6857,18 @@ def w_shfin():
         writeln("B: {}".format(tvm_B() if tvm_B() is not None else "[undef]"))
         writeln("C: {}".format(tvm_C() if tvm_C() is not None else "[undef]"))
         writeln("X: {} ({} mode)".format(tvm_X() if tvm_X() is not None else "[undef]",
-                                         "BEGIN" if flag_set_p(flag_tvm_begin_mode) else "END"))
+                                         "BEGIN" if flag_set_p(FLAG_TVM_BEGIN_MODE) else "END"))
 
 
 @defword(name='shflag', print_x=False, doc="""\
 Show status of all flags ( -- )""")
 def w_shflag():
-    global scr_columns
+    global scr_cols
     flags = []
-    for f in range(flag_max):
+    for f in range(FLAG_MAX):
         flags.append("%02d:%s" % (f, "YES" if flag_set_p(f) else "no "))
 
-    list_in_columns(flags, scr_columns.obj().value() - 1)
+    list_in_columns(flags, scr_cols.obj().value() - 1)
 
 
 @defword(name='show', doc="""\
@@ -6309,20 +6882,21 @@ Print the statistics list""")
 def w_shstat():
     global stat_list
     if len(stat_list) == 0:
-        print("No statistics data")
+        writeln("No statistics data")
     else:
-        print(stat_list)
+        writeln(stat_list)
 
 
 @defword(name='shreg', print_x=False, doc="""\
 Show status of all registers ( -- )""")
 def w_shreg():
-    global register, reg_size
+    global scr_cols, register
+    (reg_size, _) = lookup_variable("SIZE")
     regs = []
     for r in range(reg_size.obj().value()):
         regs.append("R%02d=%s" % (r, fmt(register[r])))
 
-    list_in_columns(regs, scr_columns.obj().value() - 1)
+    list_in_columns(regs, scr_cols.obj().value() - 1)
 
 
 @defword(name='sign', args=1, print_x=True, doc="""\
@@ -6408,38 +6982,6 @@ def w_sinh():
     param_stack.push(result)
 
 
-@defword(name='size', args=1, print_x=False, doc="""\
-Set register size  ( siz -- )
-Size must be in range [10,100]""")
-def w_size():
-    x = param_stack.pop()
-    if type(x) is not Rpn_Integer:
-        param_stack.push(x)
-        raise Rpn_E_Type_Error("size: Type error ({})".format(typename(x)))
-    new_size = x.value()
-    if new_size < reg_min or new_size > reg_max:
-        param_stack.push(x)
-        raise Rpn_E_Value_Error("size: Size '{}' out of range ({}..{} expected)".format(new_size, reg_min, reg_max))
-
-    global reg_size
-    old_size = reg_size.obj().value()
-    # If we're increasing the number of registers, zero out the newly
-    # available ones.  It is not really necessary to do this when
-    # decreasing, because those registers will no longer be available.
-    if new_size > old_size:
-        for r in range(new_size - old_size):
-            register[old_size + r] = Rpn_Float(0.0)
-
-    reg_size.set_obj(x)
-
-
-@defword(name='size?', print_x=True, doc="""\
-Return the register size to the stack  ( -- siz )""")
-def w_size_query():
-    global reg_size
-    param_stack.push(reg_size.obj())
-
-
 @defword(name='sleep', args=1, doc="""\
 Sleep for N seconds  ( n -- )
 N may be fractional.""")
@@ -6450,6 +6992,43 @@ def w_sleep():
         raise Rpn_E_Type_Error("sleep: Type error ({})".format(typename(x)))
     sleep_time = float(x.value())
     time.sleep(sleep_time)
+
+
+@defword(name='sph->rct', args=3, doc="""\
+Convert spherical coordinates to rectangular  ( phi theta r -- z y x )
+
+DEFINITION:
+x = r * sin(theta) * cos(phi)
+y = r * sin(theta) * sin(phi)
+z = r * cos(theta)""")
+def w_sph_to_rct():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    z = param_stack.pop()
+    if    type(x) not in [Rpn_Integer, Rpn_Rational, Rpn_Float] \
+       or type(y) not in [Rpn_Integer, Rpn_Rational, Rpn_Float] \
+       or type(z) not in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
+        param_stack.push(z)
+        param_stack.push(y)
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("sph->rct: Type error ({}, {}, {})".format(typename(z), typename(y), typename(x)))
+    if x.zerop() and y.zerop() and z.zerop():
+        param_stack.push(z)
+        param_stack.push(y)
+        param_stack.push(x)
+        return
+
+    r     = float(x.value())
+    theta = convert_mode_to_radians(float(y.value()))
+    phi   = convert_mode_to_radians(float(z.value()))
+
+    x_coord = r * math.sin(theta) * math.cos(phi)
+    y_coord = r * math.sin(theta) * math.sin(phi)
+    z_coord = r * math.cos(theta)
+
+    param_stack.push(Rpn_Float(z_coord))
+    param_stack.push(Rpn_Float(y_coord))
+    param_stack.push(Rpn_Float(x_coord))
 
 
 @defword(name='sq', args=1, print_x=True, doc="""\
@@ -6508,8 +7087,8 @@ std  ( -- )
 Set display mode to standard.""")
 def w_std():
     disp_stack.top().set_style("std")
-    set_flag(40)
-    set_flag(41)
+    set_flag(FLAG_DISP_FIX)
+    set_flag(FLAG_DISP_ENG)
     for bit in range(4):
         clear_flag(39 - bit)
 
@@ -6532,7 +7111,8 @@ def w_stdev():
 @defword(name='sto', args=2, doc="""\
 Store value Y into register X  ( y reg -- )""")
 def w_sto():
-    global register, reg_size
+    global register
+    (reg_size, _) = lookup_variable("SIZE")
 
     x = param_stack.pop()
     y = param_stack.pop()
@@ -6624,10 +7204,10 @@ def w_tf():
         param_stack.push(x)
         raise Rpn_E_Type_Error("tf: Type error ({})".format(typename(x)))
     flag = x.value()
-    if flag < 0 or flag >= flag_max:
+    if flag < 0 or flag >= FLAG_MAX:
         param_stack.push(x)
-        raise Rpn_E_Value_Error("tf: Flag {} out of range (0..{} expected)".format(flag, flag_max - 1))
-    if flag >= flag_fence:
+        raise Rpn_E_Value_Error("tf: Flag {} out of range (0..{} expected)".format(flag, FLAG_MAX - 1))
+    if flag >= FLAG_FENCE:
         param_stack.push(x)
         raise Rpn_E_Value_Error("tf: Flag {} cannot be modified".format(flag))
     toggle_flag(flag)
@@ -6685,7 +7265,7 @@ def w_timeinfo():
     if type(x) is not Rpn_Float:
         param_stack.push(x)
         raise Rpn_E_Type_Error("timeinfo: Type error ({})".format(typename(x)))
-    print(x.time_info())        # OK
+    writeln("timeinfo: {}".format(x.time_info()))
 
 
 @defword(name='trace', doc="""\
@@ -6695,9 +7275,25 @@ def w_trace():
         set_debug_level("trace", 0)
         lnwriteln("trace: Tracing is now disabled")
     else:
-        set_flag(flag_debug_enabled)
+        set_flag(FLAG_DEBUG_ENABLED)
         set_debug_level("trace", 1)
         lnwriteln("trace: Tracing is now ENABLED")
+
+
+@defword(name='trn', args=1, doc="""\
+Transpose a matrix  ( mat -- mat_T )""")
+def w_trn():
+    x = param_stack.pop()
+    if type(x) is Rpn_Vector:
+        # Transposing a vector is allowed but has no effect.
+        # It does NOT "convert a 1-D array into a 2D column vector".
+        param_stack.push(x)
+        return
+    if type(x) is not Rpn_Matrix:
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("trn: Type error ({})".format(typename(x)))
+    t = Rpn_Matrix.from_numpy(np.matrix.transpose(x.value()))
+    param_stack.push(t)
 
 
 @defword(name='undef', doc="""\
@@ -6755,7 +7351,7 @@ def w_variable():
 @defword(name='vars', print_x=False, doc="""\
 List variables and their values""")
 def w_vars():
-    global scr_columns
+    global scr_cols
     for (_, scope) in scope_stack.items_top_to_bottom():
         if scope_stack.size() > 1:
             lnwriteln("Scope {}".format(scope.name()))
@@ -6767,11 +7363,11 @@ def w_vars():
             my_vars[var.name()] = "{}:[undef]".format(var.name()) if not var.defined() else \
                                   "{}={}{}".format(var.name(),
                                                    var.obj().value(),
-                                                   "(" + typename(var.obj()) + ")" if flag_set_p(flag_debug_enabled) else "")
+                                                   "(" + typename(var.obj()) + ")" if flag_set_p(FLAG_DEBUG_ENABLED) else "")
         sorted_vars = []
         for key in sorted(my_vars, key=str.casefold):
             sorted_vars.append(my_vars[key])
-        list_in_columns(sorted_vars, scr_columns.obj().value() - 1)
+        list_in_columns(sorted_vars, scr_cols.obj().value() - 1)
 
 
 @defword(name='vlist', print_x=False, doc="""\
@@ -6780,10 +7376,10 @@ Only words in the global scope are shown.
 
 qv WORDS""")
 def w_vlist():
-    global scr_columns
+    global scr_cols
     # This is nice, but it shows hidden words:
     # list_in_columns(sorted([ x for x in global_scope.words() ],
-    #                        key=str.casefold), scr_columns.obj().value() - 1)
+    #                        key=str.casefold), scr_cols.obj().value() - 1)
     words = dict()
     for wordname in global_scope.words():
         word = global_scope.word(wordname)
@@ -6793,7 +7389,7 @@ def w_vlist():
     sorted_words = []
     for key in sorted(words, key=str.casefold):
         sorted_words.append(words[key])
-    list_in_columns(sorted_words, scr_columns.obj().value() - 1)
+    list_in_columns(sorted_words, scr_cols.obj().value() - 1)
 
 
 @defword(name='while', doc="""\
@@ -6814,10 +7410,38 @@ Print the list of user-defined words.
 
 qv VLIST""")
 def w_words():
-    global scr_columns
+    global scr_cols
     list_in_columns(sorted([ x[0] for x in global_scope.unprotected_words() ],
-                           key=str.casefold), scr_columns.obj().value() - 1)
+                           key=str.casefold), scr_cols.obj().value() - 1)
 
+
+@defword(name='zer', args=1, print_x=False, doc="""\
+zero  ( v -- m )  Create a zero vector or matrix""")
+def w_zer():
+    x = param_stack.pop()
+    if type(x) is not Rpn_Vector:
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("zer: Type error ({})".format(typename(x)))
+    xs = x.size()
+
+    if xs == 1:
+        size = int(x.value().item(0))
+        if size <= 0:
+            param_stack.push(x)
+            raise Rpn_E_Value_Error("zer: Dimension must be positive")
+        z = Rpn_Vector.from_numpy(np.zeros(size))
+        param_stack.push(z)
+    elif xs == 2:
+        rows = int(x.value().item(0))
+        cols = int(x.value().item(1))
+        if rows <= 0 or cols <= 0:
+            param_stack.push(x)
+            raise Rpn_E_Value_Error("zer: Dimensions must be positive")
+        z = Rpn_Matrix.from_numpy(np.zeros((rows, cols)))
+        param_stack.push(z)
+    else:
+        param_stack.push(x)
+        raise Rpn_E_Runtime_Error("zero: Dimension vector must have only 1 or 2 elements")
 
 
 
@@ -6899,7 +7523,7 @@ def int_nom_to_eff(int_nom):
     CF = tvm_CF.obj().value()
     PF = tvm_PF.obj().value()
 
-    if flag_set_p(flag_tvm_continuous):
+    if flag_set_p(FLAG_TVM_CONTINUOUS):
         # int_eff = e^(i/PF) - 1
         int_eff = math.expm1(int_nom / PF)
     else:
@@ -6907,7 +7531,7 @@ def int_nom_to_eff(int_nom):
         int_eff = math.expm1((CF/PF) * math.log1p(int_nom/CF))
 
     dbg("tvm", 3, "int_nom_to_eff ({}): NOM={} -> EFF={}".format(
-        "Continuous" if flag_set_p(flag_tvm_continuous) else "Discrete",
+        "Continuous" if flag_set_p(FLAG_TVM_CONTINUOUS) else "Discrete",
         int_nom, int_eff))
     return int_eff
 
@@ -6918,7 +7542,7 @@ def int_eff_to_nom(int_eff):
     CF = tvm_CF.obj().value()
     PF = tvm_PF.obj().value()
 
-    if flag_set_p(flag_tvm_continuous):
+    if flag_set_p(FLAG_TVM_CONTINUOUS):
         # int_nom = LN[ (1+int_eff)^PF ]
         int_nom = PF * math.log1p(int_eff)
     else:
@@ -6926,7 +7550,7 @@ def int_eff_to_nom(int_eff):
         int_nom = CF * (math.expm1((PF/CF) * math.log1p(int_eff)))
 
     dbg("tvm", 3, "int_eff_to_nom ({}): EFF={} -> NOM={}".format(
-        "Continuous" if flag_set_p(flag_tvm_continuous) else "Discrete",
+        "Continuous" if flag_set_p(FLAG_TVM_CONTINUOUS) else "Discrete",
         int_eff, int_nom))
     return int_nom
 
@@ -6940,7 +7564,7 @@ def tvm_i():
 
 def tvm_X():
     # X = Begin/End flag
-    return flag_int_value(flag_tvm_begin_mode) # 0 or 1
+    return flag_int_value(FLAG_TVM_BEGIN_MODE) # 0 or 1
 
 def tvm_A():
     # A = (1+i)^n - 1
@@ -7015,11 +7639,11 @@ def execute(executable):
 
 
 def memoize(f):
-    memoize = {}
+    memoized = {}
     def helper(x):
-        if x not in memoize:
-            memoize[x] = f(x)
-        return memoize[x]
+        if x not in memoized:
+            memoized[x] = f(x)
+        return memoized[x]
     return helper
 
 
@@ -7040,17 +7664,17 @@ def comb_helper(n, r):
 
 
 def plot_helper(func, x_low, x_high):
-    global scr_rows, scr_columns
-    cols = scr_columns.obj().value()
+    global scr_rows, scr_cols
+    cols = scr_cols.obj().value()
     rows = scr_rows.obj().value()
 
     ISCR   = cols - 20
     JSCR   = rows -  3
     BLANK  = ' '
-    VERT   = '|'
-    VZERO  = ':'
-    HORIZ  = '_'
-    HZERO  = '-'
+    VERT   = ':'
+    VZERO  = '|'
+    HORIZ  = '-'
+    HZERO  = '='
     ORIGIN = '+'
     FF     = '*'
     scr = [[BLANK for i in range(1,JSCR+2)] for j in range(1,ISCR+2)]
@@ -7152,7 +7776,7 @@ def convert_radians_to_mode(r, force_mode=None):
 
 
 def define_secondary_words():
-    eval_string("""
+    eval_string(r"""
 : TRUE          doc:"TRUE  ( -- 1 )
 Constant: Logical true"
   1 ;
@@ -7182,6 +7806,13 @@ PHI = (1 + sqrt(5)) / 2"
 : ?cr           doc:"?cr  Print a newline only if necessary to return to left margin"
   @#OUT 0 > if
     cr
+  then ;
+
+: prompt        doc:"prompt  ( -- n ) [ text -- ]  Prompt for numeric input"
+  $depth 0 = if
+    ."prompt: Insufficient string parameters (1 required)" cr
+  else
+    $. #in
   then ;
 
 : space         doc:"space   Display one space character"
@@ -7232,8 +7863,7 @@ Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
 
 
 : debug         doc:"debug  ( -- )  Toggle debugging state"
-  20 tf
-  20 fs? if
+  20 dup tf  fs? if
     ."Debugging is now ENABLED"
   else
     ."Debugging is now disabled"
@@ -7251,35 +7881,6 @@ Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
 : mod           doc:"mod  ( y x -- remainder )  Remainder"
   | in:y in:x |
   @y @x /mod  drop ;
-
-
-\ A few Euclidean functions
-: hypot         doc:"hypot  ( y x -- hypot )  Hypotenuse distance
-
-DEFINITION:
-hypot = sqrt(x^2 + y^2)"
-  | in:y in:x |
-  @y sq  @x sq  +  sqrt
-;
-
-: gcd           doc:"gcd  ( y x -- gcd )  Greatest Common Divisor"
-  begin
-    ?dup  while
-    tuck mod
-  repeat
-;
-
-: lcm           doc:"lcm  ( y x -- lcm )  Least Common Multiple
-
-DEFINITION:
-      |x * y|
-lcm = --------
-      gcd(x,y)"
-  | in:y in:x |
-  @x @y * abs
-  @x @y gcd
-  /
-;
 
 
 \ Conversion functions
@@ -7370,6 +7971,21 @@ def eval_string(s):
 
 
 @memoize
+def fib_helper(n):
+    if n == 0:
+        return 0
+    if n == 1:
+        return 1
+    return fib_helper(n-1) + fib_helper(n-2)
+
+
+def gcd_helper(x, y):
+    while x != 0:
+        y, x = x, y % x
+    return y
+
+
+@memoize
 def fact_helper(x):
     result = 1
     while x > 1:
@@ -7380,19 +7996,19 @@ def fact_helper(x):
 
 def clear_flag(flag):
     global flags_vec
-    if flag < 0 or flag >= flag_max:
+    if flag < 0 or flag >= FLAG_MAX:
         raise Rpn_E_Fatal("{}: Flag {} out of range".format(whoami(), flag))
     flags_vec &= ~(1<<flag)
 
 def set_flag(flag):
     global flags_vec
-    if flag < 0 or flag >= flag_max:
+    if flag < 0 or flag >= FLAG_MAX:
         raise Rpn_E_Fatal("{}: Flag {} out of range".format(whoami(), flag))
     flags_vec |= (1<<flag)
 
 def toggle_flag(flag):
     global flags_vec
-    if flag < 0 or flag >= flag_max:
+    if flag < 0 or flag >= FLAG_MAX:
         raise Rpn_E_Fatal("{}: Flag {} out of range".format(whoami(), flag))
     if flag_set_p(flag):
         clear_flag(flag)
@@ -7401,20 +8017,20 @@ def toggle_flag(flag):
 
 def flag_int_value(flag):
     global flags_vec
-    if flag < 0 or flag >= flag_max:
+    if flag < 0 or flag >= FLAG_MAX:
         raise Rpn_E_Fatal("{}: Flag {} out of range".format(whoami(), flag))
     return bool_to_int(flag_set_p(flag))
 
 def flag_set_p(flag):
     global flags_vec
-    if flag < 0 or flag >= flag_max:
+    if flag < 0 or flag >= FLAG_MAX:
         raise Rpn_E_Fatal("{}: Flag {} out of range".format(whoami(), flag))
     return bool(flags_vec & 1<<flag != 0)
 
 
 # I should really just use __format__() correctly
-def fmt(x):
-    return disp_stack.top().fmt(x)
+def fmt(x, show_label=True):
+    return disp_stack.top().fmt(x, show_label)
 
 
 def generate_token_list():
@@ -7608,10 +8224,10 @@ class _Getch_Windows:
 class _Getch_Unix:
     def __init__(self):
         # import termios now or else you'll get the Unix version on the Mac
-        import tty, sys, termios
+        import termios
 
     def __call__(self):
-        import sys, tty, termios
+        import termios
         fd = sys.stdin.fileno()
         old_settings = termios.tcgetattr(fd)
         try:
@@ -7795,7 +8411,7 @@ def parse_args():
 
     for opt, arg in opts:
         if opt == "-d":
-            set_flag(flag_debug_enabled)
+            set_flag(FLAG_DEBUG_ENABLED)
         elif opt == "-f":
             try:
                 load_file(arg)
@@ -7852,15 +8468,15 @@ def push_scope(scope, why):
     scope_stack.push(scope)
 
 
-def sigquit_handler(signum, frame):
+def sigquit_handler(_signum, _frame):
     lnwriteln("[Quit]")
     raise Rpn_E_End_Program()
 
 
 # Simple SIGWINCH handler can become overwhelmed and crash if window
 # changes come too fast.  Consider using shutil.get_terminal_size()
-def sigwinch_handler(signum, frame):
-    global scr_columns, scr_rows
+def sigwinch_handler(_signum, _frame):
+    global scr_cols, scr_rows
     tty_rows = 0
     tty_columns = 0
     if sys.stdin.isatty():
@@ -7876,7 +8492,7 @@ def sigwinch_handler(signum, frame):
         env_rows = os.getenv("ROWS")
         tty_rows = int(env_rows) if env_rows is not None else 24
     scr_rows   .set_obj(Rpn_Integer(tty_rows))
-    scr_columns.set_obj(Rpn_Integer(tty_columns))
+    scr_cols.set_obj(Rpn_Integer(tty_columns))
 
 
 def write(s=""):
@@ -7887,17 +8503,17 @@ def write(s=""):
     newline = s.find("\n")
     while newline != -1:
         substring = s[:newline]
-        print(substring)
+        print(substring)       # OK
         outval = 0
         s = s[newline+1:]
         newline = s.find("\n")
     outval += len(s)
-    print(s, end='', flush=True)
+    print(s, end='', flush=True) # OK
     sharpout.set_obj(Rpn_Integer(outval))
 
 def writeln(s=""):
     global sharpout
-    print(s, flush=True)
+    print(s, flush=True)       # OK
     sharpout.set_obj(Rpn_Integer(0))
 
 def lnwrite(s=""):
@@ -7931,7 +8547,7 @@ Usage: rpn [-d] [-f FILE] [-i] [-l FILE] cmds...
 
 
 def initialize():
-    global rpn_version, default_protected
+    global RPN_VERSION, default_protected
 
     sys.setrecursionlimit(2000) # default is 1000
     random.seed()
@@ -7944,7 +8560,7 @@ def initialize():
     w_clfin()
     define_secondary_words()
 
-    # Switch to user mode; words are no longer protected
+    # Switch to user mode; words & variables are no longer protected
     default_protected = False
     define_tertiary_words()
 
@@ -7956,6 +8572,8 @@ def initialize():
     # Attempt to load the user's init file
     init_file = os.path.expanduser("~/.rpnrc")
     if os.path.isfile(init_file):
+        (rpnrc, _) = lookup_variable('RPNRC')
+        rpnrc.set_obj(Rpn_String(init_file))
         load_file(init_file)
 
     # Parse command line
@@ -7969,54 +8587,81 @@ def initialize():
         eval_string(s)
 
 
-# def example_pre_hook_func(identifier, old_obj, new_obj):
+# def example_pre_hook_func(ident, cur_obj, new_obj):
 #     print("example_pre_hook_func:")
-#     print("identifier={}".format(repr(identifier)))
-#     print("old_obj={}".format(repr(old_obj)))
+#     print("ident  ={}".format(ident))
+#     print("cur_obj={}".format(repr(cur_obj)))
 #     print("new_obj={}".format(repr(new_obj)))
-#     if new_obj.value() < 0:
-#         raise Rpn_E_Runtime_Error("{} cannot be negative".format(identifier))
+#     # Check against None first due to undef case
+#     if new_obj is not None and new_obj.value() < 0:
+#         raise Rpn_E_Runtime_Error("{} cannot be negative".format(ident))
 #
-# def example_post_hook_func(identifier, obj):
+# def example_post_hook_func(ident, old_obj, cur_obj):
 #     print("example_post_hook_func:")
-#     print("identifier={}".format(repr(identifier)))
-#     print("obj={}".format(repr(obj)))
+#     print("ident  ={}".format(ident))
+#     print("old_obj={}".format(repr(old_obj)))
+#     print("cur_obj={}".format(repr(cur_obj)))
 
-def require_int(identifier, old, new):
+def require_int(identifier, _cur, new):
     if type(new) is not Rpn_Integer:
         raise Rpn_E_Runtime_Error("!{}: Type error ({})".format(identifier, typename(new)))
 
-def require_int_or_float(identifier, old, new):
+def require_int_or_float(identifier, _cur, new):
     if type(new) not in [Rpn_Integer, Rpn_Float]:
         raise Rpn_E_Runtime_Error("!{}: Type error ({})".format(identifier, typename(new)))
 
-def require_positive(identifier, old, new):
+def require_positive(identifier, _cur, new):
     if new.value() <= 0:
         raise Rpn_E_Runtime_Error("!{}: Must be positive".format(identifier))
 
-def require_non_negative(identifier, old, new):
+def require_non_negative(identifier, _cur, new):
     if new.value() < 0:
         raise Rpn_E_Runtime_Error("!{}: Must be non-negative".format(identifier))
 
+def validate_size_arg(identifier, _cur, new):
+    if type(new) is not Rpn_Integer:
+        raise Rpn_E_Runtime_Error("!{}: Type error ({})".format(identifier, typename(new)))
+    new_size = new.value()
+    if new_size < REG_SIZE_MIN or new_size > REG_SIZE_MAX:
+        raise Rpn_E_Runtime_Error("!{}: Size {} out of range ({}..{} expected)".format(identifier, new_size, REG_SIZE_MIN, REG_SIZE_MAX))
+
+def clear_newly_unveiled_registers(_identifier, old, cur):
+    old_size = old.value()
+    cur_size = cur.value()
+    # If we're increasing the number of registers, zero out the newly
+    # available ones.  It is not really necessary to do this when
+    # decreasing, because those registers will no longer be accessible.
+    if cur_size > old_size:
+        for r in range(cur_size - old_size):
+            register[old_size + r] = Rpn_Float(0.0)
 
 def define_variables():
-    global sharpout, scr_columns, scr_rows, reg_size
+    global sharpout, scr_cols, scr_rows
     global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV, tvm_CF, tvm_PF
 
-    sharpout    = defvar('#OUT',  Rpn_Integer(0), protected=True, readonly=True, noshadow=True)
-    tvm_CF      = defvar('CF',    Rpn_Integer(1), protected=True, noshadow=True, pre_hooks=[require_int, require_positive], doc="TVM: Compounding Frequency")
-    scr_columns = defvar('COLS',  Rpn_Integer(0), protected=True, pre_hooks=[require_int, require_positive])
-    tvm_FV      = defvar('FV',    None, protected=True, noshadow=True, pre_hooks=[require_int_or_float],  doc="TVM: Future Value")
-    tvm_INT     = defvar('INT',   None, protected=True, noshadow=True, pre_hooks=[require_int_or_float, require_non_negative], doc="TVM: Interest rate")
-    tvm_N       = defvar('N',     None, protected=True, noshadow=True, pre_hooks=[require_int_or_float, require_positive],   doc="TVM: Number of payments")
-    _           = defvar('NUMPY', Rpn_Integer(bool_to_int(have_numpy)), protected=True, readonly=True, noshadow=True)
-    tvm_PF      = defvar('PF',    Rpn_Integer(1), protected=True, noshadow=True, pre_hooks=[require_int, require_positive],  doc="TVM: Payment Frequency")
-    tvm_PMT     = defvar('PMT',   None, protected=True, noshadow=True, pre_hooks=[require_int_or_float], doc="TVM: Payment amount")
-    tvm_PV      = defvar('PV',    None, protected=True, noshadow=True, pre_hooks=[require_int_or_float],  doc="TVM: Present Value")
-    scr_rows    = defvar('ROWS',  Rpn_Integer(0), protected=True, pre_hooks=[require_int, require_positive])
-    _           = defvar('SCIPY', Rpn_Integer(bool_to_int(have_scipy)), protected=True, readonly=True, noshadow=True)
-    reg_size    = defvar('SIZE',  Rpn_Integer(20), protected=True, noshadow=True, readonly=True)
-    _           = defvar('VER',   Rpn_Float(rpn_version), protected=True, readonly=True, noshadow=True)
+    # Variables defined here are all protected=True by default
+    sharpout = defvar('#OUT',  Rpn_Integer(0), readonly=True, noshadow=True)
+    tvm_CF   = defvar('CF',    Rpn_Integer(1), noshadow=True, pre_hooks=[require_int, require_positive],
+                      doc="TVM: Compounding Frequency")
+    scr_cols = defvar('COLS',  Rpn_Integer(0), pre_hooks=[require_int, require_positive])
+    tvm_FV   = defvar('FV',    None, noshadow=True, pre_hooks=[require_int_or_float],
+                      doc="TVM: Future Value")
+    tvm_INT  = defvar('INT',   None, noshadow=True, pre_hooks=[require_int_or_float, require_non_negative],
+                      doc="TVM: Interest rate")
+    tvm_N    = defvar('N',     None, noshadow=True, pre_hooks=[require_int_or_float, require_positive],
+                      doc="TVM: Number of payments")
+    _        = defvar('NUMPY', Rpn_Integer(bool_to_int(have_numpy)), readonly=True, noshadow=True)
+    tvm_PF   = defvar('PF',    Rpn_Integer(1), noshadow=True, pre_hooks=[require_int, require_positive],
+                      doc="TVM: Payment Frequency")
+    tvm_PMT  = defvar('PMT',   None, noshadow=True, pre_hooks=[require_int_or_float],
+                      doc="TVM: Payment amount")
+    tvm_PV   = defvar('PV',    None, noshadow=True, pre_hooks=[require_int_or_float],
+                      doc="TVM: Present Value")
+    scr_rows = defvar('ROWS',  Rpn_Integer(0), pre_hooks=[require_int, require_positive])
+    _        = defvar('RPNRC', Rpn_String(""), readonly=True, hidden=True)
+    _        = defvar('SCIPY', Rpn_Integer(bool_to_int(have_scipy)), readonly=True, noshadow=True)
+    _        = defvar('SIZE',  Rpn_Integer(20), noshadow=True, pre_hooks=[validate_size_arg], post_hooks=[clear_newly_unveiled_registers])
+    _        = defvar('VER',   Rpn_Float(RPN_VERSION), readonly=True, noshadow=True)
 
 
 def main():
@@ -8031,7 +8676,7 @@ def main():
             lnwriteln("Fatal error: {}".format(e))
         sys.exit(1)
     except Rpn_E_Throw as e:
-        print("Uncaught exception: throw {}".format(e))
+        print("Uncaught exception: throw {}".format(e)) # OK
         sys.exit(1)
 
     end_program()
@@ -8041,7 +8686,14 @@ def main_loop():
     global show_x
     show_x = False    # Reset, because some argv may have set it to True
 
-    lnwriteln("RPN version {}".format(rpn_version))
+    # Non-existence of ~/.rpnrc is indicator of novice mode
+    (rpnrc, _) = lookup_variable("RPNRC")
+    init_file = rpnrc.obj().value()
+    if len(init_file) == 0:
+        lnwriteln("RPN version {}".format(RPN_VERSION))
+        lnwriteln("Type ? for information, HELP <word> for help on a specific word")
+        lnwriteln("Type bye to exit")
+
     if not param_stack.empty():
         if param_stack.size() == 1:
             w_dup()
