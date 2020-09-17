@@ -59,6 +59,7 @@ flags_vec               = 0
 force_interactive       = False
 go_interactive          = True
 got_interrupt           = False
+load_init_file          = True
 rational_re             = r'(\d+)::(\d+)'
 rational_pat            = re.compile(rational_re)
 register                = dict()
@@ -1657,15 +1658,11 @@ The TOS is consumed as normal."""
                 w_slash()
 
         old_obj = cur_obj
+        new_obj = string_stack.pop() if stringp else param_stack.pop()
         var.set_obj(new_obj)
-        cur_obj = var.obj()
-        if stringp:
-            string_stack.pop()
-        else:
-            param_stack.pop()
 
         for post_hook_func in var.post_hooks():
-            post_hook_func(self.identifier(), old_obj, cur_obj)
+            post_hook_func(self.identifier(), old_obj, new_obj)
 
     def patch_recurse(self, new_word):
         pass
@@ -8455,7 +8452,7 @@ def to_rpn_class(n):
 
 def parse_args():
     try:
-        opts, argv = getopt.getopt(sys.argv[1:], "df:il:")
+        opts, argv = getopt.getopt(sys.argv[1:], "df:il:q")
     except getopt.GetoptError as e:
         print(str(e))           # OK
         usage()
@@ -8484,6 +8481,9 @@ def parse_args():
                 lnwriteln("-l: File '{}' does not exist".format(arg))
             except Rpn_E_Runtime_Error as e:
                 lnwriteln(str(e))
+        elif opt == "-q":
+            global load_init_file
+            load_init_file = False
         else:
             print("Unhandled option {}".format(opt)) # OK
             sys.exit(1)
@@ -8588,13 +8588,14 @@ def lnwriteln(s=""):
 #############################################################################
 def usage():
     print("""\
-Usage: rpn [-d] [-f FILE] [-i] [-l FILE] cmds...
+Usage: rpn [-d] [-f FILE] [-i] [-l FILE] [-q] cmds...
 
 -d        Enable debugging
 -f FILE   Load FILE and exit
 -i        Force interactive mode
--l FILE   Load FILE""")
-    sys.exit(64)
+-l FILE   Load FILE
+-q        Do not load init file (~/.rpnrc)""")
+    sys.exit(64)                # EX_USAGE
 
 
 def initialize():
@@ -8620,15 +8621,17 @@ def initialize():
     signal.signal(signal.SIGWINCH, sigwinch_handler)
     sigwinch_handler(0, 0)     # Read & define ROWS and COLS via stty(1)
 
-    # Attempt to load the user's init file
-    init_file = os.path.expanduser("~/.rpnrc")
-    if os.path.isfile(init_file):
-        (rpnrc, _) = lookup_variable('RPNRC')
-        rpnrc.set_obj(Rpn_String(init_file))
-        load_file(init_file)
-
     # Parse command line
     argv = parse_args()
+
+    # Hopefully load the user's init file
+    global load_init_file
+    if load_init_file:
+        init_file = os.path.expanduser("~/.rpnrc")
+        if os.path.isfile(init_file):
+            (rpnrc, _) = lookup_variable('RPNRC')
+            rpnrc.set_obj(Rpn_String(init_file))
+            load_file(init_file)
 
     if len(argv) > 0:
         global go_interactive
@@ -8739,11 +8742,11 @@ def main_loop():
 
     # Non-existence of ~/.rpnrc is indicator of novice mode
     (rpnrc, _) = lookup_variable("RPNRC")
-    init_file = rpnrc.obj().value()
-    if len(init_file) == 0:
+    if len(rpnrc.obj().value()) == 0:
         lnwriteln("RPN version {}".format(RPN_VERSION))
-        lnwriteln("Type ? for information, HELP <word> for help on a specific word")
-        lnwriteln("Type bye to exit")
+        lnwriteln("Type ? for information, help <word> for help on a specific word.")
+        lnwriteln("Type vlist for a list of all words, vars to see your variables.")
+        lnwriteln("Type .s to display the stack non-destructively, and bye to exit.")
 
     if not param_stack.empty():
         if param_stack.size() == 1:
