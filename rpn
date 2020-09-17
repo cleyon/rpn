@@ -3771,7 +3771,7 @@ EXAMPLE:
   begin  ?key case
     -1 of cr ."I/O error" cr leave endof
      0 of ."." 0.02 sleep endof
-     1 of cr ."Key: " dup .all leave endof
+     1 of cr ."Key: " .all leave endof
     otherwise cr ."Found garbage on stack" cr .s leave
   endcase again  ;
 
@@ -3793,16 +3793,14 @@ def w_query_key():
     fcntl.fcntl(fd, fcntl.F_SETFL, oldflags | os.O_NONBLOCK)
 
     try:
-        try:
-            c = sys.stdin.read(1)
-            if c == '':
-                param_stack.push(Rpn_Integer(0))
-            else:
-                val = ord(c) if c != '' else 0
-                param_stack.push(Rpn_Integer(val))
-                param_stack.push(Rpn_Integer(1))
-        except IOError:
-            param_stack.push(Rpn_Integer(-1))
+        c = sys.stdin.read(1)
+        if c == '':
+            param_stack.push(Rpn_Integer(0))
+            return
+        param_stack.push(Rpn_Integer(ord(c)))
+        param_stack.push(Rpn_Integer(1))
+    except IOError:
+        param_stack.push(Rpn_Integer(-1))
     finally:
         termios.tcsetattr(fd, termios.TCSAFLUSH, oldattr)
         fcntl.fcntl(fd, fcntl.F_SETFL, oldflags)
