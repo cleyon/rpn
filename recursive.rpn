@@ -43,8 +43,7 @@ WARNING:
 ack is implemented using a recursive definition which will consume
 inordinate amounts of space and time even on modest arguments."
 
-| in:x in:y |
-
+  | in:x in:y |
   \ ."ack( " @x . .", " @y . .")" cr    \ If you want to monitor progress
 
   @x 0= if

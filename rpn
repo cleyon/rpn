@@ -892,6 +892,18 @@ class Rpn_Dot_Quote:
 
 
 class Rpn_Fetch_Var:
+    """Fetch variable.
+
+It is normally an error to fetch an undefined variable,
+but @?VAR will return 0 if VAR is not defined.
+
+In addition to fetching the value of a variable,
+"recall arithmetic" modifies the TOS (X) value in an
+additional way: using the variable's value,
+        New TOS = Previous TOS +|-|*|/ Variable value
+The value stored in Variable is not affected.  Does
+the right thing with empty stack (uses zero)."""
+
     def __init__(self, ident, modifier=None):
         self._identifier = ident
         self._modifier   = modifier
@@ -913,10 +925,11 @@ class Rpn_Fetch_Var:
         elif self._modifier == '$' or type(var.obj()) is Rpn_String:
             string_stack.push(var.obj())
         else:
-            if self._modifier is not None and param_stack.empty():
-                raise Rpn_E_Runtime_Error("{}: Insufficient parameters (1 required)".format(str(self)))
-            if self._modifier == '/' and var.obj().zerop():
+            if self._modifier is not None and self._modifier == '/' and var.obj().zerop():
                 raise Rpn_E_Runtime_Error("{}: Cannot divide by zero".format(str(self)))
+            if self._modifier is not None and param_stack.empty():
+                # Fake a zero on the stack so recall arithmetic continues to work
+                param_stack.push(Rpn_Integer(0))
             param_stack.push(var.obj())
             global show_x
             old_show_x = show_x
@@ -1588,6 +1601,14 @@ class Rpn_Stack:
 
 
 class Rpn_Store_Var:
+    """Store variable.
+
+In addition to storing a value directly in a variable,
+"storage arithmetic" modifies the variable's value in an
+additional way: using the TOS value,
+        Variable New value = Previous value +|-|*|/ TOS
+The TOS is consumed as normal."""
+
     def __init__(self, ident, modifier=None):
         self._identifier = ident
         self._modifier   = modifier
@@ -4103,6 +4124,39 @@ def w_begin():
     pass                        # Grammar rules handle this word
 
 
+@defword(name='binom', args=3, print_x=True, doc="""\
+Binomial probability ( n k p -- prob )
+
+Return the probability of an event occurring exactly k times in n attempts,
+where the probability of it occurring in a single attempt is p.
+
+DEFINITION:
+binom(n,k,p) = comb(n,k) * p^k * (1-p)^(n-k)""")
+def w_binom():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    z = param_stack.pop()
+    if    type(x) not in [Rpn_Integer, Rpn_Rational, Rpn_Float] \
+       or type(y) is not Rpn_Integer \
+       or type(z) is not Rpn_Integer:
+        param_stack.push(z)
+        param_stack.push(y)
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("binom: Type error ({}, {}, {})".format(typename(z), typename(y), typename(x)))
+    p = float(x.value())
+    k = y.value()
+    n = z.value()
+
+    if p == 0:
+        r = 1 if k == 0 else 0
+    elif p == 1:
+        r = 1 if k == n else 0
+    else:
+        r = comb_helper(n, k) * p**k * (1.0-p)**(n-k)
+
+    param_stack.push(Rpn_Float(r))
+
+
 @defword(name='bitand', args=2, print_x=True, doc="""\
 bitand  ( i2 i1 -- i2 AND i1 )  Bitwise AND
 
@@ -5030,6 +5084,27 @@ def w_fc_query_set():
         set_flag(flag)
 
 
+@defword(name='fib', args=1, print_x=True, doc="""\
+N'th Fibonacci number  ( n -- fib )
+
+DEFINITION:
+fib(0) = 0
+fib(1) = 1
+fib(n) = fib(n-1) + fib(n-2)
+
+n cannot be negative.""")
+def w_fib():
+    x = param_stack.pop()
+    if type(x) is not Rpn_Integer:
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("fib: Type error ({})".format(typename(x)))
+    if x.value() < 0:
+        param_stack.push(x)
+        raise Rpn_E_Value_Error("fib: X cannot be negative")
+    result = Rpn_Integer(fib_helper(x.value()))
+    param_stack.push(result)
+
+
 @defword(name='fix', args=1, print_x=False, doc="""\
 Set fixed display  ( n -- )
 
@@ -5262,6 +5337,32 @@ def w_gamma():
     param_stack.push(result)
 
 
+@defword(name='gcd', args=2, doc="""\
+Greatest common divisor ( y x -- gcd )
+
+: gcd  begin ?dup while tuck mod repeat ;""")
+def w_gcd():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if    type(x) is not Rpn_Integer \
+       or type(y) is not Rpn_Integer:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("gcd: Type error ({}, {})".format(typename(y), typename(x)))
+
+    xval = x.value()
+    yval = y.value()
+    if xval < 0 or yval < 0:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise Rpn_E_Value_Error("gcd: X and Y cannot be negative")
+    if xval == 0 or yval == 0:
+        param_stack.push(Rpn_Integer(0))
+    else:
+        r = gcd_helper(xval, yval)
+        param_stack.push(Rpn_Integer(r))
+
+
 if sys.version_info >= (3,8):
     @defword(name='gmean', print_x=True, doc="""\
     Print the geometric mean of the statistics data""")
@@ -5452,6 +5553,27 @@ def w_hr():
         raise Rpn_E_Type_Error("hr: Type error ({})".format(typename(x)))
     result.set_label("HH.nnn")
     param_stack.push(result)
+
+
+@defword(name='hypot', args=2, doc="""\
+hypot  ( y x -- hypot )  Hypotenuse distance
+
+Square root of the sum of squares.
+
+DEFINITION:
+hypot = sqrt(x^2 + y^2)""")
+def w_hypot():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if    type(x) not in [Rpn_Integer, Rpn_Rational, Rpn_Float] \
+       or type(y) in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("hypot: Type error ({}, {})".format(typename(y), typename(x)))
+
+    yval = float(y.value())
+    xval = float(x.value())
+    param_stack.push(Rpn_Float(math.hypot(xval, yval)))
 
 
 @defword(name='I', doc="""\
@@ -5686,6 +5808,35 @@ def w_key():
     val = ord(k) if k != '' else 0
     #lnwriteln("You pressed <{}>, value={}".format(k, val))
     param_stack.push(Rpn_Integer(val))
+
+
+@defword(name='lcm', args=2, doc="""\
+Least common multiple ( y x -- lcm )
+
+DEFINITION:
+              x * y
+lcm(x, y) = ---------
+            gcd(x, y)""")
+def w_lcm():
+    x = param_stack.pop()
+    y = param_stack.pop()
+    if    type(x) is not Rpn_Integer \
+       or type(y) is not Rpn_Integer:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("lcm: Type error ({}, {})".format(typename(y), typename(x)))
+
+    xval = x.value()
+    yval = y.value()
+    if xval < 0 or yval < 0:
+        param_stack.push(y)
+        param_stack.push(x)
+        raise Rpn_E_Value_Error("lcm: X and Y cannot be negative")
+    if xval == 0 or yval == 0:
+        param_stack.push(Rpn_Integer(0))
+    else:
+        r = (xval * yval) / gcd_helper(xval, yval)
+        param_stack.push(Rpn_Integer(r))
 
 
 @defword(name='leave', doc="""\
@@ -7712,8 +7863,7 @@ Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
 
 
 : debug         doc:"debug  ( -- )  Toggle debugging state"
-  20 tf
-  20 fs? if
+  20 dup tf  fs? if
     ."Debugging is now ENABLED"
   else
     ."Debugging is now disabled"
@@ -7731,35 +7881,6 @@ Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
 : mod           doc:"mod  ( y x -- remainder )  Remainder"
   | in:y in:x |
   @y @x /mod  drop ;
-
-
-\ A few Euclidean functions
-: hypot         doc:"hypot  ( y x -- hypot )  Hypotenuse distance
-
-DEFINITION:
-hypot = sqrt(x^2 + y^2)"
-  | in:y in:x |
-  @y sq  @x sq  +  sqrt
-;
-
-: gcd           doc:"gcd  ( y x -- gcd )  Greatest Common Divisor"
-  begin
-    ?dup  while
-    tuck mod
-  repeat
-;
-
-: lcm           doc:"lcm  ( y x -- lcm )  Least Common Multiple
-
-DEFINITION:
-      |x * y|
-lcm = --------
-      gcd(x,y)"
-  | in:y in:x |
-  @x @y * abs
-  @x @y gcd
-  /
-;
 
 
 \ Conversion functions
@@ -7847,6 +7968,21 @@ def eval_string(s):
             dbg("eval_string", 1, "Gotta pop {} scopes from the stack".format(scope_stack.size() - scope_stack_size))
         while scope_stack.size() > scope_stack_size:
             pop_scope("Parse failure")
+
+
+@memoize
+def fib_helper(n):
+    if n == 0:
+        return 0
+    if n == 1:
+        return 1
+    return fib_helper(n-1) + fib_helper(n-2)
+
+
+def gcd_helper(x, y):
+    while x != 0:
+        y, x = x, y % x
+    return y
 
 
 @memoize
