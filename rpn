@@ -3,6 +3,7 @@
 import calendar
 import cmath
 import datetime
+import fcntl
 from   fractions import Fraction
 import getopt
 import inspect
@@ -18,6 +19,7 @@ import statistics
 import subprocess
 import sys
 import tempfile         # edit
+import termios
 import time
 import traceback
 import tty
@@ -3760,6 +3762,55 @@ def w_query_dup():
         w_dup()
 
 
+@defword(name='?key', print_x=False, doc="""\
+Read keystroke with flag ( -- key 1 | 0 | -1 )
+?key will NOT block but rather return a success/fail flag to the stack.
+ASCII code of keystroke will also be returned on success.
+Keystroke WILL echo.  This works only on Unix/Linux.
+
+EXAMPLE:
+: test?key
+  doc:"Display dots until a key is pressed  ( -- key )"
+  begin  ?key case
+    -1 of cr ."I/O error" cr leave endof
+     0 of ."." 0.02 sleep endof
+     1 of cr ."Key: " dup .all leave endof
+    otherwise cr ."Found garbage on stack" cr .s leave
+  endcase again  ;
+
+qv key""")
+def w_query_key():
+    # Input that is not a tty doesn't get to play
+    if not sys.stdin.isatty():
+        param_stack.push(Rpn_Integer(-1))
+        return
+
+    fd = sys.stdin.fileno()
+    oldattr = termios.tcgetattr(fd)
+    newattr = termios.tcgetattr(fd)
+    newattr[3] = newattr[3] & ~termios.ICANON
+    newattr[3] = newattr[3] & ~termios.ECHO # Doesn't disable echo, not sure why not
+    termios.tcsetattr(fd, termios.TCSANOW, newattr)
+
+    oldflags = fcntl.fcntl(fd, fcntl.F_GETFL)
+    fcntl.fcntl(fd, fcntl.F_SETFL, oldflags | os.O_NONBLOCK)
+
+    try:
+        try:
+            c = sys.stdin.read(1)
+            if c == '':
+                param_stack.push(Rpn_Integer(0))
+            else:
+                val = ord(c) if c != '' else 0
+                param_stack.push(Rpn_Integer(val))
+                param_stack.push(Rpn_Integer(1))
+        except IOError:
+            param_stack.push(Rpn_Integer(-1))
+    finally:
+        termios.tcsetattr(fd, termios.TCSAFLUSH, oldattr)
+        fcntl.fcntl(fd, fcntl.F_SETFL, oldflags)
+
+
 @defword(name='?variables', print_x=False, hidden=True, doc='')
 def w_info_variables():
     print("""\
@@ -5802,7 +5853,9 @@ def w_inv():
 
 @defword(name='key', print_x=True, doc="""\
 ASCII code of single keystroke  ( -- key )
-KEY will block until input is provided.""")
+key will block until input is provided.  Keystroke is not echoed.
+
+qv ?key""")
 def w_key():
     k = _Getch()()
     val = ord(k) if k != '' else 0
@@ -8223,11 +8276,9 @@ class _Getch_Windows:
 
 class _Getch_Unix:
     def __init__(self):
-        # import termios now or else you'll get the Unix version on the Mac
-        import termios
+        pass
 
     def __call__(self):
-        import termios
         fd = sys.stdin.fileno()
         old_settings = termios.tcgetattr(fd)
         try:
