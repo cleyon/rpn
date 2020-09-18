@@ -51,22 +51,16 @@ if have_numpy:
 
 
 # Global variables
-angle_mode              = "d"         # r=Radians, d=Degrees, g=Gradians
-date_re                 = r'^(\d{1,2})\.(\d{2})(\d{4})$'
-date_pat                = re.compile(date_re)
 default_protected       = True
 flags_vec               = 0
 force_interactive       = False
 go_interactive          = True
 got_interrupt           = False
 load_init_file          = True
-rational_re             = r'(\d+)::(\d+)'
-rational_pat            = re.compile(rational_re)
 register                = dict()
 stat_list               = []
-time_re                 = r'^[-+]?(\d+)\.(\d{,2})(\d*)$'
-time_pat                = re.compile(time_re)
 
+DATE_RE                 = re.compile(r'^(\d{1,2})\.(\d{2})(\d{4})$') # MM.DDYYYY
 FLAG_TVM_CONTINUOUS     =   8 # Set: Continuous compounding Clear: Discrete compounding
 FLAG_TVM_BEGIN_MODE     =   9 # Set: Begin (annuity due)    Clear: End (ordinary annuity)
 FLAG_SHOW_X             =  19 # Set: Show X at prompt       Clear: do not show X
@@ -89,8 +83,10 @@ PX_CONTROL              = None  # Control structures (IF/THEN, DO/LOOP) have no 
 PX_IO                   = False # I/O (.", .s, etc) disable printing
 PX_PREDICATE            = None  # Predicates
 MATRIX_MAX              = 999
+RATIONAL_RE             = re.compile(r'(\d+)::(\d+)') # ddd::ddd
 REG_SIZE_MIN            =  17
 REG_SIZE_MAX            = 100   # R00..R99; further restricted by SIZE
+TIME_RE                 = re.compile(r'^[-+]?(\d+)\.(\d{,2})(\d*)$') # HH.MMSSsss
 
 # DEG_PER_RAD  = 360 / TAU
 # E            = Base of natural logarithms = exp(1.0)
@@ -137,7 +133,7 @@ class Rpn_E_Abort(Rpn_Exception):
 It clears the parameter, return, and string stacks.  Caught in p_execute."""
 
 
-class Rpn_E_End_Program (Rpn_Exception):
+class Rpn_E_End_Program(Rpn_Exception):
     """Rpn_E_End_Program is raised when there is no more input to parse, or
 the interrupt key is signaled.  It is caught in __main__, where processing
 is halted, the exit routine prints the stack, and the program exits."""
@@ -316,7 +312,7 @@ def whoami():
         who_i_am = who_i_am[2:]
     return who_i_am
 
-def set_debug_level(resource, level = 1):
+def set_debug_level(resource, level=1):
     global debug_levels
 
     if resource not in debug_levels:
@@ -328,7 +324,7 @@ def set_debug_level(resource, level = 1):
         raise Rpn_E_Fatal("set_debug_level: Level {} out of range (0..9 expected)".format(level))
     debug_levels[resource] = level
 
-def dbg(resource, level = 1, text = None):
+def dbg(resource, level=1, text=None):
     '''Note that a level of -1 will always be True and possibly print the text.
 This can be useful to quickly turn a debugging statement on unilaterally;
 just change "dbg(res,1,xxx)" to "dbg(res,-1,xxx)".'''
@@ -542,7 +538,7 @@ class Rpn_Case:
 
     def __repr__(self):
         s = "Case["
-        s += ", ".join([ repr(cc) for cc in self._case_clauses.items() ])
+        s += ", ".join([repr(cc) for cc in self._case_clauses.items()])
         if self._otherwise_seq is not None:
             s += ", Otherwise[{}]".format(repr(self._otherwise_seq))
         return s + "]"
@@ -980,7 +976,7 @@ Success:  (True, dateobj, julian)
           dateobj is datetime.date, julian is an int
 Failure:  (False, None, None)"""
 
-        match = date_pat.match("%.6f" % self.value())
+        match = DATE_RE.match("%.6f" % self.value())
         if match is None:
             return (False, None, None)
 
@@ -1004,7 +1000,7 @@ greater than 24, so there may not be a valid timeobj even if it parses okay.
 Success:  (True, HH, MM, SS, timeobj)
 Failure:  (False, None, None, None, None)"""
 
-        match = time_pat.match("%f" % self.value())
+        match = TIME_RE.match("%f" % self.value())
         if match is None:
             return (False, None, None, None, None)
 
@@ -1152,7 +1148,7 @@ class Rpn_List:
         if item is None and oldlist is None:
             self._list = []
         elif item is not None and oldlist is None:
-            self._list = [ item ]
+            self._list = [item]
         else:
             val = []
             for x in oldlist.listval():
@@ -1190,10 +1186,10 @@ class Rpn_List:
         return len(self.listval())
 
     def __str__(self):
-        return " ".join([ str(item) for item in self.listval() ])
+        return " ".join([str(item) for item in self.listval()])
 
     def __repr__(self):
-        return "List[" + ", ".join([ repr(item) for item in self.listval() ]) + "]"
+        return "List[" + ", ".join([repr(item) for item in self.listval()]) + "]"
 
 
 class Rpn_Matrix(Rpn_Stackable):
@@ -1264,7 +1260,7 @@ class Rpn_Rational(Rpn_Stackable):
 
     @classmethod
     def from_string(cls, s):
-        match = rational_pat.match(s)
+        match = RATIONAL_RE.match(s)
         if match is None:
             raise Rpn_E_Fatal("Rational pattern failed to match '{}'".format(s))
         return cls(match.group(1), match.group(2))
@@ -1411,12 +1407,12 @@ class Rpn_Scope:
         s = ""
         #if len(self.visible_variables()) > 0:
         if len(self.all_varnames()) > 0:
-            #s += "|" + " ".join([ self.decorate_varname(x[0]) for x in self.visible_variables() ]) + "|"
-            s += "|" + " ".join([ self.decorate_varname(x) for x in self.all_varnames() ]) + "|"
+            #s += "|" + " ".join([self.decorate_varname(x[0]) for x in self.visible_variables()]) + "|"
+            s += "|" + " ".join([self.decorate_varname(x) for x in self.all_varnames()]) + "|"
             if len(self.words()) > 0:
                 s += " "
         if len(self.words()) > 0:
-            s += " ".join([ w.as_definition() for w in self.words().values() ])
+            s += " ".join([w.as_definition() for w in self.words().values()])
         return s
 
     def __repr__(self):
@@ -1922,7 +1918,7 @@ class Rpn_Vector(Rpn_Stackable):
         super().__init__()
         if type(vals) is not Rpn_List:
             raise Rpn_E_Fatal("{}: vals is not an Rpn_List ({})".format(whoami(), repr(vals)))
-        self.set_value(np.array([ elem.value() for elem in vals.listval() ]))
+        self.set_value(np.array([elem.value() for elem in vals.listval()]))
 
     @classmethod
     def from_numpy(cls, x):
@@ -1939,7 +1935,7 @@ class Rpn_Vector(Rpn_Stackable):
     def __str__(self):
         if self.size() == 0:
             return "[]"
-        return "[ " + " ".join([ str(to_rpn_class(e)) for e in self.value() ]) +" ]"
+        return "[ " + " ".join([str(to_rpn_class(e)) for e in self.value()]) +" ]"
 
     def __repr__(self):
         return "Vector[{}]".format(repr(self.value()))
@@ -3740,6 +3736,7 @@ Create a 3-vector from the stack  ( z y x -- v )""")
 @defword(name='?', print_x=PX_IO, doc="""\
 ?[topic]   Display information on a variety of topics""")
 def w_info():
+    global RPN_VERSION
     writeln("rpn version: {}".format(RPN_VERSION))
     if have_numpy:
         writeln("NumPy version: {}".format(np.__version__))
@@ -4289,7 +4286,7 @@ def w_bitxor():
     param_stack.push(Rpn_Integer(y.value() ^ x.value()))
 
 
-@defword(name='bye', print_x=PX_CONTROL,  doc="""\
+@defword(name='bye', print_x=PX_CONTROL, doc="""\
 Exit program""")
 def w_bye():
     raise Rpn_E_End_Program()
@@ -4388,7 +4385,7 @@ def w_chs():
     elif type(x) is Rpn_Float:
         result = Rpn_Float(-1.0 * x.value())
     elif type(x) is Rpn_Rational:
-        result = Rpn_Rational.from_Fraction(Fraction(-1,1) * x.value())
+        result = Rpn_Rational.from_Fraction(Fraction(-1, 1) * x.value())
     elif type(x) is Rpn_Complex:
         result = Rpn_Complex(-1.0*x.real(), -1.0*x.imag())
     else:
@@ -4739,8 +4736,6 @@ Set angular mode to degrees.
 WARNING:
 Do not confuse this with \"DEG\" (which is the number of degress per radian).""")
 def w_deg():
-    global angle_mode
-    angle_mode = "d"
     clear_flag(FLAG_RAD)
     clear_flag(FLAG_GRAD)
 
@@ -4896,7 +4891,7 @@ def w_edit():
     with tempfile.NamedTemporaryFile(suffix=".tmp") as tf:
         tf.write(initial_value)
         tf.flush()
-        subprocess.call([ editor, tf.name ])
+        subprocess.call([editor, tf.name])
         tf.seek(0)
         edited_message = tf.read()
 
@@ -5437,7 +5432,7 @@ def w_gcd():
         param_stack.push(Rpn_Integer(r))
 
 
-if sys.version_info >= (3,8):
+if sys.version_info >= (3, 8):
     @defword(name='gmean', print_x=PX_COMPUTE, doc="""\
     Print the geometric mean of the statistics data""")
     def w_gmean():
@@ -5456,8 +5451,6 @@ if sys.version_info >= (3,8):
 @defword(name='grad', print_x=PX_CONFIG, doc="""\
 Set angular mode to gradians""")
 def w_grad():
-    global angle_mode
-    angle_mode = "g"
     clear_flag(FLAG_RAD)
     set_flag(FLAG_GRAD)
 
@@ -5493,7 +5486,7 @@ def w_hms():
         negative = x.value() < 0
         hr = abs(x.value())
         (minutes, seconds) = divmod(hr * 3600, 60)
-        (hours, minutes)   = divmod(minutes, 60)
+        (hours, minutes) = divmod(minutes, 60)
         if negative:
             hours *= -1.0
         result = Rpn_Float("%d.%02d%02d" % (hours, minutes, seconds))
@@ -5855,7 +5848,7 @@ def w_inv():
     elif type(x) is Rpn_Float:
         result = Rpn_Float(1.0 / x.value())
     elif type(x) is Rpn_Complex:
-        r = complex(1,0) / x.value()
+        r = complex(1, 0) / x.value()
         result = Rpn_Complex.from_complex(r)
     elif type(x) is Rpn_Vector:
         param_stack.push(x)
@@ -5995,7 +5988,7 @@ def w_ln_1_plus_x():
             raise Rpn_E_Value_Error("lnp1: X cannot be -1")
         result = Rpn_Float(math.log1p(x.value()))
     elif type(x) is Rpn_Complex:
-        if x.value() == complex(-1,0):
+        if x.value() == complex(-1, 0):
             param_stack.push(x)
             raise Rpn_E_Value_Error("lnp1: X cannot be (-1,0)")
         result = Rpn_Complex.from_complex(cmath.log(x.value() + complex(1,0)))
@@ -6595,8 +6588,6 @@ def w_r_fetch():
 @defword(name='rad', print_x=PX_CONFIG, doc="""\
 Set angular mode to radians""")
 def w_rad():
-    global angle_mode
-    angle_mode = "r"
     set_flag(FLAG_RAD)
     clear_flag(FLAG_GRAD)
 
@@ -7462,7 +7453,7 @@ qv WORDS""")
 def w_vlist():
     global scr_cols
     # This is nice, but it shows hidden words:
-    # list_in_columns(sorted([ x for x in global_scope.words() ],
+    # list_in_columns(sorted([x for x in global_scope.words()],
     #                        key=str.casefold), scr_cols.obj().value() - 1)
     words = dict()
     for wordname in global_scope.words():
@@ -7495,7 +7486,7 @@ Print the list of user-defined words.
 qv VLIST""")
 def w_words():
     global scr_cols
-    list_in_columns(sorted([ x[0] for x in global_scope.unprotected_words() ],
+    list_in_columns(sorted([x[0] for x in global_scope.unprotected_words()],
                            key=str.casefold), scr_cols.obj().value() - 1)
 
 
@@ -7824,20 +7815,28 @@ def plot_helper(func, x_low, x_high):
     lnwriteln("         {:10.3f} {} {:10.3f}".format(x_low, " "*(cols-36), x_high))
 
 
+def angle_mode_letter():
+    if flag_set_p(FLAG_RAD) and flag_set_p(FLAG_GRAD):
+        raise Rpn_E_Fatal("angle_mode_letter: Bad angle mode: FLAG_RAD and FLAG_GRAD both set")
+    if flag_set_p(FLAG_RAD):
+        return "r"
+    if flag_set_p(FLAG_GRAD):
+        return "g"
+    return "d"
+
+
 def angle_mode_label():
-    global angle_mode
-    if angle_mode == "r":
+    if flag_set_p(FLAG_RAD) and flag_set_p(FLAG_GRAD):
+        raise Rpn_E_Fatal("angle_mode_label: Bad angle mode: FLAG_RAD and FLAG_GRAD both set")
+    if flag_set_p(FLAG_RAD):
         return "Rad"
-    if angle_mode == "d":
-        return "Deg"
-    if angle_mode == "g":
+    if flag_set_p(FLAG_GRAD):
         return "Grad"
-    raise Rpn_E_Fatal("Bad angle_mode '{}'".format(angle_mode))
+    return "Deg"
 
 
 def convert_mode_to_radians(x, force_mode=None):
-    global angle_mode
-    mode = force_mode if force_mode is not None else angle_mode
+    mode = force_mode if force_mode is not None else angle_mode_letter()
     if mode == "r":
         return x
     if mode == "d":
@@ -7848,8 +7847,7 @@ def convert_mode_to_radians(x, force_mode=None):
 
 
 def convert_radians_to_mode(r, force_mode=None):
-    global angle_mode
-    mode = force_mode if force_mode is not None else angle_mode
+    mode = force_mode if force_mode is not None else angle_mode_letter()
     if mode == "r":
         return r
     if mode == "d":
@@ -8032,10 +8030,12 @@ Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
   date d->jd jd->$ ;
 
 : adate         doc:"adate  Append current date to top string stack element"
-  $date $cat ;
+  $date
+  $depth 1 > if $cat then ;
 
 : atime         doc:"atime  Append current time to top string stack element"
-  $time $cat ;
+  $time
+  $depth 1 > if $cat then ;
 
 \ : END_SECONDARY_WORDS----------------------------- doc:" " ;
 """)
@@ -8560,11 +8560,12 @@ def parse_args():
 
 
 def prompt_string():
-    global angle_mode
-    s = "[{}{}] ".format(angle_mode, param_stack.size())
-
+    s = "[{}{}".format(angle_mode_letter(), param_stack.size())
+    if not string_stack.empty():
+        s += ",{}".format(string_stack.size())
+    s += "] "
     if not parse_stack.empty():
-        qq = " ".join([ p[1] for p in parse_stack.items_bottom_to_top() ])
+        qq = " ".join([p[1] for p in parse_stack.items_bottom_to_top()])
         s += qq + " ... "
     return s
 
@@ -8667,13 +8668,21 @@ Usage: rpn [-d] [-f FILE] [-i] [-l FILE] [-q] cmds...
 
 
 def initialize():
-    global RPN_VERSION, default_protected
+    global default_protected
 
+    # Set up low level stuff, stacks, variables
     sys.setrecursionlimit(2000) # default is 1000
     random.seed()
     disp_stack.push(Rpn_Display_Config())
     push_scope(global_scope, "Global scope")
     define_variables()
+
+    # Set up signal handling
+    signal.signal(signal.SIGQUIT, sigquit_handler)
+    signal.signal(signal.SIGWINCH, sigwinch_handler)
+    sigwinch_handler(0, 0)     # Read & define ROWS and COLS via stty(1)
+
+    # Set initial conditions
     w_std()
     w_clreg()
     w_clflag()
@@ -8683,11 +8692,6 @@ def initialize():
     # Switch to user mode; words & variables are no longer protected
     default_protected = False
     define_tertiary_words()
-
-    # Set up signal handling
-    signal.signal(signal.SIGQUIT, sigquit_handler)
-    signal.signal(signal.SIGWINCH, sigwinch_handler)
-    sigwinch_handler(0, 0)     # Read & define ROWS and COLS via stty(1)
 
     # Parse command line
     argv = parse_args()
@@ -8705,7 +8709,7 @@ def initialize():
         global go_interactive
         if not force_interactive:
             go_interactive = False
-        s = " ".join([ arg for arg in argv ])
+        s = " ".join([arg for arg in argv])
         eval_string(s)
 
 
@@ -8758,7 +8762,7 @@ def clear_newly_unveiled_registers(_identifier, old, cur):
             register[old_size + r] = Rpn_Float(0.0)
 
 def define_variables():
-    global sharpout, scr_cols, scr_rows
+    global sharpout, scr_cols, scr_rows, RPN_VERSION
     global tvm_N, tvm_INT, tvm_PV, tvm_PMT, tvm_FV, tvm_CF, tvm_PF
 
     # Variables defined here are all protected=True by default
@@ -8835,7 +8839,7 @@ def main_loop():
             continue
         if error is True:
             lnwriteln("{}: generate_token_list() error".format(whoami()))
-        s = " ".join([ t.value for t in tok_list ])
+        s = " ".join([t.value for t in tok_list])
         dbg("parse", 1, "s='{}'".format(s))
         eval_string(s)
 
