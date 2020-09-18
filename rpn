@@ -3021,6 +3021,13 @@ def w_dollar_swap():
     string_stack.push(sy)
 
 
+@defword(name='$time', print_x=PX_COMPUTE, doc="""\
+Current time as string  [ -- HH:MM:SS ]""")
+def w_dollar_time():
+    t = datetime.datetime.now().strftime("%H:%M:%S")
+    string_stack.push(Rpn_String(t))
+
+
 @defword(name='%', args=2, print_x=PX_COMPUTE, doc="""\
 Percentage  ( base rate -- base percent )
 
@@ -3733,7 +3740,14 @@ Create a 3-vector from the stack  ( z y x -- v )""")
 @defword(name='?', print_x=PX_IO, doc="""\
 ?[topic]   Display information on a variety of topics""")
 def w_info():
+    writeln("rpn version: {}".format(RPN_VERSION))
+    if have_numpy:
+        writeln("NumPy version: {}".format(np.__version__))
+    if have_scipy:
+        writeln("SciPy version: {}".format(scipy.__version__))
+
     print("""\
+
 rpn is a general-purpose calculator and programming language based loosely
 on Forth and Hewlett-Packard calculators.
 
@@ -5843,16 +5857,16 @@ def w_inv():
     elif type(x) is Rpn_Complex:
         r = complex(1,0) / x.value()
         result = Rpn_Complex.from_complex(r)
-    # elif type(x) is Rpn_Vector:
-    #     # Vectors are not invertible
-    # elif type(x) is Rpn_Matrix:
-    #     # Numpy can do this; either
-    #     # m = np.matrix([[],[]])
-    #     # m.I
-    #     # -or
-    #     # b = np.array([[],[]])
-    #     # np.linalg.inv(b)
-    #     # And remember that not every matrix is invertible (singular ones)
+    elif type(x) is Rpn_Vector:
+        param_stack.push(x)
+        raise Rpn_E_Type_Error("inv: Vectors are not invertible")
+    elif type(x) is Rpn_Matrix:
+        try:
+            r = np.linalg.inv(x.value())
+        except np.linalg.LinAlgError:
+            param_stack.push(x)
+            raise Rpn_E_Value_Error("inv: Singular matrix has no inverse")
+        result = Rpn_Matrix.from_numpy(r)
     else:
         param_stack.push(x)
         raise Rpn_E_Type_Error("inv: Type error ({})".format(typename(x)))
@@ -5870,6 +5884,14 @@ def w_key():
     val = ord(k) if k != '' else 0
     #lnwriteln("You pressed <{}>, value={}".format(k, val))
     param_stack.push(Rpn_Integer(val))
+
+
+@defword(name='label', args=1, str_args=1, print_x=PX_CONFIG, doc="""\
+Set label of X  ( x -- x )  [ "label" -- ]""")
+def w_label():
+    x = param_stack.top()
+    label = string_stack.pop().value()
+    x.set_label(label)
 
 
 @defword(name='lcm', args=2, print_x=PX_COMPUTE, doc="""\
@@ -8004,6 +8026,17 @@ Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
 \ : in3->cm3  doc:"in3->cm3  ( in^3 -- cm^3 )  Convert cubic inches to cubic centimeters"
 \   16.3871     * ;
 
+
+\ String functions
+: $date         doc:"$date  [ -- date ]  Current date as string"
+  date d->jd jd->$ ;
+
+: adate         doc:"adate  Append current date to top string stack element"
+  $date $cat ;
+
+: atime         doc:"atime  Append current time to top string stack element"
+  $time $cat ;
+
 \ : END_SECONDARY_WORDS----------------------------- doc:" " ;
 """)
 
@@ -8740,6 +8773,8 @@ def define_variables():
     tvm_N    = defvar('N',     None, noshadow=True, pre_hooks=[require_int_or_float, require_positive],
                       doc="TVM: Number of payments")
     _        = defvar('NUMPY', Rpn_Integer(bool_to_int(have_numpy)), readonly=True, noshadow=True)
+    if have_numpy:
+               defvar('NUMPY_VER', Rpn_String(np.__version__), readonly=True)
     tvm_PF   = defvar('PF',    Rpn_Integer(1), noshadow=True, pre_hooks=[require_int, require_positive],
                       doc="TVM: Payment Frequency")
     tvm_PMT  = defvar('PMT',   None, noshadow=True, pre_hooks=[require_int_or_float],
@@ -8749,6 +8784,8 @@ def define_variables():
     scr_rows = defvar('ROWS',  Rpn_Integer(0), pre_hooks=[require_int, require_positive])
     _        = defvar('RPNRC', Rpn_String(""), readonly=True, hidden=True)
     _        = defvar('SCIPY', Rpn_Integer(bool_to_int(have_scipy)), readonly=True, noshadow=True)
+    if have_scipy:
+               defvar('SCIPY_VER', Rpn_String(scipy.__version__), readonly=True)
     _        = defvar('SIZE',  Rpn_Integer(20), noshadow=True, pre_hooks=[validate_size_arg], post_hooks=[clear_newly_unveiled_registers])
     _        = defvar('VER',   Rpn_Float(RPN_VERSION), readonly=True, noshadow=True)
 
@@ -8777,7 +8814,6 @@ def main_loop():
     # Non-existence of ~/.rpnrc is indicator of novice mode
     (rpnrc, _) = lookup_variable("RPNRC")
     if len(rpnrc.obj().value()) == 0:
-        lnwriteln("RPN version {}".format(RPN_VERSION))
         lnwriteln("Type ? for information, help <word> for help on a specific word.")
         lnwriteln("Type vlist for a list of all words, vars to see your variables.")
         lnwriteln("Type .s to display the stack non-destructively, and bye to exit.")
