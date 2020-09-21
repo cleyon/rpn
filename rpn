@@ -5,6 +5,7 @@ import cmath
 import datetime
 import fcntl
 from   fractions import Fraction
+import functools
 import getopt
 import inspect
 import itertools
@@ -24,7 +25,10 @@ import time
 import traceback
 import tty
 
-RPN_VERSION = 15.6
+RPN_VERSION     = 15.6
+have_numpy      = False
+have_scipy      = False
+have_matplotlib = False
 
 try:
     import ply.lex  as lex
@@ -33,21 +37,29 @@ except ModuleNotFoundError:
     print("RPN requires the 'ply' library; please consult the README") # OK
     sys.exit(1)
 
-have_numpy = False
+# Check if NumPy is available
 try:
     import numpy as np
     have_numpy = True
 except ModuleNotFoundError:
     pass
 
-have_scipy = False
 if have_numpy:
+    # Check if SciPy is available
     try:
         import scipy.integrate
         import scipy.optimize
         have_scipy = True
     except ModuleNotFoundError:
         pass
+
+    # Check if Matplotlib is available
+    try:
+        import matplotlib
+        have_matplotlib = True
+    except ModuleNotFoundError:
+        pass
+
 
 
 # Global variables
@@ -1922,11 +1934,10 @@ class Rpn_Vector(Rpn_Stackable):
 
     @classmethod
     def from_numpy(cls, x):
+        print("Rpn_Vector.from_numpy: x={}, type={}".format(x, type(x)))
         obj = cls(Rpn_List())
-        # print(type(obj))
         # print("from_numpy: {}".format(repr(obj)))
         obj.set_value(x)
-        # print("from_numpy: {}".format(repr(obj)))
         return obj
 
     def size(self):
@@ -2897,7 +2908,7 @@ No prompt is provided.
 qv PROMPT""")
 def w_number_in():
     global sharpout
-    x = ''
+    x = ""
     while len(x) == 0:
         try:
             x = input()
@@ -2932,11 +2943,11 @@ def w_dollar_dot_bang():
 
 
 @defword(name='$in', print_x=PX_IO, doc="""\
-Read a string from the keyboard.  THe value is placed on the string stack.
+Read a string from the keyboard.  The value is placed on the string stack.
 No prompt is provided.""")
 def w_dollar_in():
     global sharpout
-    x = ''
+    x = ""
     while len(x) == 0:
         try:
             x = input()
@@ -3152,6 +3163,15 @@ def w_star():
     elif    type(x) is Rpn_Complex and type(y) in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex] \
          or type(y) is Rpn_Complex and type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex]:
         result = Rpn_Complex.from_complex(complex(y.value()) * complex(x.value()))
+    elif type(x) in [Rpn_Vector, Rpn_Matrix] or \
+         type(y) in [Rpn_Vector, Rpn_Matrix]:
+        try:
+            r = np.dot(y.value(), x.value())
+        except ValueError:
+            param_stack.push(y)
+            param_stack.push(x)
+            raise Rpn_E_Value_Error("*: Matrix/Vectors are not conformable")
+        result = Rpn_Matrix.from_numpy(r)
     else:
         param_stack.push(y)
         param_stack.push(x)
@@ -3554,74 +3574,77 @@ def w_less_than_or_equal():
         raise Rpn_E_Type_Error("<=: Type error ({}, {})".format(typename(y), typename(x)))
 
 
-@defword(name='<>', args=2, print_x=PX_PREDICATE, doc="""\
-Test if Y is not equal to X  ( y x -- flag )""")
-def w_not_equal():
+# Parameters are Rpn_* objects, not values
+# Return values:
+#    1 : Values are equal
+#    0 : Values are not equal
+#   -1 : Type error
+def equal_helper(x, y):
     """\
 |----------+----------+---------+----------+---------+--------+--------|
 | Integer  |   xxxx   |  xxx    |  xxxx    | xxxx    |        |        |
 | Float    |   xxxxx  |  xxx    |   xxxx   | xxx     |        |        |
 | Rational |   xxxx   |  xxx    |  xxxxx   | xxxx    |        |        |
 | Complex  |    xxxx  |  xxx    |   xxx    | xxx     |        |        |
-| Vector   |          |         |          |         |        |        |
+| Vector   |          |         |          |         | xxxx   |        |
 | Matrix   |          |         |          |         |        |        |
 |----------+----------+---------+----------+---------+--------+--------|
 | ^Y    X> | Integer  | Float   | Rational | Complex | Vector | Matrix |"""
-    x = param_stack.pop()
-    y = param_stack.pop()
+    flag = None
     if type(x) is Rpn_Integer and type(y) is Rpn_Integer:
         flag = y.value() == x.value()
-    elif    type(x) is Rpn_Float and type(y) in [Rpn_Integer, Rpn_Float, Rpn_Rational] \
-         or type(y) is Rpn_Float and type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
-        flag = float(y.value()) == float(x.value()) # Beware floating point equality lossage
-    elif    type(x) is Rpn_Rational and type(y) in [Rpn_Integer, Rpn_Rational] \
-         or type(y) is Rpn_Rational and type(x) in [Rpn_Integer, Rpn_Rational]:
+    elif type(x) is Rpn_Float and type(y) in [Rpn_Integer, Rpn_Float, Rpn_Rational] \
+      or type(y) is Rpn_Float and type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
+        # Beware floating point equality lossage!
+        # Should use a relative comparison here...
+        flag = float(y.value()) == float(x.value())
+    elif type(x) is Rpn_Rational and type(y) in [Rpn_Integer, Rpn_Rational] \
+      or type(y) is Rpn_Rational and type(x) in [Rpn_Integer, Rpn_Rational]:
         flag = Fraction(y.value()) == Fraction(x.value())
-    elif    type(x) is Rpn_Complex and type(y) in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex] \
-         or type(y) is Rpn_Complex and type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex]:
+    elif type(x) is Rpn_Complex and type(y) in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex] \
+      or type(y) is Rpn_Complex and type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex]:
         flag = complex(y.value()) == complex(x.value())
-    # XXX - it should be possible to compare vectors and matrices for equality:
-    # Check if dimensions and components match
-    else:
+    elif type(x) is Rpn_Vector and type(y) is Rpn_Vector:
+        if x.size() != y.size():
+            flag = False
+        else:
+            r = functools.reduce(lambda i, j: i and j,
+                                 map(lambda m, k: m == k, x.value(), y.value()), True)
+            flag = True if r else False
+    elif type(x) is Rpn_Matrix and type(y) is Rpn_Matrix:
+        flag = np.array_equal(x.value(), y.value())
+
+    if flag is None:
+        return -1
+    return bool_to_int(flag)
+
+
+@defword(name='<>', args=2, print_x=PX_PREDICATE, doc="""\
+Test if Y is not equal to X  ( y x -- flag )""")
+def w_not_equal():
+    x = param_stack.pop()
+    y = param_stack.pop()
+
+    equal = equal_helper(x, y)
+    if equal == -1:
         param_stack.push(y)
         param_stack.push(x)
         raise Rpn_E_Type_Error("<>: Type error ({}, {})".format(typename(y), typename(x)))
-    param_stack.push(Rpn_Integer(bool_to_int(not flag)))
+    param_stack.push(Rpn_Integer(0 if equal else 1))
 
 
 @defword(name='=', args=2, print_x=PX_PREDICATE, doc="""\
 Test if Y is equal to X  ( y x -- flag )""")
 def w_equal():
-    """\
-|----------+----------+---------+----------+---------+--------+--------|
-| Integer  |   xxxx   |  xxx    |  xxxx    | xxxx    |        |        |
-| Float    |   xxxxx  |  xxx    |   xxxx   | xxx     |        |        |
-| Rational |   xxxx   |  xxx    |  xxxxx   | xxxx    |        |        |
-| Complex  |    xxxx  |  xxx    |   xxx    | xxx     |        |        |
-| Vector   |          |         |          |         |        |        |
-| Matrix   |          |         |          |         |        |        |
-|----------+----------+---------+----------+---------+--------+--------|
-| ^Y    X> | Integer  | Float   | Rational | Complex | Vector | Matrix |"""
     x = param_stack.pop()
     y = param_stack.pop()
-    if type(x) is Rpn_Integer and type(y) is Rpn_Integer:
-        flag = y.value() == x.value()
-    elif    type(x) is Rpn_Float and type(y) in [Rpn_Integer, Rpn_Float, Rpn_Rational] \
-         or type(y) is Rpn_Float and type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational]:
-        flag = float(y.value()) == float(x.value()) # Beware floating point equality lossage
-    elif    type(x) is Rpn_Rational and type(y) in [Rpn_Integer, Rpn_Rational] \
-         or type(y) is Rpn_Rational and type(x) in [Rpn_Integer, Rpn_Rational]:
-        flag = Fraction(y.value()) == Fraction(x.value())
-    elif    type(x) is Rpn_Complex and type(y) in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex] \
-         or type(y) is Rpn_Complex and type(x) in [Rpn_Integer, Rpn_Float, Rpn_Rational, Rpn_Complex]:
-        flag = complex(y.value()) == complex(x.value())
-    # XXX - it should be possible to compare vectors and matrices for equality:
-    # Check if dimensions and components match
-    else:
+
+    equal = equal_helper(x, y)
+    if equal == -1:
         param_stack.push(y)
         param_stack.push(x)
         raise Rpn_E_Type_Error("=: Type error ({}, {})".format(typename(y), typename(x)))
-    param_stack.push(Rpn_Integer(bool_to_int(flag)))
+    param_stack.push(Rpn_Integer(equal))
 
 
 @defword(name='>', args=2, print_x=PX_PREDICATE, doc="""\
@@ -3738,10 +3761,24 @@ Create a 3-vector from the stack  ( z y x -- v )""")
 def w_info():
     global RPN_VERSION
     writeln("rpn version: {}".format(RPN_VERSION))
+
+    write("NumPy:       ")
     if have_numpy:
-        writeln("NumPy version: {}".format(np.__version__))
+        writeln("{}".format(np.__version__))
+    else:
+        writeln("[not found]")
+
+    write("SciPy:       ")
     if have_scipy:
-        writeln("SciPy version: {}".format(scipy.__version__))
+        writeln("{}".format(scipy.__version__))
+    else:
+        writeln("[not found]")
+
+    write("Matplotlib:  ")
+    if have_matplotlib:
+        writeln("{}".format(matplotlib.__version__))
+    else:
+        writeln("[not found]")
 
     print("""\
 
@@ -3753,7 +3790,7 @@ The following topics provide additional information:
     ?variables""")
 
 
-@defword(name='?datatypes', print_x=PX_IO, hidden=True, doc='')
+@defword(name='?datatypes', print_x=PX_IO, hidden=True, doc="")
 def w_info_datatypes():
     print("""\
 rpn supports the following datatypes, which may be placed directly on the
@@ -3819,7 +3856,7 @@ def w_query_key():
 
     try:
         c = sys.stdin.read(1)
-        if c == '':
+        if c == "":
             param_stack.push(Rpn_Integer(0))
             return
         param_stack.push(Rpn_Integer(ord(c)))
@@ -3831,7 +3868,7 @@ def w_query_key():
         fcntl.fcntl(fd, fcntl.F_SETFL, oldflags)
 
 
-@defword(name='?variables', print_x=PX_IO, hidden=True, doc='')
+@defword(name='?variables', print_x=PX_IO, hidden=True, doc="")
 def w_info_variables():
     print("""\
 Data from the stack may be stored in variables.  The syntax to store an object
@@ -5874,7 +5911,7 @@ key will block until input is provided.  Keystroke is not echoed.
 qv ?key""")
 def w_key():
     k = _Getch()()
-    val = ord(k) if k != '' else 0
+    val = ord(k) if k != "" else 0
     #lnwriteln("You pressed <{}>, value={}".format(k, val))
     param_stack.push(Rpn_Integer(val))
 
