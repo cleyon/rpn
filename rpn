@@ -4467,6 +4467,7 @@ def w_clreg():
     register = dict()
     for i in range(REG_SIZE_MAX):
         register[i] = Rpn_Float(0.0)
+    register['I'] = Rpn_Float(0.0)
 
 
 @defword(name='clrst', print_x=PX_CONFIG, doc="""\
@@ -6677,6 +6678,13 @@ def w_rcl():
     param_stack.push(register[reg])
 
 
+@defword(name='rclI', print_x=PX_COMPUTE, doc="""\
+Recall value of register I  ( -- val )""")
+def w_rclI():
+    global register
+    param_stack.push(register['I'])
+
+
 @defword(name='rct->sph', args=3, print_x=PX_COMPUTE, doc="""\
 Convert rectangular coordinates to spherical  ( z y x -- phi theta r )
 
@@ -7005,6 +7013,7 @@ def w_shreg():
     global scr_cols, register
     (reg_size, _) = lookup_variable("SIZE")
     regs = []
+    regs.append("I=%s" % fmt(register['I']))
     for r in range(reg_size.obj().value()):
         regs.append("R%02d=%s" % (r, fmt(register[r])))
 
@@ -7241,6 +7250,18 @@ def w_sto():
         register[reg] = y
     else:
         register[reg] = Rpn_Float(y.value())
+
+
+@defword(name='stoI', args=1, print_x=PX_CONFIG, doc="""\
+Store X value into register I  ( x -- )""")
+def w_stoI():
+    global register
+
+    x = param_stack.pop()
+    if type(x) in [Rpn_Float, Rpn_Complex]:
+        register['I'] = x
+    else:
+        register['I'] = Rpn_Float(x.value())
 
 
 @defword(name='swap', args=2, print_x=PX_CONFIG, doc="""\
@@ -7525,6 +7546,33 @@ def w_words():
     global scr_cols
     list_in_columns(sorted([x[0] for x in global_scope.unprotected_words()],
                            key=str.casefold), scr_cols.obj().value() - 1)
+
+
+@defword(name='x<>I', args=1, print_x=PX_CONFIG, doc="""\
+x<>I  ( x -- I )  Exchange X with register I""")
+def w_x_exchange_I():
+    global register
+    x = param_stack.pop()
+    param_stack.push(register['I'])
+    register['I'] = x
+
+
+@defword(name='x<>i', args=1, print_x=PX_CONFIG, doc="""\
+x<>i  ( x -- (i) )  Exchange X with register referenced by I""")
+def w_x_exchange_indirect_i():
+    global register
+    (reg_size, _) = lookup_variable("SIZE")
+
+    I = register['I']
+    if type(I) not in [Rpn_Integer, Rpn_Rational, Rpn_Float]:
+        raise Rpn_E_Type_Error("x<>i: Type error I ({})".format(typename(I)))
+    Ival = int(I.value())
+    if Ival < 0 or Ival >= reg_size.obj().value():
+        raise Rpn_E_Value_Error("x<>i: Register 'I' out of range (0..{} expected)".format(Ival, reg_size.obj().value() - 1))
+
+    x = param_stack.pop()
+    param_stack.push(register[Ival])
+    register[Ival] = x
 
 
 @defword(name='zer', args=1, print_x=PX_COMPUTE, doc="""\
