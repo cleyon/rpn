@@ -6,22 +6,30 @@ RPN calculator and interpreter
 
 - Python 3
 
-- numpy
+- PLY
+
+``` shell
+pip3 install --user ply
+```
+
+## Optional but recommended
+
+- NumPy
 
 ``` shell
 pip3 install --user numpy
 ```
 
-- scipy
+- SciPy
 
 ``` shell
 pip3 install --user scipy
 ```
 
-- PLY
+- Matplotlib
 
 ``` shell
-pip3 install --user ply
+pip3 install --user matplotlib
 ```
 
 ## Enhancements
