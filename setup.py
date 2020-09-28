@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="rpn-cleyon",
-    version="15.6",
+    version="15.7",
     author="Christopher Leyon",
     author_email="cleyon@gmail.com",
     description="RPN calculator and programming language",

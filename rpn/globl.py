@@ -37,7 +37,7 @@ import rpn.parser
 import rpn.util
 
 
-RPN_VERSION     = 15.6
+RPN_VERSION     = 15.7
 
 PX_COMPUTE              = True  # Arithmetic/Computed functions print their results
 PX_CONFIG               = None  # Stack manip, flags, modes, register, conversions, etc
