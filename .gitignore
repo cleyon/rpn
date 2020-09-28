@@ -133,8 +133,9 @@ lextab.py
 parser.out
 parsetab.py
 
-# Backup files
+# Backup and misc files
 *~
 #*#
 .#*
 scratch/
+TAGS

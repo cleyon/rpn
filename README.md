@@ -1,6 +1,6 @@
 # rpn
 
-RPN calculator and interpreter
+RPN calculator and programming language
 
 ## Requirements
 
