@@ -369,9 +369,9 @@ def p_colon_def(p):
 def p_define_word(p):
     '''define_word : empty'''
 
-    sequence   = p[-2]
-    doc_str    = p[-3]
     identifier = p[-4]
+    doc_str    = p[-3]
+    sequence   = p[-2]
     # rpn.globl.lnwriteln("{}: identifier={}  doc_str={}  sequence={}".format(whoami(), identifier, repr(doc_str), repr(sequence)))
 
     kwargs = dict()

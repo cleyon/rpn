@@ -1,7 +1,6 @@
 \ Convenient abbreviations
 : c     clst  ;
 : d     drop  ;
-: f     shfin ;
 : pi    PI    ;
 : q     bye   ;
 : s     swap  ;

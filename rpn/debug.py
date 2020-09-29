@@ -31,11 +31,11 @@ debug_levels = {
     "p_variable"                : 0,
     "parse"                     : 0,
     "prompt"                    : 0,
-    "Do_Loop#__call__"      : 0,
-    "Scope#set_variable"    : 0,
-    "Sequence#__call__"     : 0,
-    "Sequence#__init__"     : 0,
-    "Word#__init__"         : 0,
+    "Do_Loop#__call__"          : 0,
+    "Scope#set_variable"        : 0,
+    "Sequence#__call__"         : 0,
+    "Sequence#__init__"         : 0,
+    "Word#__init__"             : 0,
     "scope"                     : 0,
     "show"                      : 0,
     "token"                     : 0,
@@ -78,8 +78,6 @@ def set_debug_level(resource, level=1):
 
 def typename(s):
     t = type(s).__name__
-    if t[:4] == "Rpn_":
-        return t[4:]
     return t
 
 
