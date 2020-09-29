@@ -676,18 +676,30 @@ class Word:
             raise rpn.exception.FatalErr("{}: defn is None".format(name))
         #dbg(whoami(), 3, "defn is {}".format(type(defn)))
 
+        # `args' is the number of numeric arguments that must be present
+        # on the parameter stack.
         if "args" in kwargs:
             self._args = kwargs['args']
             del kwargs["args"]
 
+        # `doc' is the docstring for the word.  For a built-in word, it
+        # is set directly in the @defword() call.  For a colon
+        # definition, use the doc:"DOCSTRING" construct.
         if "doc" in kwargs:
             self._doc = kwargs["doc"]
             del kwargs["doc"]
 
+        # `hidden' means that the word will not appear in the vlist.  It
+        # is still findable/executable by name like any other word.
         if "hidden" in kwargs:
             self._hidden = kwargs["hidden"]
             del kwargs["hidden"]
 
+        # `print_x' indicates whether the top of stack should be printed
+        # (without popping) before the interactive prompt.  Most
+        # computation words set this, most words that do I/O clear this
+        # (on the grounds that desired output has already been
+        # displayed), most control words do not change the setting.
         if "print_x" in kwargs:
             my_print_x = kwargs["print_x"]
             del kwargs["print_x"]
@@ -695,10 +707,16 @@ class Word:
         #     if self._protected:
         #         print("Word {} missing print_x".format(name))
 
+        # `protected' means the word cannot be forgotten.  Built-in
+        # words defined in code, and internal colon words defined in
+        # define_secondary_words() are protected; user-defined colon
+        # words and those created in define_tertiary_words() are not.
         if "protected" in kwargs:
             self._protected = kwargs["protected"]
             del kwargs["protected"]
 
+        # `str_args' is the number of string arguments that must be
+        # present on the string stack.
         if "str_args" in kwargs:
             self._str_args = kwargs["str_args"]
             del kwargs["str_args"]
