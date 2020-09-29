@@ -484,7 +484,7 @@ def p_help(p):
 def p_if_then(p):
     '''if_then : IF sequence THEN'''
 
-    p[0] = rpn.exe.If(p[2])
+    p[0] = rpn.exe.IfElse(p[2], None)
 
 
 def p_if_else_then(p):

@@ -43,36 +43,36 @@ class AbortQuote:
 
 
 class BeginAgain:
-    def __init__(self, seq):
-        self._seq = seq
+    def __init__(self, begin_seq):
+        self._begin_seq = begin_seq
 
     def __call__(self):
         dbg("trace", 2, "trace({})".format(repr(self)))
         try:
             while True:
-                self._seq.__call__()
+                self._begin_seq.__call__()
         except rpn.exception.Leave:
             pass
 
     def patch_recurse(self, new_word):
-        self._seq.patch_recurse(new_word)
+        self._begin_seq.patch_recurse(new_word)
 
     def __str__(self):
-        return "begin {} again".format(self._seq)
+        return "begin {} again".format(self._begin_seq)
 
     def __repr__(self):
-        return "BeginAgain[{}]".format(repr(self._seq))
+        return "BeginAgain[{}]".format(repr(self._begin_seq))
 
 
 class BeginUntil:
-    def __init__(self, seq):
-        self._seq = seq
+    def __init__(self, begin_seq):
+        self._begin_seq = begin_seq
 
     def __call__(self):
         dbg("trace", 2, "trace({})".format(repr(self)))
         try:
             while True:
-                self._seq.__call__()
+                self._begin_seq.__call__()
                 if rpn.globl.param_stack.empty():
                     raise rpn.exception.RuntimeErr("until: Insufficient parameters (1 required)")
                 flag = rpn.globl.param_stack.pop()
@@ -85,25 +85,25 @@ class BeginUntil:
             pass
 
     def patch_recurse(self, new_word):
-        self._seq.patch_recurse(new_word)
+        self._begin_seq.patch_recurse(new_word)
 
     def __str__(self):
-        return "begin {} until".format(self._seq)
+        return "begin {} until".format(self._begin_seq)
 
     def __repr__(self):
-        return "BeginUntil[{}]".format(repr(self._seq))
+        return "BeginUntil[{}]".format(repr(self._begin_seq))
 
 
 class BeginWhile:
-    def __init__(self, seq1, seq2):
-        self._seq1 = seq1
-        self._seq2 = seq2
+    def __init__(self, begin_seq, while_seq):
+        self._begin_seq = begin_seq
+        self._while_seq = while_seq
 
     def __call__(self):
         dbg("trace", 2, "trace({})".format(repr(self)))
         try:
             while True:
-                self._seq1.__call__()
+                self._begin_seq.__call__()
                 if rpn.globl.param_stack.empty():
                     raise rpn.exception.RuntimeErr("while: Insufficient parameters (1 required)")
                 flag = rpn.globl.param_stack.pop()
@@ -112,19 +112,19 @@ class BeginWhile:
                     raise rpn.exception.TypeErr("while: Flag must be an integer")
                 if flag.value() == 0:
                     break
-                self._seq2.__call__()
+                self._while_seq.__call__()
         except rpn.exception.Leave:
             pass
 
     def patch_recurse(self, new_word):
-        self._seq1.patch_recurse(new_word)
-        self._seq2.patch_recurse(new_word)
+        self._begin_seq.patch_recurse(new_word)
+        self._while_seq.patch_recurse(new_word)
 
     def __str__(self):
-        return "begin {} while {} repeat".format(self._seq1, self._seq2)
+        return "begin {} while {} repeat".format(self._begin_seq, self._while_seq)
 
     def __repr__(self):
-        return "BeginWhile[{}, {}]".format(repr(self._seq1), repr(self._seq2))
+        return "BeginWhile[{}, {}]".format(repr(self._begin_seq), repr(self._while_seq))
 
 
 class Case:
@@ -180,24 +180,24 @@ class Case:
 
 
 class CaseClause:
-    def __init__(self, x, seq):
+    def __init__(self, x, of_seq):
         self._x = int(x)      # x is a plain integer, not an rpn.type.Integer
-        self._seq = seq
+        self._of_seq = of_seq
 
     def x(self):
         return self._x
 
     def __call__(self):
-        self._seq.__call__()
+        self._of_seq.__call__()
 
     def patch_recurse(self, new_word):
-        self._seq.patch_recurse(new_word)
+        self._of_seq.patch_recurse(new_word)
 
     def __str__(self):
-        return "{} of {} endof ".format(self._x, self._seq)
+        return "{} of {} endof ".format(self._x, self._of_seq)
 
     def __repr__(self):
-        return "Of[{}={}]".format(self._x, repr(self._seq))
+        return "Of[{}={}]".format(self._x, repr(self._of_seq))
 
 
 class Catch:
@@ -253,8 +253,8 @@ class Constant:
 
 
 class DoLoop:
-    def __init__(self, seq):
-        self._seq = seq
+    def __init__(self, do_seq):
+        self._do_seq = do_seq
 
     def __call__(self):
         dbg("trace", 2, "trace({})".format(repr(self)))
@@ -280,7 +280,7 @@ class DoLoop:
         try:
             rpn.globl.push_scope(do_scope, "Starting Do_Loop")
             while True:
-                self._seq.__call__()
+                self._do_seq.__call__()
                 i += 1
                 _I.set_obj(rpn.type.Integer(i))
                 if i >= limit:
@@ -291,18 +291,18 @@ class DoLoop:
             rpn.globl.pop_scope("Do_Loop complete")
 
     def patch_recurse(self, new_word):
-        self._seq.patch_recurse(new_word)
+        self._do_seq.patch_recurse(new_word)
 
     def __str__(self):
-        return "do {} loop".format(self._seq)
+        return "do {} loop".format(self._do_seq)
 
     def __repr__(self):
-        return "DoLoop[{}]".format(repr(self._seq))
+        return "DoLoop[{}]".format(repr(self._do_seq))
 
 
 class DoPlusLoop:
-    def __init__(self, seq):
-        self._seq = seq
+    def __init__(self, do_seq):
+        self._do_seq = do_seq
 
     def __call__(self):
         dbg("trace", 2, "trace({})".format(repr(self)))
@@ -328,7 +328,7 @@ class DoPlusLoop:
         try:
             rpn.globl.push_scope(do_scope, "Starting Do_PlusLoop")
             while True:
-                self._seq.__call__()
+                self._do_seq.__call__()
                 if rpn.globl.param_stack.empty():
                     raise rpn.exception.RuntimeErr("+loop: Insufficient parameters (1 required)")
                 incr = rpn.globl.param_stack.pop()
@@ -346,13 +346,13 @@ class DoPlusLoop:
             rpn.globl.pop_scope("Do_PlusLoop complete")
 
     def patch_recurse(self, new_word):
-        self._seq.patch_recurse(new_word)
+        self._do_seq.patch_recurse(new_word)
 
     def __str__(self):
-        return "do {} +loop".format(self._seq)
+        return "do {} +loop".format(self._do_seq)
 
     def __repr__(self):
-        return "DoPlusLoop[{}]".format(repr(self._seq))
+        return "DoPlusLoop[{}]".format(repr(self._do_seq))
 
 
 class DotQuote:
@@ -494,35 +494,10 @@ class Help:
         return "Help[{}]".format(repr(self.identifier()))
 
 
-class If:
-    def __init__(self, seq):
-        self._seq = seq
-
-    def __call__(self):
-        dbg("trace", 2, "trace({})".format(repr(self)))
-        if rpn.globl.param_stack.empty():
-            raise rpn.exception.RuntimeErr("if: Insufficient parameters (1 required)")
-        flag = rpn.globl.param_stack.pop()
-        if type(flag) is not rpn.type.Integer:
-            rpn.globl.param_stack.push(flag)
-            raise rpn.exception.TypeErr("if: Flag must be an integer")
-        if flag.value() != 0:
-            self._seq.__call__()
-
-    def patch_recurse(self, new_word):
-        self._seq.patch_recurse(new_word)
-
-    def __str__(self):
-        return "if {} then".format(self._seq)
-
-    def __repr__(self):
-        return "If[{}]".format(repr(self._seq))
-
-
 class IfElse:
-    def __init__(self, seq1, seq2):
-        self._seq1 = seq1
-        self._seq2 = seq2
+    def __init__(self, if_seq, else_seq):
+        self._if_seq   = if_seq
+        self._else_seq = else_seq
 
     def __call__(self):
         dbg("trace", 2, "trace({})".format(repr(self)))
@@ -533,19 +508,29 @@ class IfElse:
             rpn.globl.param_stack.push(flag)
             raise rpn.exception.TypeErr("if: Flag must be an integer")
         if flag.value() != 0:
-            self._seq1.__call__()
-        else:
-            self._seq2.__call__()
+            self._if_seq.__call__()
+        elif self._else_seq is not None:
+            self._else_seq.__call__()
 
     def patch_recurse(self, new_word):
-        self._seq1.patch_recurse(new_word)
-        self._seq2.patch_recurse(new_word)
+        self._if_seq.patch_recurse(new_word)
+        if self._else_seq is not None:
+            self._else_seq.patch_recurse(new_word)
 
     def __str__(self):
-        return "if {} else {} then".format(self._seq1, self._seq2)
+        s = "if {} ".format(self._if_seq)
+        if self._else_seq is not None:
+            s += "else {} ".format(self._else_seq)
+        return s + "then"
 
     def __repr__(self):
-        return "IfElse[{}, {}]".format(repr(self._seq1), repr(self._seq2))
+        s = "If"
+        if self._else_seq is not None:
+            s += "Else"
+        s += "[{}".format(repr(self._if_seq))
+        if self._else_seq is not None:
+            s += ", {}".format(repr(self._else_seq))
+        return s + "]"
 
 
 class Recurse:
