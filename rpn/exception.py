@@ -16,7 +16,7 @@ class RpnException(Exception):
 
 
 class Abort(RpnException):
-    """Rpn_E_Abort is raised by the ABORT and ABORT" words.
+    """Abort is raised by the ABORT and ABORT" words.
 It clears the parameter, return, and string stacks.  Caught in p_execute."""
 
 

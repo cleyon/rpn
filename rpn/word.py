@@ -4744,7 +4744,7 @@ def comb_helper(n, r):
 
 def equal_helper(x, y):
     """\
-# Parameters are Rpn_* objects, not values
+# Parameters are Rpn objects, not values
 # Return values:
 #    1 : Values are equal
 #    0 : Values are not equal

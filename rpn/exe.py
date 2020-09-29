@@ -206,7 +206,7 @@ class Catch:
             raise rpn.exception.FatalErr("{}: Word {} is not an rpn.util.Word".format(whoami(), repr(word)))
         if type(scope) is not rpn.util.Scope:
             raise rpn.exception.FatalErr("{}: Scope {} is not an rpn.util.Scope".format(whoami(), repr(scope)))
-        dbg("catch", 1, "{}: Rpn_Catch({})".format(whoami(), word))
+        dbg("catch", 1, "{}: Catch({})".format(whoami(), word))
         self._word = word
         self._scope = scope
 
@@ -567,7 +567,7 @@ class Recurse:
         if self.target() is None:
             self._target = new_word
         else:
-            raise rpn.exception.FatalErr("{}: Invoked on already patched Rpn_Recurse object".format(whoami()))
+            raise rpn.exception.FatalErr("{}: Invoked on already patched Recurse object".format(whoami()))
 
     def __str__(self):
         return "recurse"
@@ -583,7 +583,7 @@ class Show:
         if type(word) is not rpn.util.Word:
             raise rpn.exception.FatalErr("{}: Word {} is not an rpn.util.Word".format(whoami(), repr(word)))
         if type(scope) is not rpn.util.Scope:
-            raise rpn.exception.FatalErr("{}: Scope {} is not an Rpn_Scope".format(whoami(), repr(scope)))
+            raise rpn.exception.FatalErr("{}: Scope {} is not a Scope".format(whoami(), repr(scope)))
         self._word = word
         self._scope = scope
 

@@ -77,8 +77,8 @@ TIME_RE                 = re.compile(r'^[-+]?(\d+)\.(\d{,2})(\d*)$') # HH.MMSSss
 # DEG_PER_RAD  = 360 / TAU
 # E            = Base of natural logarithms = exp(1.0)
 # GAMMA        = Euler-Mascheroni constant, approx: 1 - tanh(ln(1.57)) - 0.57/(9!)
-# GRAD_PER_RAD = 400 / TAU
-# LN_2         = ln(2)
+# GRAD_PER_RAD = 400 / TAU                      # 1 1.57 ln tanh - 0.57 9 fact / -   => 0.5772156649394624
+# LN_2         = ln(2)                          # GAMMA -                            => 3.7929548390991386e-11
 # LN_10        = ln(10)
 # PHI          = "Golden ratio" = (1 + sqrt(5)) / 2
 # PI           = TAU / 2
@@ -268,18 +268,6 @@ spacing : int
     writeln(out)
 
 
-def lnwrite(s=""):
-    if rpn.globl.sharpout.obj().value() != 0:
-        writeln()
-    write(s)
-
-
-def lnwriteln(s=""):
-    if rpn.globl.sharpout.obj().value() != 0:
-        writeln()
-    writeln(s)
-
-
 def lookup_variable(name, how_many=1):
     for (_, scope) in scope_stack.items_top_to_bottom():
         dbg(whoami(), 1, "{}: Looking for variable {} in {}...".format(whoami(), name, repr(scope)))
@@ -396,7 +384,16 @@ def write(s=""):
     print(s, end='', flush=True) # OK
     rpn.globl.sharpout.set_obj(rpn.type.Integer(outval))
 
-
 def writeln(s=""):
     print(s, flush=True)       # OK
     rpn.globl.sharpout.set_obj(rpn.type.Integer(0))
+
+def lnwrite(s=""):
+    if rpn.globl.sharpout.obj().value() != 0:
+        writeln()
+    write(s)
+
+def lnwriteln(s=""):
+    if rpn.globl.sharpout.obj().value() != 0:
+        writeln()
+    writeln(s)
