@@ -51,13 +51,15 @@ class DisplayConfig:
         self._style = None
         self._prec  = None
 
+    @property
     def style(self):
         return self._style
 
-    def set_style(self, style):
-        if style not in ["std", "fix", "sci", "eng"]:
+    @style.setter
+    def style(self, new_style):
+        if new_style not in ["std", "fix", "sci", "eng"]:
             raise rpn.exception.FatalErr("{}: Invalid display style '{}'".format(whoami(), style))
-        self._style = style
+        self._style = new_style
 
     def prec(self):
         return self._prec
@@ -110,15 +112,15 @@ class DisplayConfig:
 
     def fmt(self, x, show_label=True):
         if type(x) is float:
-            if self.style() == "fix":
+            if self.style == "fix":
                 return "{:.{prec}{style}}".format(x, style="f", prec=self.prec())
-            if self.style() == "sci":
+            if self.style == "sci":
                 return "{:.{prec}{style}}".format(x, style="e", prec=self.prec())
-            if self.style() == "eng":
+            if self.style == "eng":
                 return self.eng_notate(x)
-            if self.style() == "std":
+            if self.style == "std":
                 return str(x)
-            raise rpn.exception.FatalErr("{}: Invalid style '{}'".format(whoami(), self.style()))
+            raise rpn.exception.FatalErr("{}: Invalid style '{}'".format(whoami(), self.style))
         if type(x) is rpn.type.Float:
             s = self.fmt(x.value())
             l = ""

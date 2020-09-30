@@ -2180,7 +2180,7 @@ def w_eng():
         rpn.globl.param_stack.push(x)
         raise rpn.exception.ValueErr("eng: Precision '{}' out of range (0..{} expected)".format(x.value(), rpn.globl.PRECISION_MAX - 1))
 
-    rpn.globl.disp_stack.top().set_style("eng")
+    rpn.globl.disp_stack.top().style = "eng"
     rpn.globl.disp_stack.top().set_prec(x.value())
     rpn.flag.clear_flag(rpn.flag.F_DISP_FIX)
     rpn.flag.set_flag(rpn.flag.F_DISP_ENG)
@@ -2381,7 +2381,7 @@ def w_fix():
         rpn.globl.param_stack.push(x)
         raise rpn.exception.ValueErr("fix: Precision '{}' out of range (0..{} expected)".format(x.value(), rpn.globl.PRECISION_MAX - 1))
 
-    rpn.globl.disp_stack.top().set_style("fix")
+    rpn.globl.disp_stack.top().style = "fix"
     rpn.globl.disp_stack.top().set_prec(x.value())
     rpn.flag.set_flag(rpn.flag.F_DISP_FIX)
     rpn.flag.clear_flag(rpn.flag.F_DISP_ENG)
@@ -3617,8 +3617,8 @@ def w_popdisp():
 Stash current display configuration.""")
 def w_pushdisp():
     d = rpn.util.DisplayConfig()
-    cur_style = rpn.globl.disp_stack.top().style()
-    d.set_style(cur_style)
+    cur_style = rpn.globl.disp_stack.top().style
+    d.style = cur_style
     if cur_style in ["fix", "sci"]:
         cur_prec = rpn.globl.disp_stack.top().prec()
         d.set_prec(cur_prec)
@@ -4029,7 +4029,7 @@ def w_sci():
         rpn.globl.param_stack.push(x)
         raise rpn.exception.ValueErr("fix: Precision '{}' out of range (0..{} expected)".format(x.value(), rpn.globl.PRECISION_MAX - 1))
 
-    rpn.globl.disp_stack.top().set_style("sci")
+    rpn.globl.disp_stack.top().style = "sci"
     rpn.globl.disp_stack.top().set_prec(x.value())
     rpn.flag.clear_flag(rpn.flag.F_DISP_FIX)
     rpn.flag.clear_flag(rpn.flag.F_DISP_ENG)
@@ -4350,7 +4350,7 @@ std  ( -- )
 
 Set display mode to standard.""")
 def w_std():
-    rpn.globl.rpn.globl.disp_stack.top().set_style("std")
+    rpn.globl.disp_stack.top().style = "std"
     rpn.flag.set_flag(rpn.flag.F_DISP_FIX)
     rpn.flag.set_flag(rpn.flag.F_DISP_ENG)
     for bit in range(4):
