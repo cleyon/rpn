@@ -54,7 +54,7 @@ class Stackable(rpn.exe.Executable):
 class Complex(Stackable):
     def __init__(self, real=0.0, imag=0.0):
         super().__init__()
-        self.set_real_imag(real, imag)
+        self.value = complex(float(real), float(imag))
 
     @classmethod
     def from_complex(cls, cplx):
@@ -75,9 +75,6 @@ class Complex(Stackable):
 
     def imag(self):
         return self.value.imag
-
-    def set_real_imag(self, real, imag):
-        self.value = complex(float(real), float(imag))
 
     def zerop(self):
         return self.real() == 0.0 and self.imag() == 0.0
@@ -275,7 +272,7 @@ class Rational(Stackable):
         return self.value.denominator
 
     def set_num_denom(self, num, denom):
-        self._value = Fraction(int(num), int(denom))
+        self.value = Fraction(int(num), int(denom))
 
     def zerop(self):
         return self.numerator() == 0
@@ -291,7 +288,7 @@ class Rational(Stackable):
 
 class String(rpn.exe.Executable):
     def __init__(self, val):
-        self._value = val
+        self.value = val
 
     @classmethod
     def from_string(cls, s):
@@ -303,7 +300,7 @@ class String(rpn.exe.Executable):
 
     @value.setter
     def value(self, new_value):
-        if type(new_value) is not rpn.type.String: # or str?
+        if type(new_value) is not str:
             raise rpn.exception.TypeErr("{}: New value is not a String ({})".format(whoami(), type(new_value)))
         self._value = new_value
 
