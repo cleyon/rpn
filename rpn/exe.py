@@ -11,7 +11,18 @@ import rpn.exception
 import rpn.globl
 
 
-class AbortQuote:
+class Executable:
+    def __call__(self):
+        raise rpn.exception.FatalErr("Executable#__call__: Subclass responsibility")
+
+    def patch_recurse(self, _):
+        pass
+
+    def immediate(self):                # pylint: disable=no-self-use
+        return False
+
+
+class AbortQuote(Executable):
     def __init__(self, val):
         if len(val) < 7 or val[0:6] != 'abort"' or val[-1] != '"':
             raise rpn.exception.FatalErr("{}: Malformed string: '{}'".format(whoami(), val))
@@ -28,106 +39,103 @@ class AbortQuote:
         if type(flag) is not rpn.type.Integer:
             rpn.globl.param_stack.push(flag)
             raise rpn.exception.TypeErr("abort\": Flag must be an integer")
-        if flag.value() != 0:
+        if flag.value != 0:
             rpn.globl.lnwriteln("{}".format(self.stringval()))
             raise rpn.exception.Abort()
 
-    def patch_recurse(self, new_word):
-        pass
-
     def __str__(self):
-        return "abort\"{}\"".format(self.stringval())
+        return 'abort"{}"'.format(self.stringval())
 
     def __repr__(self):
-        return "AbortQuote[{}]".format(repr(self.stringval()))
+        return 'AbortQuote["{}"]'.format(self.stringval())
 
 
-class BeginAgain:
-    def __init__(self, seq):
-        self._seq = seq
+class BeginAgain(Executable):
+    def __init__(self, begin_seq):
+        self._begin_seq = begin_seq
 
     def __call__(self):
         dbg("trace", 2, "trace({})".format(repr(self)))
         try:
             while True:
-                self._seq.__call__()
+                self._begin_seq.__call__()
         except rpn.exception.Leave:
             pass
 
     def patch_recurse(self, new_word):
-        self._seq.patch_recurse(new_word)
+        self._begin_seq.patch_recurse(new_word)
 
     def __str__(self):
-        return "begin {} again".format(self._seq)
+        return "begin {} again".format(self._begin_seq)
 
     def __repr__(self):
-        return "BeginAgain[{}]".format(repr(self._seq))
+        return "BeginAgain[{}]".format(repr(self._begin_seq))
 
 
-class BeginUntil:
-    def __init__(self, seq):
-        self._seq = seq
+class BeginUntil(Executable):
+    def __init__(self, begin_seq):
+        self._begin_seq = begin_seq
 
     def __call__(self):
         dbg("trace", 2, "trace({})".format(repr(self)))
         try:
             while True:
-                self._seq.__call__()
+                self._begin_seq.__call__()
                 if rpn.globl.param_stack.empty():
                     raise rpn.exception.RuntimeErr("until: Insufficient parameters (1 required)")
                 flag = rpn.globl.param_stack.pop()
                 if type(flag) is not rpn.type.Integer:
                     rpn.globl.param_stack.push(flag)
                     raise rpn.exception.TypeErr("until: Flag must be an integer")
-                if flag.value() != 0:
+                if flag.value != 0:
                     break
         except rpn.exception.Leave:
             pass
 
     def patch_recurse(self, new_word):
-        self._seq.patch_recurse(new_word)
+        self._begin_seq.patch_recurse(new_word)
 
     def __str__(self):
-        return "begin {} until".format(self._seq)
+        return "begin {} until".format(self._begin_seq)
 
     def __repr__(self):
-        return "BeginUntil[{}]".format(repr(self._seq))
+        return "BeginUntil[{}]".format(repr(self._begin_seq))
 
 
-class BeginWhile:
-    def __init__(self, seq1, seq2):
-        self._seq1 = seq1
-        self._seq2 = seq2
+class BeginWhile(Executable):
+    def __init__(self, begin_seq, while_seq):
+        self._begin_seq = begin_seq
+        self._while_seq = while_seq
 
     def __call__(self):
         dbg("trace", 2, "trace({})".format(repr(self)))
         try:
             while True:
-                self._seq1.__call__()
+                self._begin_seq.__call__()
                 if rpn.globl.param_stack.empty():
                     raise rpn.exception.RuntimeErr("while: Insufficient parameters (1 required)")
                 flag = rpn.globl.param_stack.pop()
                 if type(flag) is not rpn.type.Integer:
                     rpn.globl.param_stack.push(flag)
                     raise rpn.exception.TypeErr("while: Flag must be an integer")
-                if flag.value() == 0:
+                if flag.value == 0:
                     break
-                self._seq2.__call__()
+                self._while_seq.__call__()
         except rpn.exception.Leave:
             pass
 
     def patch_recurse(self, new_word):
-        self._seq1.patch_recurse(new_word)
-        self._seq2.patch_recurse(new_word)
+        self._begin_seq.patch_recurse(new_word)
+        self._while_seq.patch_recurse(new_word)
 
     def __str__(self):
-        return "begin {} while {} repeat".format(self._seq1, self._seq2)
+        return "begin {} while {} repeat".format(self._begin_seq, self._while_seq)
 
     def __repr__(self):
-        return "BeginWhile[{}, {}]".format(repr(self._seq1), repr(self._seq2))
+        return "BeginWhile[{}, {}]".format(repr(self._begin_seq), repr(self._while_seq))
 
 
-class Case:
+class Case(Executable):
     def __init__(self, case_clauses, otherwise_seq):
         self._case_clauses  = case_clauses
         self._otherwise_seq = otherwise_seq
@@ -140,7 +148,7 @@ class Case:
         if type(n) is not rpn.type.Integer:
             rpn.globl.param_stack.push(n)
             raise rpn.exception.TypeErr("case: Case control parameter must be an integer")
-        nval = n.value()
+        nval = n.value
 
         # Determine the correct sequence to call
         seq = self._otherwise_seq
@@ -151,7 +159,7 @@ class Case:
 
         # Call it with a new scope
         case_scope = rpn.util.Scope("Call_Case")
-        case_scope.set_variable('caseval', rpn.util.Variable("caseval", n))
+        case_scope.define_variable('caseval', rpn.util.Variable("caseval", n))
         try:
             rpn.globl.push_scope(case_scope, "Starting Case")
             seq.__call__()
@@ -179,28 +187,28 @@ class Case:
         return s + "]"
 
 
-class CaseClause:
-    def __init__(self, x, seq):
+class CaseClause(Executable):
+    def __init__(self, x, of_seq):
         self._x = int(x)      # x is a plain integer, not an rpn.type.Integer
-        self._seq = seq
+        self._of_seq = of_seq
 
     def x(self):
         return self._x
 
     def __call__(self):
-        self._seq.__call__()
+        self._of_seq.__call__()
 
     def patch_recurse(self, new_word):
-        self._seq.patch_recurse(new_word)
+        self._of_seq.patch_recurse(new_word)
 
     def __str__(self):
-        return "{} of {} endof ".format(self._x, self._seq)
+        return "{} of {} endof ".format(self._x, self._of_seq)
 
     def __repr__(self):
-        return "Of[{}={}]".format(self._x, repr(self._seq))
+        return "Of[{}={}]".format(self._x, repr(self._of_seq))
 
 
-class Catch:
+class Catch(Executable):
     def __init__(self, word, scope):
         if type(word) is not rpn.util.Word:
             raise rpn.exception.FatalErr("{}: Word {} is not an rpn.util.Word".format(whoami(), repr(word)))
@@ -222,9 +230,6 @@ class Catch:
             dbg("catch", 1, "{}: Nothing caught, finishing normally".format(whoami()))
             rpn.globl.param_stack.push(rpn.type.Integer(0))
 
-    def patch_recurse(self, new_word):
-        pass
-
     def __str__(self):
         return "catch {}".format(self._word.name())
 
@@ -232,7 +237,7 @@ class Catch:
         return "Catch[{}]".format(repr(self._word.name()))
 
 
-class Constant:
+class Constant(Executable):
     def __init__(self, var):
         self._variable = var
 
@@ -240,10 +245,7 @@ class Constant:
         dbg("trace", 1, "trace({})".format(repr(self)))
         if rpn.globl.param_stack.empty():
             raise rpn.exception.RuntimeErr("constant: Insufficient parameters (1 required)")
-        self._variable.set_obj(rpn.globl.param_stack.pop())
-
-    def patch_recurse(self, new_word):
-        pass
+        self._variable.obj = rpn.globl.param_stack.pop()
 
     def __str__(self):
         return "constant {}".format(self._variable.name())
@@ -252,9 +254,9 @@ class Constant:
         return "Constant[{}]".format(repr(self._variable))
 
 
-class DoLoop:
-    def __init__(self, seq):
-        self._seq = seq
+class DoLoop(Executable):
+    def __init__(self, do_seq):
+        self._do_seq = do_seq
 
     def __call__(self):
         dbg("trace", 2, "trace({})".format(repr(self)))
@@ -266,8 +268,8 @@ class DoLoop:
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
             raise rpn.exception.TypeErr("do: Loop control parameters must be integers")
-        limit = y.value()
-        i = x.value()
+        limit = y.value
+        i = x.value
         if i == limit:
             #rpn.globl.lnwriteln("do: Not executing because initial == limit")
             return
@@ -275,14 +277,14 @@ class DoLoop:
         # Create a new scope
         _I = rpn.util.Variable("_I", x)
         do_scope = rpn.util.Scope("Call_Do_Loop")
-        do_scope.set_variable('_I', _I)
+        do_scope.define_variable('_I', _I)
 
         try:
             rpn.globl.push_scope(do_scope, "Starting Do_Loop")
             while True:
-                self._seq.__call__()
+                self._do_seq.__call__()
                 i += 1
-                _I.set_obj(rpn.type.Integer(i))
+                _I.obj = rpn.type.Integer(i)
                 if i >= limit:
                     break
         except rpn.exception.Leave:
@@ -291,18 +293,18 @@ class DoLoop:
             rpn.globl.pop_scope("Do_Loop complete")
 
     def patch_recurse(self, new_word):
-        self._seq.patch_recurse(new_word)
+        self._do_seq.patch_recurse(new_word)
 
     def __str__(self):
-        return "do {} loop".format(self._seq)
+        return "do {} loop".format(self._do_seq)
 
     def __repr__(self):
-        return "DoLoop[{}]".format(repr(self._seq))
+        return "DoLoop[{}]".format(repr(self._do_seq))
 
 
-class DoPlusLoop:
-    def __init__(self, seq):
-        self._seq = seq
+class DoPlusLoop(Executable):
+    def __init__(self, do_seq):
+        self._do_seq = do_seq
 
     def __call__(self):
         dbg("trace", 2, "trace({})".format(repr(self)))
@@ -314,8 +316,8 @@ class DoPlusLoop:
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
             raise rpn.exception.TypeErr("do: Loop control parameters must be integers")
-        limit = y.value()
-        i = x.value()
+        limit = y.value
+        i = x.value
         if i == limit:
             #rpn.globl.lnwriteln("do: Not executing because initial == limit")
             return
@@ -323,22 +325,22 @@ class DoPlusLoop:
         # Create a new scope
         _I = rpn.util.Variable("_I", x)
         do_scope = rpn.util.Scope("Call_Do_PlusLoop")
-        do_scope.set_variable('_I', _I)
+        do_scope.define_variable('_I', _I)
 
         try:
             rpn.globl.push_scope(do_scope, "Starting Do_PlusLoop")
             while True:
-                self._seq.__call__()
+                self._do_seq.__call__()
                 if rpn.globl.param_stack.empty():
                     raise rpn.exception.RuntimeErr("+loop: Insufficient parameters (1 required)")
                 incr = rpn.globl.param_stack.pop()
                 if type(incr) is not rpn.type.Integer:
                     rpn.globl.param_stack.push(incr)
                     raise rpn.exception.TypeErr("+loop: Increment must be integer")
-                i += incr.value()
-                _I.set_obj(rpn.type.Integer(i))
-                if    incr.value() > 0 and i >= limit \
-                   or incr.value() < 0 and i < limit:
+                i += incr.value
+                _I.obj = rpn.type.Integer(i)
+                if    incr.value > 0 and i >= limit \
+                   or incr.value < 0 and i < limit:
                     break
         except rpn.exception.Leave:
             pass
@@ -346,16 +348,16 @@ class DoPlusLoop:
             rpn.globl.pop_scope("Do_PlusLoop complete")
 
     def patch_recurse(self, new_word):
-        self._seq.patch_recurse(new_word)
+        self._do_seq.patch_recurse(new_word)
 
     def __str__(self):
-        return "do {} +loop".format(self._seq)
+        return "do {} +loop".format(self._do_seq)
 
     def __repr__(self):
-        return "DoPlusLoop[{}]".format(repr(self._seq))
+        return "DoPlusLoop[{}]".format(repr(self._do_seq))
 
 
-class DotQuote:
+class DotQuote(Executable):
     def __init__(self, val):
         if len(val) < 3 or val[0:2] != '."' or val[-1] != '"':
             raise rpn.exception.FatalErr("{}: Malformed string: '{}'".format(whoami(), val))
@@ -368,17 +370,14 @@ class DotQuote:
         dbg("trace", 1, "trace({})".format(repr(self)))
         rpn.globl.write("{}".format(self.stringval()))
 
-    def patch_recurse(self, new_word):
-        pass
-
     def __str__(self):
-        return ".\"{}\"".format(self.stringval())
+        return '."{}"'.format(self.stringval())
 
     def __repr__(self):
-        return "DotQuote[{}]".format(repr(self.stringval()))
+        return 'DotQuote["{}"]'.format(self.stringval())
 
 
-class FetchVar:
+class FetchVar(Executable):
     """Fetch variable.
 
 It is normally an error to fetch an undefined variable,
@@ -403,21 +402,21 @@ the right thing with empty stack (uses zero)."""
         (var, _) = rpn.globl.lookup_variable(self.identifier())
         if var is None:
             raise rpn.exception.FatalErr("{}: Variable has vanished!".format(str(self)))
-        if var.obj() is None:
+        if var.obj is None:
             if self._modifier == '?':
                 rpn.globl.param_stack.push(rpn.type.Integer(0))
                 # The variable remains undefined
             else:
                 raise rpn.exception.RuntimeErr("{}: Variable is not defined".format(str(self)))
-        elif self._modifier == '$' or type(var.obj()) is rpn.type.String:
-            rpn.globl.string_stack.push(var.obj())
+        elif self._modifier == '$' or type(var.obj) is rpn.type.String:
+            rpn.globl.string_stack.push(var.obj)
         else:
-            if self._modifier is not None and self._modifier == '/' and var.obj().zerop():
+            if self._modifier is not None and self._modifier == '/' and var.obj.zerop():
                 raise rpn.exception.RuntimeErr("{}: Cannot divide by zero".format(str(self)))
             if self._modifier is not None and rpn.globl.param_stack.empty():
                 # Fake a zero on the stack so recall arithmetic continues to work
                 rpn.globl.param_stack.push(rpn.type.Integer(0))
-            rpn.globl.param_stack.push(var.obj())
+            rpn.globl.param_stack.push(var.obj)
 
             # Save and restore show X flag
             rpn.flag.copy_flag(rpn.flag.F_SHOW_X, 54)
@@ -432,9 +431,6 @@ the right thing with empty stack (uses zero)."""
             rpn.flag.copy_flag(54, rpn.flag.F_SHOW_X)
             rpn.flag.clear_flag(54)
 
-    def patch_recurse(self, new_word):
-        pass
-
     def __str__(self):
         return "@{}{}".format(self._modifier if self._modifier is not None else "",
                               self.identifier())
@@ -444,7 +440,7 @@ the right thing with empty stack (uses zero)."""
                                        self.identifier())
 
 
-class Forget:
+class Forget(Executable):
     def __init__(self, word, scope):
         if type(word) is not rpn.util.Word:
             raise rpn.exception.FatalErr("{}: {} is not a Word".format(whoami(), repr(word)))
@@ -455,12 +451,9 @@ class Forget:
 
     def __call__(self):
         dbg("trace", 1, "trace({})".format(repr(self)))
-        if self._word.protected():
+        if self._word.protected:
             raise rpn.exception.RuntimeErr("forget: '{}' is protected".format(self._word.name()))
         self._scope.delete_word(self._word.name())
-
-    def patch_recurse(self, new_word):
-        pass
 
     def __str__(self):
         return "forget {}".format(self._word.name())
@@ -469,7 +462,7 @@ class Forget:
         return "Forget[{}]".format(repr(self._word.name()))
 
 
-class Help:
+class Help(Executable):
     def __init__(self, ident, doc):
         self._identifier = ident
         self._doc = doc
@@ -484,9 +477,6 @@ class Help:
     def doc(self):
         return self._doc
 
-    def patch_recurse(self, new_word):
-        pass
-
     def __str__(self):
         return "help {}".format(self.identifier())
 
@@ -494,9 +484,10 @@ class Help:
         return "Help[{}]".format(repr(self.identifier()))
 
 
-class If:
-    def __init__(self, seq):
-        self._seq = seq
+class IfElse(Executable):
+    def __init__(self, if_seq, else_seq):
+        self._if_seq   = if_seq
+        self._else_seq = else_seq
 
     def __call__(self):
         dbg("trace", 2, "trace({})".format(repr(self)))
@@ -506,49 +497,33 @@ class If:
         if type(flag) is not rpn.type.Integer:
             rpn.globl.param_stack.push(flag)
             raise rpn.exception.TypeErr("if: Flag must be an integer")
-        if flag.value() != 0:
-            self._seq.__call__()
+        if flag.value != 0:
+            self._if_seq.__call__()
+        elif self._else_seq is not None:
+            self._else_seq.__call__()
 
     def patch_recurse(self, new_word):
-        self._seq.patch_recurse(new_word)
+        self._if_seq.patch_recurse(new_word)
+        if self._else_seq is not None:
+            self._else_seq.patch_recurse(new_word)
 
     def __str__(self):
-        return "if {} then".format(self._seq)
+        s = "if {} ".format(self._if_seq)
+        if self._else_seq is not None:
+            s += "else {} ".format(self._else_seq)
+        return s + "then"
 
     def __repr__(self):
-        return "If[{}]".format(repr(self._seq))
+        s = "If"
+        if self._else_seq is not None:
+            s += "Else"
+        s += "[{}".format(repr(self._if_seq))
+        if self._else_seq is not None:
+            s += ", {}".format(repr(self._else_seq))
+        return s + "]"
 
 
-class IfElse:
-    def __init__(self, seq1, seq2):
-        self._seq1 = seq1
-        self._seq2 = seq2
-
-    def __call__(self):
-        dbg("trace", 2, "trace({})".format(repr(self)))
-        if rpn.globl.param_stack.empty():
-            raise rpn.exception.RuntimeErr("if: Insufficient parameters (1 required)")
-        flag = rpn.globl.param_stack.pop()
-        if type(flag) is not rpn.type.Integer:
-            rpn.globl.param_stack.push(flag)
-            raise rpn.exception.TypeErr("if: Flag must be an integer")
-        if flag.value() != 0:
-            self._seq1.__call__()
-        else:
-            self._seq2.__call__()
-
-    def patch_recurse(self, new_word):
-        self._seq1.patch_recurse(new_word)
-        self._seq2.patch_recurse(new_word)
-
-    def __str__(self):
-        return "if {} else {} then".format(self._seq1, self._seq2)
-
-    def __repr__(self):
-        return "IfElse[{}, {}]".format(repr(self._seq1), repr(self._seq2))
-
-
-class Recurse:
+class Recurse(Executable):
     def __init__(self, target=None):
         if target is not None and type(target) is not rpn.util.Word:
             raise rpn.exception.FatalErr("{}: Target '{}' is not an rpn.util.Word".format(whoami(), repr(target)))
@@ -578,7 +553,7 @@ class Recurse:
         return "RWord[{}]".format(repr(self.target().name()))
 
 
-class Show:
+class Show(Executable):
     def __init__(self, word, scope):
         if type(word) is not rpn.util.Word:
             raise rpn.exception.FatalErr("{}: Word {} is not an rpn.util.Word".format(whoami(), repr(word)))
@@ -591,9 +566,6 @@ class Show:
         dbg("trace", 1, "trace({})".format(repr(self)))
         rpn.globl.writeln(self._word.as_definition())
 
-    def patch_recurse(self, new_word):
-        pass
-
     def __str__(self):
         return "show {}".format(self._word.name())
 
@@ -601,7 +573,7 @@ class Show:
         return "Show[{}]".format(repr(self._word.name()))
 
 
-class StoreVar:
+class StoreVar(Executable):
     """Store variable.
 
 In addition to storing a value directly in a variable,
@@ -634,7 +606,7 @@ The TOS is consumed as normal."""
         if self._modifier == '/' and rpn.globl.param_stack.top().zerop():
             raise rpn.exception.ValueErr("{}: X cannot be zero".format(str(self)))
 
-        cur_obj = var.obj()
+        cur_obj = var.obj
         new_obj = rpn.globl.string_stack.top() if stringp else rpn.globl.param_stack.top()
         for pre_hook_func in var.pre_hooks():
             try:
@@ -660,13 +632,10 @@ The TOS is consumed as normal."""
 
         old_obj = cur_obj
         new_obj = rpn.globl.string_stack.pop() if stringp else rpn.globl.param_stack.pop()
-        var.set_obj(new_obj)
+        var.obj = new_obj
 
         for post_hook_func in var.post_hooks():
             post_hook_func(self.identifier(), old_obj, new_obj)
-
-    def patch_recurse(self, new_word):
-        pass
 
     def __str__(self):
         return "!{}{}".format(self._modifier if self._modifier is not None else "",

@@ -151,7 +151,7 @@ def defvar(name, value, **kwargs):
     root_scope.add_varname(name)
     var = rpn.util.Variable(name, value, **kwargs)
     dbg(whoami(), 1, "{}: Creating variable {} at address {} in {}".format(whoami(), name, hex(id(var)), repr(root_scope)))
-    root_scope.set_variable(name, var)
+    root_scope.define_variable(name, var)
     return var
 
 
@@ -301,7 +301,7 @@ def lookup_word(name):
         #rpn.globl.lnwriteln("{}: Looking for word {} in {}...".format(whoami(), name, scope))
         #rpn.globl.lnwriteln("{} has words: {}".format(scope, scope.words))
         word = scope.word(name)
-        if word is not None:
+        if word is not None and not word.smudge():
             #rpn.globl.lnwriteln("{}: Found word {} in {}: {}".format(whoami(), name, scope, word))
             return (word, scope)
     #rpn.globl.lnwriteln("{}: Word {} not found".format(whoami(), name))
@@ -372,7 +372,7 @@ def to_rpn_class(n):
 def write(s=""):
     if len(s) == 0:
         return
-    outval = rpn.globl.sharpout.obj().value()
+    outval = rpn.globl.sharpout.obj.value
     newline = s.find("\n")
     while newline != -1:
         substring = s[:newline]
@@ -382,18 +382,18 @@ def write(s=""):
         newline = s.find("\n")
     outval += len(s)
     print(s, end='', flush=True) # OK
-    rpn.globl.sharpout.set_obj(rpn.type.Integer(outval))
+    rpn.globl.sharpout.obj = rpn.type.Integer(outval)
 
 def writeln(s=""):
     print(s, flush=True)       # OK
-    rpn.globl.sharpout.set_obj(rpn.type.Integer(0))
+    rpn.globl.sharpout.obj = rpn.type.Integer(0)
 
 def lnwrite(s=""):
-    if rpn.globl.sharpout.obj().value() != 0:
+    if rpn.globl.sharpout.obj.value != 0:
         writeln()
     write(s)
 
 def lnwriteln(s=""):
-    if rpn.globl.sharpout.obj().value() != 0:
+    if rpn.globl.sharpout.obj.value != 0:
         writeln()
     writeln(s)

@@ -210,6 +210,7 @@ def initialize_lexer():
 
 
 
+
 #############################################################################
 #
 #       P A R S E R
@@ -275,6 +276,8 @@ def p_execute(p):
     executable = p[-1]
     if executable is None:
         return
+    if executable.immediate():
+        raise rpn.exception.ParseErr("Immediate word '{}' can only be used inside colon definition".format(executable.name()))
 
     dbg("p_execute", 1, "p_execute: {}".format(repr(executable)))
     rpn.globl.execute(executable)
@@ -372,7 +375,7 @@ def p_define_word(p):
     identifier = p[-4]
     doc_str    = p[-3]
     sequence   = p[-2]
-    # rpn.globl.lnwriteln("{}: identifier={}  doc_str={}  sequence={}".format(whoami(), identifier, repr(doc_str), repr(sequence)))
+    dbg("p_define_word", 2, "{}: identifier={}  doc_str={}  sequence={}".format(whoami(), identifier, repr(doc_str), repr(sequence)))
 
     kwargs = dict()
     if doc_str is not None:
@@ -386,10 +389,10 @@ def p_define_word(p):
     new_word = rpn.util.Word(identifier, sequence, **kwargs)
     dbg("p_define_word", 1, "{}: Defining word {}={} in scope {}".format(whoami(), identifier, repr(new_word), repr(rpn.globl.scope_stack.top())))
     sequence.patch_recurse(new_word)
-    rpn.globl.scope_stack.top().set_word(identifier, new_word)
+    rpn.globl.scope_stack.top().define_word(identifier, new_word)
 
     p[0] = new_word
-    dbg("p_define_word", 2, "{}: Returning {}".format(whoami(), repr(p[0])))
+
 
 def p_docstring(p):
     '''docstring : empty
@@ -483,7 +486,7 @@ def p_help(p):
 def p_if_then(p):
     '''if_then : IF sequence THEN'''
 
-    p[0] = rpn.exe.If(p[2])
+    p[0] = rpn.exe.IfElse(p[2], None)
 
 
 def p_if_else_then(p):
@@ -562,7 +565,7 @@ def p_locals_scope(p):
         elif p[idx] == ':':
             scope_name = p[idx + 1]
         else:
-            # rpn.globl.lnwriteln("p_locals_scope: Not sure about {}".format(p[idx]))
+            dbg(whoami(), 3, "p_locals_scope: Not sure about {}".format(p[idx]))
             # scope_name = "locals"
             idx -= 1
 
@@ -589,7 +592,7 @@ def p_locals_scope(p):
                 dbg(whoami(), 3, "{} is an INOUT variable".format(varname))
                 in_varnames.append(varname)
                 out_varnames.append(varname)
-            dbg(whoami(), 1, "{}: Adding varname '{}'".format(whoami(), varname))
+            dbg(whoami(), 2, "{}: Adding varname '{}'".format(whoami(), varname))
             all_varnames.append(varname)
 
         scope.set_all_varnames(all_varnames)
@@ -628,8 +631,18 @@ def p_executables_list(p):
         if p[1] is None:
             p[0] = p[2]
         else:
-            p[0] = rpn.util.List(p[1], p[2])
-    # rpn.globl.lnwriteln("{}: Returning {}".format(whoami(), p[0])))
+            if p[1].immediate():
+                # The problem here is that new_word is not created until
+                # p_define_word() - long after this code runs.
+                #
+                # global new_word
+                # dbg(whoami(), 1, "'{}' is immediate, call_immed({})".format(repr(p[1]), new_word))
+                # p[1].__call_immed__(new_word)
+                print("Immediate '{}' has no effect".format(repr(p[1])))
+                p[0] = p[2]
+            else:
+                p[0] = rpn.util.List(p[1], p[2])
+    dbg(whoami(), 1, "{}: Returning {}".format(whoami(), p[0]))
 
 
 def p_number(p):
@@ -668,7 +681,7 @@ def p_rational(p):
 def p_complex(p):
     '''complex : OPEN_PAREN real COMMA real CLOSE_PAREN '''
 
-    p[0] = rpn.type.Complex(p[2].value(), p[4].value())
+    p[0] = rpn.type.Complex(p[2].value, p[4].value)
 
 
 def p_string(p):
@@ -729,7 +742,7 @@ def p_constant(p):
     var = rpn.util.Variable(ident, None, constant=True)
     #print("{}: Creating variable {} at address {} in {}".format(whoami(), ident, hex(id(var)), repr(scope)))
     rpn.globl.scope_stack.top().add_varname(ident)
-    rpn.globl.scope_stack.top().set_variable(ident, var)
+    rpn.globl.scope_stack.top().define_variable(ident, var)
     p[0] = rpn.exe.Constant(var)
 
 
@@ -746,7 +759,7 @@ def p_undef(p):
         rpn.globl.lnwriteln("UNDEF: Variable '{}' not found".format(ident))
         raise SyntaxError
 
-    if var.protected():
+    if var.protected:
         rpn.globl.lnwriteln("UNDEF: Variable '{}' protected".format(ident))
         raise SyntaxError
 
@@ -754,7 +767,7 @@ def p_undef(p):
         rpn.globl.lnwriteln("UNDEF: Variable '{}' out of scope".format(ident))
         raise SyntaxError
 
-    cur_obj = var.obj()
+    cur_obj = var.obj
     new_obj = None
     for pre_hook_func in var.pre_hooks():
         try:
@@ -791,7 +804,7 @@ def p_variable(p):
     var = rpn.util.Variable(ident)
     dbg(whoami(), 1, "{}: Creating variable {} at address {} in {}".format(whoami(), ident, hex(id(var)), repr(rpn.globl.scope_stack.top())))
     rpn.globl.scope_stack.top().add_varname(ident)
-    rpn.globl.scope_stack.top().set_variable(ident, var)
+    rpn.globl.scope_stack.top().define_variable(ident, var)
 
 
 def p_vectors_list(p):

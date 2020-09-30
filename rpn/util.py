@@ -51,23 +51,27 @@ class DisplayConfig:
         self._style = None
         self._prec  = None
 
+    @property
     def style(self):
         return self._style
 
-    def set_style(self, style):
-        if style not in ["std", "fix", "sci", "eng"]:
-            raise rpn.exception.FatalErr("{}: Invalid display style '{}'".format(whoami(), style))
-        self._style = style
+    @style.setter
+    def style(self, new_style):
+        if new_style not in ["std", "fix", "sci", "eng"]:
+            raise rpn.exception.FatalErr("{}: Invalid display style '{}'".format(whoami(), new_style))
+        self._style = new_style
 
+    @property
     def prec(self):
         return self._prec
 
-    def set_prec(self, prec):
-        if prec < 0 or prec >= rpn.globl.PRECISION_MAX:
-            raise rpn.exception.FatalErr("{}: Invalid display precision '{}' (0..{} expected)".format(whoami(), prec, rpn.globl.PRECISION_MAX - 1))
-        self._prec = prec
+    @prec.setter
+    def prec(self, new_prec):
+        if new_prec < 0 or new_prec >= rpn.globl.PRECISION_MAX:
+            raise rpn.exception.FatalErr("{}: Invalid display precision '{}' (0..{} expected)".format(whoami(), new_prec, rpn.globl.PRECISION_MAX - 1))
+        self._prec = new_prec
         for bit in range(4):
-            if prec & 1<<bit != 0:
+            if new_prec & 1<<bit != 0:
                 rpn.flag.set_flag(39 - bit)
             else:
                 rpn.flag.clear_flag(39 - bit)
@@ -81,7 +85,7 @@ class DisplayConfig:
         :return: string conversion of x in scientific notation
         """
 
-        sf = self.prec()
+        sf = self.prec
         if x == 0:
             return "0." + "0"*(sf-1) + "e+00"
         mant_sign = ""
@@ -110,23 +114,23 @@ class DisplayConfig:
 
     def fmt(self, x, show_label=True):
         if type(x) is float:
-            if self.style() == "fix":
-                return "{:.{prec}{style}}".format(x, style="f", prec=self.prec())
-            if self.style() == "sci":
-                return "{:.{prec}{style}}".format(x, style="e", prec=self.prec())
-            if self.style() == "eng":
+            if self.style == "fix":
+                return "{:.{prec}{style}}".format(x, style="f", prec=self.prec)
+            if self.style == "sci":
+                return "{:.{prec}{style}}".format(x, style="e", prec=self.prec)
+            if self.style == "eng":
                 return self.eng_notate(x)
-            if self.style() == "std":
+            if self.style == "std":
                 return str(x)
-            raise rpn.exception.FatalErr("{}: Invalid style '{}'".format(whoami(), self.style()))
+            raise rpn.exception.FatalErr("{}: Invalid style '{}'".format(whoami(), self.style))
         if type(x) is rpn.type.Float:
-            s = self.fmt(x.value())
+            s = self.fmt(x.value)
             l = ""
-            if show_label and x.label() is not None:
-                l = r"  \ " + "{}".format(x.label())
+            if show_label and x.label is not None:
+                l = r"  \ " + "{}".format(x.label)
             return s + l
         if type(x) is rpn.type.String:
-            return x.value()
+            return x.value
         return str(x)
 
 
@@ -193,92 +197,6 @@ class Queue:
         self._q.put(item)
 
 
-class Sequence:
-    def __init__(self, scope_template, exe_list):
-        self._scope_template = scope_template
-        self._exe_list       = exe_list
-        dbg(whoami(), 1, "{}: scope_template={}, exe_list={}".format(whoami(), repr(scope_template), repr(exe_list)))
-
-    def __call__(self):
-        dbg("trace", 2, "trace({})".format(repr(self)))
-
-        # Build a runtime scope populated with actual Variables.
-        # We need to create a new empty scope, populate it with new
-        # variables which are named clones of the templates in the
-        # sequence's scope, and then push that new scope.  This
-        # ensure that each frame gets its own set of local
-        # variables.
-
-        if self.scope_template().name()[:6] == "Parse_":
-            scope_name = "Call_" + self.scope_template().name()[6:]
-        else:
-            scope_name = "Call_" + self.scope_template().name()
-        scope = rpn.util.Scope(scope_name)
-        # XXX what about kwargs???
-        for varname in self.scope_template().all_varnames():
-            var = rpn.util.Variable(varname, None)
-            scope.set_variable(varname, var)
-
-        if len(self.scope_template().in_varnames()) > 0:
-            if rpn.globl.param_stack.size() < len(self.scope_template().in_varnames()):
-                raise rpn.exception.RuntimeErr("{}: Insufficient parameters ({} required)".format(self.scope_template().name(), len(self.scope_template().in_varnames())))
-            in_vars = []
-            for varname in self.scope_template().in_varnames().items():
-                in_vars.append(varname)
-            in_vars.reverse()
-            for varname in in_vars:
-                obj = rpn.globl.param_stack.pop()
-                dbg(whoami(), 1, "{}: Setting {} to {}".format(whoami(), varname, obj.value()))
-                scope.variable(varname).set_obj(obj)
-
-        dbg(whoami(), 1, "{}: seq={}".format(whoami(), repr(self.seq())))
-        pushed_scope = False
-
-        try:
-            rpn.globl.push_scope(scope, "Calling {}".format(repr(self)))
-            pushed_scope = True
-            self.seq().__call__()
-        # except rpn.exception.Exit:
-        #     raise
-        finally:
-            if len(self.scope_template().out_varnames()) > 0:
-                param_stack_pushes = 0
-                for varname in self.scope_template().out_varnames().items():
-                    var = scope.variable(varname)
-                    if var is None:
-                        raise rpn.exception.RuntimeErr("{}: {}: Variable '{}' has vanished!".format(whoami(), self.scope_template().name(), varname))
-                    if not var.defined():
-                        # Undo any previous param_stack pushes if we come across an out variable that's not defined
-                        for _ in range(param_stack_pushes):
-                            rpn.globl.param_stack.pop()
-                        raise rpn.exception.RuntimeErr("{}: Variable '{}' was never set".format(self.scope_template().name(), varname))
-                    dbg(whoami(), 1, "{} is {}".format(varname, repr(var.obj())))
-                    rpn.globl.param_stack.push(var.obj())
-                    param_stack_pushes += 1
-            if pushed_scope:
-                rpn.globl.pop_scope("{} complete".format(repr(self)))
-
-    def patch_recurse(self, new_word):
-        for idx, _ in enumerate(self.seq().items()):
-            self.seq()[idx].patch_recurse(new_word)
-
-    def scope_template(self):
-        return self._scope_template
-
-    def seq(self):
-        return self._exe_list
-
-    def __str__(self):
-        scope_str = str(self.scope_template())
-        s = "{}{}{}".format(scope_str,
-                            " " if len(scope_str) > 0 and len(self.seq()) > 0 else "",
-                            str(self.seq()))
-        return s
-
-    def __repr__(self):
-        return "Sequence[{}, {}]".format(repr(self.scope_template()), repr(self.seq()))
-
-
 class Scope:
     def __init__(self, name):
         self._name = name
@@ -297,12 +215,12 @@ class Scope:
     def variables(self):
         return self._variables
 
-    def set_word(self, identifier, word):
+    def define_word(self, identifier, word):
         if type(word) is not rpn.util.Word:
             raise rpn.exception.FatalErr("{}: '{}' is not a Word".format(whoami(), identifier))
 
         if rpn.globl.default_protected:
-            if (word.doc() is None or len(word.doc()) == 0) and not word.hidden():
+            if (word.doc() is None or len(word.doc()) == 0) and not word.hidden:
                 print("Warning: Word '{}' has no documentation".format(identifier)) # OK
             # if word.args() is None:
             #     print("Warning: Word '{}' has no args!".format(identifier)) # OK
@@ -315,7 +233,7 @@ class Scope:
     def word(self, identifier):
         return self._words.get(identifier)
 
-    def set_variable(self, identifier, var):
+    def define_variable(self, identifier, var):
         if type(var) is not Variable:
             raise rpn.exception.FatalErr("{}: '{}' is not a Variable".format(whoami(), identifier))
         dbg(whoami(), 1, "{}: Setting variable '{}' to {} in {}".format(whoami(), identifier, repr(var), repr(self)))
@@ -351,10 +269,10 @@ class Scope:
         return self._variables.get(identifier)
 
     def visible_variables(self):
-        return list(filter(lambda x: not x[1].hidden(), self.variables().items()))
+        return list(filter(lambda x: not x[1].hidden, self.variables().items()))
 
     def unprotected_words(self):
-        return list(filter(lambda x: not x[1].protected(), self.words().items()))
+        return list(filter(lambda x: not x[1].protected, self.words().items()))
 
     def decorate_varname(self, varname):
         if varname in self.in_varnames() and varname in self.out_varnames():
@@ -380,6 +298,95 @@ class Scope:
 
     def __repr__(self):
         return "Scope['{}'={}]".format(self.name(), hex(id(self)))
+
+
+class Sequence:
+    def __init__(self, scope_template, exe_list):
+        self._scope_template = scope_template
+        self._exe_list       = exe_list
+        dbg(whoami(), 1, "{}: scope_template={}, exe_list={}".format(whoami(), repr(scope_template), repr(exe_list)))
+
+    def __call__(self):
+        dbg("trace", 2, "trace({})".format(repr(self)))
+
+        # Build a runtime scope populated with actual Variables.
+        # We need to create a new empty scope, populate it with new
+        # variables which are named clones of the templates in the
+        # sequence's scope, and then push that new scope.  This
+        # ensure that each frame gets its own set of local
+        # variables.
+
+        if self.scope_template().name()[:6] == "Parse_":
+            scope_name = "Call_" + self.scope_template().name()[6:]
+        else:
+            scope_name = "Call_" + self.scope_template().name()
+        scope = rpn.util.Scope(scope_name)
+        # XXX what about kwargs???
+        for varname in self.scope_template().all_varnames():
+            var = rpn.util.Variable(varname, None)
+            scope.define_variable(varname, var)
+
+        if len(self.scope_template().in_varnames()) > 0:
+            if rpn.globl.param_stack.size() < len(self.scope_template().in_varnames()):
+                raise rpn.exception.RuntimeErr("{}: Insufficient parameters ({} required)".format(self.scope_template().name(), len(self.scope_template().in_varnames())))
+            in_vars = []
+            for varname in self.scope_template().in_varnames().items():
+                in_vars.append(varname)
+            in_vars.reverse()
+            for varname in in_vars:
+                obj = rpn.globl.param_stack.pop()
+                dbg(whoami(), 1, "{}: Setting {} to {}".format(whoami(), varname, obj.value))
+                scope.variable(varname).obj = obj
+
+        dbg(whoami(), 1, "{}: seq={}".format(whoami(), repr(self.seq())))
+        pushed_scope = False
+
+        try:
+            rpn.globl.push_scope(scope, "Calling {}".format(repr(self)))
+            pushed_scope = True
+            self.seq().__call__()
+        # except rpn.exception.Exit:
+        #     raise
+        finally:
+            if len(self.scope_template().out_varnames()) > 0:
+                param_stack_pushes = 0
+                for varname in self.scope_template().out_varnames().items():
+                    var = scope.variable(varname)
+                    if var is None:
+                        raise rpn.exception.RuntimeErr("{}: {}: Variable '{}' has vanished!".format(whoami(), self.scope_template().name(), varname))
+                    if not var.defined():
+                        # Undo any previous param_stack pushes if we come across an out variable that's not defined
+                        for _ in range(param_stack_pushes):
+                            rpn.globl.param_stack.pop()
+                        raise rpn.exception.RuntimeErr("{}: Variable '{}' was never set".format(self.scope_template().name(), varname))
+                    dbg(whoami(), 1, "{} is {}".format(varname, repr(var.obj)))
+                    rpn.globl.param_stack.push(var.obj)
+                    param_stack_pushes += 1
+            if pushed_scope:
+                rpn.globl.pop_scope("{} complete".format(repr(self)))
+
+    def patch_recurse(self, new_word):
+        for idx, _ in enumerate(self.seq().items()):
+            self.seq()[idx].patch_recurse(new_word)
+
+    def scope_template(self):
+        return self._scope_template
+
+    def seq(self):
+        return self._exe_list
+
+    def __str__(self):
+        scope_str = str(self.scope_template())
+        # print("{}: scope_template={}".format(whoami(), repr(self.scope_template())))
+        s = "{}{}{}".format(scope_str,
+                            " " if len(scope_str) > 0 and len(self.seq()) > 0 else "",
+                            str(self.seq()))
+        return s
+        # return "Something"
+
+
+    def __repr__(self):
+        return "Sequence[{}, {}]".format(repr(self.scope_template()), repr(self.seq()))
 
 
 class Stack:
@@ -477,9 +484,9 @@ class TokenMgr:
             rpn.flag.clear_flag(rpn.flag.F_SHOW_X)
 
             rpn.globl.lnwrite()
-            rpn.globl.sharpout.set_obj(rpn.type.Integer(len(prompt)))
+            rpn.globl.sharpout.obj = rpn.type.Integer(len(prompt))
             data = input(prompt)
-            rpn.globl.sharpout.set_obj(rpn.type.Integer(0))
+            rpn.globl.sharpout.obj = rpn.type.Integer(0)
 
         # Get all the tokens
         rpn.globl.lexer.input(data)
@@ -587,7 +594,7 @@ class Variable:
         # `pre_hooks' is a list of functions that are called before a
         # user-mode "!VAR" or "undef VAR".  It is called with the
         # following parameters: variable name, old object (be sure to
-        # take .value()), and the new proposed value.  For "undef", new
+        # take .value), and the new proposed value.  For "undef", new
         # value is None.  If system wants to prevent the change, the
         # pre_hook function should raise a rpn.exception.RuntimeErr
         # exception.  Nothing needs to be returned.
@@ -618,27 +625,35 @@ class Variable:
         return not (name is None or len(name) == 0 or \
                     name[0] in ['+', '-', '*', '/', '?'])
 
+    @property
     def obj(self):
         return self._rpnobj
 
-    def set_obj(self, newobj):
-        self._rpnobj = newobj
+    @obj.setter
+    def obj(self, new_obj):
+        self._rpnobj = new_obj
 
     def name(self):
         return self._rawname
 
     def defined(self):
-        return self.obj() is not None
+        return self.obj is not None
 
     def constant(self):
         return self._constant
 
+    @property
     def hidden(self):
         return self._hidden
+
+    @hidden.setter
+    def hidden(self, new_hidden):
+        self._hidden = new_hidden
 
     def noshadow(self):
         return self._noshadow
 
+    @property
     def protected(self):
         return self._protected
 
@@ -655,7 +670,7 @@ class Variable:
         return str(self._rawname)
 
     def __repr__(self):
-        return "Variable[{},addr={},value={}]".format(self._rawname, hex(id(self)), repr(self.obj()))
+        return "Variable[{},addr={},value={}]".format(self._rawname, hex(id(self)), repr(self.obj))
 
 
 class Word:
@@ -664,8 +679,10 @@ class Word:
         self._defn      = defn  # rpn.util.Sequence
         self._doc       = None
         self._hidden    = False
+        self._immediate = False
         self._name      = name
         self._protected = rpn.globl.default_protected
+        self._smudge    = False # True=Hidden, False=Findable
         self._str_args  = 0
 
         my_print_x = None
@@ -676,29 +693,60 @@ class Word:
             raise rpn.exception.FatalErr("{}: defn is None".format(name))
         #dbg(whoami(), 3, "defn is {}".format(type(defn)))
 
+        # `args' is the number of numeric arguments that must be present
+        # on the parameter stack.
         if "args" in kwargs:
             self._args = kwargs['args']
             del kwargs["args"]
 
+        # `doc' is the docstring for the word.  For a built-in word, it
+        # is set directly in the @defword() call.  For a colon
+        # definition, use the doc:"DOCSTRING" construct.
         if "doc" in kwargs:
             self._doc = kwargs["doc"]
             del kwargs["doc"]
 
+        # `hidden' means that the word will not appear in the vlist.  It
+        # is still findable/executable by name like any other word.
         if "hidden" in kwargs:
             self._hidden = kwargs["hidden"]
             del kwargs["hidden"]
 
+        # `immediate' means that the word will be immediately executed
+        # when encountered, even in a colon definition.  Still evolving.
+        if "immediate" in kwargs:
+            self._immediate = kwargs["immediate"]
+            del kwargs["immediate"]
+
+        # `print_x' indicates whether the top of stack should be printed
+        # (without popping) before the interactive prompt.  Most
+        # computation words set this, most words that do I/O clear this
+        # (on the grounds that desired output has already been
+        # displayed), most control words do not change the setting.
         if "print_x" in kwargs:
             my_print_x = kwargs["print_x"]
             del kwargs["print_x"]
         # else:
-        #     if self._protected:
+        #     if self.protected:
         #         print("Word {} missing print_x".format(name))
 
+        # `protected' means the word cannot be forgotten.  Built-in
+        # words defined in code, and internal colon words defined in
+        # define_secondary_words() are protected; user-defined colon
+        # words and those created in define_tertiary_words() are not.
         if "protected" in kwargs:
             self._protected = kwargs["protected"]
             del kwargs["protected"]
 
+        # `smudge' means the word cannot be located through normal
+        # lookup.  This is used during definition.  The bit is cleared
+        # to make the word findable.
+        if "smudge" in kwargs:
+            self._smudge = kwargs["smudge"]
+            del kwargs["smudge"]
+
+        # `str_args' is the number of string arguments that must be
+        # present on the string stack.
         if "str_args" in kwargs:
             self._str_args = kwargs["str_args"]
             del kwargs["str_args"]
@@ -709,6 +757,10 @@ class Word:
                 raise rpn.exception.FatalErr("Could not construct word '{}'".format(name))
 
         kwargs["print_x"] = my_print_x
+
+    def __call_immed__(self, arg):
+        #print("{}: arg={}".format(whoami(), repr(arg)))
+        self._defn.__call__(arg)
 
     def __call__(self):
         dbg("trace", 1, "trace({})".format(repr(self)))
@@ -732,14 +784,36 @@ class Word:
     def str_args(self):
         return self._str_args
 
+    def set_defn(self, new_defn):
+        # defn is rpn.util.Sequence
+        self._defn = new_defn
+
     def doc(self):
         return self._doc
 
+    def set_doc(self, new_doc):
+        self._doc = new_doc
+
+    @property
     def hidden(self):
         return self._hidden
 
+    @hidden.setter
+    def hidden(self, new_hidden):
+        self._hidden = new_hidden
+
+    def immediate(self):
+        return self._immediate
+
+    @property
     def protected(self):
         return self._protected
+
+    def smudge(self):
+        return self._smudge
+
+    def set_smudge(self, new_smudge):
+        self._smudge = new_smudge
 
     def as_definition(self):
         if typename(self._defn) == 'function':

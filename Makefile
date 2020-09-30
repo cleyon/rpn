@@ -19,17 +19,13 @@ PYLINT_IGNORE=$(line_too_long),$(bad_whitespace),$(missing_function_docstring),$
 #PYLINT_IGNORE=$(line_too_long),$(bad_whitespace),$(missing_function_docstring),$(invalid_name),$(missing_class_docstring),$(unidiomatic_typecheck),$(too_many_boolean_expressions),$(too_many_statements),$(too_many_branches),$(too_many_return_statements),$(too_many_locals),$(too_few_public_methods),$(too_many_instance_attributes)
 
 all:
-	@echo "make: Please specify a target: clean, lint"
-
-run:
-	@-find . -type d -name __pycache__ -exec rm -rf {} \;  2>/dev/null
-	@-find . -type f -name lextab.py   -exec rm -f  {} \;  2>/dev/null
-	@-find . -type f -name parsetab.py -exec rm -f  {} \;  2>/dev/null
-	bin/rpn
+	@echo "make: Please specify a target: clean, lint, lintall, tags"
 
 clean:
-	rm -f lextab.py parsetab.py
-	rm -rf __pycache__
+	@-find . -type d -name __pycache__ -exec rm -rf {} \;  >/dev/null 2>&1
+	@-find . -type f -name lextab.py   -exec rm -f  {} \;  >/dev/null 2>&1
+	@-find . -type f -name parsetab.py -exec rm -f  {} \;  >/dev/null 2>&1
+	@-find . -type f -name parser.out  -exec rm -f  {} \;  >/dev/null 2>&1
 
 lint:
 	pylint -d $(PYLINT_IGNORE) rpn

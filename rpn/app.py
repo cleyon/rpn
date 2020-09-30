@@ -90,7 +90,7 @@ def initialize(argv):
         init_file = os.path.expanduser("~/.rpnrc")
         if os.path.isfile(init_file):
             (rpnrc, _) = rpn.globl.lookup_variable('RPNRC')
-            rpnrc.set_obj(rpn.type.String(init_file))
+            rpnrc.obj = rpn.type.String(init_file)
             load_file(init_file)
 
     if len(argv) > 0:
@@ -105,32 +105,65 @@ def initialize(argv):
 
 def define_variables():
     # Variables defined here are all protected=True by default
-    rpn.globl.sharpout = rpn.globl.defvar('#OUT',  rpn.type.Integer(0), readonly=True, noshadow=True)
-    rpn.tvm.CF = rpn.globl.defvar('CF',    rpn.type.Integer(1), noshadow=True, pre_hooks=[require_int, require_positive],
-                                  doc="TVM: Compounding Frequency")
-    rpn.globl.scr_cols = rpn.globl.defvar('COLS',  rpn.type.Integer(0), pre_hooks=[require_int, require_positive])
-    rpn.tvm.FV = rpn.globl.defvar('FV',    None, noshadow=True, pre_hooks=[require_int_or_float],
-                                  doc="TVM: Future Value")
-    rpn.tvm.INT = rpn.globl.defvar('INT',   None, noshadow=True, pre_hooks=[require_int_or_float, require_non_negative],
-                                   doc="TVM: Interest rate")
-    rpn.tvm.N = rpn.globl.defvar('N',     None, noshadow=True, pre_hooks=[require_int_or_float, require_positive],
-                                 doc="TVM: Number of payments")
-    rpn.globl.defvar('NUMPY', rpn.type.Integer(rpn.globl.bool_to_int(rpn.globl.have_module('numpy'))), readonly=True, noshadow=True)
+    rpn.globl.sharpout = rpn.globl.defvar('#OUT', rpn.type.Integer(0),
+                                          readonly=True, noshadow=True)
+    rpn.tvm.CF = rpn.globl.defvar('CF', rpn.type.Integer(1),
+                                  noshadow=True,
+                                  pre_hooks=[pre_require_int, pre_require_positive],
+                                  post_hooks=[post_label_with_identifier],
+                                  doc="Compounding Frequency")
+    rpn.globl.scr_cols = rpn.globl.defvar('COLS', rpn.type.Integer(0),
+                                          pre_hooks=[pre_require_int, pre_require_positive])
+    rpn.tvm.FV = rpn.globl.defvar('FV', None,
+                                  noshadow=True,
+                                  pre_hooks=[pre_require_int_or_float],
+                                  post_hooks=[post_label_with_identifier],
+                                  doc="Future Value")
+    rpn.tvm.INT = rpn.globl.defvar('INT', None,
+                                   noshadow=True,
+                                   pre_hooks=[pre_require_int_or_float, pre_require_non_negative],
+                                   post_hooks=[post_label_with_identifier],
+                                   doc="Interest rate")
+    rpn.tvm.N = rpn.globl.defvar('N', None,
+                                 noshadow=True,
+                                 pre_hooks=[pre_require_int_or_float, pre_require_positive],
+                                 post_hooks=[post_label_with_identifier],
+                                 doc="Number of payments")
+    rpn.globl.defvar('NUMPY', rpn.type.Integer(rpn.globl.bool_to_int(rpn.globl.have_module('numpy'))),
+                     readonly=True, noshadow=True)
     if rpn.globl.have_module('numpy'):
-        rpn.globl.defvar('NUMPY_VER', rpn.type.String(np.__version__), readonly=True)
-    rpn.tvm.PF = rpn.globl.defvar('PF',    rpn.type.Integer(1), noshadow=True, pre_hooks=[require_int, require_positive],
-                                  doc="TVM: Payment Frequency")
-    rpn.tvm.PMT = rpn.globl.defvar('PMT',   None, noshadow=True, pre_hooks=[require_int_or_float],
-                                   doc="TVM: Payment amount")
-    rpn.tvm.PV = rpn.globl.defvar('PV',    None, noshadow=True, pre_hooks=[require_int_or_float],
-                                  doc="TVM: Present Value")
-    rpn.globl.scr_rows = rpn.globl.defvar('ROWS',  rpn.type.Integer(0), pre_hooks=[require_int, require_positive])
-    rpn.globl.defvar('RPNRC', rpn.type.String(""), readonly=True, hidden=True)
-    rpn.globl.defvar('SCIPY', rpn.type.Integer(rpn.globl.bool_to_int(rpn.globl.have_module('scipy'))), readonly=True, noshadow=True)
+        rpn.globl.defvar('NUMPY_VER', rpn.type.String(np.__version__),
+                         readonly=True)
+    rpn.tvm.PF = rpn.globl.defvar('PF', rpn.type.Integer(1),
+                                  noshadow=True,
+                                  pre_hooks=[pre_require_int, pre_require_positive],
+                                  post_hooks=[post_label_with_identifier],
+                                  doc="Payment Frequency")
+    rpn.tvm.PMT = rpn.globl.defvar('PMT', None,
+                                   noshadow=True,
+                                   pre_hooks=[pre_require_int_or_float],
+                                   post_hooks=[post_label_with_identifier],
+                                   doc="Payment amount")
+    rpn.tvm.PV = rpn.globl.defvar('PV', None,
+                                  noshadow=True,
+                                  pre_hooks=[pre_require_int_or_float],
+                                  post_hooks=[post_label_with_identifier],
+                                  doc="Present Value")
+    rpn.globl.scr_rows = rpn.globl.defvar('ROWS', rpn.type.Integer(0),
+                                          pre_hooks=[pre_require_int, pre_require_positive])
+    rpn.globl.defvar('RPNRC', rpn.type.String(""),
+                     readonly=True, hidden=True)
+    rpn.globl.defvar('SCIPY', rpn.type.Integer(rpn.globl.bool_to_int(rpn.globl.have_module('scipy'))),
+                     readonly=True, noshadow=True)
     if rpn.globl.have_module('scipy'):
-        rpn.globl.defvar('SCIPY_VER', rpn.type.String(scipy.__version__), readonly=True)
-    rpn.globl.defvar('SIZE',  rpn.type.Integer(20), noshadow=True, pre_hooks=[validate_size_arg], post_hooks=[clear_newly_unveiled_registers])
-    rpn.globl.defvar('VER',   rpn.type.Float(rpn.globl.RPN_VERSION), readonly=True, noshadow=True)
+        rpn.globl.defvar('SCIPY_VER', rpn.type.String(scipy.__version__),
+                         readonly=True)
+    rpn.globl.defvar('SIZE', rpn.type.Integer(20),
+                     noshadow=True,
+                     pre_hooks=[pre_validate_size_arg],
+                     post_hooks=[post_clear_newly_unveiled_registers])
+    rpn.globl.defvar('VER', rpn.type.Float(rpn.globl.RPN_VERSION),
+                     readonly=True, noshadow=True)
 
 
 def parse_args(argv):
@@ -181,6 +214,7 @@ def load_file(filename):
     except PermissionError:
         raise rpn.exception.RuntimeErr("load: Cannot read file '{}'".format(filename))
     else:
+        dbg("load_file", 3, "load_file({})='{}'".format(filename, contents))
         rpn.globl.eval_string(contents)
 
 
@@ -189,7 +223,7 @@ def main_loop():
 
     # Non-existence of ~/.rpnrc is indicator of novice mode
     (rpnrc, _) = rpn.globl.lookup_variable("RPNRC")
-    if len(rpnrc.obj().value()) == 0:
+    if len(rpnrc.obj.value) == 0:
         rpn.globl.lnwriteln("Type ? for information, help <word> for help on a specific word.")
         rpn.globl.lnwriteln("Type vlist for a list of all words, vars to see your variables.")
         rpn.globl.lnwriteln("Type .s to display the stack non-destructively, and bye to exit.")
@@ -217,7 +251,7 @@ def main_loop():
 
 
 def end_program():
-    if rpn.globl.sharpout.obj().value() != 0:
+    if rpn.globl.sharpout.obj.value != 0:
         rpn.globl.writeln()
 
     if not rpn.globl.string_stack.empty():
@@ -435,8 +469,8 @@ def sigwinch_handler(_signum, _frame):
     if int(tty_rows) == 0:
         env_rows = os.getenv("ROWS")
         tty_rows = int(env_rows) if env_rows is not None else 24
-    rpn.globl.scr_rows.set_obj(rpn.type.Integer(tty_rows))
-    rpn.globl.scr_cols.set_obj(rpn.type.Integer(tty_columns))
+    rpn.globl.scr_rows.obj = rpn.type.Integer(tty_rows)
+    rpn.globl.scr_cols.obj = rpn.type.Integer(tty_columns)
 
 
 def sigquit_handler(_signum, _frame):
@@ -450,7 +484,7 @@ def sigquit_handler(_signum, _frame):
 #     print("cur_obj={}".format(repr(cur_obj)))
 #     print("new_obj={}".format(repr(new_obj)))
 #     # Check against None first due to undef case
-#     if new_obj is not None and new_obj.value() < 0:
+#     if new_obj is not None and new_obj.value < 0:
 #         raise rpn.exception.RuntimeErr("{} cannot be negative".format(ident))
 #
 # def example_post_hook_func(ident, old_obj, cur_obj):
@@ -459,38 +493,41 @@ def sigquit_handler(_signum, _frame):
 #     print("old_obj={}".format(repr(old_obj)))
 #     print("cur_obj={}".format(repr(cur_obj)))
 
-def require_int(identifier, _cur, new):
+def pre_require_int(identifier, _cur, new):
     if type(new) is not rpn.type.Integer:
         raise rpn.exception.RuntimeErr("!{}: Type error ({})".format(identifier, typename(new)))
 
-def require_int_or_float(identifier, _cur, new):
+def pre_require_int_or_float(identifier, _cur, new):
     if type(new) not in [rpn.type.Integer, rpn.type.Float]:
         raise rpn.exception.RuntimeErr("!{}: Type error ({})".format(identifier, typename(new)))
 
-def require_positive(identifier, _cur, new):
-    if new.value() <= 0:
+def pre_require_positive(identifier, _cur, new):
+    if new.value <= 0:
         raise rpn.exception.RuntimeErr("!{}: Must be positive".format(identifier))
 
-def require_non_negative(identifier, _cur, new):
-    if new.value() < 0:
+def pre_require_non_negative(identifier, _cur, new):
+    if new.value < 0:
         raise rpn.exception.RuntimeErr("!{}: Must be non-negative".format(identifier))
 
-def validate_size_arg(identifier, _cur, new):
+def pre_validate_size_arg(identifier, _cur, new):
     if type(new) is not rpn.type.Integer:
         raise rpn.exception.RuntimeErr("!{}: Type error ({})".format(identifier, typename(new)))
-    new_size = new.value()
+    new_size = new.value
     if new_size < rpn.globl.REG_SIZE_MIN or new_size > rpn.globl.REG_SIZE_MAX:
         raise rpn.exception.RuntimeErr("!{}: Size {} out of range ({}..{} expected)".format(identifier, new_size, rpn.globl.REG_SIZE_MIN, rpn.globl.REG_SIZE_MAX))
 
-def clear_newly_unveiled_registers(_identifier, old, cur):
-    old_size = old.value()
-    cur_size = cur.value()
+def post_clear_newly_unveiled_registers(_identifier, old, cur):
+    old_size = old.value
+    cur_size = cur.value
     # If we're increasing the number of registers, zero out the newly
     # available ones.  It is not really necessary to do this when
     # decreasing, because those registers will no longer be accessible.
     if cur_size > old_size:
         for r in range(cur_size - old_size):
             rpn.globl.register[old_size + r] = rpn.type.Float(0.0)
+
+def post_label_with_identifier(identifier, _old, cur):
+    cur.label = identifier
 
 
 # Secondary words are protected by default
