@@ -451,7 +451,7 @@ class Forget(Executable):
 
     def __call__(self):
         dbg("trace", 1, "trace({})".format(repr(self)))
-        if self._word.protected():
+        if self._word.protected:
             raise rpn.exception.RuntimeErr("forget: '{}' is protected".format(self._word.name()))
         self._scope.delete_word(self._word.name())
 

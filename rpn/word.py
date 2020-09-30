@@ -2427,7 +2427,7 @@ def w_fmod():
 Make the current word hidden.""")
 def immed_hide(arg):
     dbg("hide", 1, "hide: arg={}".format(repr(arg)))
-    arg.set_hidden(True)
+    arg.hidden = True
     pass
 
 
@@ -4626,7 +4626,7 @@ def w_vars():
         my_vars = dict()
         for varname in scope.variables():
             var = scope.variable(varname)
-            if var.hidden():
+            if var.hidden:
                 continue
             my_vars[var.name()] = "{}:[undef]".format(var.name()) if not var.defined() else \
                                   "{}={}{}".format(var.name(),
@@ -4650,7 +4650,7 @@ def w_vlist():
     words = dict()
     for wordname in rpn.globl.root_scope.words():
         word = rpn.globl.root_scope.word(wordname)
-        if word.hidden():
+        if word.hidden:
             continue
         words[word.name()] = word.name()
     sorted_words = []

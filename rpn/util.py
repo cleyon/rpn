@@ -220,7 +220,7 @@ class Scope:
             raise rpn.exception.FatalErr("{}: '{}' is not a Word".format(whoami(), identifier))
 
         if rpn.globl.default_protected:
-            if (word.doc() is None or len(word.doc()) == 0) and not word.hidden():
+            if (word.doc() is None or len(word.doc()) == 0) and not word.hidden:
                 print("Warning: Word '{}' has no documentation".format(identifier)) # OK
             # if word.args() is None:
             #     print("Warning: Word '{}' has no args!".format(identifier)) # OK
@@ -269,10 +269,10 @@ class Scope:
         return self._variables.get(identifier)
 
     def visible_variables(self):
-        return list(filter(lambda x: not x[1].hidden(), self.variables().items()))
+        return list(filter(lambda x: not x[1].hidden, self.variables().items()))
 
     def unprotected_words(self):
-        return list(filter(lambda x: not x[1].protected(), self.words().items()))
+        return list(filter(lambda x: not x[1].protected, self.words().items()))
 
     def decorate_varname(self, varname):
         if varname in self.in_varnames() and varname in self.out_varnames():
@@ -642,12 +642,18 @@ class Variable:
     def constant(self):
         return self._constant
 
+    @property
     def hidden(self):
         return self._hidden
+
+    @hidden.setter
+    def hidden(self, new_hidden):
+        self._hidden = new_hidden
 
     def noshadow(self):
         return self._noshadow
 
+    @property
     def protected(self):
         return self._protected
 
@@ -721,7 +727,7 @@ class Word:
             my_print_x = kwargs["print_x"]
             del kwargs["print_x"]
         # else:
-        #     if self._protected:
+        #     if self.protected:
         #         print("Word {} missing print_x".format(name))
 
         # `protected' means the word cannot be forgotten.  Built-in
@@ -788,15 +794,18 @@ class Word:
     def set_doc(self, new_doc):
         self._doc = new_doc
 
+    @property
     def hidden(self):
         return self._hidden
 
-    def set_hidden(self, val):
-        self._hidden = val
+    @hidden.setter
+    def hidden(self, new_hidden):
+        self._hidden = new_hidden
 
     def immediate(self):
         return self._immediate
 
+    @property
     def protected(self):
         return self._protected
 

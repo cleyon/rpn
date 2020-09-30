@@ -759,7 +759,7 @@ def p_undef(p):
         rpn.globl.lnwriteln("UNDEF: Variable '{}' not found".format(ident))
         raise SyntaxError
 
-    if var.protected():
+    if var.protected:
         rpn.globl.lnwriteln("UNDEF: Variable '{}' protected".format(ident))
         raise SyntaxError
 
