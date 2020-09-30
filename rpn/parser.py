@@ -632,9 +632,13 @@ def p_executables_list(p):
             p[0] = p[2]
         else:
             if p[1].immediate():
-                global new_word
-                debug(whoami(), 1, "'{}' is immediate, call_immed({})".format(repr(p[1], new_word)))
-                p[1].__call_immed__(new_word)
+                # The problem here is that new_word is not created until
+                # p_define_word() - long after this code runs.
+                #
+                # global new_word
+                # dbg(whoami(), 1, "'{}' is immediate, call_immed({})".format(repr(p[1]), new_word))
+                # p[1].__call_immed__(new_word)
+                print("Immediate '{}' has no effect".format(repr(p[1])))
                 p[0] = p[2]
             else:
                 p[0] = rpn.util.List(p[1], p[2])
