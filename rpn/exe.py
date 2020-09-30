@@ -18,7 +18,7 @@ class Executable:
     def patch_recurse(self, _):
         pass
 
-    def immediate(self):
+    def immediate(self):                # pylint: disable=no-self-use
         return False
 
 

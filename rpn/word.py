@@ -2427,8 +2427,7 @@ def w_fmod():
 Make the current word hidden.""")
 def immed_hide(arg):
     dbg("hide", 1, "hide: arg={}".format(repr(arg)))
-    arg.hidden = True
-    pass
+    #arg.hidden = True
 
 
 @defword(name='forget', print_x=rpn.globl.PX_CONFIG, doc="""\

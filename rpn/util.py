@@ -58,7 +58,7 @@ class DisplayConfig:
     @style.setter
     def style(self, new_style):
         if new_style not in ["std", "fix", "sci", "eng"]:
-            raise rpn.exception.FatalErr("{}: Invalid display style '{}'".format(whoami(), style))
+            raise rpn.exception.FatalErr("{}: Invalid display style '{}'".format(whoami(), new_style))
         self._style = new_style
 
     @property
