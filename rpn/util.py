@@ -61,15 +61,17 @@ class DisplayConfig:
             raise rpn.exception.FatalErr("{}: Invalid display style '{}'".format(whoami(), style))
         self._style = new_style
 
+    @property
     def prec(self):
         return self._prec
 
-    def set_prec(self, prec):
-        if prec < 0 or prec >= rpn.globl.PRECISION_MAX:
-            raise rpn.exception.FatalErr("{}: Invalid display precision '{}' (0..{} expected)".format(whoami(), prec, rpn.globl.PRECISION_MAX - 1))
-        self._prec = prec
+    @prec.setter
+    def prec(self, new_prec):
+        if new_prec < 0 or new_prec >= rpn.globl.PRECISION_MAX:
+            raise rpn.exception.FatalErr("{}: Invalid display precision '{}' (0..{} expected)".format(whoami(), new_prec, rpn.globl.PRECISION_MAX - 1))
+        self._prec = new_prec
         for bit in range(4):
-            if prec & 1<<bit != 0:
+            if new_prec & 1<<bit != 0:
                 rpn.flag.set_flag(39 - bit)
             else:
                 rpn.flag.clear_flag(39 - bit)
@@ -83,7 +85,7 @@ class DisplayConfig:
         :return: string conversion of x in scientific notation
         """
 
-        sf = self.prec()
+        sf = self.prec
         if x == 0:
             return "0." + "0"*(sf-1) + "e+00"
         mant_sign = ""
@@ -113,9 +115,9 @@ class DisplayConfig:
     def fmt(self, x, show_label=True):
         if type(x) is float:
             if self.style == "fix":
-                return "{:.{prec}{style}}".format(x, style="f", prec=self.prec())
+                return "{:.{prec}{style}}".format(x, style="f", prec=self.prec)
             if self.style == "sci":
-                return "{:.{prec}{style}}".format(x, style="e", prec=self.prec())
+                return "{:.{prec}{style}}".format(x, style="e", prec=self.prec)
             if self.style == "eng":
                 return self.eng_notate(x)
             if self.style == "std":

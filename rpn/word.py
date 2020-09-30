@@ -2181,7 +2181,7 @@ def w_eng():
         raise rpn.exception.ValueErr("eng: Precision '{}' out of range (0..{} expected)".format(x.value(), rpn.globl.PRECISION_MAX - 1))
 
     rpn.globl.disp_stack.top().style = "eng"
-    rpn.globl.disp_stack.top().set_prec(x.value())
+    rpn.globl.disp_stack.top().prec = x.value()
     rpn.flag.clear_flag(rpn.flag.F_DISP_FIX)
     rpn.flag.set_flag(rpn.flag.F_DISP_ENG)
 
@@ -2382,7 +2382,7 @@ def w_fix():
         raise rpn.exception.ValueErr("fix: Precision '{}' out of range (0..{} expected)".format(x.value(), rpn.globl.PRECISION_MAX - 1))
 
     rpn.globl.disp_stack.top().style = "fix"
-    rpn.globl.disp_stack.top().set_prec(x.value())
+    rpn.globl.disp_stack.top().prec = x.value()
     rpn.flag.set_flag(rpn.flag.F_DISP_FIX)
     rpn.flag.clear_flag(rpn.flag.F_DISP_ENG)
 
@@ -3610,18 +3610,15 @@ def w_popdisp():
     try:
         rpn.globl.disp_stack.pop()
     except rpn.exception.StackUnderflow:
-        raise rpn.exception.RuntimeErr("popdisp: No stashed display configurations")
+        raise rpn.exception.RuntimeErr("popdisp: No display configuration")
 
 
 @defword(name='pushdisp', print_x=rpn.globl.PX_CONFIG, doc="""\
 Stash current display configuration.""")
 def w_pushdisp():
     d = rpn.util.DisplayConfig()
-    cur_style = rpn.globl.disp_stack.top().style
-    d.style = cur_style
-    if cur_style in ["fix", "sci"]:
-        cur_prec = rpn.globl.disp_stack.top().prec()
-        d.set_prec(cur_prec)
+    d.style = rpn.globl.disp_stack.top().style
+    d.prec = rpn.globl.disp_stack.top().prec
     rpn.globl.disp_stack.push(d)
 
 
@@ -4030,7 +4027,7 @@ def w_sci():
         raise rpn.exception.ValueErr("fix: Precision '{}' out of range (0..{} expected)".format(x.value(), rpn.globl.PRECISION_MAX - 1))
 
     rpn.globl.disp_stack.top().style = "sci"
-    rpn.globl.disp_stack.top().set_prec(x.value())
+    rpn.globl.disp_stack.top().prec = x.value()
     rpn.flag.clear_flag(rpn.flag.F_DISP_FIX)
     rpn.flag.clear_flag(rpn.flag.F_DISP_ENG)
 
