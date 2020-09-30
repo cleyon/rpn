@@ -35,7 +35,7 @@ debug_levels = {
     "parse"                     : 0,
     "prompt"                    : 0,
     "Do_Loop#__call__"          : 0,
-    "Scope#set_variable"        : 0,
+    "Scope#define_variable"     : 0,
     "Sequence#__call__"         : 0,
     "Sequence#__init__"         : 0,
     "Word#__init__"             : 0,

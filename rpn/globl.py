@@ -151,7 +151,7 @@ def defvar(name, value, **kwargs):
     root_scope.add_varname(name)
     var = rpn.util.Variable(name, value, **kwargs)
     dbg(whoami(), 1, "{}: Creating variable {} at address {} in {}".format(whoami(), name, hex(id(var)), repr(root_scope)))
-    root_scope.set_variable(name, var)
+    root_scope.define_variable(name, var)
     return var
 
 

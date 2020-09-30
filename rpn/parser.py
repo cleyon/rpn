@@ -389,7 +389,7 @@ def p_define_word(p):
     new_word = rpn.util.Word(identifier, sequence, **kwargs)
     dbg("p_define_word", 1, "{}: Defining word {}={} in scope {}".format(whoami(), identifier, repr(new_word), repr(rpn.globl.scope_stack.top())))
     sequence.patch_recurse(new_word)
-    rpn.globl.scope_stack.top().set_word(identifier, new_word)
+    rpn.globl.scope_stack.top().define_word(identifier, new_word)
 
     p[0] = new_word
 
@@ -742,7 +742,7 @@ def p_constant(p):
     var = rpn.util.Variable(ident, None, constant=True)
     #print("{}: Creating variable {} at address {} in {}".format(whoami(), ident, hex(id(var)), repr(scope)))
     rpn.globl.scope_stack.top().add_varname(ident)
-    rpn.globl.scope_stack.top().set_variable(ident, var)
+    rpn.globl.scope_stack.top().define_variable(ident, var)
     p[0] = rpn.exe.Constant(var)
 
 
@@ -804,7 +804,7 @@ def p_variable(p):
     var = rpn.util.Variable(ident)
     dbg(whoami(), 1, "{}: Creating variable {} at address {} in {}".format(whoami(), ident, hex(id(var)), repr(rpn.globl.scope_stack.top())))
     rpn.globl.scope_stack.top().add_varname(ident)
-    rpn.globl.scope_stack.top().set_variable(ident, var)
+    rpn.globl.scope_stack.top().define_variable(ident, var)
 
 
 def p_vectors_list(p):

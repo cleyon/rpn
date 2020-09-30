@@ -215,7 +215,7 @@ class Scope:
     def variables(self):
         return self._variables
 
-    def set_word(self, identifier, word):
+    def define_word(self, identifier, word):
         if type(word) is not rpn.util.Word:
             raise rpn.exception.FatalErr("{}: '{}' is not a Word".format(whoami(), identifier))
 
@@ -233,7 +233,7 @@ class Scope:
     def word(self, identifier):
         return self._words.get(identifier)
 
-    def set_variable(self, identifier, var):
+    def define_variable(self, identifier, var):
         if type(var) is not Variable:
             raise rpn.exception.FatalErr("{}: '{}' is not a Variable".format(whoami(), identifier))
         dbg(whoami(), 1, "{}: Setting variable '{}' to {} in {}".format(whoami(), identifier, repr(var), repr(self)))
@@ -324,7 +324,7 @@ class Sequence:
         # XXX what about kwargs???
         for varname in self.scope_template().all_varnames():
             var = rpn.util.Variable(varname, None)
-            scope.set_variable(varname, var)
+            scope.define_variable(varname, var)
 
         if len(self.scope_template().in_varnames()) > 0:
             if rpn.globl.param_stack.size() < len(self.scope_template().in_varnames()):

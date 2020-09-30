@@ -75,7 +75,7 @@ class defword():
         else:
             raise rpn.exception.RuntimeErr("Missing or invalid \"name\" attribute")
         word = rpn.util.Word(name, wrapped_f, **self._kwargs)
-        rpn.globl.root_scope.set_word(name, word)
+        rpn.globl.root_scope.define_word(name, word)
         return wrapped_f
 
 
@@ -97,7 +97,7 @@ class defimmed():
         else:
             raise rpn.exception.RuntimeErr("Missing or invalid \"name\" attribute")
         word = rpn.util.Word(name, wrapped_f, **self._kwargs)
-        rpn.globl.root_scope.set_word(name, word)
+        rpn.globl.root_scope.define_word(name, word)
         return wrapped_f
 
 

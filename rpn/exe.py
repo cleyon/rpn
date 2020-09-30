@@ -159,7 +159,7 @@ class Case(Executable):
 
         # Call it with a new scope
         case_scope = rpn.util.Scope("Call_Case")
-        case_scope.set_variable('caseval', rpn.util.Variable("caseval", n))
+        case_scope.define_variable('caseval', rpn.util.Variable("caseval", n))
         try:
             rpn.globl.push_scope(case_scope, "Starting Case")
             seq.__call__()
@@ -277,7 +277,7 @@ class DoLoop(Executable):
         # Create a new scope
         _I = rpn.util.Variable("_I", x)
         do_scope = rpn.util.Scope("Call_Do_Loop")
-        do_scope.set_variable('_I', _I)
+        do_scope.define_variable('_I', _I)
 
         try:
             rpn.globl.push_scope(do_scope, "Starting Do_Loop")
@@ -325,7 +325,7 @@ class DoPlusLoop(Executable):
         # Create a new scope
         _I = rpn.util.Variable("_I", x)
         do_scope = rpn.util.Scope("Call_Do_PlusLoop")
-        do_scope.set_variable('_I', _I)
+        do_scope.define_variable('_I', _I)
 
         try:
             rpn.globl.push_scope(do_scope, "Starting Do_PlusLoop")
