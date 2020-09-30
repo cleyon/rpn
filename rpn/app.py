@@ -181,6 +181,7 @@ def load_file(filename):
     except PermissionError:
         raise rpn.exception.RuntimeErr("load: Cannot read file '{}'".format(filename))
     else:
+        dbg("load_file", 3, "load_file({})='{}'".format(filename, contents))
         rpn.globl.eval_string(contents)
 
 

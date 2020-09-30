@@ -11,7 +11,18 @@ import rpn.exception
 import rpn.globl
 
 
-class AbortQuote:
+class Executable:
+    def __call__(self):
+        raise rpn.exception.FatalErr("Executable#__call__: Subclass responsibility")
+
+    def patch_recurse(self, _):
+        pass
+
+    def immediate(self):
+        return False
+
+
+class AbortQuote(Executable):
     def __init__(self, val):
         if len(val) < 7 or val[0:6] != 'abort"' or val[-1] != '"':
             raise rpn.exception.FatalErr("{}: Malformed string: '{}'".format(whoami(), val))
@@ -32,17 +43,14 @@ class AbortQuote:
             rpn.globl.lnwriteln("{}".format(self.stringval()))
             raise rpn.exception.Abort()
 
-    def patch_recurse(self, new_word):
-        pass
-
     def __str__(self):
-        return "abort\"{}\"".format(self.stringval())
+        return 'abort"{}"'.format(self.stringval())
 
     def __repr__(self):
-        return "AbortQuote[{}]".format(repr(self.stringval()))
+        return 'AbortQuote["{}"]'.format(self.stringval())
 
 
-class BeginAgain:
+class BeginAgain(Executable):
     def __init__(self, begin_seq):
         self._begin_seq = begin_seq
 
@@ -64,7 +72,7 @@ class BeginAgain:
         return "BeginAgain[{}]".format(repr(self._begin_seq))
 
 
-class BeginUntil:
+class BeginUntil(Executable):
     def __init__(self, begin_seq):
         self._begin_seq = begin_seq
 
@@ -94,7 +102,7 @@ class BeginUntil:
         return "BeginUntil[{}]".format(repr(self._begin_seq))
 
 
-class BeginWhile:
+class BeginWhile(Executable):
     def __init__(self, begin_seq, while_seq):
         self._begin_seq = begin_seq
         self._while_seq = while_seq
@@ -127,7 +135,7 @@ class BeginWhile:
         return "BeginWhile[{}, {}]".format(repr(self._begin_seq), repr(self._while_seq))
 
 
-class Case:
+class Case(Executable):
     def __init__(self, case_clauses, otherwise_seq):
         self._case_clauses  = case_clauses
         self._otherwise_seq = otherwise_seq
@@ -179,7 +187,7 @@ class Case:
         return s + "]"
 
 
-class CaseClause:
+class CaseClause(Executable):
     def __init__(self, x, of_seq):
         self._x = int(x)      # x is a plain integer, not an rpn.type.Integer
         self._of_seq = of_seq
@@ -200,7 +208,7 @@ class CaseClause:
         return "Of[{}={}]".format(self._x, repr(self._of_seq))
 
 
-class Catch:
+class Catch(Executable):
     def __init__(self, word, scope):
         if type(word) is not rpn.util.Word:
             raise rpn.exception.FatalErr("{}: Word {} is not an rpn.util.Word".format(whoami(), repr(word)))
@@ -222,9 +230,6 @@ class Catch:
             dbg("catch", 1, "{}: Nothing caught, finishing normally".format(whoami()))
             rpn.globl.param_stack.push(rpn.type.Integer(0))
 
-    def patch_recurse(self, new_word):
-        pass
-
     def __str__(self):
         return "catch {}".format(self._word.name())
 
@@ -232,7 +237,7 @@ class Catch:
         return "Catch[{}]".format(repr(self._word.name()))
 
 
-class Constant:
+class Constant(Executable):
     def __init__(self, var):
         self._variable = var
 
@@ -242,9 +247,6 @@ class Constant:
             raise rpn.exception.RuntimeErr("constant: Insufficient parameters (1 required)")
         self._variable.set_obj(rpn.globl.param_stack.pop())
 
-    def patch_recurse(self, new_word):
-        pass
-
     def __str__(self):
         return "constant {}".format(self._variable.name())
 
@@ -252,7 +254,7 @@ class Constant:
         return "Constant[{}]".format(repr(self._variable))
 
 
-class DoLoop:
+class DoLoop(Executable):
     def __init__(self, do_seq):
         self._do_seq = do_seq
 
@@ -300,7 +302,7 @@ class DoLoop:
         return "DoLoop[{}]".format(repr(self._do_seq))
 
 
-class DoPlusLoop:
+class DoPlusLoop(Executable):
     def __init__(self, do_seq):
         self._do_seq = do_seq
 
@@ -355,7 +357,7 @@ class DoPlusLoop:
         return "DoPlusLoop[{}]".format(repr(self._do_seq))
 
 
-class DotQuote:
+class DotQuote(Executable):
     def __init__(self, val):
         if len(val) < 3 or val[0:2] != '."' or val[-1] != '"':
             raise rpn.exception.FatalErr("{}: Malformed string: '{}'".format(whoami(), val))
@@ -368,17 +370,14 @@ class DotQuote:
         dbg("trace", 1, "trace({})".format(repr(self)))
         rpn.globl.write("{}".format(self.stringval()))
 
-    def patch_recurse(self, new_word):
-        pass
-
     def __str__(self):
-        return ".\"{}\"".format(self.stringval())
+        return '."{}"'.format(self.stringval())
 
     def __repr__(self):
-        return "DotQuote[{}]".format(repr(self.stringval()))
+        return 'DotQuote["{}"]'.format(self.stringval())
 
 
-class FetchVar:
+class FetchVar(Executable):
     """Fetch variable.
 
 It is normally an error to fetch an undefined variable,
@@ -432,9 +431,6 @@ the right thing with empty stack (uses zero)."""
             rpn.flag.copy_flag(54, rpn.flag.F_SHOW_X)
             rpn.flag.clear_flag(54)
 
-    def patch_recurse(self, new_word):
-        pass
-
     def __str__(self):
         return "@{}{}".format(self._modifier if self._modifier is not None else "",
                               self.identifier())
@@ -444,7 +440,7 @@ the right thing with empty stack (uses zero)."""
                                        self.identifier())
 
 
-class Forget:
+class Forget(Executable):
     def __init__(self, word, scope):
         if type(word) is not rpn.util.Word:
             raise rpn.exception.FatalErr("{}: {} is not a Word".format(whoami(), repr(word)))
@@ -459,9 +455,6 @@ class Forget:
             raise rpn.exception.RuntimeErr("forget: '{}' is protected".format(self._word.name()))
         self._scope.delete_word(self._word.name())
 
-    def patch_recurse(self, new_word):
-        pass
-
     def __str__(self):
         return "forget {}".format(self._word.name())
 
@@ -469,7 +462,7 @@ class Forget:
         return "Forget[{}]".format(repr(self._word.name()))
 
 
-class Help:
+class Help(Executable):
     def __init__(self, ident, doc):
         self._identifier = ident
         self._doc = doc
@@ -484,9 +477,6 @@ class Help:
     def doc(self):
         return self._doc
 
-    def patch_recurse(self, new_word):
-        pass
-
     def __str__(self):
         return "help {}".format(self.identifier())
 
@@ -494,7 +484,7 @@ class Help:
         return "Help[{}]".format(repr(self.identifier()))
 
 
-class IfElse:
+class IfElse(Executable):
     def __init__(self, if_seq, else_seq):
         self._if_seq   = if_seq
         self._else_seq = else_seq
@@ -533,7 +523,7 @@ class IfElse:
         return s + "]"
 
 
-class Recurse:
+class Recurse(Executable):
     def __init__(self, target=None):
         if target is not None and type(target) is not rpn.util.Word:
             raise rpn.exception.FatalErr("{}: Target '{}' is not an rpn.util.Word".format(whoami(), repr(target)))
@@ -563,7 +553,7 @@ class Recurse:
         return "RWord[{}]".format(repr(self.target().name()))
 
 
-class Show:
+class Show(Executable):
     def __init__(self, word, scope):
         if type(word) is not rpn.util.Word:
             raise rpn.exception.FatalErr("{}: Word {} is not an rpn.util.Word".format(whoami(), repr(word)))
@@ -576,9 +566,6 @@ class Show:
         dbg("trace", 1, "trace({})".format(repr(self)))
         rpn.globl.writeln(self._word.as_definition())
 
-    def patch_recurse(self, new_word):
-        pass
-
     def __str__(self):
         return "show {}".format(self._word.name())
 
@@ -586,7 +573,7 @@ class Show:
         return "Show[{}]".format(repr(self._word.name()))
 
 
-class StoreVar:
+class StoreVar(Executable):
     """Store variable.
 
 In addition to storing a value directly in a variable,
@@ -649,9 +636,6 @@ The TOS is consumed as normal."""
 
         for post_hook_func in var.post_hooks():
             post_hook_func(self.identifier(), old_obj, new_obj)
-
-    def patch_recurse(self, new_word):
-        pass
 
     def __str__(self):
         return "!{}{}".format(self._modifier if self._modifier is not None else "",

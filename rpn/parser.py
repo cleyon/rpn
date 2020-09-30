@@ -276,6 +276,8 @@ def p_execute(p):
     executable = p[-1]
     if executable is None:
         return
+    if executable.immediate():
+        raise rpn.exception.ParseErr("Immediate word '{}' can only be used inside colon definition".format(executable.name()))
 
     dbg("p_execute", 1, "p_execute: {}".format(repr(executable)))
     rpn.globl.execute(executable)
@@ -373,7 +375,7 @@ def p_define_word(p):
     identifier = p[-4]
     doc_str    = p[-3]
     sequence   = p[-2]
-    # rpn.globl.lnwriteln("{}: identifier={}  doc_str={}  sequence={}".format(whoami(), identifier, repr(doc_str), repr(sequence)))
+    dbg("p_define_word", 2, "{}: identifier={}  doc_str={}  sequence={}".format(whoami(), identifier, repr(doc_str), repr(sequence)))
 
     kwargs = dict()
     if doc_str is not None:
@@ -390,7 +392,7 @@ def p_define_word(p):
     rpn.globl.scope_stack.top().set_word(identifier, new_word)
 
     p[0] = new_word
-    dbg("p_define_word", 2, "{}: Returning {}".format(whoami(), repr(p[0])))
+
 
 def p_docstring(p):
     '''docstring : empty
@@ -563,7 +565,7 @@ def p_locals_scope(p):
         elif p[idx] == ':':
             scope_name = p[idx + 1]
         else:
-            # rpn.globl.lnwriteln("p_locals_scope: Not sure about {}".format(p[idx]))
+            dbg(whoami(), 3, "p_locals_scope: Not sure about {}".format(p[idx]))
             # scope_name = "locals"
             idx -= 1
 
@@ -590,7 +592,7 @@ def p_locals_scope(p):
                 dbg(whoami(), 3, "{} is an INOUT variable".format(varname))
                 in_varnames.append(varname)
                 out_varnames.append(varname)
-            dbg(whoami(), 1, "{}: Adding varname '{}'".format(whoami(), varname))
+            dbg(whoami(), 2, "{}: Adding varname '{}'".format(whoami(), varname))
             all_varnames.append(varname)
 
         scope.set_all_varnames(all_varnames)
@@ -629,8 +631,14 @@ def p_executables_list(p):
         if p[1] is None:
             p[0] = p[2]
         else:
-            p[0] = rpn.util.List(p[1], p[2])
-    # rpn.globl.lnwriteln("{}: Returning {}".format(whoami(), p[0])))
+            if p[1].immediate():
+                global new_word
+                debug(whoami(), 1, "'{}' is immediate, call_immed({})".format(repr(p[1], new_word)))
+                p[1].__call_immed__(new_word)
+                p[0] = p[2]
+            else:
+                p[0] = rpn.util.List(p[1], p[2])
+    dbg(whoami(), 1, "{}: Returning {}".format(whoami(), p[0]))
 
 
 def p_number(p):

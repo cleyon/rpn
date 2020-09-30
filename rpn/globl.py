@@ -301,7 +301,7 @@ def lookup_word(name):
         #rpn.globl.lnwriteln("{}: Looking for word {} in {}...".format(whoami(), name, scope))
         #rpn.globl.lnwriteln("{} has words: {}".format(scope, scope.words))
         word = scope.word(name)
-        if word is not None:
+        if word is not None and not word.smudge():
             #rpn.globl.lnwriteln("{}: Found word {} in {}: {}".format(whoami(), name, scope, word))
             return (word, scope)
     #rpn.globl.lnwriteln("{}: Word {} not found".format(whoami(), name))

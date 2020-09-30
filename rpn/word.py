@@ -66,6 +66,31 @@ class defword():
                     rpn.flag.set_flag(rpn.flag.F_SHOW_X)
                 else:
                     rpn.flag.clear_flag(rpn.flag.F_SHOW_X)
+
+        if "immediate" in self._kwargs:
+            raise rpn.exception.FatalErr("Immediate words cannot be declared with @defword; use @defimmed instead")
+        if "name" in self._kwargs and len(self._kwargs["name"]) > 0:
+            name = self._kwargs["name"]
+            del self._kwargs["name"]
+        else:
+            raise rpn.exception.RuntimeErr("Missing or invalid \"name\" attribute")
+        word = rpn.util.Word(name, wrapped_f, **self._kwargs)
+        rpn.globl.root_scope.set_word(name, word)
+        return wrapped_f
+
+
+class defimmed():
+    """Register the following immediate word definition in the root scope"""
+
+    def __init__(self, **kwargs):
+        self._kwargs = kwargs
+
+    def __call__(self, f):
+        def wrapped_f(arg1, **kwargs):        # pylint: disable=unused-argument
+            #print("defimmed: arg1={}, kwargs={}".format(repr(arg1), self._kwargs))
+            f(arg1)
+
+        self._kwargs["immediate"] = True
         if "name" in self._kwargs and len(self._kwargs["name"]) > 0:
             name = self._kwargs["name"]
             del self._kwargs["name"]
@@ -2395,6 +2420,14 @@ def w_fmod():
         raise rpn.exception.ValueErr("fmod: X cannot be zero")
     r = math.fmod(float(y.value()), float(x.value()))
     rpn.globl.param_stack.push(rpn.type.Float(r))
+
+
+@defimmed(name='hide', hidden=True, doc="""\
+Make the current word hidden.""")
+def immed_hide(arg):
+    dbg("hide", 1, "hide: arg={}".format(repr(arg)))
+    arg.set_hidden(True)
+    pass
 
 
 @defword(name='forget', print_x=rpn.globl.PX_CONFIG, doc="""\

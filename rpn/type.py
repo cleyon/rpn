@@ -29,10 +29,11 @@ except ImportError:
 #     pass
 
 from   rpn.debug import dbg, whoami
+import rpn.exe
 import rpn.globl
 
 
-class Stackable:
+class Stackable(rpn.exe.Executable):
     def __init__(self):
         self._value = None
         self._label = None
@@ -52,9 +53,6 @@ class Stackable:
     def __call__(self):
         dbg("trace", 1, "trace({})".format(repr(self)))
         rpn.globl.param_stack.push(self)
-
-    def patch_recurse(self, _):
-        pass
 
 
 class Complex(Stackable):
@@ -245,7 +243,7 @@ class Rational(Stackable):
         return "Rational[{}]".format(repr(self.value()))
 
 
-class String:
+class String(rpn.exe.Executable):
     def __init__(self, val):
         self._value = val
 
@@ -263,14 +261,11 @@ class String:
         dbg("trace", 1, "trace({})".format(repr(self)))
         rpn.globl.string_stack.push(self)
 
-    def patch_recurse(self, new_word):
-        pass
-
     def __str__(self):
-        return "\"{}\"".format(str(self.value()))
+        return '"{}"'.format(str(self.value()))
 
     def __repr__(self):
-        return "String[{}]".format(repr(self.value()))
+        return 'String["{}"]'.format(self.value())
 
 
 class Vector(Stackable):
