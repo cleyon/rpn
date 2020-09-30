@@ -44,11 +44,13 @@ class Stackable(rpn.exe.Executable):
     def set_value(self, val):
         self._value = val
 
+    @property
     def label(self):
         return self._label
 
-    def set_label(self, label):
-        self._label = label
+    @label.setter
+    def label(self, new_label):
+        self._label = new_label
 
     def __call__(self):
         dbg("trace", 1, "trace({})".format(repr(self)))
@@ -78,7 +80,7 @@ class Complex(Stackable):
 
     def __str__(self):
         s = "({},{})".format(rpn.globl.fmt(self.real()), rpn.globl.fmt(self.imag()))
-        l = r"  \ " + "{}".format(self.label()) if self.label() is not None else ""
+        l = r"  \ " + "{}".format(self.label) if self.label is not None else ""
         return s + l
 
     def __repr__(self):
@@ -138,7 +140,7 @@ Failure:  (False, None, None, None, None)"""
         return (True, hh, mm, ss, timeobj)
 
     def __str__(self):
-        l = r"  \ " + "{}".format(self.label()) if self.label() is not None else ""
+        l = r"  \ " + "{}".format(self.label) if self.label is not None else ""
         s = "{}".format(self.value())
         return s + l
 
@@ -156,7 +158,7 @@ class Integer(Stackable):
 
     def __str__(self):
         s = "{}".format(self.value())
-        l = r"  \ " + "{}".format(self.label()) if self.label() is not None else ""
+        l = r"  \ " + "{}".format(self.label) if self.label is not None else ""
         return s + l
 
     def __repr__(self):
@@ -236,7 +238,7 @@ class Rational(Stackable):
 
     def __str__(self):
         s = "{}::{}".format(self.numerator(), self.denominator())
-        l = r"  \ {}".format(self.label()) if self.label() is not None else ""
+        l = r"  \ {}".format(self.label) if self.label is not None else ""
         return s + l
 
     def __repr__(self):

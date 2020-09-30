@@ -261,7 +261,7 @@ def w_percent():
             result = rpn.type.Integer(r)
         else:
             result = rpn.type.Float(r)
-        result.set_label("%")
+        result.label = "%"
     else:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
@@ -297,7 +297,7 @@ def w_percent_ch():
             result = rpn.type.Integer(r)
         else:
             result = rpn.type.Float(r)
-        result.set_label("%ch")
+        result.label = "%ch"
     else:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
@@ -333,7 +333,7 @@ def w_percent_t():
             result = rpn.type.Integer(r)
         else:
             result = rpn.type.Float(r)
-        result.set_label("%t")
+        result.label = "%t"
     else:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
@@ -1141,7 +1141,7 @@ def w_acos():
             rpn.globl.param_stack.push(x)
             raise rpn.exception.ValueErr("acos: Argument {} out of range".format(x.value()))
         result = rpn.type.Float(rpn.globl.convert_radians_to_mode(r))
-        result.set_label(rpn.globl.angle_mode_label())
+        result.label = rpn.globl.angle_mode_label()
     elif type(x) is rpn.type.Complex:
         try:
             r = cmath.acos(x.value())
@@ -1243,7 +1243,7 @@ def w_asin():
             rpn.globl.param_stack.push(x)
             raise rpn.exception.ValueErr("asin: Argument {} out of range".format(x.value()))
         result = rpn.type.Float(rpn.globl.convert_radians_to_mode(r))
-        result.set_label(rpn.globl.angle_mode_label())
+        result.label = rpn.globl.angle_mode_label()
     elif type(x) is rpn.type.Complex:
         try:
             r = cmath.asin(x.value())
@@ -1298,7 +1298,7 @@ def w_atan():
             rpn.globl.param_stack.push(x)
             raise rpn.exception.ValueErr("atan: Argument {} out of range".format(x.value()))
         result = rpn.type.Float(rpn.globl.convert_radians_to_mode(r))
-        result.set_label(rpn.globl.angle_mode_label())
+        result.label = rpn.globl.angle_mode_label()
     elif type(x) is rpn.type.Complex:
         try:
             r = cmath.atan(x.value())
@@ -1325,7 +1325,7 @@ def w_atan2():
             rpn.globl.param_stack.push(x)
             raise rpn.exception.ValueErr("atan2: Invalid arguments ({} {})".format(y.value(), x.value()))
         result = rpn.type.Float(rpn.globl.convert_radians_to_mode(r))
-        result.set_label(rpn.globl.angle_mode_label())
+        result.label = rpn.globl.angle_mode_label()
     elif type(x) is rpn.type.Complex:
         # Python cmath doesn't have atan2, so fake it
         if x.zerop():
@@ -1600,9 +1600,9 @@ def w_clfin():
     rpn.flag.clear_flag(rpn.flag.F_TVM_BEGIN_MODE)
 
     cf = rpn.type.Integer(1)
-    cf.set_label("CF")
+    cf.label = "CF"
     pf = rpn.type.Integer(1)
-    pf.set_label("PF")
+    pf.label = "PF"
 
     rpn.tvm.N   .set_obj(None)
     rpn.tvm.INT .set_obj(None)
@@ -1774,7 +1774,7 @@ def w_d_to_hp():
         rpn.globl.lnwriteln("d->hp: Result differs from Julian")
 
     result = rpn.type.Integer(daynum)
-    result.set_label("HP day")
+    result.label = "HP day"
     rpn.globl.param_stack.push(result)
 
 
@@ -1792,7 +1792,7 @@ def w_d_to_jd():
         raise rpn.exception.ValueErr("d->jd: {} is not a valid date".format(x.value()))
 
     result = rpn.type.Integer(julian)
-    result.set_label("Julian day")
+    result.label = "Julian day"
     rpn.globl.param_stack.push(result)
 
 
@@ -1802,7 +1802,7 @@ def w_d_to_r():
     x = rpn.globl.param_stack.pop()
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         result = rpn.type.Float(rpn.globl.convert_mode_to_radians(float(x.value()), "d"))
-        result.set_label("Rad")
+        result.label = "Rad"
     else:
         rpn.globl.param_stack.push(x)
         raise rpn.exception.TypeErr("d->r: Type error ({})".format(typename(x)))
@@ -1814,7 +1814,7 @@ Current date  ( -- MM.DDYYYY )""")
 def w_date():
     d = datetime.date.today().strftime("%m.%d%Y")
     result = rpn.type.Float(d)
-    result.set_label("MM.DDYYYY (Current)")
+    result.label = "MM.DDYYYY (Current)"
     rpn.globl.param_stack.push(result)
 
 
@@ -1847,7 +1847,7 @@ def w_date_plus():
     new_julian = julian + x.value()
     dateobj = datetime.date.fromordinal(new_julian - rpn.globl.JULIAN_OFFSET)
     result = rpn.type.Float("%d.%02d%04d" % (dateobj.month, dateobj.day, dateobj.year))
-    result.set_label("DD.MMYYYY")
+    result.label = "DD.MMYYYY"
     rpn.globl.param_stack.push(result)
 
 
@@ -1870,7 +1870,7 @@ def w_date_minus():
     new_julian = julian - x.value()
     dateobj = datetime.date.fromordinal(new_julian - rpn.globl.JULIAN_OFFSET)
     result = rpn.type.Float("%d.%02d%04d" % (dateobj.month, dateobj.day, dateobj.year))
-    result.set_label("DD.MMYYYY")
+    result.label = "DD.MMYYYY"
     rpn.globl.param_stack.push(result)
 
 
@@ -1906,7 +1906,7 @@ def w_ddays():
     # Y is expected to be earlier, so we subtract in this order to get a
     # positive value for "later"
     result = rpn.type.Integer(xjulian - yjulian)
-    result.set_label("Delta days")
+    result.label = "Delta days"
     rpn.globl.param_stack.push(rpn.type.Integer(xjulian - yjulian))
 
 
@@ -1920,7 +1920,7 @@ WARNING:
 Do not confuse this with \"deg\" (which sets the angular mode to degrees).""")
 def w_DEG():
     result = rpn.type.Float(rpn.globl.DEG_PER_RAD)
-    result.set_label("Deg/Rad")
+    result.label = "Deg/Rad"
     rpn.globl.param_stack.push(result)
 
 
@@ -2023,7 +2023,7 @@ def w_dow():
         raise rpn.exception.ValueErr("dow: {} is not a valid date".format(x.value()))
 
     result = rpn.type.Integer(dateobj.isoweekday())
-    result.set_label("Day of week")
+    result.label = "Day of week"
     rpn.globl.param_stack.push(result)
 
 
@@ -2064,7 +2064,7 @@ def w_dup():
 Constant: Base of natural logarithms ( -- 2.71828... )""")
 def w_E():
     result = rpn.type.Float(rpn.globl.E)
-    result.set_label("E")
+    result.label = "E"
     rpn.globl.param_stack.push(result)
 
 
@@ -2191,7 +2191,7 @@ Seconds since epoch  ( -- secs )""")
 def w_epoch():
     now = calendar.timegm(time.gmtime())
     result = rpn.type.Integer(now)
-    result.set_label("Epoch")
+    result.label = "Epoch"
     rpn.globl.param_stack.push(result)
 
 
@@ -2215,7 +2215,7 @@ def w_erf():
     else:
         rpn.globl.param_stack.push(x)
         raise rpn.exception.TypeErr("erf: Type error({})".format(typename(x)))
-    result.set_label("erf")
+    result.label = "erf"
     rpn.globl.param_stack.push(result)
 
 
@@ -2242,7 +2242,7 @@ def w_erfc():
     else:
         rpn.globl.param_stack.push(x)
         raise rpn.exception.TypeErr("erfc: Type error({})".format(typename(x)))
-    result.set_label("erfc")
+    result.label = "erfc"
     rpn.globl.param_stack.push(result)
 
 
@@ -2528,7 +2528,7 @@ def w_fsolve():
     # The return value of fsolve is a numpy array of length n for a root
     # finding problem with n variables.
     result = rpn.type.Float(r[0])
-    result.set_label("fsolve")
+    result.label = "fsolve"
     rpn.globl.param_stack.push(result)
 
 
@@ -2554,7 +2554,7 @@ def w_FV():
     dbg("tvm", 1, "fv={}".format(fv))
 
     result = rpn.type.Float(fv)
-    result.set_label("FV")
+    result.label = "FV"
     rpn.tvm.FV.set_obj(result)
     rpn.globl.param_stack.push(result)
 
@@ -2568,7 +2568,7 @@ GAMMA = lim(n->inf, (-ln n + SUM(k=1,n, 1/k)))
 Do not confuse this with the "gamma" function.""")
 def w_GAMMA():
     result = rpn.type.Float(rpn.globl.GAMMA)
-    result.set_label("GAMMA")
+    result.label = "GAMMA"
     rpn.globl.param_stack.push(result)
 
 
@@ -2600,7 +2600,7 @@ def w_gamma():
     else:
         rpn.globl.param_stack.push(x)
         raise rpn.exception.TypeErr("gamma: Type error({})".format(typename(x)))
-    result.set_label("gamma")
+    result.label = "gamma"
     rpn.globl.param_stack.push(result)
 
 
@@ -2641,7 +2641,7 @@ if sys.version_info >= (3, 8):
         except statistics.StatisticsError as e:
             raise rpn.exception.RuntimeErr("gmean: {}".format(str(e)))
         result = rpn.type.Float(m)
-        result.set_label("gmean")
+        result.label = "gmean"
         rpn.globl.param_stack.push(result)
 
 
@@ -2668,7 +2668,7 @@ def w_hmean():
     except statistics.StatisticsError as e:
         raise rpn.exception.RuntimeErr("hmean: {}".format(str(e)))
     result = rpn.type.Float(m)
-    result.set_label("hmean")
+    result.label = "hmean"
     rpn.globl.param_stack.push(result)
 
 
@@ -2689,7 +2689,7 @@ def w_hms():
     else:
         rpn.globl.param_stack.push(x)
         raise rpn.exception.TypeErr("hms: Type error ({})".format(typename(x)))
-    result.set_label("HH.MMSS")
+    result.label = "HH.MMSS"
     rpn.globl.param_stack.push(result)
 
 
@@ -2727,7 +2727,7 @@ def w_hms_plus():
     (hh, mm, ss) = rpn.globl.normalize_hms(yhh + xhh, ymm + xmm, yss + xss)
     #print("hh=",hh,"mm=",mm,"ss=",ss)
     result = rpn.type.Float("%d.%02d%02d" % (hh, mm, ss))
-    result.set_label("HH.MMSS")
+    result.label = "HH.MMSS"
     rpn.globl.param_stack.push(result)
 
 
@@ -2763,7 +2763,7 @@ def w_hms_minus():
     (hh, mm, ss) = rpn.globl.normalize_hms(yhh - xhh, ymm - xmm, yss - xss)
     #print("hh=",hh,"mm=",mm,"ss=",ss)
     result = rpn.type.Float("%d.%02d%02d" % (hh, mm, ss))
-    result.set_label("HH.MMSS")
+    result.label = "HH.MMSS"
     rpn.globl.param_stack.push(result)
 
 
@@ -2791,7 +2791,7 @@ def w_hp_to_d():
     #     y0 -= 1
     #     m0 = int((d0 -
     #
-    # result.set_label("MM.DDYYYY")
+    # result.label = "MM.DDYYYY"
     # rpn.globl.param_stack.push(result)
 
 
@@ -2814,7 +2814,7 @@ def w_hr():
     else:
         rpn.globl.param_stack.push(x)
         raise rpn.exception.TypeErr("hr: Type error ({})".format(typename(x)))
-    result.set_label("HH.nnn")
+    result.label = "HH.nnn"
     rpn.globl.param_stack.push(result)
 
 
@@ -2919,7 +2919,7 @@ def w_INT():
     i = rpn.tvm.int_eff_to_nom(i_eff)
     dbg("tvm", 1, "i={}".format(i))
     result = rpn.type.Float(100.0 * i)
-    result.set_label("INT")
+    result.label = "INT"
     rpn.tvm.INT.set_obj(result)
     rpn.globl.param_stack.push(result)
 
@@ -2992,7 +2992,7 @@ def w_jd_to_d():
 
     dateobj = datetime.date.fromordinal(x.value() - rpn.globl.JULIAN_OFFSET)
     result = rpn.type.Float("%d.%02d%04d" % (dateobj.month, dateobj.day, dateobj.year))
-    result.set_label("MM.DDYYYY")
+    result.label = "MM.DDYYYY"
     rpn.globl.param_stack.push(result)
 
 
@@ -3078,7 +3078,7 @@ Set label of X  ( x -- x )  [ "label" -- ]""")
 def w_label():
     x = rpn.globl.param_stack.top()
     label = rpn.globl.string_stack.pop().value()
-    x.set_label(label)
+    x.label = label
 
 
 @defword(name='lcm', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -3272,7 +3272,7 @@ def w_mean():
     except statistics.StatisticsError as e:
         raise rpn.exception.RuntimeErr("mean: {}".format(str(e)))
     result = rpn.type.Float(m)
-    result.set_label("mean")
+    result.label = "mean"
     rpn.globl.param_stack.push(result)
 
 
@@ -3286,7 +3286,7 @@ def w_median():
     except statistics.StatisticsError as e:
         raise rpn.exception.RuntimeErr("median: {}".format(str(e)))
     result = rpn.type.Float(m)
-    result.set_label("median")
+    result.label = "median"
     rpn.globl.param_stack.push(result)
 
 
@@ -3327,7 +3327,7 @@ def w_N():
     dbg("tvm", 1, "n={}".format(n))
 
     result = rpn.type.Float(n)
-    result.set_label("N")
+    result.label = "N"
     rpn.tvm.N.set_obj(result)
     rpn.globl.param_stack.push(result)
 
@@ -3502,7 +3502,7 @@ PI == TAU/2
 Consider using TAU instead of PI to simplify your equations.""")
 def w_PI():
     result = rpn.type.Float(rpn.globl.PI)
-    result.set_label("PI")
+    result.label = "PI"
     rpn.globl.param_stack.push(result)
 
 
@@ -3599,7 +3599,7 @@ def w_PMT():
     dbg("tvm", 1, "pmt={}".format(pmt))
 
     result = rpn.type.Float(pmt)
-    result.set_label("PMT")
+    result.label = "PMT"
     rpn.tvm.PMT.set_obj(result)
     rpn.globl.param_stack.push(result)
 
@@ -3646,7 +3646,7 @@ def w_PV():
     dbg("tvm", 1, "pv={}".format(pv))
 
     result = rpn.type.Float(pv)
-    result.set_label("PV")
+    result.label = "PV"
     rpn.tvm.PV.set_obj(result)
     rpn.globl.param_stack.push(result)
 
@@ -3685,10 +3685,10 @@ EXAMPLE: Integrate a bessel function jv(2.5, x) along the interval [0,4.5]:
 
         (res, err) = scipy.integrate.quad(func, lower, upper)
         err_obj = rpn.type.Float(err)
-        err_obj.set_label("error")
+        err_obj.label = "error"
         rpn.globl.param_stack.push(err_obj)
         res_obj = rpn.type.Float(res)
-        res_obj.set_label("quad")
+        res_obj.label = "quad"
         rpn.globl.param_stack.push(res_obj)
 
 
@@ -3700,7 +3700,7 @@ def w_r_to_d():
         rpn.globl.param_stack.push(x)
         raise rpn.exception.TypeErr("r->d: Type error ({})".format(typename(x)))
     result = rpn.type.Float(rpn.globl.convert_radians_to_mode(float(x.value()), "d"))
-    result.set_label("Deg")
+    result.label = "Deg"
     rpn.globl.param_stack.push(result)
 
 
@@ -3734,11 +3734,11 @@ def w_r_to_p():
 
         theta = math.atan2(y.value(), x.value())
         theta_obj = rpn.type.Float(rpn.globl.convert_radians_to_mode(theta))
-        theta_obj.set_label("theta_" + rpn.globl.angle_mode_label())
+        theta_obj.label = "theta_" + rpn.globl.angle_mode_label()
 
         r = math.hypot(y.value(), x.value())
         r_obj = rpn.type.Float(r)
-        r_obj.set_label("r")
+        r_obj.label = "r"
 
         rpn.globl.param_stack.push(theta_obj)
         rpn.globl.param_stack.push(r_obj)
@@ -3861,15 +3861,15 @@ def w_rct_to_sph():
 
     r     = math.sqrt(xval**2 + yval**2 + zval**2)
     r_obj = rpn.type.Float(r)
-    r_obj.set_label("r")
+    r_obj.label = "r"
 
     theta     = math.acos(zval / r)
     theta_obj = rpn.type.Float(rpn.globl.convert_radians_to_mode(theta))
-    theta_obj.set_label("theta_" + rpn.globl.angle_mode_label())
+    theta_obj.label = "theta_" + rpn.globl.angle_mode_label()
 
     phi     = math.atan2(yval, xval)
     phi_obj = rpn.type.Float(rpn.globl.convert_radians_to_mode(phi))
-    phi_obj.set_label("phi_" + rpn.globl.angle_mode_label())
+    phi_obj.label = "phi_" + rpn.globl.angle_mode_label()
 
     rpn.globl.param_stack.push(phi_obj)
     rpn.globl.param_stack.push(theta_obj)
@@ -3940,7 +3940,7 @@ def w_rms():
     else:
         raise rpn.exception.FatalErr("{}: Cannot handle type {}".format(whoami(), t))
 
-    result.set_label("rms")
+    result.label = "rms"
     rpn.globl.param_stack.push(result)
 
 
@@ -4223,7 +4223,7 @@ def w_sinc():
             r = math.sin(rpn.globl.convert_mode_to_radians(float(x.value()))) / x.value()
         result = rpn.type.Float(r)
 
-    result.set_label("sinc")
+    result.label = "sinc"
     rpn.globl.param_stack.push(result)
 
 
@@ -4367,7 +4367,7 @@ def w_stdev():
     except statistics.StatisticsError as e:
         raise rpn.exception.RuntimeErr("stdev: {}".format(str(e)))
     result = rpn.type.Float(s)
-    result.set_label("stdev")
+    result.label = "stdev"
     rpn.globl.param_stack.push(result)
 
 
@@ -4464,7 +4464,7 @@ DEFINITION:
 Number of radians in a circle.""")
 def w_TAU():
     result = rpn.type.Float(rpn.globl.TAU)
-    result.set_label("TAU")
+    result.label = "TAU"
     rpn.globl.param_stack.push(result)
 
 
@@ -4517,7 +4517,7 @@ Current time  ( -- HH.MMSS )""")
 def w_time():
     t = datetime.datetime.now().strftime("%H.%M%S")
     result = rpn.type.Float(t)
-    result.set_label("HH.MMSS (Current)")
+    result.label = "HH.MMSS (Current)"
     rpn.globl.param_stack.push(result)
 
 
@@ -4526,7 +4526,7 @@ High precision clock time  ( -- HH.MMSSssss )""")
 def w_time_bang():
     t = datetime.datetime.now().strftime("%H.%M%S%f")
     result = rpn.type.Float(t)
-    result.set_label("HH.MMSSssss (Current)")
+    result.label = "HH.MMSSssss (Current)"
     rpn.globl.param_stack.push(result)
 
 

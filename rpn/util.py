@@ -122,8 +122,8 @@ class DisplayConfig:
         if type(x) is rpn.type.Float:
             s = self.fmt(x.value())
             l = ""
-            if show_label and x.label() is not None:
-                l = r"  \ " + "{}".format(x.label())
+            if show_label and x.label is not None:
+                l = r"  \ " + "{}".format(x.label)
             return s + l
         if type(x) is rpn.type.String:
             return x.value()
