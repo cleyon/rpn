@@ -30,24 +30,24 @@ def solve_for_interest():
 
     def f(i):
         X = X_helper()
-        A = math.expm1(rpn.tvm.N.obj().value() * math.log1p(i))
+        A = math.expm1(rpn.tvm.N.obj().value * math.log1p(i))
         B = (1.0 + i*X) / i
-        C = rpn.tvm.PMT.obj().value() * B
-        pv = rpn.tvm.PV.obj().value()
-        fv = rpn.tvm.FV.obj().value()
+        C = rpn.tvm.PMT.obj().value * B
+        pv = rpn.tvm.PV.obj().value
+        fv = rpn.tvm.FV.obj().value
         # f(i) = A(PV+C) + PV + FV
         res = A*(pv+C) +  pv + fv
         return res
 
     def df(i):
         X = X_helper()
-        A = math.expm1(rpn.tvm.N.obj().value() * math.log1p(i))
+        A = math.expm1(rpn.tvm.N.obj().value * math.log1p(i))
         B = (1.0 + i*X) / i
-        C = rpn.tvm.PMT.obj().value() * B
+        C = rpn.tvm.PMT.obj().value * B
         D = (A+1) / (1+i)
-        pv = rpn.tvm.PV.obj().value()
+        pv = rpn.tvm.PV.obj().value
         # f'(i) = n*D*(PV+C) - (A*C)/i
-        res = rpn.tvm.N.obj().value()*D*(pv+C) - ((A*C)/i)
+        res = rpn.tvm.N.obj().value*D*(pv+C) - ((A*C)/i)
         return res
 
     k = 0
@@ -62,10 +62,10 @@ def solve_for_interest():
             raise rpn.exception.RuntimeErr("INT: No solution")
 
 def i_initial_guess():
-    n   = rpn.tvm.N  .obj().value()
-    pv  = rpn.tvm.PV .obj().value()
-    pmt = rpn.tvm.PMT.obj().value()
-    fv  = rpn.tvm.FV .obj().value()
+    n   = rpn.tvm.N  .obj().value
+    pv  = rpn.tvm.PV .obj().value
+    pmt = rpn.tvm.PMT.obj().value
+    fv  = rpn.tvm.FV .obj().value
 
     if pmt * fv < 0:
         # FV case
@@ -88,8 +88,8 @@ def i_initial_guess():
 
 
 def int_nom_to_eff(int_nom):
-    cf = rpn.tvm.CF.obj().value()
-    pf = rpn.tvm.PF.obj().value()
+    cf = rpn.tvm.CF.obj().value
+    pf = rpn.tvm.PF.obj().value
 
     if rpn.flag.flag_set_p(rpn.flag.F_TVM_CONTINUOUS):
         # int_eff = e^(i/PF) - 1
@@ -105,8 +105,8 @@ def int_nom_to_eff(int_nom):
 
 
 def int_eff_to_nom(int_eff):
-    cf = rpn.tvm.CF.obj().value()
-    pf = rpn.tvm.PF.obj().value()
+    cf = rpn.tvm.CF.obj().value
+    pf = rpn.tvm.PF.obj().value
 
     if rpn.flag.flag_set_p(rpn.flag.F_TVM_CONTINUOUS):
         # int_nom = LN[ (1+int_eff)^PF ]
@@ -124,7 +124,7 @@ def int_eff_to_nom(int_eff):
 def i_helper():
     if not rpn.tvm.INT.defined():
         return None
-    i_e = int_nom_to_eff(rpn.tvm.INT.obj().value())
+    i_e = int_nom_to_eff(rpn.tvm.INT.obj().value)
     dbg("tvm", 3, "{}: i_e={}".format(whoami(), i_e))
     return i_e / 100.0
 
@@ -138,7 +138,7 @@ def A_helper():
     # A = (1+i)^n - 1
     if not rpn.tvm.N.defined():
         return None
-    n = rpn.tvm.N.obj().value()
+    n = rpn.tvm.N.obj().value
     i = i_helper()
     if i is None:
         return None
@@ -162,7 +162,7 @@ def C_helper():
     # C = PMT * B
     if not rpn.tvm.PMT.defined():
         return None
-    pmt = rpn.tvm.PMT.obj().value()
+    pmt = rpn.tvm.PMT.obj().value
     B = B_helper()
     if B is None:
         return None

@@ -124,13 +124,13 @@ class DisplayConfig:
                 return str(x)
             raise rpn.exception.FatalErr("{}: Invalid style '{}'".format(whoami(), self.style))
         if type(x) is rpn.type.Float:
-            s = self.fmt(x.value())
+            s = self.fmt(x.value)
             l = ""
             if show_label and x.label is not None:
                 l = r"  \ " + "{}".format(x.label)
             return s + l
         if type(x) is rpn.type.String:
-            return x.value()
+            return x.value
         return str(x)
 
 
@@ -335,7 +335,7 @@ class Sequence:
             in_vars.reverse()
             for varname in in_vars:
                 obj = rpn.globl.param_stack.pop()
-                dbg(whoami(), 1, "{}: Setting {} to {}".format(whoami(), varname, obj.value()))
+                dbg(whoami(), 1, "{}: Setting {} to {}".format(whoami(), varname, obj.value))
                 scope.variable(varname).set_obj(obj)
 
         dbg(whoami(), 1, "{}: seq={}".format(whoami(), repr(self.seq())))
@@ -594,7 +594,7 @@ class Variable:
         # `pre_hooks' is a list of functions that are called before a
         # user-mode "!VAR" or "undef VAR".  It is called with the
         # following parameters: variable name, old object (be sure to
-        # take .value()), and the new proposed value.  For "undef", new
+        # take .value), and the new proposed value.  For "undef", new
         # value is None.  If system wants to prevent the change, the
         # pre_hook function should raise a rpn.exception.RuntimeErr
         # exception.  Nothing needs to be returned.

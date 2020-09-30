@@ -681,7 +681,7 @@ def p_rational(p):
 def p_complex(p):
     '''complex : OPEN_PAREN real COMMA real CLOSE_PAREN '''
 
-    p[0] = rpn.type.Complex(p[2].value(), p[4].value())
+    p[0] = rpn.type.Complex(p[2].value, p[4].value)
 
 
 def p_string(p):

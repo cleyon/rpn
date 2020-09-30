@@ -372,7 +372,7 @@ def to_rpn_class(n):
 def write(s=""):
     if len(s) == 0:
         return
-    outval = rpn.globl.sharpout.obj().value()
+    outval = rpn.globl.sharpout.obj().value
     newline = s.find("\n")
     while newline != -1:
         substring = s[:newline]
@@ -389,11 +389,11 @@ def writeln(s=""):
     rpn.globl.sharpout.set_obj(rpn.type.Integer(0))
 
 def lnwrite(s=""):
-    if rpn.globl.sharpout.obj().value() != 0:
+    if rpn.globl.sharpout.obj().value != 0:
         writeln()
     write(s)
 
 def lnwriteln(s=""):
-    if rpn.globl.sharpout.obj().value() != 0:
+    if rpn.globl.sharpout.obj().value != 0:
         writeln()
     writeln(s)

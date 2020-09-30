@@ -38,12 +38,6 @@ class Stackable(rpn.exe.Executable):
         self._value = None
         self._label = None
 
-    def value(self):
-        return self._value
-
-    def set_value(self, val):
-        self._value = val
-
     @property
     def label(self):
         return self._label
@@ -66,14 +60,24 @@ class Complex(Stackable):
     def from_complex(cls, cplx):
         return cls(cplx.real, cplx.imag)
 
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, new_value):
+        if type(new_value) is not complex:
+            raise rpn.exception.TypeErr("{}: New value is not Complex ({})".format(whoami(), type(new_value)))
+        self._value = new_value
+
     def real(self):
-        return self.value().real
+        return self.value.real
 
     def imag(self):
-        return self.value().imag
+        return self.value.imag
 
     def set_real_imag(self, real, imag):
-        self.set_value(complex(float(real), float(imag)))
+        self.value = complex(float(real), float(imag))
 
     def zerop(self):
         return self.real() == 0.0 and self.imag() == 0.0
@@ -84,16 +88,26 @@ class Complex(Stackable):
         return s + l
 
     def __repr__(self):
-        return "Complex[{}]".format(repr(self.value()))
+        return "Complex[{}]".format(repr(self.value))
 
 
 class Float(Stackable):
     def __init__(self, val=0.0):
         super().__init__()
-        self.set_value(float(val))
+        self.value = float(val)
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, new_value):
+        if type(new_value) is not float:
+            raise rpn.exception.TypeErr("{}: New value is not Float ({})".format(whoami(), type(new_value)))
+        self._value = new_value
 
     def zerop(self):
-        return self.value() == 0.0
+        return self.value == 0.0
 
     def date_info(self):
         """A float in the form MM.DDYYYY might represent a date.
@@ -102,7 +116,7 @@ Success:  (True, dateobj, julian)
           dateobj is datetime.date, julian is an int
 Failure:  (False, None, None)"""
 
-        match = rpn.globl.DATE_RE.match("%.6f" % self.value())
+        match = rpn.globl.DATE_RE.match("%.6f" % self.value)
         if match is None:
             return (False, None, None)
 
@@ -126,7 +140,7 @@ greater than 24, so there may not be a valid timeobj even if it parses okay.
 Success:  (True, HH, MM, SS, timeobj)
 Failure:  (False, None, None, None, None)"""
 
-        match = rpn.globl.TIME_RE.match("%f" % self.value())
+        match = rpn.globl.TIME_RE.match("%f" % self.value)
         if match is None:
             return (False, None, None, None, None)
 
@@ -141,28 +155,38 @@ Failure:  (False, None, None, None, None)"""
 
     def __str__(self):
         l = r"  \ " + "{}".format(self.label) if self.label is not None else ""
-        s = "{}".format(self.value())
+        s = "{}".format(self.value)
         return s + l
 
     def __repr__(self):
-        return "Float[{}]".format(repr(self.value()))
+        return "Float[{}]".format(repr(self.value))
 
 
 class Integer(Stackable):
     def __init__(self, val=0):
         super().__init__()
-        self.set_value(int(val))
+        self.value = int(val)
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, new_value):
+        if type(new_value) is not int:
+            raise rpn.exception.TypeErr("{}: New value is not Integer ({})".format(whoami(), type(new_value)))
+        self._value = new_value
 
     def zerop(self):
-        return self.value() == 0
+        return self.value == 0
 
     def __str__(self):
-        s = "{}".format(self.value())
+        s = "{}".format(self.value)
         l = r"  \ " + "{}".format(self.label) if self.label is not None else ""
         return s + l
 
     def __repr__(self):
-        return "Integer[{}]".format(repr(self.value()))
+        return "Integer[{}]".format(repr(self.value))
 
 
 class Matrix(Stackable):
@@ -176,7 +200,7 @@ class Matrix(Stackable):
         vecs = []
         for x in vals.items():
             #rpn.globl.lnwriteln("x={}".format(repr(x)))
-            vecs.append(x.value())
+            vecs.append(x.value)
             if cols == -1:
                 cols = x.size()
             else:
@@ -185,15 +209,25 @@ class Matrix(Stackable):
         self._ncols = cols
         #rpn.globl.lnwriteln("{} rows x {} columns".format(self.nrows(), self.ncols()))
         #print("vecs", vecs)
-        self.set_value(np.array(vecs))
-        #print("val",repr(self.value()))
+        self.value = np.array(vecs)
+        #print("val",repr(self.value))
 
     @classmethod
     def from_numpy(cls, x):
         obj = cls(rpn.util.List())
         obj._nrows, obj._ncols = x.shape
-        obj.set_value(x)
+        obj.value = x
         return obj
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, new_value):
+        # if type(new_value) is not rpn.type.Matrix: # FIXME
+        #     raise rpn.exception.TypeErr("{}: New value is not Matrix ({})".format(whoami(), type(new_value)))
+        self._value = new_value
 
     def nrows(self):
         return self._nrows
@@ -202,16 +236,16 @@ class Matrix(Stackable):
         return self._ncols
 
     def __str__(self):
-        return str(self.value())
+        return str(self.value)
 
     def __repr__(self):
-        return "Matrix[{}]".format(repr(self.value()))
+        return "Matrix[{}]".format(repr(self.value))
 
 
 class Rational(Stackable):
     def __init__(self, num=0, denom=1):
         super().__init__()
-        self.set_value(Fraction(int(num), int(denom)))
+        self.value = Fraction(int(num), int(denom))
 
     @classmethod
     def from_Fraction(cls, frac):
@@ -224,11 +258,21 @@ class Rational(Stackable):
             raise rpn.exception.FatalErr("Rational pattern failed to match '{}'".format(s))
         return cls(match.group(1), match.group(2))
 
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, new_value):
+        if type(new_value) is not Fraction:
+            raise rpn.exception.TypeErr("{}: New value is not Rational ({})".format(whoami(), type(new_value)))
+        self._value = new_value
+
     def numerator(self):
-        return self.value().numerator
+        return self.value.numerator
 
     def denominator(self):
-        return self.value().denominator
+        return self.value.denominator
 
     def set_num_denom(self, num, denom):
         self._value = Fraction(int(num), int(denom))
@@ -242,7 +286,7 @@ class Rational(Stackable):
         return s + l
 
     def __repr__(self):
-        return "Rational[{}]".format(repr(self.value()))
+        return "Rational[{}]".format(repr(self.value))
 
 
 class String(rpn.exe.Executable):
@@ -253,21 +297,25 @@ class String(rpn.exe.Executable):
     def from_string(cls, s):
         return cls("{}".format(s))
 
+    @property
     def value(self):
         return self._value
 
-    def set_value(self, val):
-        self._value = val
+    @value.setter
+    def value(self, new_value):
+        if type(new_value) is not rpn.type.String: # or str?
+            raise rpn.exception.TypeErr("{}: New value is not a String ({})".format(whoami(), type(new_value)))
+        self._value = new_value
 
     def __call__(self):
         dbg("trace", 1, "trace({})".format(repr(self)))
         rpn.globl.string_stack.push(self)
 
     def __str__(self):
-        return '"{}"'.format(str(self.value()))
+        return '"{}"'.format(str(self.value))
 
     def __repr__(self):
-        return 'String["{}"]'.format(self.value())
+        return 'String["{}"]'.format(self.value)
 
 
 class Vector(Stackable):
@@ -277,23 +325,33 @@ class Vector(Stackable):
         super().__init__()
         if type(vals) is not rpn.util.List:
             raise rpn.exception.FatalErr("{}: {} is not a List".format(whoami(), repr(vals)))
-        self.set_value(np.array([elem.value() for elem in vals.listval()]))
+        self.value = np.array([elem.value for elem in vals.listval()])
 
     @classmethod
     def from_numpy(cls, x):
         print("rpn.type.Vector.from_numpy: x={}, type={}".format(x, type(x)))
         obj = cls(rpn.util.List())
         # print("from_numpy: {}".format(repr(obj)))
-        obj.set_value(x)
+        obj.value = x
         return obj
 
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, new_value):
+        # if type(new_value) is not rpn.type.Vector: # FIXME
+        #     raise rpn.exception.TypeErr("{}: New value is not Vector ({})".format(whoami(), type(new_value)))
+        self._value = new_value
+
     def size(self):
-        return self.value().size
+        return self.value.size
 
     def __str__(self):
         if self.size() == 0:
             return "[]"
-        return "[ " + " ".join([str(rpn.globl.to_rpn_class(e)) for e in self.value()]) +" ]"
+        return "[ " + " ".join([str(rpn.globl.to_rpn_class(e)) for e in self.value]) +" ]"
 
     def __repr__(self):
-        return "Vector[{}]".format(repr(self.value()))
+        return "Vector[{}]".format(repr(self.value))

@@ -190,7 +190,7 @@ def main_loop():
 
     # Non-existence of ~/.rpnrc is indicator of novice mode
     (rpnrc, _) = rpn.globl.lookup_variable("RPNRC")
-    if len(rpnrc.obj().value()) == 0:
+    if len(rpnrc.obj().value) == 0:
         rpn.globl.lnwriteln("Type ? for information, help <word> for help on a specific word.")
         rpn.globl.lnwriteln("Type vlist for a list of all words, vars to see your variables.")
         rpn.globl.lnwriteln("Type .s to display the stack non-destructively, and bye to exit.")
@@ -218,7 +218,7 @@ def main_loop():
 
 
 def end_program():
-    if rpn.globl.sharpout.obj().value() != 0:
+    if rpn.globl.sharpout.obj().value != 0:
         rpn.globl.writeln()
 
     if not rpn.globl.string_stack.empty():
@@ -451,7 +451,7 @@ def sigquit_handler(_signum, _frame):
 #     print("cur_obj={}".format(repr(cur_obj)))
 #     print("new_obj={}".format(repr(new_obj)))
 #     # Check against None first due to undef case
-#     if new_obj is not None and new_obj.value() < 0:
+#     if new_obj is not None and new_obj.value < 0:
 #         raise rpn.exception.RuntimeErr("{} cannot be negative".format(ident))
 #
 # def example_post_hook_func(ident, old_obj, cur_obj):
@@ -469,23 +469,23 @@ def require_int_or_float(identifier, _cur, new):
         raise rpn.exception.RuntimeErr("!{}: Type error ({})".format(identifier, typename(new)))
 
 def require_positive(identifier, _cur, new):
-    if new.value() <= 0:
+    if new.value <= 0:
         raise rpn.exception.RuntimeErr("!{}: Must be positive".format(identifier))
 
 def require_non_negative(identifier, _cur, new):
-    if new.value() < 0:
+    if new.value < 0:
         raise rpn.exception.RuntimeErr("!{}: Must be non-negative".format(identifier))
 
 def validate_size_arg(identifier, _cur, new):
     if type(new) is not rpn.type.Integer:
         raise rpn.exception.RuntimeErr("!{}: Type error ({})".format(identifier, typename(new)))
-    new_size = new.value()
+    new_size = new.value
     if new_size < rpn.globl.REG_SIZE_MIN or new_size > rpn.globl.REG_SIZE_MAX:
         raise rpn.exception.RuntimeErr("!{}: Size {} out of range ({}..{} expected)".format(identifier, new_size, rpn.globl.REG_SIZE_MIN, rpn.globl.REG_SIZE_MAX))
 
 def clear_newly_unveiled_registers(_identifier, old, cur):
-    old_size = old.value()
-    cur_size = cur.value()
+    old_size = old.value
+    cur_size = cur.value
     # If we're increasing the number of registers, zero out the newly
     # available ones.  It is not really necessary to do this when
     # decreasing, because those registers will no longer be accessible.

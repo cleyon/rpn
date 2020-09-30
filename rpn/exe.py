@@ -39,7 +39,7 @@ class AbortQuote(Executable):
         if type(flag) is not rpn.type.Integer:
             rpn.globl.param_stack.push(flag)
             raise rpn.exception.TypeErr("abort\": Flag must be an integer")
-        if flag.value() != 0:
+        if flag.value != 0:
             rpn.globl.lnwriteln("{}".format(self.stringval()))
             raise rpn.exception.Abort()
 
@@ -87,7 +87,7 @@ class BeginUntil(Executable):
                 if type(flag) is not rpn.type.Integer:
                     rpn.globl.param_stack.push(flag)
                     raise rpn.exception.TypeErr("until: Flag must be an integer")
-                if flag.value() != 0:
+                if flag.value != 0:
                     break
         except rpn.exception.Leave:
             pass
@@ -118,7 +118,7 @@ class BeginWhile(Executable):
                 if type(flag) is not rpn.type.Integer:
                     rpn.globl.param_stack.push(flag)
                     raise rpn.exception.TypeErr("while: Flag must be an integer")
-                if flag.value() == 0:
+                if flag.value == 0:
                     break
                 self._while_seq.__call__()
         except rpn.exception.Leave:
@@ -148,7 +148,7 @@ class Case(Executable):
         if type(n) is not rpn.type.Integer:
             rpn.globl.param_stack.push(n)
             raise rpn.exception.TypeErr("case: Case control parameter must be an integer")
-        nval = n.value()
+        nval = n.value
 
         # Determine the correct sequence to call
         seq = self._otherwise_seq
@@ -268,8 +268,8 @@ class DoLoop(Executable):
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
             raise rpn.exception.TypeErr("do: Loop control parameters must be integers")
-        limit = y.value()
-        i = x.value()
+        limit = y.value
+        i = x.value
         if i == limit:
             #rpn.globl.lnwriteln("do: Not executing because initial == limit")
             return
@@ -316,8 +316,8 @@ class DoPlusLoop(Executable):
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
             raise rpn.exception.TypeErr("do: Loop control parameters must be integers")
-        limit = y.value()
-        i = x.value()
+        limit = y.value
+        i = x.value
         if i == limit:
             #rpn.globl.lnwriteln("do: Not executing because initial == limit")
             return
@@ -337,10 +337,10 @@ class DoPlusLoop(Executable):
                 if type(incr) is not rpn.type.Integer:
                     rpn.globl.param_stack.push(incr)
                     raise rpn.exception.TypeErr("+loop: Increment must be integer")
-                i += incr.value()
+                i += incr.value
                 _I.set_obj(rpn.type.Integer(i))
-                if    incr.value() > 0 and i >= limit \
-                   or incr.value() < 0 and i < limit:
+                if    incr.value > 0 and i >= limit \
+                   or incr.value < 0 and i < limit:
                     break
         except rpn.exception.Leave:
             pass
@@ -497,7 +497,7 @@ class IfElse(Executable):
         if type(flag) is not rpn.type.Integer:
             rpn.globl.param_stack.push(flag)
             raise rpn.exception.TypeErr("if: Flag must be an integer")
-        if flag.value() != 0:
+        if flag.value != 0:
             self._if_seq.__call__()
         elif self._else_seq is not None:
             self._else_seq.__call__()
