@@ -122,7 +122,7 @@ def w_number_in():
         except EOFError:
             raise rpn.exception.RuntimeErr()
         finally:
-            rpn.globl.sharpout.set_obj(rpn.type.Integer(0))
+            rpn.globl.sharpout.obj = rpn.type.Integer(0)
 
     newlexer = rpn.globl.lexer.clone()
     newlexer.input(x)
@@ -160,7 +160,7 @@ def w_dollar_in():
         except EOFError:
             raise rpn.exception.RuntimeErr()
         finally:
-            rpn.globl.sharpout.set_obj(rpn.type.Integer(0))
+            rpn.globl.sharpout.obj = rpn.type.Integer(0)
 
     rpn.globl.string_stack.push(rpn.type.String(x))
 
@@ -1599,18 +1599,14 @@ def w_clfin():
     rpn.flag.clear_flag(rpn.flag.F_TVM_CONTINUOUS)
     rpn.flag.clear_flag(rpn.flag.F_TVM_BEGIN_MODE)
 
-    cf = rpn.type.Integer(1)
-    cf.label = "CF"
-    pf = rpn.type.Integer(1)
-    pf.label = "PF"
+    rpn.tvm.N.obj   = None
+    rpn.tvm.INT.obj = None
+    rpn.tvm.PV.obj  = None
+    rpn.tvm.PMT.obj = None
+    rpn.tvm.FV.obj  = None
 
-    rpn.tvm.N   .set_obj(None)
-    rpn.tvm.INT .set_obj(None)
-    rpn.tvm.PV  .set_obj(None)
-    rpn.tvm.PMT .set_obj(None)
-    rpn.tvm.FV  .set_obj(None)
-    rpn.tvm.CF  .set_obj(cf)
-    rpn.tvm.PF  .set_obj(pf)
+    rpn.globl.param_stack.push(rpn.type.Integer(1))
+    rpn.word.w_cpf()
 
 
 @defword(name='clflag', print_x=rpn.globl.PX_CONFIG, doc="""\
@@ -1726,12 +1722,17 @@ def w_cpf():
         rpn.globl.param_stack.push(x)
         raise rpn.exception.TypeErr("CPF: Type error ({})".format(typename(x)))
     n = x.value
-    if n < 1:
+    if n < 1 or n > 365:
         rpn.globl.param_stack.push(x)
-        raise rpn.exception.ValueErr("CPF: N must be positive")
+        raise rpn.exception.ValueErr("CPF: Argument {} out of range (1..365 expected)".format(n))
 
-    rpn.tvm.CF.set_obj(x)
-    rpn.tvm.PF.set_obj(x)
+    cf = rpn.type.Integer(n)
+    cf.label = "CF"
+    rpn.tvm.CF.obj = cf
+
+    pf = rpn.type.Integer(n)
+    pf.label = "PF"
+    rpn.tvm.PF.obj = pf
 
 
 @defword(name='cr', print_x=rpn.globl.PX_IO, doc="""\
@@ -2545,7 +2546,7 @@ def w_FV():
     if any_undefined_p([rpn.tvm.N, rpn.tvm.INT, rpn.tvm.PV, rpn.tvm.PMT]):
         raise rpn.exception.RuntimeErr("FV: Need N, INT, PV, and PMT")
 
-    pv  = rpn.tvm.PV .obj().value
+    pv  = rpn.tvm.PV .obj.value
     A   = rpn.tvm.A_helper()
     C   = rpn.tvm.C_helper()
 
@@ -2555,7 +2556,7 @@ def w_FV():
 
     result = rpn.type.Float(fv)
     result.label = "FV"
-    rpn.tvm.FV.set_obj(result)
+    rpn.tvm.FV.obj = result
     rpn.globl.param_stack.push(result)
 
 
@@ -2850,9 +2851,9 @@ def w_I():
     (_I, _) = rpn.globl.lookup_variable('_I')
     if _I is None:
         raise rpn.exception.RuntimeErr("'I' not valid here, only in DO loops")
-    if type(_I.obj()) is not rpn.type.Integer:
+    if type(_I.obj) is not rpn.type.Integer:
         raise rpn.exception.FatalErr("I is not an rpn.type.Integer")
-    rpn.globl.param_stack.push(_I.obj())
+    rpn.globl.param_stack.push(_I.obj)
 
 
 if rpn.globl.have_module('numpy'):
@@ -2902,10 +2903,10 @@ def w_INT():
     if any_undefined_p([rpn.tvm.N, rpn.tvm.PV, rpn.tvm.PMT, rpn.tvm.FV]):
         raise rpn.exception.RuntimeErr("INT: Need N, PV, PMT, and FV")
 
-    n   = rpn.tvm.N  .obj().value
-    pv  = rpn.tvm.PV .obj().value
-    pmt = rpn.tvm.PMT.obj().value
-    fv  = rpn.tvm.FV .obj().value
+    n   = rpn.tvm.N  .obj.value
+    pv  = rpn.tvm.PV .obj.value
+    pmt = rpn.tvm.PMT.obj.value
+    fv  = rpn.tvm.FV .obj.value
 
     # For PMT == 0:
     #   i = (FV/PV)^(1/n) - 1
@@ -2920,7 +2921,7 @@ def w_INT():
     dbg("tvm", 1, "i={}".format(i))
     result = rpn.type.Float(100.0 * i)
     result.label = "INT"
-    rpn.tvm.INT.set_obj(result)
+    rpn.tvm.INT.obj = result
     rpn.globl.param_stack.push(result)
 
 
@@ -2950,9 +2951,9 @@ def w_J():
     (_J, _) = rpn.globl.lookup_variable('_I', 2)
     if _J is None:
         raise rpn.exception.RuntimeErr("'J' not valid here, only in nested DO loops")
-    if type(_J.obj()) is not rpn.type.Integer:
+    if type(_J.obj) is not rpn.type.Integer:
         raise rpn.exception.FatalErr("J is not an rpn.type.Integer")
-    rpn.globl.param_stack.push(_J.obj())
+    rpn.globl.param_stack.push(_J.obj)
 
 
 @defword(name='jd->$', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
@@ -3317,8 +3318,8 @@ def w_N():
     if any_undefined_p([rpn.tvm.INT, rpn.tvm.PV, rpn.tvm.PMT, rpn.tvm.FV]):
         raise rpn.exception.RuntimeErr("N: Need INT, PV, PMT, and FV")
 
-    fv = rpn.tvm.FV.obj().value
-    pv = rpn.tvm.PV.obj().value
+    fv = rpn.tvm.FV.obj.value
+    pv = rpn.tvm.PV.obj.value
     C  = rpn.tvm.C_helper()
     i  = rpn.tvm.i_helper()
 
@@ -3328,7 +3329,7 @@ def w_N():
 
     result = rpn.type.Float(n)
     result.label = "N"
-    rpn.tvm.N.set_obj(result)
+    rpn.tvm.N.obj = result
     rpn.globl.param_stack.push(result)
 
 
@@ -3589,8 +3590,8 @@ def w_PMT():
     if any_undefined_p([rpn.tvm.N, rpn.tvm.INT, rpn.tvm.PV, rpn.tvm.FV]):
         raise rpn.exception.RuntimeErr("PMT: Need N, INT, PV, and FV")
 
-    PV = rpn.tvm.PV.obj().value
-    FV = rpn.tvm.FV.obj().value
+    PV = rpn.tvm.PV.obj.value
+    FV = rpn.tvm.FV.obj.value
     A  = rpn.tvm.A_helper()
     B  = rpn.tvm.B_helper()
 
@@ -3600,7 +3601,7 @@ def w_PMT():
 
     result = rpn.type.Float(pmt)
     result.label = "PMT"
-    rpn.tvm.PMT.set_obj(result)
+    rpn.tvm.PMT.obj = result
     rpn.globl.param_stack.push(result)
 
 
@@ -3635,7 +3636,7 @@ def w_PV():
     if any_undefined_p([rpn.tvm.N, rpn.tvm.INT, rpn.tvm.PMT, rpn.tvm.FV]):
         raise rpn.exception.RuntimeErr("PV: Need N, INT, PMT, and FV")
 
-    fv = rpn.tvm.FV.obj().value
+    fv = rpn.tvm.FV.obj.value
     A  = rpn.tvm.A_helper()
     C  = rpn.tvm.C_helper()
     # PV = -[FV + (A*C)] / (A+1)
@@ -3644,7 +3645,7 @@ def w_PV():
 
     result = rpn.type.Float(pv)
     result.label = "PV"
-    rpn.tvm.PV.set_obj(result)
+    rpn.tvm.PV.obj = result
     rpn.globl.param_stack.push(result)
 
 
@@ -3816,9 +3817,9 @@ def w_rcl():
         rpn.globl.param_stack.push(x)
         raise rpn.exception.TypeErr("rcl: Type error ({})".format(typename(x)))
     reg = x.value
-    if reg < 0 or reg >= reg_size.obj().value:
+    if reg < 0 or reg >= reg_size.obj.value:
         rpn.globl.param_stack.push(x)
-        raise rpn.exception.ValueErr("rcl: Register '{}' out of range (0..{} expected)".format(reg, reg_size.obj().value - 1))
+        raise rpn.exception.ValueErr("rcl: Register '{}' out of range (0..{} expected)".format(reg, reg_size.obj.value - 1))
     rpn.globl.param_stack.push(rpn.globl.register[reg])
 
 
@@ -4086,21 +4087,21 @@ def w_showdebug():
     sorted_dbgs = []
     for key in sorted(dbgs, key=str.casefold):
         sorted_dbgs.append(dbgs[key])
-    rpn.globl.list_in_columns(sorted_dbgs, rpn.globl.scr_cols.obj().value - 1)
+    rpn.globl.list_in_columns(sorted_dbgs, rpn.globl.scr_cols.obj.value - 1)
 
 
 @defword(name='shfin', print_x=rpn.globl.PX_IO, doc="""\
 Show financial variables""")
 def w_shfin():
     rpn.globl.lnwrite()
-    rpn.globl.writeln("N:   {}".format(rpn.globl.fmt(rpn.tvm.N  .obj().value) if rpn.tvm.N  .defined() else "[Not set]"))
-    rpn.globl.writeln("INT: {}".format(rpn.globl.fmt(rpn.tvm.INT.obj().value) if rpn.tvm.INT.defined() else "[Not set]"))
-    rpn.globl.writeln("PV:  {}".format(rpn.globl.fmt(rpn.tvm.PV. obj().value) if rpn.tvm.PV .defined() else "[Not set]"))
-    rpn.globl.writeln("PMT: {}".format(rpn.globl.fmt(rpn.tvm.PMT.obj().value) if rpn.tvm.PMT.defined() else "[Not set]"))
-    rpn.globl.writeln("FV:  {}".format(rpn.globl.fmt(rpn.tvm.FV .obj().value) if rpn.tvm.FV .defined() else "[Not set]"))
+    rpn.globl.writeln("N:   {}".format(rpn.globl.fmt(rpn.tvm.N  .obj.value) if rpn.tvm.N  .defined() else "[Not set]"))
+    rpn.globl.writeln("INT: {}".format(rpn.globl.fmt(rpn.tvm.INT.obj.value) if rpn.tvm.INT.defined() else "[Not set]"))
+    rpn.globl.writeln("PV:  {}".format(rpn.globl.fmt(rpn.tvm.PV. obj.value) if rpn.tvm.PV .defined() else "[Not set]"))
+    rpn.globl.writeln("PMT: {}".format(rpn.globl.fmt(rpn.tvm.PMT.obj.value) if rpn.tvm.PMT.defined() else "[Not set]"))
+    rpn.globl.writeln("FV:  {}".format(rpn.globl.fmt(rpn.tvm.FV .obj.value) if rpn.tvm.FV .defined() else "[Not set]"))
     rpn.globl.writeln("--------------")
-    rpn.globl.writeln("CF:  {}".format(rpn.globl.fmt(rpn.tvm.CF .obj().value) if rpn.tvm.CF .defined() else "[Not set]"))
-    rpn.globl.writeln("PF:  {}".format(rpn.globl.fmt(rpn.tvm.PF .obj().value) if rpn.tvm.PF .defined() else "[Not set]"))
+    rpn.globl.writeln("CF:  {}".format(rpn.globl.fmt(rpn.tvm.CF .obj.value) if rpn.tvm.CF .defined() else "[Not set]"))
+    rpn.globl.writeln("PF:  {}".format(rpn.globl.fmt(rpn.tvm.PF .obj.value) if rpn.tvm.PF .defined() else "[Not set]"))
 
     rpn.globl.writeln("{} compounding (flag {} is {})".format("CONTINUOUS" if rpn.flag.flag_set_p(rpn.flag.F_TVM_CONTINUOUS) else "DISCRETE",
                                                               rpn.flag.F_TVM_CONTINUOUS,
@@ -4130,7 +4131,7 @@ def w_shflag():
     for f in range(rpn.flag.MAX):
         flags.append("%02d:%s" % (f, "YES" if rpn.flag.flag_set_p(f) else "no "))
 
-    rpn.globl.list_in_columns(flags, rpn.globl.scr_cols.obj().value - 1)
+    rpn.globl.list_in_columns(flags, rpn.globl.scr_cols.obj.value - 1)
 
 
 @defword(name='show', print_x=rpn.globl.PX_IO, doc="""\
@@ -4154,10 +4155,10 @@ def w_shreg():
     (reg_size, _) = rpn.globl.lookup_variable("SIZE")
     regs = []
     regs.append("I=%s" % rpn.globl.fmt(rpn.globl.register['I']))
-    for r in range(reg_size.obj().value):
+    for r in range(reg_size.obj.value):
         regs.append("R%02d=%s" % (r, rpn.globl.fmt(rpn.globl.register[r])))
 
-    rpn.globl.list_in_columns(regs, rpn.globl.scr_cols.obj().value - 1)
+    rpn.globl.list_in_columns(regs, rpn.globl.scr_cols.obj.value - 1)
 
 
 @defword(name='sign', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -4380,10 +4381,10 @@ def w_sto():
         rpn.globl.param_stack.push(x)
         raise rpn.exception.TypeErr("sto: Type error ({}, {})".format(typename(y), typename(x)))
     reg = x.value
-    if reg < 0 or reg >= reg_size.obj().value:
+    if reg < 0 or reg >= reg_size.obj.value:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        raise rpn.exception.ValueErr("sto: Register '{}' out of range (0..{} expected)".format(reg, reg_size.obj().value - 1))
+        raise rpn.exception.ValueErr("sto: Register '{}' out of range (0..{} expected)".format(reg, reg_size.obj.value - 1))
     if type(y) in [rpn.type.Float, rpn.type.Complex]:
         rpn.globl.register[reg] = y
     else:
@@ -4629,12 +4630,12 @@ def w_vars():
                 continue
             my_vars[var.name()] = "{}:[undef]".format(var.name()) if not var.defined() else \
                                   "{}={}{}".format(var.name(),
-                                                   var.obj().value,
-                                                   "(" + typename(var.obj()) + ")" if rpn.flag.flag_set_p(rpn.flag.F_DEBUG_ENABLED) else "")
+                                                   var.obj.value,
+                                                   "(" + typename(var.obj) + ")" if rpn.flag.flag_set_p(rpn.flag.F_DEBUG_ENABLED) else "")
         sorted_vars = []
         for key in sorted(my_vars, key=str.casefold):
             sorted_vars.append(my_vars[key])
-        rpn.globl.list_in_columns(sorted_vars, rpn.globl.scr_cols.obj().value - 1)
+        rpn.globl.list_in_columns(sorted_vars, rpn.globl.scr_cols.obj.value - 1)
 
 
 @defword(name='vlist', print_x=rpn.globl.PX_IO, doc="""\
@@ -4645,7 +4646,7 @@ qv WORDS""")
 def w_vlist():
     # This is nice, but it shows hidden words:
     # rpn.globl.list_in_columns(sorted([x for x in root_scope.words()],
-    #                           key=str.casefold), rpn.globl.scr_cols.obj().value - 1)
+    #                           key=str.casefold), rpn.globl.scr_cols.obj.value - 1)
     words = dict()
     for wordname in rpn.globl.root_scope.words():
         word = rpn.globl.root_scope.word(wordname)
@@ -4655,7 +4656,7 @@ def w_vlist():
     sorted_words = []
     for key in sorted(words, key=str.casefold):
         sorted_words.append(words[key])
-    rpn.globl.list_in_columns(sorted_words, rpn.globl.scr_cols.obj().value - 1)
+    rpn.globl.list_in_columns(sorted_words, rpn.globl.scr_cols.obj.value - 1)
 
 
 @defword(name='while', print_x=rpn.globl.PX_CONTROL, doc="""\
@@ -4677,7 +4678,7 @@ Print the list of user-defined words.
 qv VLIST""")
 def w_words():
     rpn.globl.list_in_columns(sorted([x[0] for x in rpn.globl.root_scope.unprotected_words()],
-                                     key=str.casefold), rpn.globl.scr_cols.obj().value - 1)
+                                     key=str.casefold), rpn.globl.scr_cols.obj.value - 1)
 
 
 @defword(name='x<>I', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
@@ -4697,8 +4698,8 @@ def w_x_exchange_indirect_i():
     if type(I) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
         raise rpn.exception.TypeErr("x<>i: Type error I ({})".format(typename(I)))
     Ival = int(I.value)
-    if Ival < 0 or Ival >= reg_size.obj().value:
-        raise rpn.exception.ValueErr("x<>i: Register {} out of range (0..{} expected)".format(Ival, reg_size.obj().value - 1))
+    if Ival < 0 or Ival >= reg_size.obj.value:
+        raise rpn.exception.ValueErr("x<>i: Register {} out of range (0..{} expected)".format(Ival, reg_size.obj.value - 1))
 
     x = rpn.globl.param_stack.pop()
     rpn.globl.param_stack.push(rpn.globl.register[Ival])
@@ -4843,8 +4844,8 @@ def gcd_helper(x, y):
 
 
 def plot_helper(func, x_low, x_high):
-    cols = rpn.globl.scr_cols.obj().value
-    rows = rpn.globl.scr_rows.obj().value
+    cols = rpn.globl.scr_cols.obj.value
+    rows = rpn.globl.scr_rows.obj.value
 
     ISCR   = cols - 20
     JSCR   = rows -  3

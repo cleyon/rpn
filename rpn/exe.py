@@ -245,7 +245,7 @@ class Constant(Executable):
         dbg("trace", 1, "trace({})".format(repr(self)))
         if rpn.globl.param_stack.empty():
             raise rpn.exception.RuntimeErr("constant: Insufficient parameters (1 required)")
-        self._variable.set_obj(rpn.globl.param_stack.pop())
+        self._variable.obj = rpn.globl.param_stack.pop()
 
     def __str__(self):
         return "constant {}".format(self._variable.name())
@@ -284,7 +284,7 @@ class DoLoop(Executable):
             while True:
                 self._do_seq.__call__()
                 i += 1
-                _I.set_obj(rpn.type.Integer(i))
+                _I.obj = rpn.type.Integer(i)
                 if i >= limit:
                     break
         except rpn.exception.Leave:
@@ -338,7 +338,7 @@ class DoPlusLoop(Executable):
                     rpn.globl.param_stack.push(incr)
                     raise rpn.exception.TypeErr("+loop: Increment must be integer")
                 i += incr.value
-                _I.set_obj(rpn.type.Integer(i))
+                _I.obj = rpn.type.Integer(i)
                 if    incr.value > 0 and i >= limit \
                    or incr.value < 0 and i < limit:
                     break
@@ -402,21 +402,21 @@ the right thing with empty stack (uses zero)."""
         (var, _) = rpn.globl.lookup_variable(self.identifier())
         if var is None:
             raise rpn.exception.FatalErr("{}: Variable has vanished!".format(str(self)))
-        if var.obj() is None:
+        if var.obj is None:
             if self._modifier == '?':
                 rpn.globl.param_stack.push(rpn.type.Integer(0))
                 # The variable remains undefined
             else:
                 raise rpn.exception.RuntimeErr("{}: Variable is not defined".format(str(self)))
-        elif self._modifier == '$' or type(var.obj()) is rpn.type.String:
-            rpn.globl.string_stack.push(var.obj())
+        elif self._modifier == '$' or type(var.obj) is rpn.type.String:
+            rpn.globl.string_stack.push(var.obj)
         else:
-            if self._modifier is not None and self._modifier == '/' and var.obj().zerop():
+            if self._modifier is not None and self._modifier == '/' and var.obj.zerop():
                 raise rpn.exception.RuntimeErr("{}: Cannot divide by zero".format(str(self)))
             if self._modifier is not None and rpn.globl.param_stack.empty():
                 # Fake a zero on the stack so recall arithmetic continues to work
                 rpn.globl.param_stack.push(rpn.type.Integer(0))
-            rpn.globl.param_stack.push(var.obj())
+            rpn.globl.param_stack.push(var.obj)
 
             # Save and restore show X flag
             rpn.flag.copy_flag(rpn.flag.F_SHOW_X, 54)
@@ -606,7 +606,7 @@ The TOS is consumed as normal."""
         if self._modifier == '/' and rpn.globl.param_stack.top().zerop():
             raise rpn.exception.ValueErr("{}: X cannot be zero".format(str(self)))
 
-        cur_obj = var.obj()
+        cur_obj = var.obj
         new_obj = rpn.globl.string_stack.top() if stringp else rpn.globl.param_stack.top()
         for pre_hook_func in var.pre_hooks():
             try:
@@ -632,7 +632,7 @@ The TOS is consumed as normal."""
 
         old_obj = cur_obj
         new_obj = rpn.globl.string_stack.pop() if stringp else rpn.globl.param_stack.pop()
-        var.set_obj(new_obj)
+        var.obj = new_obj
 
         for post_hook_func in var.post_hooks():
             post_hook_func(self.identifier(), old_obj, new_obj)

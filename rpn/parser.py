@@ -767,7 +767,7 @@ def p_undef(p):
         rpn.globl.lnwriteln("UNDEF: Variable '{}' out of scope".format(ident))
         raise SyntaxError
 
-    cur_obj = var.obj()
+    cur_obj = var.obj
     new_obj = None
     for pre_hook_func in var.pre_hooks():
         try:

@@ -336,7 +336,7 @@ class Sequence:
             for varname in in_vars:
                 obj = rpn.globl.param_stack.pop()
                 dbg(whoami(), 1, "{}: Setting {} to {}".format(whoami(), varname, obj.value))
-                scope.variable(varname).set_obj(obj)
+                scope.variable(varname).obj = obj
 
         dbg(whoami(), 1, "{}: seq={}".format(whoami(), repr(self.seq())))
         pushed_scope = False
@@ -359,8 +359,8 @@ class Sequence:
                         for _ in range(param_stack_pushes):
                             rpn.globl.param_stack.pop()
                         raise rpn.exception.RuntimeErr("{}: Variable '{}' was never set".format(self.scope_template().name(), varname))
-                    dbg(whoami(), 1, "{} is {}".format(varname, repr(var.obj())))
-                    rpn.globl.param_stack.push(var.obj())
+                    dbg(whoami(), 1, "{} is {}".format(varname, repr(var.obj)))
+                    rpn.globl.param_stack.push(var.obj)
                     param_stack_pushes += 1
             if pushed_scope:
                 rpn.globl.pop_scope("{} complete".format(repr(self)))
@@ -484,9 +484,9 @@ class TokenMgr:
             rpn.flag.clear_flag(rpn.flag.F_SHOW_X)
 
             rpn.globl.lnwrite()
-            rpn.globl.sharpout.set_obj(rpn.type.Integer(len(prompt)))
+            rpn.globl.sharpout.obj = rpn.type.Integer(len(prompt))
             data = input(prompt)
-            rpn.globl.sharpout.set_obj(rpn.type.Integer(0))
+            rpn.globl.sharpout.obj = rpn.type.Integer(0)
 
         # Get all the tokens
         rpn.globl.lexer.input(data)
@@ -625,17 +625,19 @@ class Variable:
         return not (name is None or len(name) == 0 or \
                     name[0] in ['+', '-', '*', '/', '?'])
 
+    @property
     def obj(self):
         return self._rpnobj
 
-    def set_obj(self, newobj):
-        self._rpnobj = newobj
+    @obj.setter
+    def obj(self, new_obj):
+        self._rpnobj = new_obj
 
     def name(self):
         return self._rawname
 
     def defined(self):
-        return self.obj() is not None
+        return self.obj is not None
 
     def constant(self):
         return self._constant
@@ -662,7 +664,7 @@ class Variable:
         return str(self._rawname)
 
     def __repr__(self):
-        return "Variable[{},addr={},value={}]".format(self._rawname, hex(id(self)), repr(self.obj()))
+        return "Variable[{},addr={},value={}]".format(self._rawname, hex(id(self)), repr(self.obj))
 
 
 class Word:
