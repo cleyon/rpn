@@ -244,7 +244,7 @@ def main_loop():
         except rpn.exception.TopLevel:
             continue
         if error is True:
-            rpn.globl.lnwriteln("{}: generate_token_list() error".format(whoami()))
+            rpn.globl.lnwriteln("Parse error: Could not get next token")
         s = " ".join([t.value for t in tok_list])
         dbg("parse", 1, "s='{}'".format(s))
         rpn.globl.eval_string(s)

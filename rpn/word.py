@@ -24,11 +24,14 @@ import termios
 import time
 import tty
 
+<<<<<<< HEAD
 try:
     import ply.lex  as lex
 except ModuleNotFoundError:
     print("RPN requires the 'ply' library; please consult the README") # OK
     sys.exit(1)
+=======
+>>>>>>> immed
 
 # Check if NumPy is available
 try:
@@ -1214,19 +1217,11 @@ def w_logand():
 
 
 @defword(name='ascii', immediate=True, doc="""\
-ASCII code of following char  ( -- n )""")
-def w_ascii():
-    tok = next(rpn.util.TokenMgr.next_token())
-    dbg("ascii", 1, "ascii: tok={}".format(tok))
-    c = tok.value[0]
+ASCII code of following char  ( -- n )
 
-    new_tok = lex.LexToken()
-    new_tok.type = 'INTEGER'
-    new_tok.value = "{}".format(ord(c))
-    new_tok.lineno = 0          # XXX It should be possible to fake these
-    new_tok.lexpos = 0          #     with values from tok above
-    dbg("ascii", 1, "ascii: Pushing new token {}".format(new_tok))
-    rpn.util.TokenMgr.push_token(new_tok)
+Returns -1 on any sort of error""")
+def w_ascii():
+    pass
 
 
 @defword(name='asin', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -1876,6 +1871,7 @@ def w_date_minus():
 @defword(name='dbg.token', hidden=True, print_x=rpn.globl.PX_CONFIG)
 def w_dbg_token():
     rpn.flag.set_flag(rpn.flag.F_DEBUG_ENABLED)
+    rpn.globl.lnwriteln("Debugging is now ENABLED")
     rpn.debug.set_debug_level("token", 3)
 
 

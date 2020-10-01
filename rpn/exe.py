@@ -6,6 +6,12 @@
 #############################################################################
 '''
 
+try:
+    import ply.lex  as lex
+except ModuleNotFoundError:
+    print("RPN requires the 'ply' library; please consult the README") # OK
+    sys.exit(1)
+
 from   rpn.debug import dbg, whoami
 import rpn.exception
 import rpn.globl
@@ -48,6 +54,37 @@ class AbortQuote(Executable):
 
     def __repr__(self):
         return 'AbortQuote["{}"]'.format(self.stringval())
+
+
+class Ascii(Executable):
+    def __init__(self):
+        pass
+
+    def __call__(self):
+        dbg("trace", 2, "trace({})".format(repr(self)))
+        new_tok = lex.LexToken()
+        new_tok.type = 'INTEGER'
+        new_tok.lineno = 0
+        new_tok.lexpos = 0
+
+        rpn.globl.parse_stack.push("ASCII")
+        try:
+            tok = next(rpn.util.TokenMgr.next_token())
+            dbg("ascii", 1, "ascii: tok={}".format(tok))
+            c = tok.value[0]
+            new_tok.value = "{}".format(ord(c))
+        except StopIteration:
+            new_tok.value = "-1"
+        finally:
+            rpn.globl.parse_stack.pop()
+            dbg("ascii", 1, "ascii: Pushing new token {}".format(new_tok))
+            rpn.util.TokenMgr.push_token(new_tok)
+
+    def __str__(self):
+        return "ascii"
+
+    def __repr__(self):
+        return "Ascii[]"
 
 
 class BeginAgain(Executable):
@@ -189,7 +226,7 @@ class Case(Executable):
 
 class CaseClause(Executable):
     def __init__(self, x, of_seq):
-        self._x = int(x)      # x is a plain integer, not an rpn.type.Integer
+        self._x = int(x.value if type(x) is rpn.type.Integer else x)
         self._of_seq = of_seq
 
     def x(self):

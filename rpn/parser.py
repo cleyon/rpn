@@ -6,6 +6,7 @@
 #############################################################################
 '''
 
+import re
 import sys
 
 from   rpn.debug import dbg, whoami
@@ -29,6 +30,7 @@ except ModuleNotFoundError:
 reserved_words = {
     '+loop'     : 'PLUS_LOOP',
     'again'     : 'AGAIN',
+    'ascii'     : 'ASCII',
     'begin'     : 'BEGIN',
     'case'      : 'CASE',
     'catch'     : 'CATCH',
@@ -100,6 +102,18 @@ def t_FLOAT(t):
     r'[-+]?(\d+(\.\d*[eE][-+]?\d+|[eE][-+]?\d+|\.\d*))|(\d*(\.\d+[eE][-+]?\d+|[eE][-+]?\d+|\.\d+))'
     t.value = str(float(t.value))
     t.type = 'FLOAT'
+    return t
+
+ASCII_RE = re.compile(r'ascii[ 	]+([^ 	]+)')
+def t_ASCII(t):
+    r'ascii[ 	]+([^ 	]+)'
+    t.type = 'INTEGER'
+    t.value = '-1'
+    match = ASCII_RE.match(t.value)
+    if match is not None:
+        m = match.group(1)
+        if len(m) > 0:
+            t.value = str(ord(m[0]))
     return t
 
 # Beware bad input - e.g., "0b177" is parsed as two token, "0b1" and "77".
@@ -227,6 +241,10 @@ def p_abort_quote(p):
     '''abort_quote : ABORT_QUOTE'''
     p[0] = rpn.exe.AbortQuote(p[1])
 
+def p_ascii(p):
+    '''ascii : ASCII'''
+    p[0] = rpn.exe.Ascii()
+
 def p_begin_again(p):
     '''begin_again : BEGIN sequence AGAIN'''
     p[0] = rpn.exe.BeginAgain(p[2])
@@ -244,7 +262,7 @@ def p_case(p):
     p[0] = rpn.exe.Case(p[3], p[4])
 
 def p_case_clause(p):
-    '''case_clause : INTEGER OF sequence ENDOF'''
+    '''case_clause : integer OF sequence ENDOF'''
     p[0] = rpn.exe.CaseClause(p[1], p[3])
 
 def p_case_clause_list(p):
@@ -364,6 +382,7 @@ def p_evaluate(p):                      # pylint: disable=unused-argument
 
 def p_executable(p):
     '''executable : abort_quote
+                  | ascii
                   | begin_again
                   | begin_until
                   | begin_while
@@ -445,6 +464,7 @@ def p_forget(p):
 
 def p_help(p):
     '''help : HELP AGAIN
+            | HELP ASCII
             | HELP BEGIN
             | HELP CASE
             | HELP CATCH
@@ -518,7 +538,10 @@ def p_locals(p):
         if p[idx] in ['begin', 'do', 'else', 'if', 'otherwise']:
             scope_name = p[idx]
         elif p[idx] == 'of':
-            scope_name = "of_" + p[idx - 1]
+            v = p[idx - 1]
+            if type(v) is rpn.type.Integer:
+                v = str(v.value)
+            scope_name = "of_" + v
         elif p[idx] == ':':
             scope_name = p[idx + 1]
         else:
