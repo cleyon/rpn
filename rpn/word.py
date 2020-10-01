@@ -24,14 +24,6 @@ import termios
 import time
 import tty
 
-<<<<<<< HEAD
-try:
-    import ply.lex  as lex
-except ModuleNotFoundError:
-    print("RPN requires the 'ply' library; please consult the README") # OK
-    sys.exit(1)
-=======
->>>>>>> immed
 
 # Check if NumPy is available
 try:
