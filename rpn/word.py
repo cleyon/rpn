@@ -24,6 +24,7 @@ import termios
 import time
 import tty
 
+
 # Check if NumPy is available
 try:
     import numpy as np                  # pylint: disable=import-error
@@ -67,30 +68,6 @@ class defword():
                 else:
                     rpn.flag.clear_flag(rpn.flag.F_SHOW_X)
 
-        if "immediate" in self._kwargs:
-            raise rpn.exception.FatalErr("Immediate words cannot be declared with @defword; use @defimmed instead")
-        if "name" in self._kwargs and len(self._kwargs["name"]) > 0:
-            name = self._kwargs["name"]
-            del self._kwargs["name"]
-        else:
-            raise rpn.exception.RuntimeErr("Missing or invalid \"name\" attribute")
-        word = rpn.util.Word(name, wrapped_f, **self._kwargs)
-        rpn.globl.root_scope.define_word(name, word)
-        return wrapped_f
-
-
-class defimmed():
-    """Register the following immediate word definition in the root scope"""
-
-    def __init__(self, **kwargs):
-        self._kwargs = kwargs
-
-    def __call__(self, f):
-        def wrapped_f(arg1, **kwargs):        # pylint: disable=unused-argument
-            #print("defimmed: arg1={}, kwargs={}".format(repr(arg1), self._kwargs))
-            f(arg1)
-
-        self._kwargs["immediate"] = True
         if "name" in self._kwargs and len(self._kwargs["name"]) > 0:
             name = self._kwargs["name"]
             del self._kwargs["name"]
@@ -1231,6 +1208,14 @@ def w_logand():
     rpn.globl.param_stack.push(rpn.type.Integer(x.value and y.value))
 
 
+@defword(name='ascii', immediate=True, doc="""\
+ASCII code of following char  ( -- n )
+
+Returns -1 on any sort of error""")
+def w_ascii():
+    pass
+
+
 @defword(name='asin', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Inverse sine  ( sine -- angle )
 |x| <= 1""")
@@ -1878,6 +1863,7 @@ def w_date_minus():
 @defword(name='dbg.token', hidden=True, print_x=rpn.globl.PX_CONFIG)
 def w_dbg_token():
     rpn.flag.set_flag(rpn.flag.F_DEBUG_ENABLED)
+    rpn.globl.lnwriteln("Debugging is now ENABLED")
     rpn.debug.set_debug_level("token", 3)
 
 
@@ -2423,10 +2409,10 @@ def w_fmod():
     rpn.globl.param_stack.push(rpn.type.Float(r))
 
 
-@defimmed(name='hide', hidden=True, doc="""\
+@defword(name='hide', immediate=True, hidden=True, doc="""\
 Make the current word hidden.""")
-def immed_hide(arg):
-    dbg("hide", 1, "hide: arg={}".format(repr(arg)))
+def w_hide():
+    dbg("hide", 1, "w_hide()")
     #arg.hidden = True
 
 
@@ -4919,7 +4905,7 @@ def plot_helper(func, x_low, x_high):
 
 
 # Helper routines for KEY
-class _Getch_Windows:
+class _Getch_windows:
     def __init__(self):
         import msvcrt                   # pylint: disable=import-error,import-outside-toplevel,unused-import
 
