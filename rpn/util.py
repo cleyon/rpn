@@ -6,6 +6,7 @@
 #############################################################################
 '''
 
+import collections
 import math
 import queue
 import readline                         # pylint: disable=unused-import
@@ -184,17 +185,28 @@ class List:
 
 
 class Queue:
+    """
+    This is actually a double-ended queue (deque).  My conception of the
+    deque is similiar to the stack: Items normally come in from the left
+    (put/appendleft) and are retrieved from the right (get/pop).  But to
+    "push an item back onto the queue", so it is next in line to be
+    retrieved, insert it on the right (push/append).
+    """
+
     def __init__(self):
-        self._q = queue.SimpleQueue()
+        self._q = collections.deque() # collections.abc.deque() ??
 
     def empty(self):
-        return self._q.empty()
+        return len(self._q) == 0
 
     def get(self):
-        return self._q.get_nowait()
+        return self._q.pop()
 
     def put(self, item):
-        self._q.put(item)
+        self._q.appendleft(item)
+
+    def push(self, item):       # rare
+        self._q.append(item)
 
 
 class Scope:
@@ -530,6 +542,10 @@ class TokenMgr:
             yield cls.qtok.get()
         except queue.Empty:
             return
+
+    @classmethod
+    def push_back_token(cls, item):
+        cls.qtok.push(item)
 
 
 class Variable:
