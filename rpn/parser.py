@@ -401,17 +401,7 @@ def p_executable_list(p):
         if p[1] is None:
             p[0] = p[2]
         else:
-            if p[1].immediate():
-                # The problem here is that new_word is not created until
-                # p_define_word() - long after this code runs.
-                #
-                # global new_word
-                # dbg(whoami(), 1, "'{}' is immediate, call_immed({})".format(repr(p[1]), new_word))
-                # p[1].__call_immed__(new_word)
-                print("Immediate '{}' has no effect".format(repr(p[1])))
-                p[0] = p[2]
-            else:
-                p[0] = rpn.util.List(p[1], p[2])
+            p[0] = rpn.util.List(p[1], p[2])
     dbg(whoami(), 1, "{}: Returning {}".format(whoami(), p[0]))
 
 def p_execute(p):
@@ -419,8 +409,6 @@ def p_execute(p):
     executable = p[-1]
     if executable is None:
         return
-    if executable.immediate():
-        raise rpn.exception.ParseErr("Immediate word '{}' can only be used inside colon definition".format(executable.name()))
     dbg("p_execute", 1, "p_execute: {}".format(repr(executable)))
     rpn.globl.execute(executable)
 

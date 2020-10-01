@@ -14,6 +14,7 @@ import rpn.flag
 
 
 debug_levels = {
+    "ascii"                     : 1,
     "catch"                     : 0,
     "defvar"                    : 0,
     "dollar_in"                 : 0,
@@ -25,8 +26,8 @@ debug_levels = {
     "lookup_variable"           : 0,
     "number_in"                 : 0,
     "p_colon_define_word"       : 1,
-    "p_executable"              : 0,
-    "p_executable_list"         : 0,
+    "p_executable"              : 1,
+    "p_executable_list"         : 1,
     "p_execute"                 : 0,
     "p_fetch_var"               : 0,
     "p_locals"                  : 1,
@@ -41,7 +42,7 @@ debug_levels = {
     "Word#__init__"             : 0,
     "scope"                     : 0,
     "show"                      : 0,
-    "token"                     : 0,
+    "token"                     : 3,
     "trace"                     : 0,
     "tvm"                       : 0,
 }

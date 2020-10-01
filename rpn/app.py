@@ -290,8 +290,18 @@ flag is True if initial parse error, False if no error'''
         tok = next(rpn.util.TokenMgr.next_token())
         dbg("token", 1, "token({},{})".format(tok.type, repr(tok.value)))
 
+        # See if it's an immediate word; if so, call it
+        if tok.type == 'IDENTIFIER':
+            (word, _) = rpn.globl.lookup_word(tok.value)
+            if word is not None and word.immediate():
+                dbg("token", 3, "Word {} is immediate, calling...".format(word))
+                word.__call__()
+                continue
+            else:
+                tok_list.append(tok)
+
         # These need a second token or they will be very angry
-        if tok.type in ['AT_SIGN', 'CATCH', 'CONSTANT', 'EXCLAM', 'FORGET',
+        elif tok.type in ['AT_SIGN', 'CATCH', 'CONSTANT', 'EXCLAM', 'FORGET',
                         'HELP', 'SHOW', 'UNDEF', 'VARIABLE' ]:
             rpn.globl.parse_stack.push(tok.type)
             try:
@@ -440,7 +450,6 @@ flag is True if initial parse error, False if no error'''
         # 'ABORT_QUOTE',
         # 'DOC_STR',
         # 'DOT_QUOTE',
-        # 'IDENTIFIER',
         # 'VBAR',
         # 'WS',
             tok_list.append(tok)

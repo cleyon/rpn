@@ -544,7 +544,7 @@ class TokenMgr:
             return
 
     @classmethod
-    def push_back_token(cls, item):
+    def push_token(cls, item):
         cls.qtok.push(item)
 
 

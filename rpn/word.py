@@ -24,6 +24,12 @@ import termios
 import time
 import tty
 
+try:
+    import ply.lex  as lex
+except ModuleNotFoundError:
+    print("RPN requires the 'ply' library; please consult the README") # OK
+    sys.exit(1)
+
 # Check if NumPy is available
 try:
     import numpy as np                  # pylint: disable=import-error
@@ -67,30 +73,6 @@ class defword():
                 else:
                     rpn.flag.clear_flag(rpn.flag.F_SHOW_X)
 
-        if "immediate" in self._kwargs:
-            raise rpn.exception.FatalErr("Immediate words cannot be declared with @defword; use @defimmed instead")
-        if "name" in self._kwargs and len(self._kwargs["name"]) > 0:
-            name = self._kwargs["name"]
-            del self._kwargs["name"]
-        else:
-            raise rpn.exception.RuntimeErr("Missing or invalid \"name\" attribute")
-        word = rpn.util.Word(name, wrapped_f, **self._kwargs)
-        rpn.globl.root_scope.define_word(name, word)
-        return wrapped_f
-
-
-class defimmed():
-    """Register the following immediate word definition in the root scope"""
-
-    def __init__(self, **kwargs):
-        self._kwargs = kwargs
-
-    def __call__(self, f):
-        def wrapped_f(arg1, **kwargs):        # pylint: disable=unused-argument
-            #print("defimmed: arg1={}, kwargs={}".format(repr(arg1), self._kwargs))
-            f(arg1)
-
-        self._kwargs["immediate"] = True
         if "name" in self._kwargs and len(self._kwargs["name"]) > 0:
             name = self._kwargs["name"]
             del self._kwargs["name"]
@@ -1229,6 +1211,22 @@ def w_logand():
         raise rpn.exception.ValueErr("and: Y must be TRUE (1) or FALSE (0), not {}".format(y.value))
 
     rpn.globl.param_stack.push(rpn.type.Integer(x.value and y.value))
+
+
+@defword(name='ascii', immediate=True, doc="""\
+ASCII code of following char  ( -- n )""")
+def w_ascii():
+    tok = next(rpn.util.TokenMgr.next_token())
+    dbg("ascii", 1, "ascii: tok={}".format(tok))
+    c = tok.value[0]
+
+    new_tok = lex.LexToken()
+    new_tok.type = 'INTEGER'
+    new_tok.value = "{}".format(ord(c))
+    new_tok.lineno = 0          # XXX It should be possible to fake these
+    new_tok.lexpos = 0          #     with values from tok above
+    dbg("ascii", 1, "ascii: Pushing new token {}".format(new_tok))
+    rpn.util.TokenMgr.push_token(new_tok)
 
 
 @defword(name='asin', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -2423,10 +2421,10 @@ def w_fmod():
     rpn.globl.param_stack.push(rpn.type.Float(r))
 
 
-@defimmed(name='hide', hidden=True, doc="""\
+@defword(name='hide', immediate=True, hidden=True, doc="""\
 Make the current word hidden.""")
-def immed_hide(arg):
-    dbg("hide", 1, "hide: arg={}".format(repr(arg)))
+def w_hide():
+    dbg("hide", 1, "w_hide()")
     #arg.hidden = True
 
 
@@ -4919,7 +4917,7 @@ def plot_helper(func, x_low, x_high):
 
 
 # Helper routines for KEY
-class _Getch_Windows:
+class _Getch_windows:
     def __init__(self):
         import msvcrt                   # pylint: disable=import-error,import-outside-toplevel,unused-import
 
