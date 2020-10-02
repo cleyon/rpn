@@ -19,34 +19,32 @@ import rpn.type
 
 got_interrupt = False
 
-
-# | Mode | 40 | 41 |
-# |------+----+----|
-# | sci  |  0 |  0 |
-# | eng  |  0 |  1 |
-# | fix  |  1 |  0 |
-# | std  |  1 |  1 |
-# |------+----+----|
+#############################################################################
 #
-# | # digits | 36 | 37 | 38 | 39 |
-# |----------+----+----+----+----|
-# |        0 |  0 |  0 |  0 |  0 |
-# |        1 |  0 |  0 |  0 |  1 |
-# |        2 |  0 |  0 |  1 |  0 |
-# |        3 |  0 |  0 |  1 |  1 |
-# |        4 |  0 |  1 |  0 |  0 |
-# |        5 |  0 |  1 |  0 |  1 |
-# |        6 |  0 |  1 |  1 |  0 |
-# |        7 |  0 |  1 |  1 |  1 |
-# |        8 |  1 |  0 |  0 |  0 |
-# |        9 |  1 |  0 |  0 |  1 |
-# |       10 |  1 |  0 |  1 |  0 |
-# |       11 |  1 |  0 |  1 |  1 |
-# |       12 |  1 |  1 |  0 |  0 |
-# |       13 |  1 |  1 |  0 |  1 |
-# |       14 |  1 |  1 |  1 |  0 |
-# |       15 |  1 |  1 |  1 |  1 |
-# |----------+----+----+----+----|
+#       D I S P L A Y   C O N F I G
+#
+#       |----------+----+----+----+----|          |------+----+----|
+#       | # digits | 36 | 37 | 38 | 39 |          | Mode | 40 | 41 |
+#       |----------+----+----+----+----|          |------+----+----|
+#       |        0 |  0 |  0 |  0 |  0 |          | sci  |  0 |  0 |
+#       |        1 |  0 |  0 |  0 |  1 |          | eng  |  0 |  1 |
+#       |        2 |  0 |  0 |  1 |  0 |          | fix  |  1 |  0 |
+#       |        3 |  0 |  0 |  1 |  1 |          | std  |  1 |  1 |
+#       |        4 |  0 |  1 |  0 |  0 |          |------+----+----|
+#       |        5 |  0 |  1 |  0 |  1 |
+#       |        6 |  0 |  1 |  1 |  0 |
+#       |        7 |  0 |  1 |  1 |  1 |
+#       |        8 |  1 |  0 |  0 |  0 |
+#       |        9 |  1 |  0 |  0 |  1 |
+#       |       10 |  1 |  0 |  1 |  0 |
+#       |       11 |  1 |  0 |  1 |  1 |
+#       |       12 |  1 |  1 |  0 |  0 |
+#       |       13 |  1 |  1 |  0 |  1 |
+#       |       14 |  1 |  1 |  1 |  0 |
+#       |       15 |  1 |  1 |  1 |  1 |
+#       |----------+----+----+----+----|
+#
+#############################################################################
 class DisplayConfig:
     def __init__(self):
         self._style = None
@@ -135,6 +133,11 @@ class DisplayConfig:
         return str(x)
 
 
+#############################################################################
+#
+#       L I S T
+#
+#############################################################################
 class List:
     def __init__(self, item=None, oldlist=None):
         if item is None and oldlist is None:
@@ -184,6 +187,11 @@ class List:
         return "List[" + ", ".join([repr(item) for item in self.listval()]) + "]"
 
 
+#############################################################################
+#
+#       Q U E U E
+#
+#############################################################################
 class Queue:
     """
     This is actually a double-ended queue (deque).  My conception of the
@@ -209,6 +217,11 @@ class Queue:
         self._q.append(item)
 
 
+#############################################################################
+#
+#       S C O P E
+#
+#############################################################################
 class Scope:
     def __init__(self, name):
         self._name = name
@@ -221,11 +234,32 @@ class Scope:
     def name(self):
         return self._name
 
+    def __str__(self):
+        # XXX Fix variable visibility
+        s = ""
+        #if len(self.visible_variables()) > 0:
+        if len(self.all_varnames()) > 0:
+            #s += "|" + " ".join([self.decorate_varname(x[0]) for x in self.visible_variables()]) + "|"
+            s += "|" + " ".join([self.decorate_varname(x) for x in self.all_varnames()]) + "|"
+            if len(self.words()) > 0:
+                s += " "
+        if len(self.words()) > 0:
+            s += " ".join([w.as_definition() for w in self.words().values()])
+        return s
+
+    def __repr__(self):
+        return "Scope['{}'={}]".format(self.name(), hex(id(self)))
+
+    ################################################################
+    #
+    #           Word methods
+    #
+    ################################################################
     def words(self):
         return self._words
 
-    def variables(self):
-        return self._variables
+    def word(self, identifier):
+        return self._words.get(identifier)
 
     def define_word(self, identifier, word):
         if type(word) is not rpn.util.Word:
@@ -242,14 +276,28 @@ class Scope:
     def delete_word(self, identifier):
         del self._words[identifier]
 
-    def word(self, identifier):
-        return self._words.get(identifier)
+    def unprotected_words(self):
+        return list(filter(lambda x: not x[1].protected, self.words().items()))
+
+    ################################################################
+    #
+    #           Variable methods
+    #
+    ################################################################
+    def variables(self):
+        return self._variables
+
+    def variable(self, identifier):
+        return self._variables.get(identifier)
 
     def define_variable(self, identifier, var):
         if type(var) is not Variable:
             raise rpn.exception.FatalErr("{}: '{}' is not a Variable".format(whoami(), identifier))
         dbg(whoami(), 1, "{}: Setting variable '{}' to {} in {}".format(whoami(), identifier, repr(var), repr(self)))
         self._variables[identifier] = var
+
+    def delete_variable(self, identifier):
+        del self._variables[identifier]
 
     def add_varname(self, name):
         self._all_varnames.append(name)
@@ -274,17 +322,8 @@ class Scope:
     def out_varnames(self):
         return self._out_varnames
 
-    def delete_variable(self, identifier):
-        del self._variables[identifier]
-
-    def variable(self, identifier):
-        return self._variables.get(identifier)
-
     def visible_variables(self):
         return list(filter(lambda x: not x[1].hidden, self.variables().items()))
-
-    def unprotected_words(self):
-        return list(filter(lambda x: not x[1].protected, self.words().items()))
 
     def decorate_varname(self, varname):
         if varname in self.in_varnames() and varname in self.out_varnames():
@@ -295,23 +334,12 @@ class Scope:
             return "out:{}".format(varname)
         return varname
 
-    def __str__(self):
-        # XXX Fix variable visibility
-        s = ""
-        #if len(self.visible_variables()) > 0:
-        if len(self.all_varnames()) > 0:
-            #s += "|" + " ".join([self.decorate_varname(x[0]) for x in self.visible_variables()]) + "|"
-            s += "|" + " ".join([self.decorate_varname(x) for x in self.all_varnames()]) + "|"
-            if len(self.words()) > 0:
-                s += " "
-        if len(self.words()) > 0:
-            s += " ".join([w.as_definition() for w in self.words().values()])
-        return s
 
-    def __repr__(self):
-        return "Scope['{}'={}]".format(self.name(), hex(id(self)))
-
-
+#############################################################################
+#
+#       S E Q U E N C E
+#
+#############################################################################
 class Sequence:
     def __init__(self, scope_template, exe_list):
         self._scope_template = scope_template
@@ -401,6 +429,11 @@ class Sequence:
         return "Sequence[{}, {}]".format(repr(self.scope_template()), repr(self.seq()))
 
 
+#############################################################################
+#
+#       S T A C K
+#
+#############################################################################
 class Stack:
     def __init__(self, min_size=0, max_size=-1):
         self._min_size = min_size
@@ -479,6 +512,11 @@ class Stack:
         return "Stack[{}]".format(", ".join(sa))
 
 
+#############################################################################
+#
+#       T O K E N   M G R
+#
+#############################################################################
 class TokenMgr:
     qtok = Queue()
     e = 0
@@ -548,6 +586,11 @@ class TokenMgr:
         cls.qtok.push(item)
 
 
+#############################################################################
+#
+#       V A R I A B L E
+#
+#############################################################################
 class Variable:
     def __init__(self, rawname, obj=None, **kwargs):
         if not Variable.name_valid_p(rawname):
@@ -689,6 +732,11 @@ class Variable:
         return "Variable[{},addr={},value={}]".format(self._rawname, hex(id(self)), repr(self.obj))
 
 
+#############################################################################
+#
+#       W O R D
+#
+#############################################################################
 class Word:
     def __init__(self, name, defn, **kwargs):
         self._args      = 0
