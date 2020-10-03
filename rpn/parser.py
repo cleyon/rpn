@@ -19,6 +19,17 @@ import rpn.util
 #
 #       L E X E R
 #
+#       - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#
+#       When building the master regular expression, rules are added in
+#       the following order:
+#
+#        1. All tokens defined by functions are added in the same order
+#           as they appear in the lexer file.
+#        2. Tokens defined by strings are added next by sorting them in
+#           order of decreasing regular expression length (longer
+#           expressions are added first).
+#
 #############################################################################
 try:
     import ply.lex  as lex
@@ -229,6 +240,11 @@ def initialize_lexer():
 #
 #       P A R S E R
 #
+#       - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#
+#       These functions appear in alphabetical order, except p_XXX_push()
+#       is listed before p_XXX_pop()
+#
 #############################################################################
 try:
     import ply.yacc as yacc
@@ -273,10 +289,6 @@ def p_case_clause_list(p):
     else:
         p[0] = rpn.util.List(p[1], p[2])
 
-def p_case_scope_pop(p):                # pylint: disable=unused-argument
-    '''case_scope_pop : empty'''
-    rpn.globl.pop_scope("Parse Case complete")
-
 def p_case_scope_push(p):               # pylint: disable=unused-argument
     '''case_scope_push : empty'''
     scope = rpn.util.Scope("Parse_case")
@@ -284,6 +296,10 @@ def p_case_scope_push(p):               # pylint: disable=unused-argument
     all_varnames.append("caseval")
     scope.set_all_varnames(all_varnames)
     rpn.globl.push_scope(scope, "Parsing Case (vars={})".format(all_varnames))
+
+def p_case_scope_pop(p):                # pylint: disable=unused-argument
+    '''case_scope_pop : empty'''
+    rpn.globl.pop_scope("Parse Case complete")
 
 def p_catch(p):
     '''catch : CATCH IDENTIFIER'''

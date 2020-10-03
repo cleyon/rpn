@@ -1,0 +1,3 @@
+#!/bin/sh
+
+egrep -i -n -e "$@" rpn/*.py | grep -v ^parsetab.py:
