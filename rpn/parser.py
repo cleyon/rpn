@@ -19,6 +19,17 @@ import rpn.util
 #
 #       L E X E R
 #
+#       - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#
+#       When building the master regular expression, rules are added in
+#       the following order:
+#
+#        1. All tokens defined by functions are added in the same order
+#           as they appear in the lexer file.
+#        2. Tokens defined by strings are added next by sorting them in
+#           order of decreasing regular expression length (longer
+#           expressions are added first).
+#
 #############################################################################
 try:
     import ply.lex  as lex
@@ -108,12 +119,12 @@ ASCII_RE = re.compile(r'ascii[ 	]+([^ 	]+)')
 def t_ASCII(t):
     r'ascii[ 	]+([^ 	]+)'
     t.type = 'INTEGER'
-    t.value = '-1'
     match = ASCII_RE.match(t.value)
-    if match is not None:
-        m = match.group(1)
-        if len(m) > 0:
-            t.value = str(ord(m[0]))
+    if match is None:
+        t.value = '-1'
+        return t
+    m = match.group(1)
+    t.value = str(ord(m[0])) if len(m) > 0 else '-1'
     return t
 
 # Beware bad input - e.g., "0b177" is parsed as two token, "0b1" and "77".
@@ -229,6 +240,11 @@ def initialize_lexer():
 #
 #       P A R S E R
 #
+#       - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#
+#       These functions appear in alphabetical order, except p_XXX_push()
+#       is listed before p_XXX_pop()
+#
 #############################################################################
 try:
     import ply.yacc as yacc
@@ -273,17 +289,15 @@ def p_case_clause_list(p):
     else:
         p[0] = rpn.util.List(p[1], p[2])
 
-def p_case_scope_pop(p):                # pylint: disable=unused-argument
-    '''case_scope_pop : empty'''
-    rpn.globl.pop_scope("Parse Case complete")
-
 def p_case_scope_push(p):               # pylint: disable=unused-argument
     '''case_scope_push : empty'''
     scope = rpn.util.Scope("Parse_case")
-    all_varnames = rpn.util.List()
-    all_varnames.append("caseval")
-    scope.set_all_varnames(all_varnames)
-    rpn.globl.push_scope(scope, "Parsing Case (vars={})".format(all_varnames))
+    scope.add_vname(rpn.util.VName("caseval"))
+    rpn.globl.push_scope(scope, "Parsing Case")
+
+def p_case_scope_pop(p):                # pylint: disable=unused-argument
+    '''case_scope_pop : empty'''
+    rpn.globl.pop_scope("Parse Case complete")
 
 def p_catch(p):
     '''catch : CATCH IDENTIFIER'''
@@ -349,7 +363,7 @@ def p_constant(p):
         raise SyntaxError
     var = rpn.util.Variable(ident, None, constant=True)
     #print("{}: Creating variable {} at address {} in {}".format(whoami(), ident, hex(id(var)), repr(scope)))
-    rpn.globl.scope_stack.top().add_varname(ident)
+    rpn.globl.scope_stack.top().add_vname(rpn.util.VName(ident))
     rpn.globl.scope_stack.top().define_variable(ident, var)
     p[0] = rpn.exe.Constant(var)
 
@@ -443,8 +457,8 @@ def p_fetch_var(p):
         rpn.globl.writeln("@: Variable name '{}' not valid".format(ident))
         raise SyntaxError
     dbg(whoami(), 1, "{}: Looking up {}".format(whoami(), ident))
-    (varname, _) = rpn.globl.lookup_varname(ident)
-    if varname is None:
+    (vname, _) = rpn.globl.lookup_vname(ident)
+    if vname is None:
         rpn.globl.writeln("@: Variable '{}' not found".format(ident))
         raise SyntaxError
     p[0] = rpn.exe.FetchVar(ident, modifier)
@@ -507,7 +521,7 @@ def p_identifier_list(p):
     if len(p) == 2:
         p[0] = rpn.util.List()
     elif len(p) == 3:
-        ident = p[1]
+        (_, ident) = rpn.globl.separate_decorations(p[1])
         if not rpn.util.Variable.name_valid_p(ident):
             rpn.globl.lnwriteln("|{}|: Variable name is not valid".format(ident))
             raise SyntaxError
@@ -548,33 +562,29 @@ def p_locals(p):
             dbg(whoami(), 3, "p_locals: Not sure about {}".format(p[idx]))
             # scope_name = "locals"
             idx -= 1
-    all_varnames = rpn.util.List()
-    in_varnames  = rpn.util.List()
-    out_varnames = rpn.util.List()
     scope = rpn.util.Scope("Parse_" + scope_name)
     dbg(whoami(), 1, "{}: Creating new scope {}".format(whoami(), repr(scope)))
+
     if len(p) == 4:
-        for varname in p[2].items():
+        for i in p[2].items():
+            vname = None
             # Already tested for name_valid_p and noshadow in p_identifier_list()
-            if varname[:3] == 'in:':
-                varname = varname[3:]
-                dbg(whoami(), 3, "{} is an IN variable".format(varname))
-                in_varnames.append(varname)
-            elif varname[:4] == 'out:':
-                varname = varname[4:]
-                dbg(whoami(), 3, "{} is an OUT variable".format(varname))
-                out_varnames.append(varname)
-            elif varname[:6] == 'inout:':
-                varname = varname[6:]
-                dbg(whoami(), 3, "{} is an INOUT variable".format(varname))
-                in_varnames.append(varname)
-                out_varnames.append(varname)
-            dbg(whoami(), 2, "{}: Adding varname '{}'".format(whoami(), varname))
-            all_varnames.append(varname)
-        scope.set_all_varnames(all_varnames)
-        scope.set_in_varnames(in_varnames)
-        scope.set_out_varnames(out_varnames)
-    rpn.globl.push_scope(scope, "New sequence (locals={})".format(all_varnames))
+            (decoration, ident) = rpn.globl.separate_decorations(i)
+            vname = rpn.util.VName(ident)
+            if decoration == 'in':
+                dbg(whoami(), 3, "{} is an IN variable".format(ident))
+                vname.in_p = True
+            elif decoration == 'out':
+                dbg(whoami(), 3, "{} is an OUT variable".format(ident))
+                vname.out_p = True
+            elif decoration == 'inout':
+                dbg(whoami(), 3, "{} is an INOUT variable".format(ident))
+                vname.in_p = True
+                vname.out_p = True
+
+            dbg(whoami(), 2, "{}: Adding vname '{}'".format(whoami(), vname))
+            scope.add_vname(vname)
+    rpn.globl.push_scope(scope, "New sequence (locals={})".format(scope.vnames()))
     p[0] = scope
 
 def p_matrix(p):
@@ -647,8 +657,8 @@ def p_store_var(p):
         rpn.globl.lnwriteln("!: Variable name '{}' not valid".format(ident))
         raise SyntaxError
     dbg(whoami(), 1, "{}: Looking up {}".format(whoami(), ident))
-    (varname, _) = rpn.globl.lookup_varname(ident)
-    if varname is None:
+    (vname, _) = rpn.globl.lookup_vname(ident)
+    if vname is None:
         rpn.globl.lnwriteln("!: Variable '{}' not found".format(ident))
         raise SyntaxError
     p[0] = rpn.exe.StoreVar(ident, modifier)
@@ -705,7 +715,7 @@ def p_variable(p):
         raise SyntaxError
     var = rpn.util.Variable(ident)
     dbg(whoami(), 1, "{}: Creating variable {} at address {} in {}".format(whoami(), ident, hex(id(var)), repr(rpn.globl.scope_stack.top())))
-    rpn.globl.scope_stack.top().add_varname(ident)
+    rpn.globl.scope_stack.top().add_vname(rpn.util.VName(ident))
     rpn.globl.scope_stack.top().define_variable(ident, var)
 
 def p_vector(p):

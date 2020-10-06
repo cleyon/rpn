@@ -31,7 +31,7 @@ except ModuleNotFoundError:
 # except ModuleNotFoundError:
 #     pass
 
-from   rpn.debug import dbg, typename, whoami
+from   rpn.debug import dbg, typename
 import rpn.flag
 import rpn.globl
 import rpn.tvm
@@ -42,6 +42,7 @@ import rpn.word
 
 force_interactive = False
 load_init_file = True
+want_debug = False
 
 
 def usage():
@@ -168,14 +169,17 @@ def define_variables():
 
 def parse_args(argv):
     try:
-        opts, argv = getopt.getopt(argv, "df:il:q")
+        opts, argv = getopt.getopt(argv, "dDf:il:q")
     except getopt.GetoptError as e:
         print(str(e))           # OK
         usage()
 
     for opt, arg in opts:
-        if opt == "-d":
-            rpn.flag.set_flag(rpn.flag.F_DEBUG_ENABLED)
+        if opt == "-d":         # Sets debug only when main_loop is ready
+            global want_debug           # pylint: disable=global-statement
+            want_debug = True
+        elif opt == "-D":
+            rpn.flag.set_flag(rpn.flag.F_DEBUG_ENABLED) # Debug immediately, useful for built-in words
         elif opt == "-f":
             try:
                 load_file(arg)
@@ -236,6 +240,9 @@ def main_loop():
         else:
             rpn.word.w_dot_s()
 
+    global want_debug                   # pylint: disable=global-statement
+    if want_debug:
+        rpn.flag.set_flag(rpn.flag.F_DEBUG_ENABLED)
     while True:
         try:
             (error, tok_list) = generate_token_list()
@@ -297,12 +304,11 @@ flag is True if initial parse error, False if no error'''
                 dbg("token", 3, "Word {} is immediate, calling...".format(word))
                 word.__call__()
                 continue
-            else:
-                tok_list.append(tok)
+            tok_list.append(tok)
 
         # These need a second token or they will be very angry
         elif tok.type in ['AT_SIGN', 'CATCH', 'CONSTANT', 'EXCLAM', 'FORGET',
-                        'HELP', 'SHOW', 'UNDEF', 'VARIABLE' ]:
+                          'HELP', 'SHOW', 'UNDEF', 'VARIABLE' ]:
             rpn.globl.parse_stack.push(tok.type)
             try:
                 tok2 = next(rpn.util.TokenMgr.next_token())
@@ -590,8 +596,8 @@ PHI = (1 + sqrt(5)) / 2"
   BL emit ;
 
 : spaces        doc:"spaces  ( n -- )   Display N space characters"
-  | in:N |
-  @N 0 do space loop ;
+  | in:n |
+  @n 0 do space loop ;
 
 
 \ Stack manipulation

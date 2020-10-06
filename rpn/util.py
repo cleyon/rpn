@@ -19,34 +19,32 @@ import rpn.type
 
 got_interrupt = False
 
-
-# | Mode | 40 | 41 |
-# |------+----+----|
-# | sci  |  0 |  0 |
-# | eng  |  0 |  1 |
-# | fix  |  1 |  0 |
-# | std  |  1 |  1 |
-# |------+----+----|
+#############################################################################
 #
-# | # digits | 36 | 37 | 38 | 39 |
-# |----------+----+----+----+----|
-# |        0 |  0 |  0 |  0 |  0 |
-# |        1 |  0 |  0 |  0 |  1 |
-# |        2 |  0 |  0 |  1 |  0 |
-# |        3 |  0 |  0 |  1 |  1 |
-# |        4 |  0 |  1 |  0 |  0 |
-# |        5 |  0 |  1 |  0 |  1 |
-# |        6 |  0 |  1 |  1 |  0 |
-# |        7 |  0 |  1 |  1 |  1 |
-# |        8 |  1 |  0 |  0 |  0 |
-# |        9 |  1 |  0 |  0 |  1 |
-# |       10 |  1 |  0 |  1 |  0 |
-# |       11 |  1 |  0 |  1 |  1 |
-# |       12 |  1 |  1 |  0 |  0 |
-# |       13 |  1 |  1 |  0 |  1 |
-# |       14 |  1 |  1 |  1 |  0 |
-# |       15 |  1 |  1 |  1 |  1 |
-# |----------+----+----+----+----|
+#       D I S P L A Y   C O N F I G
+#
+#       |----------+----+----+----+----|          |------+----+----|
+#       | # digits | 36 | 37 | 38 | 39 |          | Mode | 40 | 41 |
+#       |----------+----+----+----+----|          |------+----+----|
+#       |        0 |  0 |  0 |  0 |  0 |          | sci  |  0 |  0 |
+#       |        1 |  0 |  0 |  0 |  1 |          | eng  |  0 |  1 |
+#       |        2 |  0 |  0 |  1 |  0 |          | fix  |  1 |  0 |
+#       |        3 |  0 |  0 |  1 |  1 |          | std  |  1 |  1 |
+#       |        4 |  0 |  1 |  0 |  0 |          |------+----+----|
+#       |        5 |  0 |  1 |  0 |  1 |
+#       |        6 |  0 |  1 |  1 |  0 |
+#       |        7 |  0 |  1 |  1 |  1 |
+#       |        8 |  1 |  0 |  0 |  0 |
+#       |        9 |  1 |  0 |  0 |  1 |
+#       |       10 |  1 |  0 |  1 |  0 |
+#       |       11 |  1 |  0 |  1 |  1 |
+#       |       12 |  1 |  1 |  0 |  0 |
+#       |       13 |  1 |  1 |  0 |  1 |
+#       |       14 |  1 |  1 |  1 |  0 |
+#       |       15 |  1 |  1 |  1 |  1 |
+#       |----------+----+----+----+----|
+#
+#############################################################################
 class DisplayConfig:
     def __init__(self):
         self._style = None
@@ -135,6 +133,11 @@ class DisplayConfig:
         return str(x)
 
 
+#############################################################################
+#
+#       L I S T
+#
+#############################################################################
 class List:
     def __init__(self, item=None, oldlist=None):
         if item is None and oldlist is None:
@@ -184,6 +187,11 @@ class List:
         return "List[" + ", ".join([repr(item) for item in self.listval()]) + "]"
 
 
+#############################################################################
+#
+#       Q U E U E
+#
+#############################################################################
 class Queue:
     """
     This is actually a double-ended queue (deque).  My conception of the
@@ -209,23 +217,44 @@ class Queue:
         self._q.append(item)
 
 
+#############################################################################
+#
+#       S C O P E
+#
+#############################################################################
 class Scope:
     def __init__(self, name):
         self._name = name
         self._words = {}
         self._variables = {}
-        self._all_varnames = List() # Isn't varnames simply the key name for the variables dictionary?
-        self._in_varnames  = List()
-        self._out_varnames = List()
+        self._vnames = []
 
     def name(self):
         return self._name
 
+    def __str__(self):
+        s = ""
+        if len(self.vnames()) > 0:
+            s += "|" + " ".join([x.decorated() for x in self.vnames()]) + "|"
+            if len(self.words()) > 0:
+                s += " "
+        if len(self.words()) > 0:
+            s += " ".join([w.as_definition() for w in self.words().values()])
+        return s
+
+    def __repr__(self):
+        return "Scope['{}'={}]".format(self.name(), hex(id(self)))
+
+    ################################################################
+    #
+    #           Word methods
+    #
+    ################################################################
     def words(self):
         return self._words
 
-    def variables(self):
-        return self._variables
+    def word(self, identifier):
+        return self._words.get(identifier)
 
     def define_word(self, identifier, word):
         if type(word) is not rpn.util.Word:
@@ -242,8 +271,19 @@ class Scope:
     def delete_word(self, identifier):
         del self._words[identifier]
 
-    def word(self, identifier):
-        return self._words.get(identifier)
+    def unprotected_words(self):
+        return list(filter(lambda x: not x[1].protected, self.words().items()))
+
+    ################################################################
+    #
+    #           Variable methods
+    #
+    ################################################################
+    def variables(self):
+        return self._variables
+
+    def variable(self, identifier):
+        return self._variables.get(identifier)
 
     def define_variable(self, identifier, var):
         if type(var) is not Variable:
@@ -251,67 +291,33 @@ class Scope:
         dbg(whoami(), 1, "{}: Setting variable '{}' to {} in {}".format(whoami(), identifier, repr(var), repr(self)))
         self._variables[identifier] = var
 
-    def add_varname(self, name):
-        self._all_varnames.append(name)
-
-    def all_varnames(self):
-        return self._all_varnames
-
-    def set_all_varnames(self, l):
-        self._all_varnames = l
-
-    def set_in_varnames(self, l):
-        # l is an List of 'str'ings
-        self._in_varnames = l
-
-    def in_varnames(self):
-        return self._in_varnames
-
-    def set_out_varnames(self, l):
-        # l is an List of 'str'ings
-        self._out_varnames = l
-
-    def out_varnames(self):
-        return self._out_varnames
-
     def delete_variable(self, identifier):
         del self._variables[identifier]
 
-    def variable(self, identifier):
-        return self._variables.get(identifier)
+    def vnames(self):
+        return self._vnames
 
-    def visible_variables(self):
-        return list(filter(lambda x: not x[1].hidden, self.variables().items()))
+    def vname(self, ident):
+        if type(ident) is not str:
+            raise rpn.exception.FatalErr("Looking for a non-string '{}'".format(ident))
+        return next(v for v in self._vnames if v.ident == ident)
 
-    def unprotected_words(self):
-        return list(filter(lambda x: not x[1].protected, self.words().items()))
+    def add_vname(self, vname):
+        if type(vname) is not rpn.util.VName:
+            raise rpn.exception.FatalErr("vname {} is not a VName".format(vname))
+        self._vnames.append(vname)
 
-    def decorate_varname(self, varname):
-        if varname in self.in_varnames() and varname in self.out_varnames():
-            return "inout:{}".format(varname)
-        if varname in self.in_varnames():
-            return "in:{}".format(varname)
-        if varname in self.out_varnames():
-            return "out:{}".format(varname)
-        return varname
-
-    def __str__(self):
-        # XXX Fix variable visibility
-        s = ""
-        #if len(self.visible_variables()) > 0:
-        if len(self.all_varnames()) > 0:
-            #s += "|" + " ".join([self.decorate_varname(x[0]) for x in self.visible_variables()]) + "|"
-            s += "|" + " ".join([self.decorate_varname(x) for x in self.all_varnames()]) + "|"
-            if len(self.words()) > 0:
-                s += " "
-        if len(self.words()) > 0:
-            s += " ".join([w.as_definition() for w in self.words().values()])
-        return s
-
-    def __repr__(self):
-        return "Scope['{}'={}]".format(self.name(), hex(id(self)))
+    def has_vname_named(self, ident):
+        if type(ident) is not str:
+            raise rpn.exception.FatalErr("Looking for a non-string '{}'".format(ident))
+        return ident in [v.ident for v in self._vnames]
 
 
+#############################################################################
+#
+#       S E Q U E N C E
+#
+#############################################################################
 class Sequence:
     def __init__(self, scope_template, exe_list):
         self._scope_template = scope_template
@@ -328,27 +334,27 @@ class Sequence:
         # ensure that each frame gets its own set of local
         # variables.
 
-        if self.scope_template().name()[:6] == "Parse_":
-            scope_name = "Call_" + self.scope_template().name()[6:]
-        else:
-            scope_name = "Call_" + self.scope_template().name()
+        in_vnames = list(filter(lambda v: v.in_p, self.scope_template().vnames()))
+        if rpn.globl.param_stack.size() < len(in_vnames):
+            raise rpn.exception.RuntimeErr("{}: Insufficient parameters ({} required)".format(self.scope_template().name(), len(in_vnames)))
+
+        scope_name = self.scope_template().name()
+        if scope_name[:6] == "Parse_":
+            scope_name = scope_name[6:]
         scope = rpn.util.Scope(scope_name)
         # XXX what about kwargs???
-        for varname in self.scope_template().all_varnames():
-            var = rpn.util.Variable(varname, None)
-            scope.define_variable(varname, var)
+        for vname in self.scope_template().vnames():
+            var = rpn.util.Variable(vname.ident, None)
+            scope.define_variable(vname.ident, var)
 
-        if len(self.scope_template().in_varnames()) > 0:
-            if rpn.globl.param_stack.size() < len(self.scope_template().in_varnames()):
-                raise rpn.exception.RuntimeErr("{}: Insufficient parameters ({} required)".format(self.scope_template().name(), len(self.scope_template().in_varnames())))
-            in_vars = []
-            for varname in self.scope_template().in_varnames().items():
-                in_vars.append(varname)
-            in_vars.reverse()
-            for varname in in_vars:
-                obj = rpn.globl.param_stack.pop()
-                dbg(whoami(), 1, "{}: Setting {} to {}".format(whoami(), varname, obj.value))
-                scope.variable(varname).obj = obj
+        in_vars = []
+        for vname in in_vnames:
+            in_vars.append(vname.ident)
+        in_vars.reverse()
+        for v in in_vars:
+            obj = rpn.globl.param_stack.pop()
+            dbg(whoami(), 1, "{}: Setting {} to {}".format(whoami(), v, obj.value))
+            scope.variable(v).obj = obj
 
         dbg(whoami(), 1, "{}: seq={}".format(whoami(), repr(self.seq())))
         pushed_scope = False
@@ -357,23 +363,21 @@ class Sequence:
             rpn.globl.push_scope(scope, "Calling {}".format(repr(self)))
             pushed_scope = True
             self.seq().__call__()
-        # except rpn.exception.Exit:
-        #     raise
         finally:
-            if len(self.scope_template().out_varnames()) > 0:
-                param_stack_pushes = 0
-                for varname in self.scope_template().out_varnames().items():
-                    var = scope.variable(varname)
-                    if var is None:
-                        raise rpn.exception.RuntimeErr("{}: {}: Variable '{}' has vanished!".format(whoami(), self.scope_template().name(), varname))
-                    if not var.defined():
-                        # Undo any previous param_stack pushes if we come across an out variable that's not defined
-                        for _ in range(param_stack_pushes):
-                            rpn.globl.param_stack.pop()
-                        raise rpn.exception.RuntimeErr("{}: Variable '{}' was never set".format(self.scope_template().name(), varname))
-                    dbg(whoami(), 1, "{} is {}".format(varname, repr(var.obj)))
-                    rpn.globl.param_stack.push(var.obj)
-                    param_stack_pushes += 1
+            param_stack_pushes = 0
+            out_vnames = list(filter(lambda v: v.out_p, self.scope_template().vnames()))
+            for vname in out_vnames:
+                var = scope.variable(vname.ident)
+                if var is None:
+                    raise rpn.exception.RuntimeErr("{}: {}: Variable '{}' has vanished!".format(whoami(), self.scope_template().name(), vname.ident))
+                if not var.defined():
+                    # Undo any previous param_stack pushes if we come across an out variable that's not defined
+                    for _ in range(param_stack_pushes):
+                        rpn.globl.param_stack.pop()
+                    raise rpn.exception.RuntimeErr("{}: Variable '{}' was never set".format(self.scope_template().name(), vname.ident))
+                dbg(whoami(), 1, "{} is {}".format(vname.ident, repr(var.obj)))
+                rpn.globl.param_stack.push(var.obj)
+                param_stack_pushes += 1
             if pushed_scope:
                 rpn.globl.pop_scope("{} complete".format(repr(self)))
 
@@ -401,6 +405,11 @@ class Sequence:
         return "Sequence[{}, {}]".format(repr(self.scope_template()), repr(self.seq()))
 
 
+#############################################################################
+#
+#       S T A C K
+#
+#############################################################################
 class Stack:
     def __init__(self, min_size=0, max_size=-1):
         self._min_size = min_size
@@ -479,6 +488,11 @@ class Stack:
         return "Stack[{}]".format(", ".join(sa))
 
 
+#############################################################################
+#
+#       T O K E N   M G R
+#
+#############################################################################
 class TokenMgr:
     qtok = Queue()
     e = 0
@@ -548,6 +562,11 @@ class TokenMgr:
         cls.qtok.push(item)
 
 
+#############################################################################
+#
+#       V A R I A B L E
+#
+#############################################################################
 class Variable:
     def __init__(self, rawname, obj=None, **kwargs):
         if not Variable.name_valid_p(rawname):
@@ -689,6 +708,39 @@ class Variable:
         return "Variable[{},addr={},value={}]".format(self._rawname, hex(id(self)), repr(self.obj))
 
 
+#############################################################################
+#
+#       V N A M E
+#
+#############################################################################
+class VName:
+    def __init__(self, ident):
+        self.ident = ident
+        self.in_p = False
+        self.out_p = False
+
+    def decorated(self):
+        dec = ""
+        if self.in_p or self.out_p:
+            if self.in_p:
+                dec += "in"
+            if self.out_p:
+                dec += "out"
+            dec += ":"
+        return dec + self.ident
+
+    def __str__(self):
+        return self.decorated()
+
+    def __repr__(self):
+        return "VName[{}]".format(self.decorated())
+
+
+#############################################################################
+#
+#       W O R D
+#
+#############################################################################
 class Word:
     def __init__(self, name, defn, **kwargs):
         self._args      = 0

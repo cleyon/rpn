@@ -6,6 +6,9 @@
 #############################################################################
 '''
 
+import sys
+
+
 try:
     import ply.lex  as lex
 except ModuleNotFoundError:
@@ -28,6 +31,11 @@ class Executable:
         return False
 
 
+#############################################################################
+#
+#       A B O R T   Q U O T E
+#
+#############################################################################
 class AbortQuote(Executable):
     def __init__(self, val):
         if len(val) < 7 or val[0:6] != 'abort"' or val[-1] != '"':
@@ -56,6 +64,11 @@ class AbortQuote(Executable):
         return 'AbortQuote["{}"]'.format(self.stringval())
 
 
+#############################################################################
+#
+#       A S C I I
+#
+#############################################################################
 class Ascii(Executable):
     def __init__(self):
         pass
@@ -74,6 +87,7 @@ class Ascii(Executable):
             c = tok.value[0]
             new_tok.value = "{}".format(ord(c))
         except StopIteration:
+            dbg("ascii", 2, "ascii: received StopIteration, returning -1")
             new_tok.value = "-1"
         finally:
             rpn.globl.parse_stack.pop()
@@ -87,6 +101,11 @@ class Ascii(Executable):
         return "Ascii[]"
 
 
+#############################################################################
+#
+#       B E G I N   A G A I N
+#
+#############################################################################
 class BeginAgain(Executable):
     def __init__(self, begin_seq):
         self._begin_seq = begin_seq
@@ -109,6 +128,11 @@ class BeginAgain(Executable):
         return "BeginAgain[{}]".format(repr(self._begin_seq))
 
 
+#############################################################################
+#
+#       B E G I N   U N T I L
+#
+#############################################################################
 class BeginUntil(Executable):
     def __init__(self, begin_seq):
         self._begin_seq = begin_seq
@@ -139,6 +163,11 @@ class BeginUntil(Executable):
         return "BeginUntil[{}]".format(repr(self._begin_seq))
 
 
+#############################################################################
+#
+#       B E G I N   W H I L E
+#
+#############################################################################
 class BeginWhile(Executable):
     def __init__(self, begin_seq, while_seq):
         self._begin_seq = begin_seq
@@ -172,6 +201,11 @@ class BeginWhile(Executable):
         return "BeginWhile[{}, {}]".format(repr(self._begin_seq), repr(self._while_seq))
 
 
+#############################################################################
+#
+#       C A S E
+#
+#############################################################################
 class Case(Executable):
     def __init__(self, case_clauses, otherwise_seq):
         self._case_clauses  = case_clauses
@@ -195,7 +229,7 @@ class Case(Executable):
                 break
 
         # Call it with a new scope
-        case_scope = rpn.util.Scope("Call_Case")
+        case_scope = rpn.util.Scope("Case")
         case_scope.define_variable('caseval', rpn.util.Variable("caseval", n))
         try:
             rpn.globl.push_scope(case_scope, "Starting Case")
@@ -224,6 +258,11 @@ class Case(Executable):
         return s + "]"
 
 
+#############################################################################
+#
+#       C A S E   C L A U S E
+#
+#############################################################################
 class CaseClause(Executable):
     def __init__(self, x, of_seq):
         self._x = int(x.value if type(x) is rpn.type.Integer else x)
@@ -245,6 +284,11 @@ class CaseClause(Executable):
         return "Of[{}={}]".format(self._x, repr(self._of_seq))
 
 
+#############################################################################
+#
+#       C A T C H
+#
+#############################################################################
 class Catch(Executable):
     def __init__(self, word, scope):
         if type(word) is not rpn.util.Word:
@@ -274,6 +318,11 @@ class Catch(Executable):
         return "Catch[{}]".format(repr(self._word.name()))
 
 
+#############################################################################
+#
+#       C O N S T A N T
+#
+#############################################################################
 class Constant(Executable):
     def __init__(self, var):
         self._variable = var
@@ -291,6 +340,11 @@ class Constant(Executable):
         return "Constant[{}]".format(repr(self._variable))
 
 
+#############################################################################
+#
+#       D O   L O O P
+#
+#############################################################################
 class DoLoop(Executable):
     def __init__(self, do_seq):
         self._do_seq = do_seq
@@ -313,11 +367,11 @@ class DoLoop(Executable):
 
         # Create a new scope
         _I = rpn.util.Variable("_I", x)
-        do_scope = rpn.util.Scope("Call_Do_Loop")
+        do_scope = rpn.util.Scope("DoLoop")
         do_scope.define_variable('_I', _I)
 
         try:
-            rpn.globl.push_scope(do_scope, "Starting Do_Loop")
+            rpn.globl.push_scope(do_scope, "Starting DoLoop")
             while True:
                 self._do_seq.__call__()
                 i += 1
@@ -327,7 +381,7 @@ class DoLoop(Executable):
         except rpn.exception.Leave:
             pass
         finally:
-            rpn.globl.pop_scope("Do_Loop complete")
+            rpn.globl.pop_scope("DoLoop complete")
 
     def patch_recurse(self, new_word):
         self._do_seq.patch_recurse(new_word)
@@ -339,6 +393,11 @@ class DoLoop(Executable):
         return "DoLoop[{}]".format(repr(self._do_seq))
 
 
+#############################################################################
+#
+#       D O   + L O O P
+#
+#############################################################################
 class DoPlusLoop(Executable):
     def __init__(self, do_seq):
         self._do_seq = do_seq
@@ -361,11 +420,11 @@ class DoPlusLoop(Executable):
 
         # Create a new scope
         _I = rpn.util.Variable("_I", x)
-        do_scope = rpn.util.Scope("Call_Do_PlusLoop")
+        do_scope = rpn.util.Scope("DoPlusLoop")
         do_scope.define_variable('_I', _I)
 
         try:
-            rpn.globl.push_scope(do_scope, "Starting Do_PlusLoop")
+            rpn.globl.push_scope(do_scope, "Starting DoPlusLoop")
             while True:
                 self._do_seq.__call__()
                 if rpn.globl.param_stack.empty():
@@ -382,7 +441,7 @@ class DoPlusLoop(Executable):
         except rpn.exception.Leave:
             pass
         finally:
-            rpn.globl.pop_scope("Do_PlusLoop complete")
+            rpn.globl.pop_scope("DoPlusLoop complete")
 
     def patch_recurse(self, new_word):
         self._do_seq.patch_recurse(new_word)
@@ -394,6 +453,11 @@ class DoPlusLoop(Executable):
         return "DoPlusLoop[{}]".format(repr(self._do_seq))
 
 
+#############################################################################
+#
+#       D O T   Q U O T E
+#
+#############################################################################
 class DotQuote(Executable):
     def __init__(self, val):
         if len(val) < 3 or val[0:2] != '."' or val[-1] != '"':
@@ -414,6 +478,11 @@ class DotQuote(Executable):
         return 'DotQuote["{}"]'.format(self.stringval())
 
 
+#############################################################################
+#
+#       F E T C H   V A R
+#
+#############################################################################
 class FetchVar(Executable):
     """Fetch variable.
 
@@ -477,6 +546,11 @@ the right thing with empty stack (uses zero)."""
                                        self.identifier())
 
 
+#############################################################################
+#
+#       F O R G E T
+#
+#############################################################################
 class Forget(Executable):
     def __init__(self, word, scope):
         if type(word) is not rpn.util.Word:
@@ -499,6 +573,11 @@ class Forget(Executable):
         return "Forget[{}]".format(repr(self._word.name()))
 
 
+#############################################################################
+#
+#       H E L P
+#
+#############################################################################
 class Help(Executable):
     def __init__(self, ident, doc):
         self._identifier = ident
@@ -521,6 +600,11 @@ class Help(Executable):
         return "Help[{}]".format(repr(self.identifier()))
 
 
+#############################################################################
+#
+#       I F   E L S E
+#
+#############################################################################
 class IfElse(Executable):
     def __init__(self, if_seq, else_seq):
         self._if_seq   = if_seq
@@ -560,6 +644,11 @@ class IfElse(Executable):
         return s + "]"
 
 
+#############################################################################
+#
+#       R E C U R S E
+#
+#############################################################################
 class Recurse(Executable):
     def __init__(self, target=None):
         if target is not None and type(target) is not rpn.util.Word:
@@ -590,6 +679,11 @@ class Recurse(Executable):
         return "RWord[{}]".format(repr(self.target().name()))
 
 
+#############################################################################
+#
+#       S H O W
+#
+#############################################################################
 class Show(Executable):
     def __init__(self, word, scope):
         if type(word) is not rpn.util.Word:
@@ -610,6 +704,11 @@ class Show(Executable):
         return "Show[{}]".format(repr(self._word.name()))
 
 
+#############################################################################
+#
+#       S T O R E   V A R
+#
+#############################################################################
 class StoreVar(Executable):
     """Store variable.
 

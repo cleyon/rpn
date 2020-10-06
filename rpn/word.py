@@ -4607,10 +4607,10 @@ List variables and their values""")
 def w_vars():
     for (_, scope) in rpn.globl.scope_stack.items_top_to_bottom():
         if rpn.globl.scope_stack.size() > 1:
-            rpn.globl.lnwriteln("Scope {}".format(scope.name()))
+            rpn.globl.lnwriteln("Scope {}:".format(scope.name()))
         my_vars = dict()
-        for varname in scope.variables():
-            var = scope.variable(varname)
+        for v in scope.variables():
+            var = scope.variable(v)
             if var.hidden:
                 continue
             my_vars[var.name()] = "{}:[undef]".format(var.name()) if not var.defined() else \
