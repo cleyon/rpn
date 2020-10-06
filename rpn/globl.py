@@ -148,7 +148,9 @@ def convert_radians_to_mode(r, force_mode=None):
 
 
 def defvar(name, value, **kwargs):
-    root_scope.add_varname(name)
+    if type(name) is not str:
+        raise rpn.exception.FatalErr("defvar: name '{}' is not a string ".format(name))
+    root_scope.add_vname(rpn.util.VName(name))
     var = rpn.util.Variable(name, value, **kwargs)
     dbg(whoami(), 1, "{}: Creating variable {} at address {} in {}".format(whoami(), name, hex(id(var)), repr(root_scope)))
     root_scope.define_variable(name, var)
@@ -268,10 +270,24 @@ spacing : int
     writeln(out)
 
 
+def separate_decorations(ident):
+    decoration = ""
+    if ident[:3] == 'in:':
+        decoration = "in"
+        ident = ident[3:]
+    elif ident[:4] == 'out:':
+        decoration = "out"
+        ident = ident[4:]
+    elif ident[:6] == 'inout:':
+        decoration = "inout"
+        ident = ident[6:]
+    return (decoration, ident)
+
+
 def lookup_variable(name, how_many=1):
     for (_, scope) in scope_stack.items_top_to_bottom():
-        dbg(whoami(), 1, "{}: Looking for variable {} in {}...".format(whoami(), name, repr(scope)))
-        dbg(whoami(), 3, "{} has variables: {}".format(scope, scope.variables()))
+        dbg(whoami(), 1, "{}: Looking for variable {} in {}...".format(whoami(), name, scope.name()))
+        dbg(whoami(), 3, "{} has variables: {}".format(scope.name(), scope.variables()))
         var = scope.variable(name)
         if var is None:
             continue
@@ -285,14 +301,16 @@ def lookup_variable(name, how_many=1):
     return (None, None)
 
 
-def lookup_varname(varname):
+def lookup_vname(ident):
+    if type(ident) is not str:
+        raise rpn.exception.FatalErr("lookup_vname: ident '{}' is not a string '{}'".format(ident))
     for (_, scope) in scope_stack.items_top_to_bottom():
-        dbg(whoami(), 1, "{}: Looking for varname {} in {}...".format(whoami(), varname, repr(scope)))
-        dbg(whoami(), 3, "{} has varnames: {}".format(scope, scope.all_varnames()))
-        if varname in scope.all_varnames():
-            dbg(whoami(), 1, "{}: Found varname {} in {}".format(whoami(), varname, repr(scope)))
-            return (varname, scope)
-    dbg(whoami(), 1, "{}: Varname {} not found".format(whoami(), varname))
+        dbg(whoami(), 1, "{}: Looking for vname {} in {}...".format(whoami(), ident, repr(scope)))
+        dbg(whoami(), 3, "{} has vnames: {}".format(scope, scope.vnames()))
+        if scope.has_vname_named(ident):
+            dbg(whoami(), 1, "{}: Found vname {} in {}".format(whoami(), ident, repr(scope)))
+            return (scope.vname(ident), scope)
+    dbg(whoami(), 1, "{}: VName {} not found".format(whoami(), ident))
     return (None, None)
 
 

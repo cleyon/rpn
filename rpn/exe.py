@@ -87,6 +87,7 @@ class Ascii(Executable):
             c = tok.value[0]
             new_tok.value = "{}".format(ord(c))
         except StopIteration:
+            dbg("ascii", 2, "ascii: received StopIteration, returning -1")
             new_tok.value = "-1"
         finally:
             rpn.globl.parse_stack.pop()
@@ -228,7 +229,7 @@ class Case(Executable):
                 break
 
         # Call it with a new scope
-        case_scope = rpn.util.Scope("Call_Case")
+        case_scope = rpn.util.Scope("Case")
         case_scope.define_variable('caseval', rpn.util.Variable("caseval", n))
         try:
             rpn.globl.push_scope(case_scope, "Starting Case")
@@ -366,11 +367,11 @@ class DoLoop(Executable):
 
         # Create a new scope
         _I = rpn.util.Variable("_I", x)
-        do_scope = rpn.util.Scope("Call_Do_Loop")
+        do_scope = rpn.util.Scope("DoLoop")
         do_scope.define_variable('_I', _I)
 
         try:
-            rpn.globl.push_scope(do_scope, "Starting Do_Loop")
+            rpn.globl.push_scope(do_scope, "Starting DoLoop")
             while True:
                 self._do_seq.__call__()
                 i += 1
@@ -380,7 +381,7 @@ class DoLoop(Executable):
         except rpn.exception.Leave:
             pass
         finally:
-            rpn.globl.pop_scope("Do_Loop complete")
+            rpn.globl.pop_scope("DoLoop complete")
 
     def patch_recurse(self, new_word):
         self._do_seq.patch_recurse(new_word)
@@ -419,11 +420,11 @@ class DoPlusLoop(Executable):
 
         # Create a new scope
         _I = rpn.util.Variable("_I", x)
-        do_scope = rpn.util.Scope("Call_Do_PlusLoop")
+        do_scope = rpn.util.Scope("DoPlusLoop")
         do_scope.define_variable('_I', _I)
 
         try:
-            rpn.globl.push_scope(do_scope, "Starting Do_PlusLoop")
+            rpn.globl.push_scope(do_scope, "Starting DoPlusLoop")
             while True:
                 self._do_seq.__call__()
                 if rpn.globl.param_stack.empty():
@@ -440,7 +441,7 @@ class DoPlusLoop(Executable):
         except rpn.exception.Leave:
             pass
         finally:
-            rpn.globl.pop_scope("Do_PlusLoop complete")
+            rpn.globl.pop_scope("DoPlusLoop complete")
 
     def patch_recurse(self, new_word):
         self._do_seq.patch_recurse(new_word)

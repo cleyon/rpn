@@ -227,20 +227,15 @@ class Scope:
         self._name = name
         self._words = {}
         self._variables = {}
-        self._all_varnames = List() # Isn't varnames simply the key name for the variables dictionary?
-        self._in_varnames  = List()
-        self._out_varnames = List()
+        self._vnames = []
 
     def name(self):
         return self._name
 
     def __str__(self):
-        # XXX Fix variable visibility
         s = ""
-        #if len(self.visible_variables()) > 0:
-        if len(self.all_varnames()) > 0:
-            #s += "|" + " ".join([self.decorate_varname(x[0]) for x in self.visible_variables()]) + "|"
-            s += "|" + " ".join([self.decorate_varname(x) for x in self.all_varnames()]) + "|"
+        if len(self.vnames()) > 0:
+            s += "|" + " ".join([x.decorated() for x in self.vnames()]) + "|"
             if len(self.words()) > 0:
                 s += " "
         if len(self.words()) > 0:
@@ -299,40 +294,23 @@ class Scope:
     def delete_variable(self, identifier):
         del self._variables[identifier]
 
-    def add_varname(self, name):
-        self._all_varnames.append(name)
+    def vnames(self):
+        return self._vnames
 
-    def all_varnames(self):
-        return self._all_varnames
+    def vname(self, ident):
+        if type(ident) is not str:
+            raise rpn.exception.FatalErr("Looking for a non-string '{}'".format(ident))
+        return next(v for v in self._vnames if v.ident == ident)
 
-    def set_all_varnames(self, l):
-        self._all_varnames = l
+    def add_vname(self, vname):
+        if type(vname) is not rpn.util.VName:
+            raise rpn.exeception.FatalErr("vname {} is not a VName".format(vname))
+        self._vnames.append(vname)
 
-    def set_in_varnames(self, l):
-        # l is an List of 'str'ings
-        self._in_varnames = l
-
-    def in_varnames(self):
-        return self._in_varnames
-
-    def set_out_varnames(self, l):
-        # l is an List of 'str'ings
-        self._out_varnames = l
-
-    def out_varnames(self):
-        return self._out_varnames
-
-    def visible_variables(self):
-        return list(filter(lambda x: not x[1].hidden, self.variables().items()))
-
-    def decorate_varname(self, varname):
-        if varname in self.in_varnames() and varname in self.out_varnames():
-            return "inout:{}".format(varname)
-        if varname in self.in_varnames():
-            return "in:{}".format(varname)
-        if varname in self.out_varnames():
-            return "out:{}".format(varname)
-        return varname
+    def has_vname_named(self, ident):
+        if type(ident) is not str:
+            raise rpn.exception.FatalErr("Looking for a non-string '{}'".format(ident))
+        return ident in [v.ident for v in self._vnames]
 
 
 #############################################################################
@@ -356,27 +334,27 @@ class Sequence:
         # ensure that each frame gets its own set of local
         # variables.
 
-        if self.scope_template().name()[:6] == "Parse_":
-            scope_name = "Call_" + self.scope_template().name()[6:]
-        else:
-            scope_name = "Call_" + self.scope_template().name()
+        in_vnames = list(filter(lambda v: v.in_p, self.scope_template().vnames()))
+        if rpn.globl.param_stack.size() < len(in_vnames):
+            raise rpn.exception.RuntimeErr("{}: Insufficient parameters ({} required)".format(self.scope_template().name(), len(in_vnames)))
+
+        scope_name = self.scope_template().name()
+        if scope_name[:6] == "Parse_":
+            scope_name = scope_name[6:]
         scope = rpn.util.Scope(scope_name)
         # XXX what about kwargs???
-        for varname in self.scope_template().all_varnames():
-            var = rpn.util.Variable(varname, None)
-            scope.define_variable(varname, var)
+        for vname in self.scope_template().vnames():
+            var = rpn.util.Variable(vname.ident, None)
+            scope.define_variable(vname.ident, var)
 
-        if len(self.scope_template().in_varnames()) > 0:
-            if rpn.globl.param_stack.size() < len(self.scope_template().in_varnames()):
-                raise rpn.exception.RuntimeErr("{}: Insufficient parameters ({} required)".format(self.scope_template().name(), len(self.scope_template().in_varnames())))
-            in_vars = []
-            for varname in self.scope_template().in_varnames().items():
-                in_vars.append(varname)
-            in_vars.reverse()
-            for varname in in_vars:
-                obj = rpn.globl.param_stack.pop()
-                dbg(whoami(), 1, "{}: Setting {} to {}".format(whoami(), varname, obj.value))
-                scope.variable(varname).obj = obj
+        in_vars = []
+        for vname in in_vnames:
+            in_vars.append(vname.ident)
+        in_vars.reverse()
+        for v in in_vars:
+            obj = rpn.globl.param_stack.pop()
+            dbg(whoami(), 1, "{}: Setting {} to {}".format(whoami(), v, obj.value))
+            scope.variable(v).obj = obj
 
         dbg(whoami(), 1, "{}: seq={}".format(whoami(), repr(self.seq())))
         pushed_scope = False
@@ -385,23 +363,21 @@ class Sequence:
             rpn.globl.push_scope(scope, "Calling {}".format(repr(self)))
             pushed_scope = True
             self.seq().__call__()
-        # except rpn.exception.Exit:
-        #     raise
         finally:
-            if len(self.scope_template().out_varnames()) > 0:
-                param_stack_pushes = 0
-                for varname in self.scope_template().out_varnames().items():
-                    var = scope.variable(varname)
-                    if var is None:
-                        raise rpn.exception.RuntimeErr("{}: {}: Variable '{}' has vanished!".format(whoami(), self.scope_template().name(), varname))
-                    if not var.defined():
-                        # Undo any previous param_stack pushes if we come across an out variable that's not defined
-                        for _ in range(param_stack_pushes):
-                            rpn.globl.param_stack.pop()
-                        raise rpn.exception.RuntimeErr("{}: Variable '{}' was never set".format(self.scope_template().name(), varname))
-                    dbg(whoami(), 1, "{} is {}".format(varname, repr(var.obj)))
-                    rpn.globl.param_stack.push(var.obj)
-                    param_stack_pushes += 1
+            param_stack_pushes = 0
+            out_vnames = list(filter(lambda v: v.out_p, self.scope_template().vnames()))
+            for vname in out_vnames:
+                var = scope.variable(vname.ident)
+                if var is None:
+                    raise rpn.exception.RuntimeErr("{}: {}: Variable '{}' has vanished!".format(whoami(), self.scope_template().name(), vname.ident))
+                if not var.defined():
+                    # Undo any previous param_stack pushes if we come across an out variable that's not defined
+                    for _ in range(param_stack_pushes):
+                        rpn.globl.param_stack.pop()
+                    raise rpn.exception.RuntimeErr("{}: Variable '{}' was never set".format(self.scope_template().name(), vname.ident))
+                dbg(whoami(), 1, "{} is {}".format(vname.ident, repr(var.obj)))
+                rpn.globl.param_stack.push(var.obj)
+                param_stack_pushes += 1
             if pushed_scope:
                 rpn.globl.pop_scope("{} complete".format(repr(self)))
 
@@ -730,6 +706,34 @@ class Variable:
 
     def __repr__(self):
         return "Variable[{},addr={},value={}]".format(self._rawname, hex(id(self)), repr(self.obj))
+
+
+#############################################################################
+#
+#       V N A M E
+#
+#############################################################################
+class VName:
+    def __init__(self, ident):
+        self.ident = ident
+        self.in_p = False
+        self.out_p = False
+
+    def decorated(self):
+        dec = ""
+        if self.in_p or self.out_p:
+            if self.in_p:
+                dec += "in"
+            if self.out_p:
+                dec += "out"
+            dec += ":"
+        return dec + self.ident
+
+    def __str__(self):
+        return self.decorated()
+
+    def __repr__(self):
+        return "VName[{}]".format(self.decorated())
 
 
 #############################################################################

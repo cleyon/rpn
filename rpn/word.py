@@ -4607,7 +4607,7 @@ List variables and their values""")
 def w_vars():
     for (_, scope) in rpn.globl.scope_stack.items_top_to_bottom():
         if rpn.globl.scope_stack.size() > 1:
-            rpn.globl.lnwriteln("Scope {}".format(scope.name()))
+            rpn.globl.lnwriteln("Scope {}:".format(scope.name()))
         my_vars = dict()
         for v in scope.variables():
             var = scope.variable(v)
