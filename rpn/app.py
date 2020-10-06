@@ -31,7 +31,7 @@ except ModuleNotFoundError:
 # except ModuleNotFoundError:
 #     pass
 
-from   rpn.debug import dbg, typename, whoami
+from   rpn.debug import dbg, typename
 import rpn.flag
 import rpn.globl
 import rpn.tvm
@@ -297,12 +297,11 @@ flag is True if initial parse error, False if no error'''
                 dbg("token", 3, "Word {} is immediate, calling...".format(word))
                 word.__call__()
                 continue
-            else:
-                tok_list.append(tok)
+            tok_list.append(tok)
 
         # These need a second token or they will be very angry
         elif tok.type in ['AT_SIGN', 'CATCH', 'CONSTANT', 'EXCLAM', 'FORGET',
-                        'HELP', 'SHOW', 'UNDEF', 'VARIABLE' ]:
+                          'HELP', 'SHOW', 'UNDEF', 'VARIABLE' ]:
             rpn.globl.parse_stack.push(tok.type)
             try:
                 tok2 = next(rpn.util.TokenMgr.next_token())

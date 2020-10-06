@@ -13,10 +13,11 @@ too_many_branches=R0912
 too_many_locals=R0914
 too_many_statements=R0915
 too_many_boolean_expressions=R0916
+fixme=W0511
 
 #PYLINT_IGNORE=$(line_too_long),$(bad_whitespace)
-PYLINT_IGNORE=$(line_too_long),$(bad_whitespace),$(missing_function_docstring),$(invalid_name),$(missing_class_docstring),$(unidiomatic_typecheck)
-#PYLINT_IGNORE=$(line_too_long),$(bad_whitespace),$(missing_function_docstring),$(invalid_name),$(missing_class_docstring),$(unidiomatic_typecheck),$(too_many_boolean_expressions),$(too_many_statements),$(too_many_branches),$(too_many_return_statements),$(too_many_locals),$(too_few_public_methods),$(too_many_instance_attributes)
+#PYLINT_IGNORE=$(line_too_long),$(bad_whitespace),$(missing_function_docstring),$(invalid_name),$(missing_class_docstring),$(unidiomatic_typecheck),$(fixme)
+PYLINT_IGNORE=$(line_too_long),$(bad_whitespace),$(missing_function_docstring),$(invalid_name),$(missing_class_docstring),$(unidiomatic_typecheck),$(too_many_boolean_expressions),$(too_many_statements),$(too_many_branches),$(too_many_return_statements),$(too_many_locals),$(too_few_public_methods),$(too_many_instance_attributes),$(fixme)
 
 all:
 	@echo "make: Please specify a target: clean, lint, lintall, tags"

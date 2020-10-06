@@ -6,6 +6,9 @@
 #############################################################################
 '''
 
+import sys
+
+
 try:
     import ply.lex  as lex
 except ModuleNotFoundError:
