@@ -525,21 +525,29 @@ def w_dot_all():
                       "BS",  "HT",  "LF",  "VT",  "FF",  "CR",  "SO",  "SI",
                       "DLE", "DC1", "DC2", "DC3", "DC4", "NAK", "SYN", "ETB",
                       "CAN", "EM",  "SUB", "ESC", "FS",  "GS",  "RS",  "US",
+                      # 32
                       "SP",  "!",   "\"",  "#",   "$",   "%",   "&",   "'",
                       "(",   ")",   "*",   "+",   ",",   "-",   ".",   "/",
                       "0",   "1",   "2",   "3",   "4",   "5",   "6",   "7",
                       "8",   "9",   ":",   ";",   "<",   "=",   ">",   "?",
+                      # 64
                       "@",   "A",   "B",   "C",   "D",   "E",   "F",   "G",
                       "H",   "I",   "J",   "K",   "L",   "M",   "N",   "O",
                       "P",   "Q",   "R",   "S",   "T",   "U",   "V",   "W",
                       "X",   "Y",   "Z",   "[",   "\\",  "]",   "^",   "_",
+                      # 96
                       "`",   "a",   "b",   "c",   "d",   "e",   "f",   "g",
                       "h",   "i",   "j",   "k",   "l",   "m",   "n",   "o",
                       "p",   "q",   "r",   "s",   "t",   "u",   "v",   "w",
                       "x",   "y",   "z",   "{",   "|",   "}",   "~",   "DEL"]
-        #if xval >= 0 and xval <= 127:
+
         if 0 <= xval < 128:
-            more += "  Char={}".format(ascii_char[xval])
+            glyph = "{}".format(ascii_char[xval])
+            if 0 <= xval < 32:
+                glyph += " (^{})".format(ascii_char[xval + 64])
+            if 33 <= xval < 127:
+                glyph = "'" + glyph + "'"
+            more += "  Char={}".format(glyph)
 
     out += more
     rpn.globl.writeln(out)
@@ -1091,7 +1099,7 @@ def w_abs():
             raise rpn.exception.ValueErr("abs: X cannot be an empty vector")
         sumsq = 0.0
         for val in x.value:
-            sumsq += val ** 2
+            sumsq += abs(val) ** 2
         r = rpn.globl.to_python_class(sumsq)
         t = type(r)
         if t is float:
@@ -1196,16 +1204,7 @@ def w_logand():
         rpn.globl.param_stack.push(x)
         raise rpn.exception.TypeErr("and: Type error ({}, {})".format(typename(y), typename(y)))
 
-    if x.value not in [0, 1]:
-        rpn.globl.param_stack.push(y)
-        rpn.globl.param_stack.push(x)
-        raise rpn.exception.ValueErr("and: X must be TRUE (1) or FALSE (0), not {}".format(x.value))
-    if y.value not in [0, 1]:
-        rpn.globl.param_stack.push(y)
-        rpn.globl.param_stack.push(x)
-        raise rpn.exception.ValueErr("and: Y must be TRUE (1) or FALSE (0), not {}".format(y.value))
-
-    rpn.globl.param_stack.push(rpn.type.Integer(x.value and y.value))
+    rpn.globl.param_stack.push(rpn.type.Integer(bool(x.value) and bool(y.value)))
 
 
 @defword(name='ascii', immediate=True, doc="""\
@@ -3332,11 +3331,8 @@ def w_lognot():
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
         raise rpn.exception.TypeErr("not: Type error ({})".format(typename(x)))
-    if x.value not in [0, 1]:
-        rpn.globl.param_stack.push(x)
-        raise rpn.exception.ValueErr("not: X must be TRUE (1) or FALSE (0), not {}".format(x.value))
 
-    rpn.globl.param_stack.push(rpn.type.Integer(rpn.globl.bool_to_int(x.zerop())))
+    rpn.globl.param_stack.push(rpn.type.Integer(not bool(x.value)))
 
 
 @defword(name='of', print_x=rpn.globl.PX_CONTROL, doc="""\
@@ -3367,16 +3363,7 @@ def w_logor():
         rpn.globl.param_stack.push(x)
         raise rpn.exception.TypeErr("or: Type error ({}, {})".format(typename(y), typename(y)))
 
-    if x.value not in [0, 1]:
-        rpn.globl.param_stack.push(y)
-        rpn.globl.param_stack.push(x)
-        raise rpn.exception.ValueErr("or: X must be TRUE (1) or FALSE (0), not {}".format(x.value))
-    if y.value not in [0, 1]:
-        rpn.globl.param_stack.push(y)
-        rpn.globl.param_stack.push(x)
-        raise rpn.exception.ValueErr("or: Y must be TRUE (1) or FALSE (0), not {}".format(y.value))
-
-    rpn.globl.param_stack.push(rpn.type.Integer(x.value or y.value))
+    rpn.globl.param_stack.push(rpn.type.Integer(bool(x.value) or bool(y.value)))
 
 
 @defword(name='otherwise', print_x=rpn.globl.PX_CONTROL, doc="""\
@@ -4018,12 +4005,13 @@ def w_sci():
     rpn.flag.clear_flag(rpn.flag.F_DISP_ENG)
 
 
-@defword(name='scopes', print_x=rpn.globl.PX_IO, doc="""\
+@defword(name='scopes', hidden=True, print_x=rpn.globl.PX_IO, doc="""\
 Print information on all available scopes.""")
 def w_scopes():
     for (i, item) in rpn.globl.scope_stack.items_bottom_to_top():
-        rpn.globl.lnwriteln("{}: {}".format(i, item))
-
+        rpn.globl.lnwriteln("{} Scope {}:".format(i, item.name()))
+        rpn.globl.lnwriteln("Variables: {}".format([str(x) for x in item.variables().values()]))
+        rpn.globl.lnwriteln("Words: {}".format([str(x) for x in item.words().values()]))
 
 @defword(name='setdebug', args=1, str_args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
 Set debug level  ( lev -- )  [ "facility" -- ]""")
@@ -4689,6 +4677,20 @@ def w_x_exchange_indirect_i():
     x = rpn.globl.param_stack.pop()
     rpn.globl.param_stack.push(rpn.globl.register[Ival])
     rpn.globl.register[Ival] = x
+
+
+@defword(name='xor', args=2, print_x=rpn.globl.PX_PREDICATE, doc="""\
+Logical XOR "exclusive OR"  ( flag flag -- flag )
+NOTE: This is not a bitwise XOR - use BITXOR for that.""")
+def w_logxor():
+    x = rpn.globl.param_stack.pop()
+    y = rpn.globl.param_stack.pop()
+    if type(x) is not rpn.type.Integer or type(y) is not rpn.type.Integer:
+        rpn.globl.param_stack.push(y)
+        rpn.globl.param_stack.push(x)
+        raise rpn.exception.TypeErr("or: Type error ({}, {})".format(typename(y), typename(y)))
+
+    rpn.globl.param_stack.push(rpn.type.Integer(bool(x.value) != bool(y.value)))
 
 
 @defword(name='zer', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
