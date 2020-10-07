@@ -384,6 +384,8 @@ def to_rpn_class(n):
         return rpn.type.Rational.from_Fraction(n)
     if t is complex:
         return rpn.type.Complex.from_complex(n)
+    if t is np.complex128:
+        return rpn.type.Complex.from_complex(n)
     raise rpn.exception.FatalErr("{}: Cannot handle type {}".format(whoami(), t))
 
 

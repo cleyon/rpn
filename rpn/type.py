@@ -3,6 +3,41 @@
 #
 #       D A T A   T Y P E S
 #
+#       - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#
+#       | HP-48 OBJECT TYPE |       |
+#       |-------------------+-------|
+#       | Real number       |     0 |
+#       | Complex number    |     1 |
+#       | Character string  |     2 |
+#       | Real array        |     3 |
+#       | Complex array     |     4 |
+#       | List              |     5 |
+#       | Global name       |     6 |
+#       | Local name        |     7 |
+#       | Program           |     8 |
+#       | Algebraic object  |     9 |
+#       | Binary integer    |    10 |
+#       | Graphics object   |    11 |
+#       | Tagged object     |    12 |
+#       | Unit object       |    13 |
+#       | XLIB name         |    14 |
+#       | Directory         |    15 |
+#       | Library           |    16 |
+#       | Backup object     |    17 |
+#       |-------------------+-------|
+#       | Built-in function |    18 |
+#       | Built-in command  |    19 |
+#       |-------------------+-------|
+#       | System binary     |    20 |
+#       | Extended real     |    21 |
+#       | Extended complex  |    22 |
+#       | Linked array      |    23 |
+#       | Character         |    24 |
+#       | Code object       |    25 |
+#       | Library data      |    26 |
+#       | External object   | 27-31 |
+#
 #############################################################################
 '''
 

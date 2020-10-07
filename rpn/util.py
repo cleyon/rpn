@@ -239,7 +239,7 @@ class Scope:
             if len(self.words()) > 0:
                 s += " "
         if len(self.words()) > 0:
-            s += " ".join([w.as_definition() for w in self.words().values()])
+            s += " ".join([w.name() for w in self.words().values()])
         return s
 
     def __repr__(self):
