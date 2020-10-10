@@ -1051,7 +1051,12 @@ def w_caret():
         rpn.globl.param_stack.push(x)
         raise rpn.exception.TypeErr("^: Type error ({}, {})".format(typename(y), typename(x)))
 
-    r = pow(y.value, x.value)
+    try:
+        r = pow(y.value, x.value)
+    except OverflowError:
+        rpn.globl.param_stack.push(x)
+        raise rpn.exception.ValueErr("exp: Result too large")
+
     if type(r) is int:
         result = rpn.type.Integer(r)
     elif type(r) is float:
@@ -2250,9 +2255,19 @@ Natural exponential ( x -- e^x )""")
 def w_exp():
     x = rpn.globl.param_stack.pop()
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
-        result = rpn.type.Float(math.exp(float(x.value)))
+        try:
+            r = math.exp(float(x.value))
+        except OverflowError:
+            rpn.globl.param_stack.push(x)
+            raise rpn.exception.ValueErr("exp: Result too large")
+        result = rpn.type.Float(r)
     elif type(x) is rpn.type.Complex:
-        result = rpn.type.Complex.from_complex(cmath.exp(complex(x.value)))
+        try:
+            r = cmath.exp(complex(x.value))
+        except OverflowError:
+            rpn.globl.param_stack.push(x)
+            raise rpn.exception.ValueErr("exp: Result too large")
+        result = rpn.type.Complex.from_complex(r)
     else:
         rpn.globl.param_stack.push(x)
         raise rpn.exception.TypeErr("exp: Type error ({})".format(typename(x)))
