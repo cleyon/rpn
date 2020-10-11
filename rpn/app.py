@@ -302,7 +302,7 @@ flag is True if initial parse error, False if no error'''
             (word, _) = rpn.globl.lookup_word(tok.value)
             if word is not None and word.immediate():
                 dbg("token", 3, "Word {} is immediate, calling...".format(word))
-                word.__call__()
+                word.__call__(word.name)
                 continue
             tok_list.append(tok)
 

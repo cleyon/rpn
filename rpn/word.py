@@ -2448,8 +2448,7 @@ def w_fmod(name):
 @defword(name='hide', immediate=True, hidden=True, doc="""\
 Make the current word hidden.""")
 def w_hide(name):                       # pylint: disable=unused-argument
-    dbg("hide", 1, "w_hide()")
-    #arg.hidden = True
+    dbg("hide", 1, "this is w_hide; name is {}/{}".format(typename(name), name))
 
 
 @defword(name='forget', print_x=rpn.globl.PX_CONFIG, doc="""\
