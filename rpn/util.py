@@ -167,8 +167,15 @@ class List:
     def __call__(self, name):
         dbg("trace", 2, "trace({})".format(repr(self)))
         for item in self.listval():
-            #rpn.globl.lnwriteln("{}: {}.__call__() : {}".format(whoami(), item, type(item)))
-            item.__call__(item.name)
+            dbg(whoami(), 3, "{}: {}/{}.__call__()".format(whoami(), type(item), item))
+            try:
+                if type(item) is Word and item.typ == "colon":
+                    dbg(whoami(), 2, ">>>>  {}  <<<<".format(item.name))
+                    rpn.globl.colon_stack.push(item)
+                item.__call__(item.name)
+            finally:
+                if type(item) is Word and item.typ == "colon":
+                    rpn.globl.colon_stack.pop()
 
     def items(self):
         for item in self.listval():
@@ -374,7 +381,7 @@ class Sequence:
                     for _ in range(param_stack_pushes):
                         rpn.globl.param_stack.pop()
                     raise rpn.exception.RuntimeErr(rpn.exception.X_UNDEFINED_VARIABLE, self.scope_template().name, "Variable '{}' was never set".format(vname.ident))
-                dbg(whoami(), 1, "{} is {}".format(vname.ident, repr(var.obj)))
+                dbg(whoami(), 3, "{} is {}".format(vname.ident, repr(var.obj)))
                 rpn.globl.param_stack.push(var.obj)
                 param_stack_pushes += 1
             if pushed_scope:
@@ -738,7 +745,7 @@ class VName:
 #
 #############################################################################
 class Word:
-    def __init__(self, name, defn, **kwargs):
+    def __init__(self, name, typ, defn, **kwargs):
         self.name       = name
         self._args      = 0
         self._defn      = defn  # rpn.util.Sequence
@@ -748,7 +755,7 @@ class Word:
         self._protected = rpn.globl.default_protected
         self._smudge    = False # True=Hidden, False=Findable
         self._str_args  = 0
-        self._type      = None
+        self.typ        = typ   # "python" or "colon"
 
         my_print_x = None
 

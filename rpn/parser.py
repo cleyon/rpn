@@ -332,7 +332,7 @@ def p_colon_define_word(p):
 
     # p_sequence() has already popped the scope for this word, so
     # creating it now in rpn.globl.scope_stack.top() will be correct.
-    new_word = rpn.util.Word(identifier, sequence, **kwargs)
+    new_word = rpn.util.Word(identifier, "colon", sequence, **kwargs)
     dbg("p_colon_define_word", 1, "{}: Defining word {}={} in scope {}".format(whoami(), identifier, repr(new_word), repr(rpn.globl.scope_stack.top())))
     sequence.patch_recurse(new_word)
     rpn.globl.scope_stack.top().define_word(identifier, new_word)

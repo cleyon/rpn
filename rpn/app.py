@@ -587,7 +587,7 @@ PHI = (1 + sqrt(5)) / 2"
 
 : prompt        doc:"prompt  ( -- n ) [ text -- ]  Prompt for numeric input"
   $depth 0 = if
-    ."prompt: Insufficient string parameters (1 required)" cr
+    "(1 required)" -260 $throw
   else
     $. #in
   then ;

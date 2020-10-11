@@ -75,7 +75,7 @@ class defword():
         name = self._kwargs["name"]
         del self._kwargs["name"]
 
-        word = rpn.util.Word(name, wrapped_f, **self._kwargs)
+        word = rpn.util.Word(name, "python", wrapped_f, **self._kwargs)
         rpn.globl.root_scope.define_word(name, word)
         return wrapped_f
 
@@ -210,6 +210,26 @@ def w_dollar_swap(name):                # pylint: disable=unused-argument
     sy = rpn.globl.string_stack.pop()
     rpn.globl.string_stack.push(sx)
     rpn.globl.string_stack.push(sy)
+
+
+@defword(name='$throw', args=1, str_args=1, print_x=rpn.globl.PX_CONTROL, doc="""\
+Throw an exception with text  ( n -- )  [ msg -- ]
+
+qv CATCH""")
+def w_throw(name):
+    x = rpn.globl.param_stack.pop()
+    if type(x) is not rpn.type.Integer:
+        rpn.globl.param_stack.push(x)
+        raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+    if x.value == 0:
+        rpn.globl.param_stack.push(x)
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_ARG, name, "X cannot be zero")
+    message = rpn.globl.string_stack.pop().value
+    thrown_from = ""
+    if not rpn.globl.colon_stack.empty():
+        thrown_from = rpn.globl.colon_stack.top().name
+    dbg("catch", 1, "{}: Throwing {} from '{}'".format(name, x.value, thrown_from))
+    raise rpn.exception.RuntimeErr(x.value, thrown_from, message)
 
 
 @defword(name='$time', print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -4495,8 +4515,6 @@ def w_then(name):                       # pylint: disable=unused-argument
 @defword(name='throw', args=1, print_x=rpn.globl.PX_CONTROL, doc="""\
 Throw an exception  ( n -- )
 
-N must be positive.
-
 qv CATCH""")
 def w_throw(name):
     x = rpn.globl.param_stack.pop()
@@ -4506,8 +4524,11 @@ def w_throw(name):
     if x.value == 0:
         rpn.globl.param_stack.push(x)
         raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_ARG, name, "X cannot be zero")
-    dbg("catch", 1, "{}: Throwing {}".format(name, x.value))
-    raise rpn.exception.RuntimeErr(x.value)
+    thrown_from = ""
+    if not rpn.globl.colon_stack.empty():
+        thrown_from = rpn.globl.colon_stack.top().name
+    dbg("catch", 1, "{}: Throwing {} from '{}'".format(name, x.value, thrown_from))
+    raise rpn.exception.RuntimeErr(x.value, thrown_from)
 
 
 @defword(name='time', print_x=rpn.globl.PX_COMPUTE, doc="""\

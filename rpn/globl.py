@@ -54,6 +54,7 @@ parse_stack  = rpn.util.Stack()
 return_stack = rpn.util.Stack()
 scope_stack  = rpn.util.Stack(1)
 string_stack = rpn.util.Stack()
+colon_stack  = rpn.util.Stack()
 
 root_scope = rpn.util.Scope("ROOT")
 
@@ -182,9 +183,16 @@ def eval_string(s):
 
 
 def execute(executable):
-    #print("execute(); executable={},{}".format(type(executable),executable))
+    dbg(whoami(), 1, "execute: {}/{}".format(type(executable), executable))
     try:
-        executable.__call__(executable.name)
+        try:
+            if type(executable) is rpn.util.Word and executable.typ == "colon":
+                dbg(whoami(), 2, ">>>>  {}  <<<<".format(executable.name))
+                rpn.globl.colon_stack.push(executable)
+            executable.__call__(executable.name)
+        finally:
+            if type(executable) is rpn.util.Word and executable.typ == "colon":
+                rpn.globl.colon_stack.pop()
     except KeyboardInterrupt:
         lnwriteln("[Interrupt]")
     except RecursionError:
