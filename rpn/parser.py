@@ -448,7 +448,7 @@ def p_execute(p):
 def p_fetch_var(p):
     '''fetch_var : AT_SIGN IDENTIFIER'''
     ident = p[2]
-    if ident[0] in ['+', '-', '*', '/', '?', '$']:
+    if ident[0] in ['+', '-', '*', '/', '?', '$', '.']:
         modifier = ident[0]
         ident = ident[1:]
     else:
@@ -691,8 +691,8 @@ def p_undef(p):
     for pre_hook_func in var.pre_hooks():
         try:
             pre_hook_func(ident, cur_obj, new_obj)
-        except rpn.exception.RuntimeErr as e:
-            rpn.globl.lnwriteln(str(e))
+        except rpn.exception.RuntimeErr as err_pre_hook_undef:
+            rpn.globl.lnwriteln(str(err_pre_hook_undef))
             return
     old_obj = cur_obj
     rpn.globl.scope_stack.top().delete_variable(ident)

@@ -59,7 +59,7 @@ Usage: rpn [-d] [-f FILE] [-i] [-l FILE] [-q] cmds...
 
 def initialize(argv):
     # Set up low level stuff, stacks, variables
-    go_interactive = True
+    rpn.globl.go_interactive = True
     sys.setrecursionlimit(2000) # default is 10002
     random.seed()
     rpn.globl.disp_stack.push(rpn.util.DisplayConfig())
@@ -72,10 +72,10 @@ def initialize(argv):
     sigwinch_handler(0, 0)     # Read & define ROWS and COLS via stty(1)
 
     # Set initial conditions
-    rpn.word.w_clreg()
-    # rpn.word.clflag()
-    rpn.word.w_clfin()
-    rpn.word.w_std()
+    rpn.word.w_clreg('clreg')
+    # rpn.word.clflag('clflag')
+    rpn.word.w_clfin('clfin')
+    rpn.word.w_std('std')
     define_secondary_words()
 
     # Switch to user mode; words & variables are no longer protected
@@ -97,11 +97,11 @@ def initialize(argv):
     if len(argv) > 0:
         global force_interactive        # pylint: disable=global-statement
         if not force_interactive:
-            go_interactive = False
+            rpn.globl.go_interactive = False
         s = " ".join(argv)
         rpn.globl.eval_string(s)
 
-    return go_interactive
+    return rpn.globl.go_interactive
 
 
 def define_variables():
@@ -186,8 +186,8 @@ def parse_args(argv):
             except FileNotFoundError:
                 rpn.globl.lnwriteln("-f: File '{}' does not exist".format(arg))
                 sys.exit(1)
-            except rpn.exception.RuntimeErr as e:
-                rpn.globl.lnwriteln(str(e))
+            except rpn.exception.RuntimeErr as err_f_opt:
+                rpn.globl.lnwriteln(str(err_f_opt))
                 sys.exit(1)
             else:
                 sys.exit(0)
@@ -199,8 +199,8 @@ def parse_args(argv):
                 load_file(arg)
             except FileNotFoundError:
                 rpn.globl.lnwriteln("-l: File '{}' does not exist".format(arg))
-            except rpn.exception.RuntimeErr as e:
-                rpn.globl.lnwriteln(str(e))
+            except rpn.exception.RuntimeErr as err_l_opt:
+                rpn.globl.lnwriteln(str(err_l_opt))
         elif opt == "-q":
             global load_init_file       # pylint: disable=global-statement
             load_init_file = False
@@ -216,7 +216,7 @@ def load_file(filename):
         with open(filename, "r") as file:
             contents = file.read()
     except PermissionError:
-        raise rpn.exception.RuntimeErr("load: Cannot read file '{}'".format(filename))
+        raise rpn.exception.RuntimeErr(rpn.exception.X_FILE_IO, "load", "Cannot open file '{}'".format(filename))
     else:
         dbg("load_file", 3, "load_file({})='{}'".format(filename, contents))
         rpn.globl.eval_string(contents)
@@ -234,11 +234,11 @@ def main_loop():
 
     if not rpn.globl.param_stack.empty():
         if rpn.globl.param_stack.size() == 1:
-            rpn.word.w_dup()
-            rpn.word.w_dot()
-            rpn.word.w_cr()
+            rpn.word.w_dup('dup')
+            rpn.word.w_dot('dot')
+            rpn.word.w_cr('cr')
         else:
-            rpn.word.w_dot_s()
+            rpn.word.w_dot_s('.s')
 
     global want_debug                   # pylint: disable=global-statement
     if want_debug:
@@ -263,19 +263,19 @@ def end_program():
 
     if not rpn.globl.string_stack.empty():
         if rpn.globl.string_stack.size() == 1:
-            rpn.word.w_dollar_dot()
-            rpn.word.w_cr()
+            rpn.word.w_dollar_dot('$.')
+            rpn.word.w_cr('cr')
         else:
             rpn.globl.lnwriteln("Strings:")
-            rpn.word.w_dollar_dot_s()
+            rpn.word.w_dollar_dot_s('$.s')
 
     if not rpn.globl.param_stack.empty():
         if rpn.globl.param_stack.size() == 1:
-            rpn.word.w_dot()
-            rpn.word.w_cr()
+            rpn.word.w_dot('.')
+            rpn.word.w_cr('cr')
         else:
             rpn.globl.lnwriteln("Stack:")
-            rpn.word.w_dot_s()
+            rpn.word.w_dot_s('.s')
 
     sys.exit(0)
 
@@ -500,7 +500,7 @@ def sigquit_handler(_signum, _frame):
 #     print("new_obj={}".format(repr(new_obj)))
 #     # Check against None first due to undef case
 #     if new_obj is not None and new_obj.value < 0:
-#         raise rpn.exception.RuntimeErr("{} cannot be negative".format(ident))
+#         raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_ARG, "!{}".format(identifier), "Must be positive")
 #
 # def example_post_hook_func(ident, old_obj, cur_obj):
 #     print("example_post_hook_func:")
@@ -510,26 +510,26 @@ def sigquit_handler(_signum, _frame):
 
 def pre_require_int(identifier, _cur, new):
     if type(new) is not rpn.type.Integer:
-        raise rpn.exception.RuntimeErr("!{}: Type error ({})".format(identifier, typename(new)))
+        raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, "!{}".format(identifier), "({})".format(typename(new)))
 
 def pre_require_int_or_float(identifier, _cur, new):
     if type(new) not in [rpn.type.Integer, rpn.type.Float]:
-        raise rpn.exception.RuntimeErr("!{}: Type error ({})".format(identifier, typename(new)))
+        raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, "!{}".format(identifier), "({})".format(typename(new)))
 
 def pre_require_positive(identifier, _cur, new):
     if new.value <= 0:
-        raise rpn.exception.RuntimeErr("!{}: Must be positive".format(identifier))
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_ARG, "!{}".format(identifier), "Must be positive")
 
 def pre_require_non_negative(identifier, _cur, new):
     if new.value < 0:
-        raise rpn.exception.RuntimeErr("!{}: Must be non-negative".format(identifier))
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_ARG, "!{}".format(identifier), "Must be non-negative")
 
 def pre_validate_size_arg(identifier, _cur, new):
     if type(new) is not rpn.type.Integer:
-        raise rpn.exception.RuntimeErr("!{}: Type error ({})".format(identifier, typename(new)))
+        raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, "!{}".format(identifier), "({})".format(typename(new)))
     new_size = new.value
     if new_size < rpn.globl.REG_SIZE_MIN or new_size > rpn.globl.REG_SIZE_MAX:
-        raise rpn.exception.RuntimeErr("!{}: Size {} out of range ({}..{} expected)".format(identifier, new_size, rpn.globl.REG_SIZE_MIN, rpn.globl.REG_SIZE_MAX))
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_ARG, "!{}".format(identifier), "Size {} out of range ({}..{} expected)".format(new_size, rpn.globl.REG_SIZE_MIN, rpn.globl.REG_SIZE_MAX))
 
 def post_clear_newly_unveiled_registers(_identifier, old, cur):
     old_size = old.value

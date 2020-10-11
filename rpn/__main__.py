@@ -10,8 +10,6 @@ import sys
 from rpn import app
 from rpn import exception
 
-import rpn.globl
-
 
 def main(argv):
     try:
@@ -21,11 +19,11 @@ def main(argv):
         pass
     except exception.FatalErr as e:
         if len(str(e)) > 0:
-            rpn.globl.lnwriteln("Fatal error: {}".format(e))
+            print("Fatal error: {}".format(e)) # OK
         sys.exit(1)
-    except exception.Throw as e:
-        print("Uncaught exception: throw {}".format(e)) # OK
-        sys.exit(1)
+    except exception.RuntimeErr as err_main:
+        print("Uncaught exception: {} ({})".format(err_main.code, str(err_main))) # OK
+        #sys.exit(1)
 
     app.end_program()
 

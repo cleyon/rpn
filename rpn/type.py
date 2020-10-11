@@ -63,7 +63,7 @@ except ImportError:
 # except ModuleNotFoundError:
 #     pass
 
-from   rpn.debug import dbg, whoami
+from   rpn.debug import dbg, typename, whoami
 import rpn.exe
 import rpn.globl
 
@@ -81,7 +81,7 @@ class Stackable(rpn.exe.Executable):
     def label(self, new_label):
         self._label = new_label
 
-    def __call__(self):
+    def __call__(self, name):
         dbg("trace", 1, "trace({})".format(repr(self)))
         rpn.globl.param_stack.push(self)
 
@@ -89,6 +89,7 @@ class Stackable(rpn.exe.Executable):
 class Complex(Stackable):
     def __init__(self, real=0.0, imag=0.0):
         super().__init__()
+        self.name = "Complex"
         self.value = complex(float(real), float(imag))
 
     @classmethod
@@ -102,7 +103,7 @@ class Complex(Stackable):
     @value.setter
     def value(self, new_value):
         if type(new_value) is not complex:
-            raise rpn.exception.TypeErr("{}: New value is not Complex ({})".format(whoami(), type(new_value)))
+            raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'Complex#value()', "({})".format(typename(new_value)))
         self._value = new_value
 
     def real(self):
@@ -126,6 +127,7 @@ class Complex(Stackable):
 class Float(Stackable):
     def __init__(self, val=0.0):
         super().__init__()
+        self.name = "Float"
         self.value = float(val)
 
     @property
@@ -135,7 +137,7 @@ class Float(Stackable):
     @value.setter
     def value(self, new_value):
         if type(new_value) is not float:
-            raise rpn.exception.TypeErr("{}: New value is not Float ({})".format(whoami(), type(new_value)))
+            raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'Float#value()', "({})".format(typename(new_value)))
         self._value = new_value
 
     def zerop(self):
@@ -197,6 +199,7 @@ Failure:  (False, None, None, None, None)"""
 class Integer(Stackable):
     def __init__(self, val=0):
         super().__init__()
+        self.name = "Integer"
         self.value = int(val)
 
     @property
@@ -206,7 +209,7 @@ class Integer(Stackable):
     @value.setter
     def value(self, new_value):
         if type(new_value) is not int:
-            raise rpn.exception.TypeErr("{}: New value is not Integer ({})".format(whoami(), type(new_value)))
+            raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'Integer#value()', "({})".format(typename(new_value)))
         self._value = new_value
 
     def zerop(self):
@@ -224,8 +227,9 @@ class Integer(Stackable):
 class Matrix(Stackable):
     def __init__(self, vals):
         if not rpn.globl.have_module('numpy'):
-            raise rpn.exception.RuntimeErr("Matrices require 'numpy' library")
+            raise rpn.exception.RuntimeErr(rpn.exception.X_UNSUPPORTED, "", "Matrices require 'numpy' library")
         super().__init__()
+        self.name = "Matrix"
         #rpn.globl.lnwriteln("{}: vals={}".format(whoami(), repr(vals)))
         self._nrows = len(vals)
         cols = -1
@@ -237,7 +241,7 @@ class Matrix(Stackable):
                 cols = x.size()
             else:
                 if x.size() != cols:
-                    raise rpn.exception.RuntimeErr("Matrix: Number of columns is not consistent")
+                    raise rpn.exception.RuntimeErr(rpn.exception.X_SYNTAX, "", "Matrix columns not consistent")
         self._ncols = cols
         #rpn.globl.lnwriteln("{} rows x {} columns".format(self.nrows(), self.ncols()))
         #print("vecs", vecs)
@@ -258,7 +262,7 @@ class Matrix(Stackable):
     @value.setter
     def value(self, new_value):
         # if type(new_value) is not rpn.type.Matrix: # FIXME
-        #     raise rpn.exception.TypeErr("{}: New value is not Matrix ({})".format(whoami(), type(new_value)))
+        #     raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'Matrix#value()', "({})".format(typename(new_value)))
         self._value = new_value
 
     def nrows(self):
@@ -277,6 +281,7 @@ class Matrix(Stackable):
 class Rational(Stackable):
     def __init__(self, num=0, denom=1):
         super().__init__()
+        self.name = "Rational"
         self.value = Fraction(int(num), int(denom))
 
     @classmethod
@@ -297,7 +302,7 @@ class Rational(Stackable):
     @value.setter
     def value(self, new_value):
         if type(new_value) is not Fraction:
-            raise rpn.exception.TypeErr("{}: New value is not Rational ({})".format(whoami(), type(new_value)))
+            raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'Rational#value()', "({})".format(typename(new_value)))
         self._value = new_value
 
     def numerator(self):
@@ -323,6 +328,7 @@ class Rational(Stackable):
 
 class String(rpn.exe.Executable):
     def __init__(self, val):
+        self.name = "String"
         self.value = val
 
     @classmethod
@@ -336,10 +342,10 @@ class String(rpn.exe.Executable):
     @value.setter
     def value(self, new_value):
         if type(new_value) is not str:
-            raise rpn.exception.TypeErr("{}: New value is not a String ({})".format(whoami(), type(new_value)))
+            raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'String#value()', "({})".format(typename(new_value)))
         self._value = new_value
 
-    def __call__(self):
+    def __call__(self, name):
         dbg("trace", 1, "trace({})".format(repr(self)))
         rpn.globl.string_stack.push(self)
 
@@ -353,15 +359,16 @@ class String(rpn.exe.Executable):
 class Vector(Stackable):
     def __init__(self, vals):
         if not rpn.globl.have_module('numpy'):
-            raise rpn.exception.RuntimeErr("Vectors require 'numpy' library")
+            raise rpn.exception.RuntimeErr(rpn.exception.X_UNSUPPORTED, "", "Vectors require 'numpy' library")
         super().__init__()
+        self.name = "Vector"
         if type(vals) is not rpn.util.List:
             raise rpn.exception.FatalErr("{}: {} is not a List".format(whoami(), repr(vals)))
         self.value = np.array([elem.value for elem in vals.listval()])
 
     @classmethod
     def from_numpy(cls, x):
-        print("rpn.type.Vector.from_numpy: x={}, type={}".format(x, type(x)))
+        #print("rpn.type.Vector.from_numpy: x={}, type={}".format(x, type(x)))
         obj = cls(rpn.util.List())
         # print("from_numpy: {}".format(repr(obj)))
         obj.value = x
@@ -373,8 +380,9 @@ class Vector(Stackable):
 
     @value.setter
     def value(self, new_value):
+        #numpy.ndarray ok
         # if type(new_value) is not rpn.type.Vector: # FIXME
-        #     raise rpn.exception.TypeErr("{}: New value is not Vector ({})".format(whoami(), type(new_value)))
+        #     raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'Vector#value()', "({})".format(typename(new_value)))
         self._value = new_value
 
     def size(self):
