@@ -52,6 +52,7 @@ reserved_words = {
     'endof'     : 'ENDOF',
     'forget'    : 'FORGET',
     'help'      : 'HELP',
+    'hide'      : 'HIDE',
     'if'        : 'IF',
     'loop'      : 'LOOP',
     'of'        : 'OF',
@@ -410,6 +411,7 @@ def p_executable(p):
                   | fetch_var
                   | forget
                   | help
+                  | hide
                   | if_then
                   | if_else_then
                   | matrix
@@ -491,6 +493,7 @@ def p_help(p):
             | HELP ENDOF
             | HELP FORGET
             | HELP HELP
+            | HELP HIDE
             | HELP IDENTIFIER
             | HELP IF
             | HELP LOOP
@@ -514,6 +517,15 @@ def p_help(p):
     p[0] = rpn.exe.Help(name, word.doc() if word.doc() is not None \
                                     and len(word.doc()) > 0 \
                     else "No help available for '{}'".format(name))
+
+def p_hide(p):
+    '''hide : HIDE IDENTIFIER'''
+    name = p[2]
+    (word, _) = rpn.globl.lookup_word(name)
+    if word is None:
+        rpn.globl.lnwriteln("hide: Word '{}' not found".format(name))
+        raise SyntaxError
+    p[0] = rpn.exe.Hide(word)
 
 def p_identifier_list(p):
     '''identifier_list : empty
@@ -639,11 +651,11 @@ def p_sequence(p):
 def p_show(p):
     '''show : SHOW IDENTIFIER'''
     name = p[2]
-    (word, scope) = rpn.globl.lookup_word(name)
+    (word, _) = rpn.globl.lookup_word(name)
     if word is None:
         rpn.globl.lnwriteln("show: Word '{}' not found".format(name))
         raise SyntaxError
-    p[0] = rpn.exe.Show(word, scope)
+    p[0] = rpn.exe.Show(word)
 
 def p_store_var(p):
     '''store_var : EXCLAM IDENTIFIER'''

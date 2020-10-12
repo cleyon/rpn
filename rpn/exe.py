@@ -583,7 +583,7 @@ class Forget(Executable):
     def __call__(self, name):
         dbg("trace", 1, "trace({})".format(repr(self)))
         if self._word.protected:
-            raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_FORGET, 'forget', "'{}' is protected".format(self._word.name))
+            raise rpn.exception.RuntimeErr(rpn.exception.X_PROTECTED, 'forget', "Cannot forget '{}'".format(self._word.name))
         self._scope.delete_word(self._word.name)
 
     def __str__(self):
@@ -619,6 +619,31 @@ class Help(Executable):
 
     def __repr__(self):
         return "Help[{}]".format(repr(self.identifier()))
+
+
+#############################################################################
+#
+#       H I D E
+#
+#############################################################################
+class Hide(Executable):
+    def __init__(self, word):
+        self.name = 'hide'
+        if type(word) is not rpn.util.Word:
+            raise rpn.exception.FatalErr("{}: {} is not a Word".format(whoami(), repr(word)))
+        self._word = word
+
+    def __call__(self, name):
+        dbg("trace", 1, "trace({})".format(repr(self)))
+        if self._word.protected:
+            raise rpn.exception.RuntimeErr(rpn.exception.X_PROTECTED, 'hide', "Cannot hide '{}'".format(self._word.name))
+        self._word.hidden = True
+
+    def __str__(self):
+        return "hide {}".format(self._word.name)
+
+    def __repr__(self):
+        return "Hide[{}]".format(repr(self._word.name))
 
 
 #############################################################################
@@ -708,14 +733,11 @@ class Recurse(Executable):
 #
 #############################################################################
 class Show(Executable):
-    def __init__(self, word, scope):
+    def __init__(self, word):
         self.name = 'show'
         if type(word) is not rpn.util.Word:
             raise rpn.exception.FatalErr("{}: Word {} is not an rpn.util.Word".format(whoami(), repr(word)))
-        if type(scope) is not rpn.util.Scope:
-            raise rpn.exception.FatalErr("{}: Scope {} is not a Scope".format(whoami(), repr(scope)))
         self._word = word
-        self._scope = scope
 
     def __call__(self, name):
         dbg("trace", 1, "trace({})".format(repr(self)))

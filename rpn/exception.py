@@ -34,7 +34,7 @@ X_RESULT_OO_RANGE     = -11
 X_ARG_TYPE_MISMATCH   = -12
 X_UNDEFINED_WORD      = -13
 X_COMPILE_ONLY        = -14
-X_INVALID_FORGET      = -15
+X_INVALID_FORGET      = -15     # Do not use, prefer X_PROTECTED
 X_ZERO_LEN_STR        = -16
 X_PIC_STRING_OVERFLOW = -17
 X_STRING_OVERFLOW     = -18
@@ -89,6 +89,9 @@ X_BAD_DATA            = -262
 X_SYNTAX              = -263
 X_NO_SOLUTION         = -264
 X_UNDEFINED_VARIABLE  = -265
+X_PROTECTED           = -266
+
+LAST_THROW_CODE       = X_PROTECTED     # Keep updated!
 
 throw_code_text = {
     X_ABORT               : 'ABORT',
@@ -105,7 +108,7 @@ throw_code_text = {
     X_ARG_TYPE_MISMATCH   : 'Argument type mismatch',   # Used when X or Y types are not legal
     X_UNDEFINED_WORD      : 'Undefined word',
     X_COMPILE_ONLY        : 'Interpreting a compile-only word',
-    X_INVALID_FORGET      : 'Invalid FORGET',           # Attempt to forget a protected word
+    X_INVALID_FORGET      : 'Invalid FORGET',           # Do not use, prefer X_PROTECTED
     X_ZERO_LEN_STR        : 'Attempt to use zero-length string as a name',
     X_PIC_STRING_OVERFLOW : 'Pictured numeric output string overflow',
     X_STRING_OVERFLOW     : 'Parsed string overflow',
@@ -160,6 +163,7 @@ throw_code_text = {
     X_SYNTAX              : 'Syntax error',
     X_NO_SOLUTION         : 'No solution',
     X_UNDEFINED_VARIABLE  : 'Undefined variable',
+    X_PROTECTED           : 'Protected',
 }
 
 
@@ -174,7 +178,7 @@ class RuntimeErr(Exception):
         s = ""
         if len(self.word) > 0:
             s += "{}: ".format(self.word)
-        if (-58 <= self.code <= -1) or (-265 <= self.code <= -256):
+        if (X_IF_THEN <= self.code <= X_ABORT) or (LAST_THROW_CODE <= self.code <= X_LEAVE):
             s += throw_code_text[self.code]
         if len(self.message) > 0:
             s += ": {}".format(self.message)
