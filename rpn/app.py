@@ -552,13 +552,11 @@ def define_secondary_words():
 
 : TRUE          doc:"TRUE  ( -- 1 )
 Constant: Logical true"
-  1
-  19 cf ;
+  1     19 cf ;
 
 : FALSE         doc:"FALSE  ( -- 0 )
 Constant: Logical false"
-  0
-  19 cf ;
+  0     19 cf ;
 
 : i             doc:"i  ( -- i )  Imaginary unit (0,1)
 
@@ -567,8 +565,7 @@ i = sqrt(-1)
 
 Do not confuse this with the I command,
 which returns the index of a DO loop."
-  (0,1)
-  19 cf ;
+  (0,1) 19 cf ;
 
 : PHI           doc:"PHI  ( -- 1.618... )   Golden ratio
 
@@ -577,20 +574,14 @@ PHI = (1 + sqrt(5)) / 2"
   5 sqrt 1 + 2 / ;
 
 : BL            doc:"BL  ( -- 32 )   ASCII code for a space character"
-  32
-  19 cf ;
+  32    19 cf ;
 
 : ?cr           doc:"?cr  Print a newline only if necessary to return to left margin"
-  @#OUT 0 > if
-    cr
-  then ;
+  @#OUT 0 > if  cr  then ;
 
 : prompt        doc:"prompt  ( -- n ) [ text -- ]  Prompt for numeric input"
-  $depth 0 = if
-    "(1 required)" -260 $throw
-  else
-    $. #in
-  then ;
+  $depth 1 < if "(1 required)" -260 $throw
+  else $. #in  then ;
 
 : space         doc:"space   Display one space character"
   BL emit ;
@@ -599,36 +590,26 @@ PHI = (1 + sqrt(5)) / 2"
   | in:n |
   @n 0 do space loop ;
 
-
 \ Stack manipulation
 : -rot          doc:"-rot  ( z y x -- x z y )  Rotate back
 Rotate top stack element back to third spot, pulling others down.
 Equivalent to ROT ROT"
-  depth 3 < if
-    ."-rot: Insufficient parameters (3 required)" cr
-  else
-    rot rot
-  then
+  depth 3 < if "(3 required)" -260 $throw
+  else  rot rot  then
   19 cf ;
 
 : nip           doc:"nip  ( y x -- x )
 Drop second stack element
 Equivalent to SWAP DROP.  J.V. Noble calls this PLUCK."
-  depth 2 < if
-    ."nip: Insufficient parameters (2 required)" cr
-  else
-    swap drop
-  then
+  depth 2 < if  "(2 required)" -260 $throw
+  else  swap drop then
   19 cf ;
 
 : tuck          doc:"tuck  ( y x -- x y x )
 Duplicate top stack element into third position
 Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
-  depth 2 < if
-    ."tuck: Insufficient parameters (2 required)" cr
-  else
-    swap over
-  then
+  depth 2 < if "(2 required)" -260 $throw
+  else  swap over then
   19 cf ;
 
 : sum           doc:"sum  ( ... -- sum )  Sum all numbers on the stack"
@@ -641,12 +622,9 @@ Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
   then
 ;
 
-
 : debug         doc:"debug  ( -- )  Toggle debugging state"
-  20 dup tf  fs? if
-    ."Debugging is now ENABLED"
-  else
-    ."Debugging is now disabled"
+  20 dup tf  fs? if ."Debugging is now ENABLED"
+  else              ."Debugging is now disabled"
   cr then ;
 
 : deg?          doc:"deg?  ( -- flag )  Test if angular mode is degrees"
@@ -660,8 +638,8 @@ Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
 
 : mod           doc:"mod  ( y x -- remainder )  Remainder"
   | in:y in:x |
+  @x 0 = if  "X cannot be zero" -42 $throw then
   @y @x /mod  drop ;
-
 
 \ Conversion functions
 : mm->in doc:"mm->in  ( mm -- inch )  Convert millimeters to inches"
@@ -711,7 +689,6 @@ Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
 
 \ : in3->cm3  doc:"in3->cm3  ( in^3 -- cm^3 )  Convert cubic inches to cubic centimeters"
 \   16.3871     * ;
-
 
 \ String functions
 : $date         doc:"$date  [ -- date ]  Current date as string"
