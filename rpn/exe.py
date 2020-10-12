@@ -76,24 +76,30 @@ class Ascii(Executable):
 
     def __call__(self, name):
         dbg("trace", 2, "trace({})".format(repr(self)))
-        new_tok = lex.LexToken()
-        new_tok.type = 'INTEGER'
-        new_tok.lineno = 0
-        new_tok.lexpos = 0
+        new_tok = None
 
         rpn.globl.parse_stack.push("ASCII")
         try:
             tok = next(rpn.util.TokenMgr.next_token())
             dbg("ascii", 1, "ascii: tok={}".format(tok))
             c = tok.value[0]
+            new_tok = lex.LexToken()
+            new_tok.type = 'INTEGER'
             new_tok.value = "{}".format(ord(c))
+            new_tok.lineno = 0
+            new_tok.lexpos = 0
         except StopIteration:
             dbg("ascii", 2, "ascii: received StopIteration, returning -1")
+            new_tok = lex.LexToken()
+            new_tok.type = 'INTEGER'
             new_tok.value = "-1"
+            new_tok.lineno = 0
+            new_tok.lexpos = 0
         finally:
             rpn.globl.parse_stack.pop()
-            dbg("ascii", 1, "ascii: Pushing new token {}".format(new_tok))
-            rpn.util.TokenMgr.push_token(new_tok)
+            if new_tok is not None:
+                dbg("ascii", 1, "ascii: Pushing new token {}".format(new_tok))
+                rpn.util.TokenMgr.push_token(new_tok)
 
     def __str__(self):
         return "ascii"
