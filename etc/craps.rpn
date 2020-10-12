@@ -4,8 +4,8 @@
 
   ."Welcome to the craps table!" cr
   20 randint 5 * 100 +
-  dup !initial_stake   dup !cash
-  ."I'll stake you " . ."zorkmids to get started." cr
+  dup !initial_stake   !cash
+  ."I'll stake you " @.initial_stake ."zorkmids to get started." cr
 
   : place_bet
     | valid bet |   FALSE !valid
@@ -59,13 +59,13 @@
       12 of ."Boxcars, you lose!"    cr FALSE !win endof
       \ Point
       otherwise
-        ."Your point is " @caseval . cr
+        ."Your point is " @.caseval cr
         @caseval play_point
     endcase
 
     @win not if -1 !*bet then
     @bet !+cash
-    ."You now have " @cash . ."zorkmids." cr
+    ."You now have " @.cash ."zorkmids." cr
   ;
 
   \ craps main code
@@ -75,10 +75,11 @@
       | diff |
       @cash @initial_stake - !diff
       @diff 0 > if
-        ."After my initial " @initial_stake . ."zorkmid loan, "
-        ."you leave with " @diff . ."zorkmids." cr
+        ."After my initial " @.initial_stake ."zorkmid loan, "
+        ."you leave with " @.diff ."zorkmids." cr
       else
-        ."You still owe me " @diff abs . ."zorkmids!" cr
+        -1 !*diff
+        ."You still owe me " @.diff ."zorkmids!" cr
       then
       ."Thanks for playing!" cr exit
     then

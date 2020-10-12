@@ -54,12 +54,13 @@ parse_stack  = rpn.util.Stack()
 return_stack = rpn.util.Stack()
 scope_stack  = rpn.util.Stack(1)
 string_stack = rpn.util.Stack()
+colon_stack  = rpn.util.Stack()
 
 root_scope = rpn.util.Scope("ROOT")
 
 register                = dict()
 stat_data = []
-
+go_interactive = None
 default_protected = True
 lexer = None
 scr_cols = None
@@ -182,23 +183,26 @@ def eval_string(s):
 
 
 def execute(executable):
+    dbg(whoami(), 1, "execute: {}/{}".format(type(executable), executable))
     try:
-        executable.__call__()
+        try:
+            if type(executable) is rpn.util.Word and executable.typ == "colon":
+                dbg(whoami(), 2, ">>>>  {}  <<<<".format(executable.name))
+                rpn.globl.colon_stack.push(executable)
+            executable.__call__(executable.name)
+        finally:
+            if type(executable) is rpn.util.Word and executable.typ == "colon":
+                rpn.globl.colon_stack.pop()
     except KeyboardInterrupt:
         lnwriteln("[Interrupt]")
     except RecursionError:
         lnwriteln("{}: Excessive recursion".format(executable))
-    except rpn.exception.Exit as e:
-        pass
-    except rpn.exception.RuntimeErr as e:
-        lnwriteln(str(e))
-    except rpn.exception.TypeErr as e:
-        #traceback.print_stack(file=sys.stderr)
-        lnwriteln(str(e))
-    except rpn.exception.ValueErr as e:
-        #traceback.print_stack(file=sys.stderr)
-        lnwriteln(str(e))
-
+    except rpn.exception.RuntimeErr as err_execute:
+        if err_execute.code >= 0:
+            raise
+        if err_execute.code == rpn.exception.X_EXIT:
+            return
+        lnwriteln(str(err_execute))
 
 # I should really just use __format__() correctly
 def fmt(x, show_label=True):
@@ -286,17 +290,17 @@ def separate_decorations(ident):
 
 def lookup_variable(name, how_many=1):
     for (_, scope) in scope_stack.items_top_to_bottom():
-        dbg(whoami(), 1, "{}: Looking for variable {} in {}...".format(whoami(), name, scope.name()))
-        dbg(whoami(), 3, "{} has variables: {}".format(scope.name(), scope.variables()))
+        dbg(whoami(), 1, "{}: Looking for variable {} in {}...".format(whoami(), name, scope.name))
+        dbg(whoami(), 3, "{} has variables: {}".format(scope.name, scope.variables()))
         var = scope.variable(name)
         if var is None:
             continue
         how_many -= 1
         if how_many > 0:
             continue
-        dbg(whoami(), 1, "{}: Found variable {} in {}: {}".format(whoami(), name, repr(scope), repr(var)))
+        dbg(whoami(), 2, "{}: Found variable {} in {}: {}".format(whoami(), name, repr(scope), repr(var)))
         return (var, scope)
-    dbg(whoami(), 1, "{}: Variable {} not found".format(whoami(), name))
+    dbg(whoami(), 2, "{}: Variable {} not found".format(whoami(), name))
     #traceback.print_stack(file=sys.stderr)
     return (None, None)
 
@@ -308,21 +312,21 @@ def lookup_vname(ident):
         dbg(whoami(), 1, "{}: Looking for vname {} in {}...".format(whoami(), ident, repr(scope)))
         dbg(whoami(), 3, "{} has vnames: {}".format(scope, scope.vnames()))
         if scope.has_vname_named(ident):
-            dbg(whoami(), 1, "{}: Found vname {} in {}".format(whoami(), ident, repr(scope)))
+            dbg(whoami(), 2, "{}: Found vname {} in {}".format(whoami(), ident, repr(scope)))
             return (scope.vname(ident), scope)
-    dbg(whoami(), 1, "{}: VName {} not found".format(whoami(), ident))
+    dbg(whoami(), 2, "{}: VName {} not found".format(whoami(), ident))
     return (None, None)
 
 
 def lookup_word(name):
     for (_, scope) in scope_stack.items_top_to_bottom():
-        #rpn.globl.lnwriteln("{}: Looking for word {} in {}...".format(whoami(), name, scope))
-        #rpn.globl.lnwriteln("{} has words: {}".format(scope, scope.words))
+        dbg(whoami(), 1, "{}: Looking for word {} in {}...".format(whoami(), name, scope))
+        dbg(whoami(), 3, "{} has words: {}".format(scope, scope.words))
         word = scope.word(name)
         if word is not None and not word.smudge():
-            #rpn.globl.lnwriteln("{}: Found word {} in {}: {}".format(whoami(), name, scope, word))
+            dbg(whoami(), 2, "{}: Found word {} in {}: {}".format(whoami(), name, scope, word))
             return (word, scope)
-    #rpn.globl.lnwriteln("{}: Word {} not found".format(whoami(), name))
+    dbg(whoami(), 2, "{}: Word {} not found".format(whoami(), name))
     return (None, None)
 
 

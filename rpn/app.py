@@ -59,7 +59,7 @@ Usage: rpn [-d] [-f FILE] [-i] [-l FILE] [-q] cmds...
 
 def initialize(argv):
     # Set up low level stuff, stacks, variables
-    go_interactive = True
+    rpn.globl.go_interactive = True
     sys.setrecursionlimit(2000) # default is 10002
     random.seed()
     rpn.globl.disp_stack.push(rpn.util.DisplayConfig())
@@ -72,10 +72,10 @@ def initialize(argv):
     sigwinch_handler(0, 0)     # Read & define ROWS and COLS via stty(1)
 
     # Set initial conditions
-    rpn.word.w_clreg()
-    # rpn.word.clflag()
-    rpn.word.w_clfin()
-    rpn.word.w_std()
+    rpn.word.w_clreg('clreg')
+    # rpn.word.clflag('clflag')
+    rpn.word.w_clfin('clfin')
+    rpn.word.w_std('std')
     define_secondary_words()
 
     # Switch to user mode; words & variables are no longer protected
@@ -97,11 +97,11 @@ def initialize(argv):
     if len(argv) > 0:
         global force_interactive        # pylint: disable=global-statement
         if not force_interactive:
-            go_interactive = False
+            rpn.globl.go_interactive = False
         s = " ".join(argv)
         rpn.globl.eval_string(s)
 
-    return go_interactive
+    return rpn.globl.go_interactive
 
 
 def define_variables():
@@ -186,8 +186,8 @@ def parse_args(argv):
             except FileNotFoundError:
                 rpn.globl.lnwriteln("-f: File '{}' does not exist".format(arg))
                 sys.exit(1)
-            except rpn.exception.RuntimeErr as e:
-                rpn.globl.lnwriteln(str(e))
+            except rpn.exception.RuntimeErr as err_f_opt:
+                rpn.globl.lnwriteln(str(err_f_opt))
                 sys.exit(1)
             else:
                 sys.exit(0)
@@ -199,8 +199,8 @@ def parse_args(argv):
                 load_file(arg)
             except FileNotFoundError:
                 rpn.globl.lnwriteln("-l: File '{}' does not exist".format(arg))
-            except rpn.exception.RuntimeErr as e:
-                rpn.globl.lnwriteln(str(e))
+            except rpn.exception.RuntimeErr as err_l_opt:
+                rpn.globl.lnwriteln(str(err_l_opt))
         elif opt == "-q":
             global load_init_file       # pylint: disable=global-statement
             load_init_file = False
@@ -216,7 +216,7 @@ def load_file(filename):
         with open(filename, "r") as file:
             contents = file.read()
     except PermissionError:
-        raise rpn.exception.RuntimeErr("load: Cannot read file '{}'".format(filename))
+        raise rpn.exception.RuntimeErr(rpn.exception.X_FILE_IO, "load", "Cannot open file '{}'".format(filename))
     else:
         dbg("load_file", 3, "load_file({})='{}'".format(filename, contents))
         rpn.globl.eval_string(contents)
@@ -234,11 +234,11 @@ def main_loop():
 
     if not rpn.globl.param_stack.empty():
         if rpn.globl.param_stack.size() == 1:
-            rpn.word.w_dup()
-            rpn.word.w_dot()
-            rpn.word.w_cr()
+            rpn.word.w_dup('dup')
+            rpn.word.w_dot('dot')
+            rpn.word.w_cr('cr')
         else:
-            rpn.word.w_dot_s()
+            rpn.word.w_dot_s('.s')
 
     global want_debug                   # pylint: disable=global-statement
     if want_debug:
@@ -263,19 +263,19 @@ def end_program():
 
     if not rpn.globl.string_stack.empty():
         if rpn.globl.string_stack.size() == 1:
-            rpn.word.w_dollar_dot()
-            rpn.word.w_cr()
+            rpn.word.w_dollar_dot('$.')
+            rpn.word.w_cr('cr')
         else:
             rpn.globl.lnwriteln("Strings:")
-            rpn.word.w_dollar_dot_s()
+            rpn.word.w_dollar_dot_s('$.s')
 
     if not rpn.globl.param_stack.empty():
         if rpn.globl.param_stack.size() == 1:
-            rpn.word.w_dot()
-            rpn.word.w_cr()
+            rpn.word.w_dot('.')
+            rpn.word.w_cr('cr')
         else:
             rpn.globl.lnwriteln("Stack:")
-            rpn.word.w_dot_s()
+            rpn.word.w_dot_s('.s')
 
     sys.exit(0)
 
@@ -302,7 +302,7 @@ flag is True if initial parse error, False if no error'''
             (word, _) = rpn.globl.lookup_word(tok.value)
             if word is not None and word.immediate():
                 dbg("token", 3, "Word {} is immediate, calling...".format(word))
-                word.__call__()
+                word.__call__(word.name)
                 continue
             tok_list.append(tok)
 
@@ -500,7 +500,7 @@ def sigquit_handler(_signum, _frame):
 #     print("new_obj={}".format(repr(new_obj)))
 #     # Check against None first due to undef case
 #     if new_obj is not None and new_obj.value < 0:
-#         raise rpn.exception.RuntimeErr("{} cannot be negative".format(ident))
+#         raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_ARG, "!{}".format(identifier), "Must be positive")
 #
 # def example_post_hook_func(ident, old_obj, cur_obj):
 #     print("example_post_hook_func:")
@@ -510,26 +510,26 @@ def sigquit_handler(_signum, _frame):
 
 def pre_require_int(identifier, _cur, new):
     if type(new) is not rpn.type.Integer:
-        raise rpn.exception.RuntimeErr("!{}: Type error ({})".format(identifier, typename(new)))
+        raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, "!{}".format(identifier), "({})".format(typename(new)))
 
 def pre_require_int_or_float(identifier, _cur, new):
     if type(new) not in [rpn.type.Integer, rpn.type.Float]:
-        raise rpn.exception.RuntimeErr("!{}: Type error ({})".format(identifier, typename(new)))
+        raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, "!{}".format(identifier), "({})".format(typename(new)))
 
 def pre_require_positive(identifier, _cur, new):
     if new.value <= 0:
-        raise rpn.exception.RuntimeErr("!{}: Must be positive".format(identifier))
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_ARG, "!{}".format(identifier), "Must be positive")
 
 def pre_require_non_negative(identifier, _cur, new):
     if new.value < 0:
-        raise rpn.exception.RuntimeErr("!{}: Must be non-negative".format(identifier))
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_ARG, "!{}".format(identifier), "Must be non-negative")
 
 def pre_validate_size_arg(identifier, _cur, new):
     if type(new) is not rpn.type.Integer:
-        raise rpn.exception.RuntimeErr("!{}: Type error ({})".format(identifier, typename(new)))
+        raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, "!{}".format(identifier), "({})".format(typename(new)))
     new_size = new.value
     if new_size < rpn.globl.REG_SIZE_MIN or new_size > rpn.globl.REG_SIZE_MAX:
-        raise rpn.exception.RuntimeErr("!{}: Size {} out of range ({}..{} expected)".format(identifier, new_size, rpn.globl.REG_SIZE_MIN, rpn.globl.REG_SIZE_MAX))
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_ARG, "!{}".format(identifier), "Size {} out of range ({}..{} expected)".format(new_size, rpn.globl.REG_SIZE_MIN, rpn.globl.REG_SIZE_MAX))
 
 def post_clear_newly_unveiled_registers(_identifier, old, cur):
     old_size = old.value
@@ -552,13 +552,11 @@ def define_secondary_words():
 
 : TRUE          doc:"TRUE  ( -- 1 )
 Constant: Logical true"
-  1
-  19 cf ;
+  1     19 cf ;
 
 : FALSE         doc:"FALSE  ( -- 0 )
 Constant: Logical false"
-  0
-  19 cf ;
+  0     19 cf ;
 
 : i             doc:"i  ( -- i )  Imaginary unit (0,1)
 
@@ -567,8 +565,7 @@ i = sqrt(-1)
 
 Do not confuse this with the I command,
 which returns the index of a DO loop."
-  (0,1)
-  19 cf ;
+  (0,1) 19 cf ;
 
 : PHI           doc:"PHI  ( -- 1.618... )   Golden ratio
 
@@ -577,20 +574,14 @@ PHI = (1 + sqrt(5)) / 2"
   5 sqrt 1 + 2 / ;
 
 : BL            doc:"BL  ( -- 32 )   ASCII code for a space character"
-  32
-  19 cf ;
+  32    19 cf ;
 
 : ?cr           doc:"?cr  Print a newline only if necessary to return to left margin"
-  @#OUT 0 > if
-    cr
-  then ;
+  @#OUT 0 > if  cr  then ;
 
 : prompt        doc:"prompt  ( -- n ) [ text -- ]  Prompt for numeric input"
-  $depth 0 = if
-    ."prompt: Insufficient string parameters (1 required)" cr
-  else
-    $. #in
-  then ;
+  $depth 1 < if "(1 required)" -260 $throw
+  else $. #in  then ;
 
 : space         doc:"space   Display one space character"
   BL emit ;
@@ -599,36 +590,26 @@ PHI = (1 + sqrt(5)) / 2"
   | in:n |
   @n 0 do space loop ;
 
-
 \ Stack manipulation
 : -rot          doc:"-rot  ( z y x -- x z y )  Rotate back
 Rotate top stack element back to third spot, pulling others down.
 Equivalent to ROT ROT"
-  depth 3 < if
-    ."-rot: Insufficient parameters (3 required)" cr
-  else
-    rot rot
-  then
+  depth 3 < if "(3 required)" -260 $throw
+  else  rot rot  then
   19 cf ;
 
 : nip           doc:"nip  ( y x -- x )
 Drop second stack element
 Equivalent to SWAP DROP.  J.V. Noble calls this PLUCK."
-  depth 2 < if
-    ."nip: Insufficient parameters (2 required)" cr
-  else
-    swap drop
-  then
+  depth 2 < if  "(2 required)" -260 $throw
+  else  swap drop then
   19 cf ;
 
 : tuck          doc:"tuck  ( y x -- x y x )
 Duplicate top stack element into third position
 Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
-  depth 2 < if
-    ."tuck: Insufficient parameters (2 required)" cr
-  else
-    swap over
-  then
+  depth 2 < if "(2 required)" -260 $throw
+  else  swap over then
   19 cf ;
 
 : sum           doc:"sum  ( ... -- sum )  Sum all numbers on the stack"
@@ -641,12 +622,9 @@ Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
   then
 ;
 
-
 : debug         doc:"debug  ( -- )  Toggle debugging state"
-  20 dup tf  fs? if
-    ."Debugging is now ENABLED"
-  else
-    ."Debugging is now disabled"
+  20 dup tf  fs? if ."Debugging is now ENABLED"
+  else              ."Debugging is now disabled"
   cr then ;
 
 : deg?          doc:"deg?  ( -- flag )  Test if angular mode is degrees"
@@ -660,8 +638,8 @@ Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
 
 : mod           doc:"mod  ( y x -- remainder )  Remainder"
   | in:y in:x |
+  @x 0 = if  "X cannot be zero" -42 $throw then
   @y @x /mod  drop ;
-
 
 \ Conversion functions
 : mm->in doc:"mm->in  ( mm -- inch )  Convert millimeters to inches"
@@ -711,7 +689,6 @@ Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
 
 \ : in3->cm3  doc:"in3->cm3  ( in^3 -- cm^3 )  Convert cubic inches to cubic centimeters"
 \   16.3871     * ;
-
 
 \ String functions
 : $date         doc:"$date  [ -- date ]  Current date as string"

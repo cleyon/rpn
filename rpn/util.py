@@ -140,6 +140,7 @@ class DisplayConfig:
 #############################################################################
 class List:
     def __init__(self, item=None, oldlist=None):
+        self.name = "List"
         if item is None and oldlist is None:
             self._list = []
         elif item is not None and oldlist is None:
@@ -163,11 +164,18 @@ class List:
     def append(self, item):
         self._list.append(item)
 
-    def __call__(self):
+    def __call__(self, name):
         dbg("trace", 2, "trace({})".format(repr(self)))
         for item in self.listval():
-            # rpn.globl.lnwriteln("{}: {}.__call__()".format(whoami(), item))
-            item.__call__()
+            dbg(whoami(), 3, "{}: {}/{}.__call__()".format(whoami(), type(item), item))
+            try:
+                if type(item) is Word and item.typ == "colon":
+                    dbg(whoami(), 2, ">>>>  {}  <<<<".format(item.name))
+                    rpn.globl.colon_stack.push(item)
+                item.__call__(item.name)
+            finally:
+                if type(item) is Word and item.typ == "colon":
+                    rpn.globl.colon_stack.pop()
 
     def items(self):
         for item in self.listval():
@@ -224,13 +232,10 @@ class Queue:
 #############################################################################
 class Scope:
     def __init__(self, name):
-        self._name = name
+        self.name = name
         self._words = {}
         self._variables = {}
         self._vnames = []
-
-    def name(self):
-        return self._name
 
     def __str__(self):
         s = ""
@@ -239,11 +244,11 @@ class Scope:
             if len(self.words()) > 0:
                 s += " "
         if len(self.words()) > 0:
-            s += " ".join([w.name() for w in self.words().values()])
+            s += " ".join([w.name for w in self.words().values()])
         return s
 
     def __repr__(self):
-        return "Scope['{}'={}]".format(self.name(), hex(id(self)))
+        return "Scope['{}'={}]".format(self.name, hex(id(self)))
 
     ################################################################
     #
@@ -320,11 +325,12 @@ class Scope:
 #############################################################################
 class Sequence:
     def __init__(self, scope_template, exe_list):
+        self.name = "Sequence"
         self._scope_template = scope_template
         self._exe_list       = exe_list
         dbg(whoami(), 1, "{}: scope_template={}, exe_list={}".format(whoami(), repr(scope_template), repr(exe_list)))
 
-    def __call__(self):
+    def __call__(self, name):
         dbg("trace", 2, "trace({})".format(repr(self)))
 
         # Build a runtime scope populated with actual Variables.
@@ -336,9 +342,9 @@ class Sequence:
 
         in_vnames = list(filter(lambda v: v.in_p, self.scope_template().vnames()))
         if rpn.globl.param_stack.size() < len(in_vnames):
-            raise rpn.exception.RuntimeErr("{}: Insufficient parameters ({} required)".format(self.scope_template().name(), len(in_vnames)))
+            raise rpn.exception.RuntimeErr(rpn.exception.X_INSUFF_PARAMS, self.scope_template().name, "({} required)".format(len(in_vnames)))
 
-        scope_name = self.scope_template().name()
+        scope_name = self.scope_template().name
         if scope_name[:6] == "Parse_":
             scope_name = scope_name[6:]
         scope = rpn.util.Scope(scope_name)
@@ -362,20 +368,20 @@ class Sequence:
         try:
             rpn.globl.push_scope(scope, "Calling {}".format(repr(self)))
             pushed_scope = True
-            self.seq().__call__()
+            self.seq().__call__("seq")
         finally:
             param_stack_pushes = 0
             out_vnames = list(filter(lambda v: v.out_p, self.scope_template().vnames()))
             for vname in out_vnames:
                 var = scope.variable(vname.ident)
                 if var is None:
-                    raise rpn.exception.RuntimeErr("{}: {}: Variable '{}' has vanished!".format(whoami(), self.scope_template().name(), vname.ident))
+                    raise rpn.exception.FatalErr("{}: {}: Variable '{}' has vanished!".format(whoami(), self.scope_template().name, vname.ident))
                 if not var.defined():
                     # Undo any previous param_stack pushes if we come across an out variable that's not defined
                     for _ in range(param_stack_pushes):
                         rpn.globl.param_stack.pop()
-                    raise rpn.exception.RuntimeErr("{}: Variable '{}' was never set".format(self.scope_template().name(), vname.ident))
-                dbg(whoami(), 1, "{} is {}".format(vname.ident, repr(var.obj)))
+                    raise rpn.exception.RuntimeErr(rpn.exception.X_UNDEFINED_VARIABLE, self.scope_template().name, "Variable '{}' was never set".format(vname.ident))
+                dbg(whoami(), 3, "{} is {}".format(vname.ident, repr(var.obj)))
                 rpn.globl.param_stack.push(var.obj)
                 param_stack_pushes += 1
             if pushed_scope:
@@ -568,14 +574,14 @@ class TokenMgr:
 #
 #############################################################################
 class Variable:
-    def __init__(self, rawname, obj=None, **kwargs):
-        if not Variable.name_valid_p(rawname):
-            raise rpn.exception.FatalErr("Invalid variable name '{}'".format(rawname))
+    def __init__(self, name, obj=None, **kwargs):
+        if not Variable.name_valid_p(name):
+            raise rpn.exception.FatalErr("Invalid variable name '{}'".format(name))
 
+        self.name        = name
         self._constant   = False
         self._doc        = None
         self._hidden     = False
-        self._rawname    = rawname
         self._noshadow   = False
         self._protected  = rpn.globl.default_protected
         self._readonly   = False
@@ -653,7 +659,7 @@ class Variable:
         if len(kwargs) > 0:
             for (key, val) in kwargs.items():
                 print("Unrecognized keyword '{}'={}".format(key, val)) # OK
-                raise rpn.exception.FatalErr("Could not construct variable '{}'".format(rawname))
+                raise rpn.exception.FatalErr("Could not construct variable '{}'".format(name))
 
     @classmethod
     def name_valid_p(cls, name):
@@ -667,9 +673,6 @@ class Variable:
     @obj.setter
     def obj(self, new_obj):
         self._rpnobj = new_obj
-
-    def name(self):
-        return self._rawname
 
     def defined(self):
         return self.obj is not None
@@ -702,10 +705,10 @@ class Variable:
         return self._post_hooks
 
     def __str__(self):
-        return str(self._rawname)
+        return str(self.name)
 
     def __repr__(self):
-        return "Variable[{},addr={},value={}]".format(self._rawname, hex(id(self)), repr(self.obj))
+        return "Variable[{},addr={},value={}]".format(self.name, hex(id(self)), repr(self.obj))
 
 
 #############################################################################
@@ -742,16 +745,17 @@ class VName:
 #
 #############################################################################
 class Word:
-    def __init__(self, name, defn, **kwargs):
+    def __init__(self, name, typ, defn, **kwargs):
+        self.name       = name
         self._args      = 0
         self._defn      = defn  # rpn.util.Sequence
         self._doc       = None
         self._hidden    = False
         self._immediate = False
-        self._name      = name
         self._protected = rpn.globl.default_protected
         self._smudge    = False # True=Hidden, False=Findable
         self._str_args  = 0
+        self.typ        = typ   # "python" or "colon"
 
         my_print_x = None
 
@@ -819,6 +823,12 @@ class Word:
             self._str_args = kwargs["str_args"]
             del kwargs["str_args"]
 
+        # `type' is the number of string arguments that must be
+        # present on the string stack.
+        if "type" in kwargs:
+            self._str_args = kwargs["type"]
+            del kwargs["type"]
+
         if len(kwargs) > 0:
             for (key, val) in kwargs.items():
                 print("Unrecognized keyword '{}'={}".format(key, val)) # OK
@@ -830,21 +840,14 @@ class Word:
         #print("{}: arg={}".format(whoami(), repr(arg)))
         self._defn.__call__(arg)
 
-    def __call__(self):
+    def __call__(self, name):
         dbg("trace", 1, "trace({})".format(repr(self)))
         if rpn.globl.param_stack.size() < self.args():
-            raise rpn.exception.RuntimeErr("{}: Insufficient parameters ({} required)".format(self.name(), self.args()))
+            raise rpn.exception.RuntimeErr(rpn.exception.X_INSUFF_PARAMS, self.name, "({} required)".format(self.args()))
         if rpn.globl.string_stack.size() < self.str_args():
-            raise rpn.exception.RuntimeErr("{}: Insufficient string parameters ({} required)".format(self.name(), self.str_args()))
+            raise rpn.exception.RuntimeErr(rpn.exception.X_INSUFF_STR_PARAMS, self.name, "({} required)".format(self.str_args()))
 
-        try:
-            self._defn.__call__()
-        except rpn.exception.Exit:
-            if self.name() == "exit":
-                raise
-
-    def name(self):
-        return self._name
+        self._defn.__call__(self.name)
 
     def args(self):
         return self._args
@@ -885,25 +888,25 @@ class Word:
 
     def as_definition(self):
         if typename(self._defn) == 'function':
-            return self.name()
+            return self.name
         if type(self._defn) is rpn.util.Sequence:
-            return ": {} {}{} ;".format(self.name(),
+            return ": {} {}{} ;".format(self.name,
                                         'doc:"{}"\n'.format(self.doc()) if self.doc() is not None and len(self.doc()) > 0 else "",
                                         str(self._defn))
         raise rpn.exception.FatalErr("{}: Unhandled type {}".format(whoami(), type(self._defn)))
 
     def __str__(self):
-        return self.name()
+        return self.name
 
     def patch_recurse(self, new_word):
         pass
 
     def __repr__(self):
-        return "Word[{}]".format(self.name())
+        return "Word[{}]".format(self.name)
         # if typename(self._defn) == 'function':
-        #     return "Word[{}]".format(self.name())
+        #     return "Word[{}]".format(self.name)
         # else:
-        #     return "Word[{}, {}]".format(self.name(), repr(self._defn))
+        #     return "Word[{}, {}]".format(self.name, repr(self._defn))
 
 
 
@@ -918,6 +921,9 @@ def frexp10(x):
 
 
 def prompt_string():
+    if not rpn.globl.go_interactive:
+        return ""
+
     s = "[{}{}".format(rpn.globl.angle_mode_letter(), rpn.globl.param_stack.size())
     if not rpn.globl.string_stack.empty():
         s += ",{}".format(rpn.globl.string_stack.size())

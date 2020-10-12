@@ -332,7 +332,7 @@ def p_colon_define_word(p):
 
     # p_sequence() has already popped the scope for this word, so
     # creating it now in rpn.globl.scope_stack.top() will be correct.
-    new_word = rpn.util.Word(identifier, sequence, **kwargs)
+    new_word = rpn.util.Word(identifier, "colon", sequence, **kwargs)
     dbg("p_colon_define_word", 1, "{}: Defining word {}={} in scope {}".format(whoami(), identifier, repr(new_word), repr(rpn.globl.scope_stack.top())))
     sequence.patch_recurse(new_word)
     rpn.globl.scope_stack.top().define_word(identifier, new_word)
@@ -448,7 +448,7 @@ def p_execute(p):
 def p_fetch_var(p):
     '''fetch_var : AT_SIGN IDENTIFIER'''
     ident = p[2]
-    if ident[0] in ['+', '-', '*', '/', '?', '$']:
+    if ident[0] in ['+', '-', '*', '/', '?', '$', '.']:
         modifier = ident[0]
         ident = ident[1:]
     else:
@@ -691,8 +691,8 @@ def p_undef(p):
     for pre_hook_func in var.pre_hooks():
         try:
             pre_hook_func(ident, cur_obj, new_obj)
-        except rpn.exception.RuntimeErr as e:
-            rpn.globl.lnwriteln(str(e))
+        except rpn.exception.RuntimeErr as err_pre_hook_undef:
+            rpn.globl.lnwriteln(str(err_pre_hook_undef))
             return
     old_obj = cur_obj
     rpn.globl.scope_stack.top().delete_variable(ident)
