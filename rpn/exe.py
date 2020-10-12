@@ -547,8 +547,9 @@ the right thing with empty stack (uses zero)."""
                 rpn.globl.param_stack.push(rpn.type.Integer(0))
             rpn.globl.param_stack.push(var.obj)
 
-            # Save and restore show X flag
-            rpn.flag.copy_flag(rpn.flag.F_SHOW_X, 54)
+            # Don't show intermediate results from recall arithmetic (if any),
+            # but do show final value recalled to stack.
+            rpn.flag.clear_flag(rpn.flag.F_SHOW_X)
             if self._modifier == '.':
                 rpn.word.w_dot('.')
             elif self._modifier == '+':
@@ -559,8 +560,7 @@ the right thing with empty stack (uses zero)."""
                 rpn.word.w_star('*')
             elif self._modifier == '/':
                 rpn.word.w_slash('/')
-            rpn.flag.copy_flag(54, rpn.flag.F_SHOW_X)
-            rpn.flag.clear_flag(54)
+            rpn.flag.set_flag(rpn.flag.F_SHOW_X)
 
     def __str__(self):
         return "@{}{}".format(self._modifier if self._modifier is not None else "",
