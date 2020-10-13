@@ -78,11 +78,14 @@ tokens = [
     'DOT_QUOTE',
     'EXCLAM',
     'FLOAT',
+    'FLOAT_UNIT',
     'IDENTIFIER',
     'INTEGER',
+    'INTEGER_UNIT',
     'OPEN_BRACKET',
     'OPEN_PAREN',
     'RATIONAL',
+#    'RATIONAL_UNIT',
     'SEMICOLON',
     'STRING',
     'VBAR',
@@ -100,6 +103,11 @@ def t_STRING(t):
     t.type = 'STRING'
     return t
 
+# def t_RATIONAL_UNIT(t):
+#     r'(\d+::\d+)_([A-Za-z0-9()^*/]+)'
+#     t.type = 'RATIONAL_UNIT'
+#     return t
+
 def t_RATIONAL(t):
     r'\d+::\d+'
     t.type = 'RATIONAL'
@@ -109,6 +117,11 @@ def t_RATIONAL(t):
 #     r'\([-+]?(\d+(\.\d*[eE][-+]?\d+|[eE][-+]?\d+|\.\d*))|(\d*(\.\d+[eE][-+]?\d+|[eE][-+]?\d+|\.\d+)),[-+]?(\d+(\.\d*[eE][-+]?\d+|[eE][-+]?\d+|\.\d*))|(\d*(\.\d+[eE][-+]?\d+|[eE][-+]?\d+|\.\d+))\)'
 #     t.type = 'CMPLX'
 #     return t
+
+def t_FLOAT_UNIT(t):
+    r'([-+]?(\d+(\.\d*[eE][-+]?\d+|[eE][-+]?\d+|\.\d*))|(\d*(\.\d+[eE][-+]?\d+|[eE][-+]?\d+|\.\d+)))_([A-Za-z0-9()^*/]+)'
+    t.type = 'FLOAT_UNIT'
+    return t
 
 def t_FLOAT(t):
     r'[-+]?(\d+(\.\d*[eE][-+]?\d+|[eE][-+]?\d+|\.\d*))|(\d*(\.\d+[eE][-+]?\d+|[eE][-+]?\d+|\.\d+))'
@@ -131,6 +144,11 @@ def t_ASCII(t):
 # Beware bad input - e.g., "0b177" is parsed as two token, "0b1" and "77".
 # Note a little Python magic: int(xxx, 0) will guess base and parse "0x", etc.
 # On the whole, the benefits outweigh the drawbacks.
+def t_INTEGER_UNIT(t):
+    r'([-+]?((((0x)|(0X))[0-9a-fA-F]+)|(((0o)|(0O))[0-7]+)|(((0b)|(0B))[0-1]+)|(\d+)))_([A-Za-z0-9()^*/]+)'
+    t.type = 'INTEGER_UNIT'
+    return t
+
 def t_INTEGER(t):
     r'[-+]?((((0x)|(0X))[0-9a-fA-F]+)|(((0o)|(0O))[0-7]+)|(((0b)|(0B))[0-1]+)|(\d+))'
     t.value = str(int(t.value, 0))
@@ -416,6 +434,7 @@ def p_executable(p):
                   | if_else_then
                   | matrix
                   | number
+                  | number_unit
                   | recurse
                   | show
                   | store_var
@@ -619,6 +638,11 @@ def p_number_list(p):
         p[0] = rpn.util.List()
     elif len(p) == 3:
         p[0] = rpn.util.List(p[1], p[2])
+
+def p_number_unit(p):
+    '''number_unit : INTEGER_UNIT
+                   | FLOAT_UNIT'''
+    p[0] = rpn.type.Unit.from_string(p[1])
 
 def p_otherwise_list(p):
     '''otherwise_list : empty

@@ -69,11 +69,13 @@ sharpout = None
 rpn_parser = None
 
 DATE_RE                 = re.compile(r'^(\d{1,2})\.(\d{2})(\d{4})$') # MM.DDYYYY
+INTEGER_RE              = re.compile(r'^\d+$')
 JULIAN_OFFSET           = 1721424 # date.toordinal() returns 1 for 0001-01-01, so compensate
 PRECISION_MAX           =  16
 MATRIX_MAX              = 999
-RATIONAL_RE             = re.compile(r'(\d+)::(\d+)') # ddd::ddd
+RATIONAL_RE             = re.compile(r'^(\d+)::(\d+)$')              # ddd::ddd
 TIME_RE                 = re.compile(r'^[-+]?(\d+)\.(\d{,2})(\d*)$') # HH.MMSSsss
+UNIT_RE                 = re.compile(r'^([^_]+)_(.+)$')              # Not rigorous because we assume lexer got it right
 
 # DEG_PER_RAD  = 360 / TAU
 # E            = Base of natural logarithms = exp(1.0)

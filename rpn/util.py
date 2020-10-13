@@ -825,12 +825,6 @@ class Word:
             self._str_args = kwargs["str_args"]
             del kwargs["str_args"]
 
-        # `type' is the number of string arguments that must be
-        # present on the string stack.
-        if "type" in kwargs:
-            self._str_args = kwargs["type"]
-            del kwargs["type"]
-
         if len(kwargs) > 0:
             for (key, val) in kwargs.items():
                 print("Unrecognized keyword '{}'={}".format(key, val)) # OK
