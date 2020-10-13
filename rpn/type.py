@@ -86,6 +86,11 @@ class Stackable(rpn.exe.Executable):
         rpn.globl.param_stack.push(self)
 
 
+#############################################################################
+#
+#       C O M P L E X
+#
+#############################################################################
 class Complex(Stackable):
     def __init__(self, real=0.0, imag=0.0):
         super().__init__()
@@ -95,6 +100,9 @@ class Complex(Stackable):
     @classmethod
     def from_complex(cls, cplx):
         return cls(cplx.real, cplx.imag)
+
+    def typ(self):
+        return 3
 
     @property
     def value(self):
@@ -124,11 +132,19 @@ class Complex(Stackable):
         return "Complex[{}]".format(repr(self.value))
 
 
+#############################################################################
+#
+#       F L O A T
+#
+#############################################################################
 class Float(Stackable):
     def __init__(self, val=0.0):
         super().__init__()
         self.name = "Float"
         self.value = float(val)
+
+    def typ(self):
+        return 2
 
     @property
     def value(self):
@@ -196,11 +212,19 @@ Failure:  (False, None, None, None, None)"""
         return "Float[{}]".format(repr(self.value))
 
 
+#############################################################################
+#
+#       I N T E G E R
+#
+#############################################################################
 class Integer(Stackable):
     def __init__(self, val=0):
         super().__init__()
         self.name = "Integer"
         self.value = int(val)
+
+    def typ(self):
+        return 0
 
     @property
     def value(self):
@@ -224,6 +248,11 @@ class Integer(Stackable):
         return "Integer[{}]".format(repr(self.value))
 
 
+#############################################################################
+#
+#       M A T R I X
+#
+#############################################################################
 class Matrix(Stackable):
     def __init__(self, vals):
         if not rpn.globl.have_module('numpy'):
@@ -255,6 +284,9 @@ class Matrix(Stackable):
         obj.value = x
         return obj
 
+    def typ(self):
+        return 5
+
     @property
     def value(self):
         return self._value
@@ -278,6 +310,11 @@ class Matrix(Stackable):
         return "Matrix[{}]".format(repr(self.value))
 
 
+#############################################################################
+#
+#       R A T I O N A L
+#
+#############################################################################
 class Rational(Stackable):
     def __init__(self, num=0, denom=1):
         super().__init__()
@@ -294,6 +331,9 @@ class Rational(Stackable):
         if match is None:
             raise rpn.exception.FatalErr("Rational pattern failed to match '{}'".format(s))
         return cls(match.group(1), match.group(2))
+
+    def typ(self):
+        return 1
 
     @property
     def value(self):
@@ -326,6 +366,11 @@ class Rational(Stackable):
         return "Rational[{}]".format(repr(self.value))
 
 
+#############################################################################
+#
+#       S T R I N G
+#
+#############################################################################
 class String(rpn.exe.Executable):
     def __init__(self, val):
         self.name = "String"
@@ -334,6 +379,9 @@ class String(rpn.exe.Executable):
     @classmethod
     def from_string(cls, s):
         return cls("{}".format(s))
+
+    def typ(self):
+        return 6
 
     @property
     def value(self):
@@ -356,6 +404,62 @@ class String(rpn.exe.Executable):
         return 'String["{}"]'.format(self.value)
 
 
+#############################################################################
+#
+#       U N I T
+#
+#############################################################################
+class Unit(Stackable):
+    def __init__(self, val, unit):
+        super().__init__()
+        self.name = "Unit"
+        match = rpn.globl.INTEGER_RE.match(val)
+        self.value = int(val) if match is not None else float(val)
+        self.unit = unit
+
+    @classmethod
+    def from_string(cls, s):
+        match = rpn.globl.UNIT_RE.match(s)
+        if match is None:
+            raise rpn.exception.FatalErr("Unit pattern failed to match '{}'".format(s))
+        return cls(match.group(1), match.group(2))
+
+    def typ(self):
+        if type(self.value) is int:
+            t = 0
+        elif type(self.value) is Fraction:
+            t = 1
+        elif type(self.value) is float:
+            t = 2
+        return (1<<4) + t
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, new_value):
+        if type(new_value) not in (int, float):
+            raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'Unit#value()', "({})".format(typename(new_value)))
+        self._value = new_value
+
+    def zerop(self):
+        return self.value() == 0
+
+    def __str__(self):
+        s = "{}_{}".format(self.value, self.unit)
+        l = r"  \ {}".format(self.label) if self.label is not None else ""
+        return s + l
+
+    def __repr__(self):
+        return "Unit[{},'{}']".format(repr(self.value), self.unit)
+
+
+#############################################################################
+#
+#       V E C T O R
+#
+#############################################################################
 class Vector(Stackable):
     def __init__(self, vals):
         if not rpn.globl.have_module('numpy'):
@@ -373,6 +477,9 @@ class Vector(Stackable):
         # print("from_numpy: {}".format(repr(obj)))
         obj.value = x
         return obj
+
+    def typ(self):
+        return 4
 
     @property
     def value(self):

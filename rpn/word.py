@@ -4587,6 +4587,30 @@ def w_trn(name):
     rpn.globl.param_stack.push(t)
 
 
+@defword(name='type', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
+Return a code for the type of the value in X  ( x -- x code )
+Unlike most other words, type preserves the top of stack,
+assuming that you'll still want to work on the value later.
+
+  0000 - Integer X
+  0001 - Rational X
+  0010 - Float X
+  0011 - Complex X
+  0100 - Vector X
+  0101 - Matrix X
+  0110 - String X
+  0111 - List (not implemented)
+  1___ - [Reserved]
+ 1____ - Has Unit (16 +)
+1_____ - Has Label (32 +)""")
+def w_type(name):
+    x = rpn.globl.param_stack.top()
+    t = x.typ()
+    if x.label is not None:
+        t += (1<<5)
+    rpn.globl.param_stack.push(rpn.type.Integer(t))
+
+
 @defword(name='undef', print_x=rpn.globl.PX_CONFIG, doc="""\
 Undefine a variable, removing it from the current scope.
 UNDEF <var>""")
