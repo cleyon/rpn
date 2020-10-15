@@ -4161,15 +4161,6 @@ def w_show(name):                       # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
-@defword(name='shstat', print_x=rpn.globl.PX_IO, doc="""\
-Print the statistics list""")
-def w_shstat(name):                     # pylint: disable=unused-argument
-    if len(rpn.globl.stat_data) == 0:
-        rpn.globl.writeln("No statistics data")
-    else:
-        rpn.globl.writeln(rpn.globl.stat_data)
-
-
 @defword(name='shreg', print_x=rpn.globl.PX_IO, doc="""\
 Show status of all registers ( -- )""")
 def w_shreg(name):                      # pylint: disable=unused-argument
@@ -4180,6 +4171,21 @@ def w_shreg(name):                      # pylint: disable=unused-argument
         regs.append("R%02d=%s" % (r, rpn.globl.fmt(rpn.globl.register[r])))
 
     rpn.globl.list_in_columns(regs, rpn.globl.scr_cols.obj.value - 1)
+
+
+@defword(name='shstat', print_x=rpn.globl.PX_IO, doc="""\
+Print the statistics list""")
+def w_shstat(name):                     # pylint: disable=unused-argument
+    if len(rpn.globl.stat_data) == 0:
+        rpn.globl.writeln("No statistics data")
+    else:
+        rpn.globl.writeln(rpn.globl.stat_data)
+
+
+@defword(name='shunit', print_x=rpn.globl.PX_IO, doc="""\
+List units""")
+def w_shunit(name):                     # pylint: disable-unused-argument
+    pass
 
 
 @defword(name='sign', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -4619,40 +4625,16 @@ def w_undef(name):                      # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
-@defword(name='unit.chk', args=1, print_x=False, doc="""\
-Check unit object""")
-def w_unit_chk(name):
+@defword(name='unit.base', args=1, print_x=rpn.globl.PX_IO, doc="""\
+Show object's base unit and value in base unit""")
+def w_unit_base(name):
     x = rpn.globl.param_stack.pop()
-    if type(x) is not rpn.type.Unit:
-            rpn.globl.param_stack.push(x)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
-    print("x.orig_unit_str = '{}'".format(x.orig_unit_str))
-
-    # Check if the unit is an exact match
-    unit_match_list = list(filter(lambda u: u[0] == x.orig_unit_str, rpn.units.units.values()))
-    if len(unit_match_list) > 1:
-        raise rpn.exception.FatalErr("Found {} unit matches: {}".format(len(unit_match_list), unit_match_list))
-
-    if len(unit_match_list) == 1:
-        exact_unit = unit_match_list[0]
-        print("Exact match: {}".format(exact_unit))
-        # convert to SI base unit
-        return
-
-    if len(x.orig_unit_str) >= 2:
-        first_char = x.orig_unit_str[0]
-        unit_remain = x.orig_unit_str[1:]
-        if first_char not in rpn.units.prefixes:
-            raise rpn.exception.FatalErr("Could not understand unit '{}'".format(x.orig_unit_str))
-
-        unit_match_list = list(filter(lambda u: u[0] == unit_remain, rpn.units.units.values()))
-        if len(unit_match_list) == 1:
-            exact_unit = unit_match_list[0]
-            print("Exact match: {}".format(exact_unit))
-            # convert to SI base unit
-            return
-
-    raise rpn.exception.FatalErr("Could not understand unit '{}'".format(x.orig_unit_str))
+    if type(x) is not rpn.type.Valunit:
+        rpn.globl.param_stack.push(x)
+        raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+    vu = x.convert_to_base_units()
+    rpn.globl.lnwriteln(repr(x))
+    rpn.globl.lnwriteln(repr(vu))
 
 
 @defword(name='until', print_x=rpn.globl.PX_CONTROL, doc="""\

@@ -34,6 +34,7 @@ except ImportError:
 from   rpn.debug import dbg, whoami
 import rpn.flag
 import rpn.parser
+import rpn.units
 import rpn.util
 
 
@@ -75,7 +76,7 @@ PRECISION_MAX           =  16
 MATRIX_MAX              = 999
 RATIONAL_RE             = re.compile(r'^(\d+)::(\d+)$')              # ddd::ddd
 TIME_RE                 = re.compile(r'^[-+]?(\d+)\.(\d{,2})(\d*)$') # HH.MMSSsss
-UNIT_RE                 = re.compile(r'^([^_]+)_(.+)$')              # Not rigorous because we assume lexer got it right
+VALUNIT_RE              = re.compile(r'^([^_]+)_(.+)$')              # Not rigorous because we assume lexer got it right
 
 # DEG_PER_RAD  = 360 / TAU
 # E            = Base of natural logarithms = exp(1.0)
@@ -174,6 +175,14 @@ def eval_string(s):
         param_stack.clear()
         string_stack.clear()
         return_stack.clear()
+    except rpn.exception.RuntimeErr as err_eval_string:
+        dbg(whoami(), 1, "{}: Caught RuntimeErr, code={}".format(whoami(), err_eval_string.code))
+        if err_eval_string.code >= 0:
+            raise
+        if err_eval_string.code == rpn.exception.X_EXIT:
+            return
+        lnwriteln(str(err_eval_string))
+
     else:
         if result is not None:
             dbg("eval_string", 1, "result={}".format(result))
@@ -288,6 +297,36 @@ def separate_decorations(ident):
         decoration = "inout"
         ident = ident[6:]
     return (decoration, ident)
+
+
+def lookup_unit(name):
+    # Check if the unit is an exact match
+    #print(rpn.units.units)
+    unit_match_list = list(filter(lambda unit: unit.abbrev == name, rpn.units.units.values()))
+    if len(unit_match_list) > 1:
+        raise rpn.exception.FatalErr("Found {} unit matches: {}".format(len(unit_match_list), unit_match_list))
+    if len(unit_match_list) == 1:
+        exact_unit = unit_match_list[0]
+        dbg(whoami(), 1, "Exact match: {}".format(repr(exact_unit)))
+        # convert to SI base unit
+        return exact_unit
+
+    # Check for a one-letter prefix, then unit
+    if len(name) >= 2:
+        first_char = name[0]
+        unit_remain = name[1:]
+        if first_char not in rpn.units.prefixes:
+            raise rpn.exception.FatalErr("Could not understand unit prefix '{}'".format(name))
+
+        unit_match_list = list(filter(lambda unit: unit.abbrev == unit_remain, rpn.units.units.values()))
+        if len(unit_match_list) == 1:
+            exact_unit = unit_match_list[0]
+            dbg(whoami(), 1, "Exact match: {}".format(exact_unit))
+            # convert to SI base unit
+            return exact_unit
+
+    dbg(whoami(), 1, "Could not understand unit '{}'".format(name))
+    return None
 
 
 def lookup_variable(name, how_many=1):

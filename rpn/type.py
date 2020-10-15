@@ -406,55 +406,68 @@ class String(rpn.exe.Executable):
 
 #############################################################################
 #
-#       U N I T
+#       V A L U N I T
 #
 #############################################################################
-class Unit(Stackable):
-    def __init__(self, val, unit):
+class Valunit(Stackable):
+    def __init__(self, val, unit_str):
         super().__init__()
-        self.name = "Unit"
+        self.name = "Valunit"
         match = rpn.globl.INTEGER_RE.match(val)
-        self.orig_value = int(val) if match is not None else float(val)
-        self.orig_unit_str = unit
-        self.base_value = None
-        self.base_unit_factors = ()
+        self.value = int(val) if match is not None else float(val)
+        self.unit_str = unit_str
+        u = rpn.globl.lookup_unit(unit_str)
+        if u is None:
+            raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, "{}_{}".format(val, unit_str))
+        self.unit = u
 
     @classmethod
     def from_string(cls, s):
-        match = rpn.globl.UNIT_RE.match(s)
+        match = rpn.globl.VALUNIT_RE.match(s)
         if match is None:
-            raise rpn.exception.FatalErr("Unit pattern failed to match '{}'".format(s))
+            raise rpn.exception.FatalErr("Valunit pattern failed to match '{}'".format(s))
         return cls(match.group(1), match.group(2))
 
+    def convert_to_base_units(self):
+        if self.unit.basep:
+            print("{} is already in base units".format(self))
+            return self
+        if self.unit.primaryp:
+            # value stays the same, show base units
+            base_units = rpn.units.base_units(self.unit.ucat)
+            print("base units: {}".format(base_units))
+            return Valunit(str(self.value), base_units)
+        raise rpn.exception.FatalErr("convert_to_base_units('{}') failed".format(self))
+
     def typ(self):
-        if type(self.orig_value) is int:
+        if type(self.value) is int:
             t = 0
-        elif type(self.orig_value) is Fraction:
-            t = 1
-        elif type(self.orig_value) is float:
+        # elif type(self.orig_value) is Fraction:
+        #     t = 1
+        elif type(self.value) is float:
             t = 2
         return (1<<4) + t
 
-    @property
-    def value(self):
-        return self._value
-
-    @value.setter
-    def value(self, new_value):
-        if type(new_value) not in (int, float):
-            raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'Unit#value()', "({})".format(typename(new_value)))
-        self._value = new_value
+    # @property
+    # def value(self):
+    #     return self._value_in_units
+    #
+    # @value.setter
+    # def value(self, new_value):
+    #     if type(new_value) not in (int, float):
+    #         raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'Valunit#value()', "({})".format(typename(new_value)))
+    #     self._value_in_units = new_value
 
     def zerop(self):
         return self.value == 0
 
     def __str__(self):
-        s = "{}_{}".format(self.orig_value, self.orig_unit_str)
+        s = "{}_{}".format(self.value, self.unit_str)
         l = r"  \ {}".format(self.label) if self.label is not None else ""
         return s + l
 
     def __repr__(self):
-        return "Unit[{},'{}']".format(repr(self.orig_value), self.orig_unit_str)
+        return "Valunit[{},'{}']".format(repr(self.value), self.unit_str)
 
 
 #############################################################################

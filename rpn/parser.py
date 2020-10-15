@@ -434,12 +434,12 @@ def p_executable(p):
                   | if_else_then
                   | matrix
                   | number
-                  | number_unit
                   | recurse
                   | show
                   | store_var
                   | string
                   | undef
+                  | valunit
                   | variable
                   | vector
                   | word'''
@@ -639,11 +639,6 @@ def p_number_list(p):
     elif len(p) == 3:
         p[0] = rpn.util.List(p[1], p[2])
 
-def p_number_unit(p):
-    '''number_unit : INTEGER_UNIT
-                   | FLOAT_UNIT'''
-    p[0] = rpn.type.Unit.from_string(p[1])
-
 def p_otherwise_list(p):
     '''otherwise_list : empty
                       | OTHERWISE sequence'''
@@ -735,6 +730,11 @@ def p_undef(p):
     cur_obj = None
     for post_hook_func in var.post_hooks():
         post_hook_func(ident, old_obj, cur_obj)
+
+def p_valunit(p):
+    '''valunit : INTEGER_UNIT
+               | FLOAT_UNIT'''
+    p[0] = rpn.type.Valunit.from_string(p[1])
 
 def p_variable(p):
     '''variable :  VARIABLE IDENTIFIER'''

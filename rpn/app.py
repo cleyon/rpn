@@ -277,8 +277,6 @@ def end_program():
             rpn.globl.lnwriteln("Stack:")
             rpn.word.w_dot_s('.s')
 
-    sys.exit(0)
-
 
 def generate_token_list():
     '''Returns a tuple (flag, list)
