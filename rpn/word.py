@@ -48,6 +48,7 @@ from   rpn.debug import dbg, typename
 import rpn.flag
 import rpn.globl
 import rpn.tvm
+import rpn.units
 import rpn.util
 
 
@@ -216,7 +217,7 @@ def w_dollar_swap(name):                # pylint: disable=unused-argument
 Throw an exception with text  ( n -- )  [ msg -- ]
 
 qv CATCH""")
-def w_throw(name):
+def w_dollar_throw(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
@@ -4616,6 +4617,42 @@ Undefine a variable, removing it from the current scope.
 UNDEF <var>""")
 def w_undef(name):                      # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
+
+
+@defword(name='unit.chk', args=1, print_x=False, doc="""\
+Check unit object""")
+def w_unit_chk(name):
+    x = rpn.globl.param_stack.pop()
+    if type(x) is not rpn.type.Unit:
+            rpn.globl.param_stack.push(x)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+    print("x.orig_unit_str = '{}'".format(x.orig_unit_str))
+
+    # Check if the unit is an exact match
+    unit_match_list = list(filter(lambda u: u[0] == x.orig_unit_str, rpn.units.units.values()))
+    if len(unit_match_list) > 1:
+        raise rpn.exception.FatalErr("Found {} unit matches: {}".format(len(unit_match_list), unit_match_list))
+
+    if len(unit_match_list) == 1:
+        exact_unit = unit_match_list[0]
+        print("Exact match: {}".format(exact_unit))
+        # convert to SI base unit
+        return
+
+    if len(x.orig_unit_str) >= 2:
+        first_char = x.orig_unit_str[0]
+        unit_remain = x.orig_unit_str[1:]
+        if first_char not in rpn.units.prefixes:
+            raise rpn.exception.FatalErr("Could not understand unit '{}'".format(x.orig_unit_str))
+
+        unit_match_list = list(filter(lambda u: u[0] == unit_remain, rpn.units.units.values()))
+        if len(unit_match_list) == 1:
+            exact_unit = unit_match_list[0]
+            print("Exact match: {}".format(exact_unit))
+            # convert to SI base unit
+            return
+
+    raise rpn.exception.FatalErr("Could not understand unit '{}'".format(x.orig_unit_str))
 
 
 @defword(name='until', print_x=rpn.globl.PX_CONTROL, doc="""\

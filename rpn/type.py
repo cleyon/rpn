@@ -414,8 +414,10 @@ class Unit(Stackable):
         super().__init__()
         self.name = "Unit"
         match = rpn.globl.INTEGER_RE.match(val)
-        self.value = int(val) if match is not None else float(val)
-        self.unit = unit
+        self.orig_value = int(val) if match is not None else float(val)
+        self.orig_unit_str = unit
+        self.base_value = None
+        self.base_unit_factors = ()
 
     @classmethod
     def from_string(cls, s):
@@ -425,11 +427,11 @@ class Unit(Stackable):
         return cls(match.group(1), match.group(2))
 
     def typ(self):
-        if type(self.value) is int:
+        if type(self.orig_value) is int:
             t = 0
-        elif type(self.value) is Fraction:
+        elif type(self.orig_value) is Fraction:
             t = 1
-        elif type(self.value) is float:
+        elif type(self.orig_value) is float:
             t = 2
         return (1<<4) + t
 
@@ -444,15 +446,15 @@ class Unit(Stackable):
         self._value = new_value
 
     def zerop(self):
-        return self.value() == 0
+        return self.value == 0
 
     def __str__(self):
-        s = "{}_{}".format(self.value, self.unit)
+        s = "{}_{}".format(self.orig_value, self.orig_unit_str)
         l = r"  \ {}".format(self.label) if self.label is not None else ""
         return s + l
 
     def __repr__(self):
-        return "Unit[{},'{}']".format(repr(self.value), self.unit)
+        return "Unit[{},'{}']".format(repr(self.orig_value), self.orig_unit_str)
 
 
 #############################################################################

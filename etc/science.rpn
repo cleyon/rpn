@@ -2,7 +2,7 @@
 299792458            constant c     \ m s^-1            \ Speed of light in vacuum
 1.602176634e-19      constant e     \ C                 \ Charge on electron
 6.6742867e-11        constant G     \ m^3 kg^-1 s^-2    \ Universal gravitation
-9.806                constant g     \ m s^-2            \ Earth acceleration
+9.80665              constant g     \ m s^-2            \ Earth acceleration
 6.62607015e-34       constant h     \ J s               \ Planck constant
 1.380649e-23         constant k     \ J K^-1            \ Boltzmann constant
 5.9722e24            constant Me    \ kg                \ Mass of earth
