@@ -4185,7 +4185,27 @@ def w_shstat(name):                     # pylint: disable=unused-argument
 @defword(name='shunit', print_x=rpn.globl.PX_IO, doc="""\
 List units""")
 def w_shunit(name):                     # pylint: disable-unused-argument
-    pass
+    my_units = dict()
+    for unit in rpn.units.units.values():
+        my_units[unit.abbrev] = "{}={}".format(unit.abbrev, unit.name)
+
+    sorted_units = []
+    for key in sorted(my_units, key=str.casefold):
+        sorted_units.append(my_units[key])
+    rpn.globl.list_in_columns(sorted_units, rpn.globl.scr_cols.obj.value - 1)
+
+
+@defword(name='shunit!', print_x=rpn.globl.PX_IO, doc="""\
+List units with definitions""")
+def w_shunit_bang(name):                # pylint: disable-unused-argument
+    my_units = dict()
+    for unit in rpn.units.units.values():
+        my_units[unit.abbrev] = "{}={}".format(unit.abbrev, unit.definition())
+
+    sorted_units = []
+    for key in sorted(my_units, key=str.casefold):
+        sorted_units.append(my_units[key])
+    rpn.globl.list_in_columns(sorted_units, rpn.globl.scr_cols.obj.value - 1)
 
 
 @defword(name='sign', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -4636,6 +4656,18 @@ def w_unit_base(name):
     rpn.globl.lnwriteln(repr(x))
     rpn.globl.lnwriteln(repr(vu))
 
+
+@defword(name='unit.parse', args=1, print_x=rpn.globl.PX_IO, doc="""\
+Parse units""")
+def w_unit_parse(name):
+    x = rpn.globl.param_stack.pop()
+    if type(x) is not rpn.type.Valunit:
+        rpn.globl.param_stack.push(x)
+        raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+    up = rpn.units.parse_unit_powers(x.unit_str)
+    if up is None:
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, name, "'{}".format(x.unit_str))
+    print(up)
 
 @defword(name='until', print_x=rpn.globl.PX_CONTROL, doc="""\
 Execute an indefinite loop until a condition is satisfied.

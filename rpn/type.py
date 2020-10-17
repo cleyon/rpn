@@ -413,13 +413,14 @@ class Valunit(Stackable):
     def __init__(self, val, unit_str):
         super().__init__()
         self.name = "Valunit"
+        self.ucat = rpn.units.ucat_from_string(unit_str)
+        if self.ucat is None:
+            raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, "{}_{}".format(val, unit_str))
         match = rpn.globl.INTEGER_RE.match(val)
         self.value = int(val) if match is not None else float(val)
         self.unit_str = unit_str
-        u = rpn.globl.lookup_unit(unit_str)
-        if u is None:
-            raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, "{}_{}".format(val, unit_str))
-        self.unit = u
+        self.unit = None
+        self.value_bu = None
 
     @classmethod
     def from_string(cls, s):
@@ -429,13 +430,16 @@ class Valunit(Stackable):
         return cls(match.group(1), match.group(2))
 
     def convert_to_base_units(self):
-        if self.unit.basep:
-            print("{} is already in base units".format(self))
+        if self.unit is None:
+            print("{}: Unit is None, unit_str='{}'".format(whoami(), self.unit_str))
+            return None
+        if self.unit.base_unit_p():
+            print("{}: {} is already in base units".format(whoami(), self))
             return self
         if self.unit.primaryp:
             # value stays the same, show base units
             base_units = rpn.units.base_units(self.unit.ucat)
-            print("base units: {}".format(base_units))
+            print("{}: base units: {}".format(whoami(), base_units))
             return Valunit(str(self.value), base_units)
         raise rpn.exception.FatalErr("convert_to_base_units('{}') failed".format(self))
 
