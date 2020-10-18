@@ -430,18 +430,26 @@ class Valunit(Stackable):
         return cls(match.group(1), match.group(2))
 
     def convert_to_base_units(self):
-        if self.unit is None:
-            print("{}: Unit is None, unit_str='{}'".format(whoami(), self.unit_str))
-            return None
-        if self.unit.base_unit_p():
-            print("{}: {} is already in base units".format(whoami(), self))
-            return self
-        if self.unit.primaryp:
-            # value stays the same, show base units
-            base_units = rpn.units.base_units(self.unit.ucat)
-            print("{}: base units: {}".format(whoami(), base_units))
-            return Valunit(str(self.value), base_units)
-        raise rpn.exception.FatalErr("convert_to_base_units('{}') failed".format(self))
+        # prefix_power = 0
+        # if self.unit is None:
+        #     (unit, prefix_power) = rpn.units.lookup_unit(self.unit_str)
+        #     if unit is not None:
+        #         print("{}('{}'): self.unit={}, prefix_power={}".format(whoami(), self.unit_str, unit, prefix_power))
+        #         self.unit = unit
+        # if self.unit.base_unit_p():
+        #     print("{}: {} is already in base units".format(whoami(), self))
+        #     return self
+        # if self.unit.primary_p:
+        #     # value stays the same, show base units
+        #     base_units_s = rpn.units.base_units_string(self.unit.ucat)
+        #     print("{}: base units: {}".format(whoami(), base_units_s))
+        #     return Valunit(str(10 ** prefix_power * self.value * self.unit.factor), base_units_s)
+        print("{}: self={}".format(whoami(), repr(self)))
+        base_units_s = rpn.units.base_units_string(self.ucat)
+        print("{}: base units: {}".format(whoami(), base_units_s))
+        return Valunit(str(10 ** prefix_power * self.value * self.unit.factor), base_units_s)
+
+        #raise rpn.exception.FatalErr("convert_to_base_units('{}') failed - B".format(self))
 
     def typ(self):
         if type(self.value) is int:
@@ -471,7 +479,7 @@ class Valunit(Stackable):
         return s + l
 
     def __repr__(self):
-        return "Valunit[{},'{}']".format(repr(self.value), self.unit_str)
+        return "Valunit[{},'{}',ucat={}]".format(repr(self.value), self.unit_str, self.ucat)
 
 
 #############################################################################

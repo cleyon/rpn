@@ -55,7 +55,7 @@ for (prefix, exp) in [("Y", +24),
 
 
 class Unit:
-    def __init__(self, name, abbrev, factor, ucategory=None, derived_from=None, basep=False, primary_p=False, category=None):
+    def __init__(self, name, abbrev, factor, ucategory=None, derived_from=None, basep=False, primary_p=False, category=None, defn=None):
         if ucategory is None and derived_from is None:
             raise rpn.exception.FatalErr("Very bad unit: '{}'".format(abbrev))
 
@@ -67,6 +67,7 @@ class Unit:
         self._basep       = basep
         self._primaryp    = primary_p
         self.category     = category
+        self.defn         = defn # Valunit
 
     def base_unit_p(self):
         return self._basep
@@ -77,12 +78,18 @@ class Unit:
     def definition(self):
         if self.derived_from is None:
             if self.base_unit_p():
-                return "Base[{}]".format(self.category.measure)
-            if self.primary_p():
-                return "Primary[{}]".format(self.category.measure)
-            return "{} {}".format(self.factor, "UNITS?")
+                s = "Base"
+            elif self.primary_p():
+                s = "Primary<{}>".format("NOT YET")
+            else:
+                s = "{} {}".format(self.factor, "?UNITS?")
+        elif type(self.derived_from) is str:
+            s = "{} '{}'".format(self.factor, self.derived_from)
         else:
-            return "{} {}".format(self.factor, self.derived_from.abbrev)
+            s = "{} {}".format(self.factor, self.derived_from.abbrev)
+        if self.category is not None:
+            s += " [{}]".format(self.category.measure)
+        return s
 
     def __str__(self):
         return "{}".format(self.abbrev)
@@ -112,9 +119,8 @@ class Category:
 
     @classmethod
     def lookup_by_ucat(cls, my_ucat):
-        print(type(my_ucat))
-        # for x in categories.values():
-        #     print(repr(x))
+        if type(my_ucat) is not list:
+            raise rpn.exception.FatalErr("{}: my_ucat is not a List".format(whoami()))
         my_cats = list(filter(lambda c: list(c.ucat) == my_ucat, categories.values()))
         if len(my_cats) != 1:
             return None
@@ -134,9 +140,9 @@ defcategory("Illuminance",   "Lux",      "lx", "cd*sr/m^2",       ( 0, -2,  0,  
 defcategory("Frequency",     None,       None, "s^-1",            ( 0,  0, -1,  0,  0,  0,  0, 0, 0, 0 ))
 defcategory("Money",         "Dollar",   "$",  "$",               ( 0,  0,  0,  0,  0,  0,  0, 0, 0, 1 ))
 defcategory("Temperature",   "Kelvin",   "K",  "K",               ( 0,  0,  0,  0,  0,  0,  0, 0, 1, 0 ))
-defcategory("",              "Radian",   "r",  "r",               ( 0,  0,  0,  0,  0,  0,  0, 1, 0, 0 ))
+defcategory("Angle",         "Radian",   "r",  "r",               ( 0,  0,  0,  0,  0,  0,  0, 1, 0, 0 ))
 defcategory("Amount",        "Mole",     "mol","mol",             ( 0,  0,  0,  0,  0,  0,  1, 0, 0, 0 ))
-defcategory("",              "Steradian","sr", "sr",              ( 0,  0,  0,  0,  0,  1,  0, 0, 0, 0 ))
+defcategory("Solic angle",   "Steradian","sr", "sr",              ( 0,  0,  0,  0,  0,  1,  0, 0, 0, 0 ))
 defcategory("Lum intensity", "Candela",  "cd", "cd",              ( 0,  0,  0,  0,  1,  0,  0, 0, 0, 0 ))
 defcategory("Lum flux",      "Lumen",    "lm", "cd*sr",           ( 0,  0,  0,  0,  1,  1,  0, 0, 0, 0 ))
 defcategory("Elec current",  "Ampere",   "A",  "A",               ( 0,  0,  0,  1,  0,  0,  0, 0, 0, 0 ))
@@ -208,7 +214,7 @@ def parse_unit_factors(str, sign):
 
     # Lookup abbrev, get its ucat
     (unit, prefix_power) = lookup_unit(abbrev)
-    print("parse_unit_factors: unit={}".format(unit))
+    #print("parse_unit_factors: unit={}".format(unit))
     if unit is None:
         return None
     my_ucat = [ sign * x * power for x in unit.ucat]
@@ -220,12 +226,12 @@ def lookup_unit(name):
     # Check if the unit is an exact match
     unit_match_list = list(filter(lambda unit: unit.abbrev == name, units.values()))
     if len(unit_match_list) > 1:
-        raise rpn.exception.FatalErr("Found {} unit matches: {}".format(len(unit_match_list), unit_match_list))
+        raise rpn.exception.FatalErr("{}('{}') found {} unit matches: {}".format(whoami(), name, len(unit_match_list), unit_match_list))
     if len(unit_match_list) == 1:
         exact_unit = unit_match_list[0]
         dbg(whoami(), 1, "{}: Exact match: {}".format(whoami(), repr(exact_unit)))
         # convert to SI base unit
-        return (exact_unit, 1)
+        return (exact_unit, 0)
 
     # Check for a one-letter prefix, then unit
     if len(name) >= 2:
@@ -241,27 +247,22 @@ def lookup_unit(name):
             # convert to SI base unit
             return (exact_unit, prefixes[first_char])
 
-    dbg(whoami(), 1, "{}: Could not understand unit? name '{}'".format(whoami(), name))
+    dbg(whoami(), 1, "{}: '{}' not understood".format(whoami(), name))
     return (None, None)
 
 
-def base_units(ucat):
+def base_units_string(ucat):
     usl = []
     for x in range(10):
         power = ucat[x]
         if power != 0:
-            l = []
-            for r in range(x):
-                l.append(0)
-            l.append(1)
-            for r in range(9-x):
-                l.append(0)
-            #print(x, l)
-            t = tuple(l)
-            #print(t)
-            unit_match_list = list(filter(lambda unit: unit.ucat == t and unit.base_unit_p(), units.values()))
+            l2 = [ [0]*x, [1], [0]*(9-x) ]
+            l = [ item for sbl in l2 for item in sbl ]
+            # print(x, l2)
+            # print(x, l3)
+            unit_match_list = list(filter(lambda unit: unit.ucat == l and unit.base_unit_p(), units.values()))
             if len(unit_match_list) == 0 or len(unit_match_list) > 1:
-                raise rpn.exception.FatalErr("Found {} unit matches: {}".format(len(unit_match_list), unit_match_list))
+                raise rpn.exception.FatalErr("base_units_str: Found {} unit matches for ucat {}: {}".format(len(unit_match_list), l, unit_match_list))
             unit = unit_match_list[0]
             us = unit.abbrev
             if power != 1:
@@ -273,18 +274,18 @@ def base_units(ucat):
 
 def defunit(name, abbrev, factor, string):
     (derived_from, _) = lookup_unit(string)
-    print("unit: derived_from={}".format(repr(derived_from)))
+    dbg(whoami(), -1, "{}: derived_from={}".format(whoami(), repr(derived_from)))
     if derived_from is not None:
         category = derived_from.category
         ucat = None
     else:
         ucat = ucat_from_string(string)
         if ucat is None:
-            dbg("unit", 1, "derived_from and ucat are None")
-            return
-        print("unit: ucat={}".format(ucat))
+            raise rpn.exception.FatalErr("defunit: derived_from and ucat are None")
+        dbg(whoami(), 2, "{}: ucat={}".format(whoami(), ucat))
+        derived_from = string
         category = Category.lookup_by_ucat(ucat)
-        print("unit: Category={}".format(category))
+        dbg(whoami(), 2, "{}: Category={}".format(whoami(), category))
     u = Unit(name, abbrev, factor, ucat, derived_from, False, False, category)
     units[name] = u
     return u
@@ -298,6 +299,7 @@ defunit("Acre",            "acre",   4046.87260987,     "m^2")
 #
 # defunit("Gram",            "g",         0.001,          "kg")
 defunit("Horsepower",      "hp",      745.699871582,    "W")
+defunit("Miles/Hour", "mph", 0.44704, "m/s")
 # defunit("Minute",          "min",      60,              "s")
 # defunit("Hour",            "h",        60,              "min")
 # defunit("Day",             "day",      24,              "h")

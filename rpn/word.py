@@ -4653,9 +4653,10 @@ def w_unit_base(name):
         rpn.globl.param_stack.push(x)
         raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
     vu = x.convert_to_base_units()
-    rpn.globl.lnwriteln(repr(x))
-    rpn.globl.lnwriteln(repr(vu))
-
+    if vu is None:
+        rpn.globl.lnwriteln("{}: vu=None".format(name))
+    else:
+        rpn.globl.lnwriteln("{}: vu={}".format(name, repr(vu)))
 
 @defword(name='unit.parse', args=1, print_x=rpn.globl.PX_IO, doc="""\
 Parse units""")
@@ -4664,10 +4665,11 @@ def w_unit_parse(name):
     if type(x) is not rpn.type.Valunit:
         rpn.globl.param_stack.push(x)
         raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
-    up = rpn.units.parse_unit_powers(x.unit_str)
-    if up is None:
+    ucat = rpn.units.ucat_from_string(x.unit_str)
+    if ucat is None:
         raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, name, "'{}".format(x.unit_str))
-    print(up)
+    dbg("unit", 1, "{}: '{}' => ucat={}".format(name, x.unit_str, ucat))
+
 
 @defword(name='until', print_x=rpn.globl.PX_CONTROL, doc="""\
 Execute an indefinite loop until a condition is satisfied.

@@ -24,6 +24,7 @@ debug_levels = {
     "Word#__init__"             : 0,
     "ascii"                     : 0,
     "catch"                     : 0,
+    "defunit"                   : 2,
     "defvar"                    : 0,
     "eval_string"               : 0,
     "execute"                   : 0,
@@ -49,6 +50,7 @@ debug_levels = {
     "token"                     : 0,
     "trace"                     : 0,
     "tvm"                       : 0,
+    "unit"                      : 3,
     "ucat_from_string"          : 3,
 }
 
