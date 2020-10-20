@@ -1693,6 +1693,24 @@ def w_constant(name):                   # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
+@defword(name='convert', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
+Convert value of Y into units of X  ( y x -- y_x )""")
+def w_convert(name):
+    x = rpn.globl.param_stack.pop()
+    y = rpn.globl.param_stack.pop()
+    if type(x) is not rpn.type.Valunit or type(y) is not rpn.type.Valunit:
+        rpn.globl.param_stack.push(y)
+        rpn.globl.param_stack.push(x)
+        raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+    if not rpn.units.units_conform(y, x):
+        raise rpn.exception.RuntimeErr(rpn.exception.X_CONFORMABILITY, name, "({} {})".format(y, x))
+
+    print("convert: value of {} in units of {}".format(y, x))
+    x_bu = y.valunit_in_base_units()
+    x_bu.label = "{} in base units".format(y)
+    rpn.globl.param_stack.push(x_bu)
+
+
 @defword(name='cos', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Cosine  ( angle -- cosine )""")
 def w_cos(name):
@@ -4182,12 +4200,28 @@ def w_shstat(name):                     # pylint: disable=unused-argument
         rpn.globl.writeln(rpn.globl.stat_data)
 
 
-@defword(name='shunit', print_x=rpn.globl.PX_IO, doc="""\
+@defword(name='shunit', str_args=1, print_x=rpn.globl.PX_IO, doc="""\
+Describe unit given by string  [ "unit" -- ]""")
+def w_shunit(name):
+    unit_name = rpn.globl.string_stack.pop().value
+    (unit, prefix_power) = rpn.units.lookup_unit(unit_name)
+    if unit is not None:
+        rpn.globl.lnwriteln("Unit: {}".format(unit))
+        rpn.globl.lnwriteln("Prefix power: {}".format(prefix_power))
+    else:
+        rpn.globl.lnwriteln("No unit with name '{}' found".format(unit_name))
+    print("Ucat={}".format(rpn.units.ucat_from_string(unit_name)))
+
+
+@defword(name='shunits', print_x=rpn.globl.PX_IO, doc="""\
 List units""")
-def w_shunit(name):                     # pylint: disable-unused-argument
+def w_shunits(name):                     # pylint: disable-unused-argument
     my_units = dict()
     for unit in rpn.units.units.values():
-        my_units[unit.abbrev] = "{}={}".format(unit.abbrev, unit.name)
+        my_units[unit.abbrev] = "{}={}{}{}".format(unit.abbrev,
+                                                   "!" if unit.base_unit_p else "",
+                                                   "*" if unit.primary_p else "",
+                                                   unit.name)
 
     sorted_units = []
     for key in sorted(my_units, key=str.casefold):
@@ -4195,11 +4229,13 @@ def w_shunit(name):                     # pylint: disable-unused-argument
     rpn.globl.list_in_columns(sorted_units, rpn.globl.scr_cols.obj.value - 1)
 
 
-@defword(name='shunit!', print_x=rpn.globl.PX_IO, doc="""\
+@defword(name='shunits!', print_x=rpn.globl.PX_IO, doc="""\
 List units with definitions""")
-def w_shunit_bang(name):                # pylint: disable-unused-argument
+def w_shunits_bang(name):                # pylint: disable-unused-argument
     my_units = dict()
     for unit in rpn.units.units.values():
+        if unit.base_unit_p or unit.primary_p:
+            continue
         my_units[unit.abbrev] = "{}={}".format(unit.abbrev, unit.definition())
 
     sorted_units = []
@@ -4638,25 +4674,28 @@ def w_type(name):
     rpn.globl.param_stack.push(rpn.type.Integer(t))
 
 
-@defword(name='undef', print_x=rpn.globl.PX_CONFIG, doc="""\
-Undefine a variable, removing it from the current scope.
-UNDEF <var>""")
-def w_undef(name):                      # pylint: disable=unused-argument
-    pass                        # Grammar rules handle this word
-
-
-@defword(name='unit.base', args=1, print_x=rpn.globl.PX_IO, doc="""\
+@defword(name='ubase', args=1, print_x=rpn.globl.PX_IO, doc="""\
 Show object's base unit and value in base unit""")
 def w_unit_base(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Valunit:
         rpn.globl.param_stack.push(x)
         raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
-    vu = x.convert_to_base_units()
+    vu = x.valunit_in_base_units()
     if vu is None:
         rpn.globl.lnwriteln("{}: vu=None".format(name))
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, name, "('{}')".format(x.unit_str))
     else:
         rpn.globl.lnwriteln("{}: vu={}".format(name, repr(vu)))
+        rpn.globl.param_stack.push(vu)
+
+
+@defword(name='undef', print_x=rpn.globl.PX_CONFIG, doc="""\
+Undefine a variable, removing it from the current scope.
+UNDEF <var>""")
+def w_undef(name):                      # pylint: disable=unused-argument
+    pass                        # Grammar rules handle this word
+
 
 @defword(name='unit.parse', args=1, print_x=rpn.globl.PX_IO, doc="""\
 Parse units""")

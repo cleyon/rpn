@@ -55,47 +55,75 @@ for (prefix, exp) in [("Y", +24),
 
 
 class Unit:
-    def __init__(self, name, abbrev, factor, ucategory=None, derived_from=None, basep=False, primary_p=False, category=None, defn=None):
-        if ucategory is None and derived_from is None:
-            raise rpn.exception.FatalErr("Very bad unit: '{}'".format(abbrev))
-
+    def __init__(self, name, abbrev, **kwargs):
         self.name         = name
         self.abbrev       = abbrev
-        self.factor       = factor
-        self.ucat         = list(ucategory) if ucategory is not None else []
-        self.derived_from = derived_from
-        self._basep       = basep
-        self._primaryp    = primary_p
-        self.category     = category
-        self.defn         = defn # Valunit
 
-    def base_unit_p(self):
-        return self._basep
+        self.base_unit_p  = False
+        self.category     = None
+        self.defn         = None        # Valunit
+        self.derived_from = None
+        self.factor       = 1
+        self.primary_p    = False
+        self.ucat         = []
 
-    def primary_p(self):
-        return self._primaryp
+        if "base" in kwargs:
+            self.base_unit_p = bool(kwargs["base"])
+            del kwargs["base"]
+        if "category" in kwargs:
+            self.category = kwargs["category"]
+            del kwargs["category"]
+        if "defn" in kwargs:
+            self.defn = kwargs["defn"]
+            del kwargs["defn"]
+        if "derived_from" in kwargs:
+            self.derived_from = kwargs["derived_from"]
+            del kwargs["derived_from"]
+        if "factor" in kwargs:
+            self.factor = kwargs["factor"]
+            del kwargs["factor"]
+        if "primary" in kwargs:
+            self.primary_p = bool(kwargs["primary"])
+            del kwargs["primary"]
+        if "ucat" in kwargs:
+            self.ucat = list(kwargs["ucat"])
+            del kwargs["ucat"]
+
+        if len(kwargs) > 0:
+            for (key, val) in kwargs.items():
+                print("Unrecognized keyword '{}'={}".format(key, val)) # OK
+                raise rpn.exception.FatalErr("Could not construct unit '{}'".format(name))
+        if self.ucat is None and self.derived_from is None:
+            raise rpn.exception.FatalErr("Unit '{}' has neither ucategory nor derived_from".format(name))
 
     def definition(self):
         if self.derived_from is None:
-            if self.base_unit_p():
-                s = "Base"
-            elif self.primary_p():
-                s = "Primary<{}>".format("NOT YET")
+            if self.base_unit_p or self.primary_p:
+                s = "{}".format(self.name)
             else:
                 s = "{} {}".format(self.factor, "?UNITS?")
         elif type(self.derived_from) is str:
             s = "{} '{}'".format(self.factor, self.derived_from)
         else:
             s = "{} {}".format(self.factor, self.derived_from.abbrev)
-        if self.category is not None:
-            s += " [{}]".format(self.category.measure)
+        if self.category is not None or self.base_unit_p or self.primary_p:
+            s += " ["
+            if self.category is not None:
+                s += "{}".format(self.category.measure)
+            if self.base_unit_p or self.primary_p:
+                s += ","
+            if self.base_unit_p:
+                s += "Base"
+            if self.primary_p:
+                s += "Prim"
+            s += "]"
         return s
 
     def __str__(self):
         return "{}".format(self.abbrev)
 
     def __repr__(self):
-        return "Unit['{}',{},{}]".format(self.abbrev, self.factor, self.ucat)
+        return "Unit['{}'={},{}]".format(self.abbrev, self.factor, self.ucat)
 
 
 categories = {}
@@ -108,7 +136,8 @@ class Category:
         if unit_name is not None and unit_abbrev is not None:
             basep = ucat.count(1) == 1 and ucat.count(0) == 9
             primaryp = not basep # Hack at some point to exclude Hz
-            u = Unit(unit_name, unit_abbrev, 1, ucat, None, basep, primaryp, self)
+            # u = Unit(unit_name, unit_abbrev, 1, ucat, None, basep, primaryp, self)
+            u = Unit(unit_name, unit_abbrev, ucat=ucat, base=basep, primary=primaryp, category=self)
             units[unit_name] = self.base_unit = u
 
     def __repr__(self):
@@ -173,7 +202,7 @@ def ucat_from_string(str):      # parse_unit_powers(str)
     my_ucat = [0,0,0,0,0,0,0,0,0,0]
     slashes = str.count('/')
     if slashes > 1:
-        dbg(whoami(), 2, "ucat('{}') = None".format(str))
+        dbg(whoami(), 2, "ucat_from_string: ('{}') = None; too many slashes".format(str))
         return None
     if slashes == 1:
         (top, bot) = re.split('/', str)
@@ -185,7 +214,7 @@ def ucat_from_string(str):      # parse_unit_powers(str)
         # print(fact)
         uf = parse_unit_factors(fact, 1)
         if uf is None:
-            dbg(whoami(), 2, "ucat('{}') = None".format(str))
+            dbg(whoami(), 2, "ucat_from_string: ('{}') = None; bad '{}'".format(str, fact))
             return None
         my_ucat = [ a + b for a, b in zip(my_ucat, uf) ]
     if len(bot) > 0:
@@ -193,10 +222,14 @@ def ucat_from_string(str):      # parse_unit_powers(str)
             # print(fact)
             uf = parse_unit_factors(fact, -1)
             if uf is None:
-                dbg(whoami(), 2, "ucat('{}') = None".format(str))
+                dbg(whoami(), 2, "ucat_from_string: ('{}') = None; bad '{}'".format(str, fact))
                 return None
             my_ucat = [ a + b for a, b in zip(my_ucat, uf) ]
-    dbg(whoami(), 2, "ucat('{}') = {}".format(str, my_ucat))
+
+    if my_ucat == [0,0,0,0,0,0,0,0,0,0] or my_ucat == []:
+        dbg(whoami(), 2, "ucat_from_string: ('{}') = None; no ucat computed".format(str, fact))
+        return None
+    dbg(whoami(), 2, "ucat_from_string: ('{}') = {}".format(str, my_ucat))
     return my_ucat
 
 def parse_unit_factors(str, sign):
@@ -210,16 +243,16 @@ def parse_unit_factors(str, sign):
     else:
         abbrev = str
         power = 1
-    # print("abbrev_power is {}_{}".format(abbrev, power))
+    dbg(whoami(), 1, "{}: abbrev_power is {}_{}".format(whoami(), abbrev, power))
 
     # Lookup abbrev, get its ucat
-    (unit, prefix_power) = lookup_unit(abbrev)
-    #print("parse_unit_factors: unit={}".format(unit))
+    (unit, _) = lookup_unit(abbrev)
+    dbg(whoami(), 1, "parse_unit_factors: unit={}".format(unit))
     if unit is None:
         return None
     my_ucat = [ sign * x * power for x in unit.ucat]
-    # print("ucat of {} = {}".format(abbrev, my_ucat))
-    # print("{}^{} = {}".format(abbrev, power, my_ucat))
+    dbg(whoami(), 1, "{}: ucat of {} = {}".format(whoami(), abbrev, my_ucat))
+    dbg(whoami(), 1, "{}: {}^{} = {}".format(whoami(), abbrev, power, my_ucat))
     return my_ucat
 
 def lookup_unit(name):
@@ -238,7 +271,8 @@ def lookup_unit(name):
         first_char = name[0]
         unit_remain = name[1:]
         if first_char not in prefixes:
-            raise rpn.exception.FatalErr("Could not understand unit prefix '{}'".format(name))
+            dbg(whoami(), 1, "{}: '{}' not matched".format(whoami(), name))
+            return (None, None)
 
         unit_match_list = list(filter(lambda unit: unit.abbrev == unit_remain, units.values()))
         if len(unit_match_list) == 1:
@@ -247,8 +281,12 @@ def lookup_unit(name):
             # convert to SI base unit
             return (exact_unit, prefixes[first_char])
 
-    dbg(whoami(), 1, "{}: '{}' not understood".format(whoami(), name))
+    dbg(whoami(), 1, "{}: '{}' not matched".format(whoami(), name))
     return (None, None)
+
+
+def units_conform(y, x):
+    return y.ucat == x.ucat
 
 
 def base_units_string(ucat):
@@ -258,9 +296,7 @@ def base_units_string(ucat):
         if power != 0:
             l2 = [ [0]*x, [1], [0]*(9-x) ]
             l = [ item for sbl in l2 for item in sbl ]
-            # print(x, l2)
-            # print(x, l3)
-            unit_match_list = list(filter(lambda unit: unit.ucat == l and unit.base_unit_p(), units.values()))
+            unit_match_list = list(filter(lambda unit: unit.ucat == l and unit.base_unit_p, units.values()))
             if len(unit_match_list) == 0 or len(unit_match_list) > 1:
                 raise rpn.exception.FatalErr("base_units_str: Found {} unit matches for ucat {}: {}".format(len(unit_match_list), l, unit_match_list))
             unit = unit_match_list[0]
@@ -272,36 +308,76 @@ def base_units_string(ucat):
     return "*".join(usl)
 
 
+defunit_list = []
+defunit_deferred = []
+
 def defunit(name, abbrev, factor, string):
-    (derived_from, _) = lookup_unit(string)
-    dbg(whoami(), -1, "{}: derived_from={}".format(whoami(), repr(derived_from)))
+    global defunit_list
+    defunit_list.append( (name, abbrev, factor, string) )
+
+#       Unit name (sing.), Abbrev,   Value,             Derived from or other unit(s)
+defunit("Acre",            "acre",   4046.87260987,     "m^2")
+# defunit("Day",             "day",      24,              "h")
+defunit("Foot",            "ft",       12,              "in")
+defunit("Gallon (US)",     "gal",       0.003785411784, "m^3")
+# defunit("Gram",            "g",         0.001,          "kg")
+# defunit("Gravity (Earth)", "ga",        9.80665,        "m*s^-2")
+defunit("Horsepower",      "hp",      745.699871582,    "W") # Mechanical horsepower, not metric
+defunit("Hour",            "h",        60,              "min")
+defunit("Inch",            "in",        0.0254,         "m")
+defunit("Liter",           "l",         0.001,          "m^3")
+defunit("Mile",            "mi",     5280,              "ft")
+defunit("Mile/Hour",       "mph",       0.44704,        "m/s")
+defunit("mymph",           "mymph",     1,              "mi/h")
+defunit("Minute",          "min",      60,              "s")
+defunit("Speed of light",  "c", 299792458,              "m*s^-1")
+
+
+def validate_unit(ul):
+    global defunit_list, defunit_deferred
+    (name, abbrev, factor, string) = ul
+    dbg(whoami(), -1, "{}({})".format(whoami(), name))
+    ucat = None
+    s = ""
+
+    (derived_from, prefix_power) = lookup_unit(string)
     if derived_from is not None:
+        if dbg(whoami(), 1):
+            s += "{}('{}'): derived_from={}, prefix_power={}".format(whoami(), name, repr(derived_from), prefix_power)
         category = derived_from.category
-        ucat = None
+        ucat = derived_from.ucat
     else:
         ucat = ucat_from_string(string)
         if ucat is None:
-            raise rpn.exception.FatalErr("defunit: derived_from and ucat are None")
-        dbg(whoami(), 2, "{}: ucat={}".format(whoami(), ucat))
+            #raise rpn.exception.FatalErr("defunit: derived_from and ucat are None")
+            defunit_deferred.append(ul)
+            return
+
         derived_from = string
         category = Category.lookup_by_ucat(ucat)
-        dbg(whoami(), 2, "{}: Category={}".format(whoami(), category))
-    u = Unit(name, abbrev, factor, ucat, derived_from, False, False, category)
+        if dbg(whoami(), 2):
+            s + ", ucat={}, category={}".format(whoami(), ucat, category)
+
+    # if len(s) > 0:
+    #     print(s)
+    #u = Unit(name, abbrev, factor, ucat, derived_from, False, False, category)
+    u = Unit(name, abbrev,
+             factor=factor, ucat=ucat, derived_from=derived_from, category=category)
+    dbg(whoami(), 1, repr(u))
     units[name] = u
-    return u
 
 
-defunit("Acre",            "acre",   4046.87260987,     "m^2")
-# defunit("Gallon (US)",     "gal",       0.003785411784, "m^3")
-# defunit("Gravity (Earth)", "ga",        9.80665,        "m*s^-2")
-# defunit("Liter",           "l",         0.001,          "m^3")
-# defunit("Speed of light",  "c", 299792458,              "m*s^-1")
-#
-# defunit("Gram",            "g",         0.001,          "kg")
-defunit("Horsepower",      "hp",      745.699871582,    "W")
-defunit("Miles/Hour", "mph", 0.44704, "m/s")
-# defunit("Minute",          "min",      60,              "s")
-# defunit("Hour",            "h",        60,              "min")
-# defunit("Day",             "day",      24,              "h")
-# defunit("Inch",            "in",        0.0254,         "m")
-# Hertz
+# Check all unit resolve properly
+def validate_units():
+    global defunit_list, defunit_deferred
+    while True:
+        defs = len(defunit_list)
+        for ul in defunit_list:
+            validate_unit(ul)
+        if len(defunit_deferred) == 0:
+            break
+        defunit_list = defunit_deferred
+        defunit_deferred = []
+        if len(defunit_list) == defs:
+            print("validate_units: could not finish")
+            return

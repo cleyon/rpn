@@ -44,6 +44,8 @@ force_interactive = False
 load_init_file = True
 want_debug = False
 
+#rpn.flag.set_flag(rpn.flag.F_DEBUG_ENABLED)
+
 
 def usage():
     print("""\
@@ -76,6 +78,9 @@ def initialize(argv):
     # rpn.word.clflag('clflag')
     rpn.word.w_clfin('clfin')
     rpn.word.w_std('std')
+    rpn.units.validate_units()
+
+    # Define built-in (protected) words
     define_secondary_words()
 
     # Switch to user mode; words & variables are no longer protected

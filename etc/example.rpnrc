@@ -15,3 +15,8 @@ EXAMPLE:  3 6 dice  =>  number in range [3,18]"
     @s randint !+sum
   loop
 ;
+
+\ Horizontal rule
+: hrul
+  doc:"Print a line of dashes across the entire screen"
+  @COLS 0 do ascii - emit loop cr ;

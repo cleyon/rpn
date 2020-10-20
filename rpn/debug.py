@@ -19,7 +19,7 @@ debug_levels = {
     "DoLoop#__call__"           : 0,
     "List#__call__"             : 0,
     "Scope#define_variable"     : 0,
-    "Sequence#__call__"         : 1,
+    "Sequence#__call__"         : 0,
     "Sequence#__init__"         : 0,
     "Word#__init__"             : 0,
     "ascii"                     : 0,
@@ -35,6 +35,7 @@ debug_levels = {
     "lookup_variable"           : 0,
     "lookup_vname"              : 0,
     "lookup_word"               : 0,
+    "parse_unit_factors"        : 3,
     "p_colon_define_word"       : 0,
     "p_executable"              : 0,
     "p_executable_list"         : 0,
@@ -50,8 +51,10 @@ debug_levels = {
     "token"                     : 0,
     "trace"                     : 0,
     "tvm"                       : 0,
+    "ubase"                     : 1,
     "unit"                      : 3,
     "ucat_from_string"          : 3,
+    "validate_unit"             : 2,
 }
 
 
