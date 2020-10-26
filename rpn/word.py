@@ -3630,6 +3630,39 @@ def w_popdisp(name):                    # pylint: disable=unused-argument
         raise rpn.exception.RuntimeErr(rpn.exception.X_STACK_UNDERFLOW, name, "No display configuration")
 
 
+@defword(name='price', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
+Price   ( markup purch_cost -- price )
+
+Compute selling price given purchase cost and percent markup.
+
+NOTE: If you are given the markup based on cost and the selling price of
+an item, and want to compute the original purchase cost, simply change
+the sign of the markup percentage.
+
+DEFINITION:
+
+        purch_cost
+Price = ----------
+            markup
+        1 - ------
+             100""")
+def w_price(name):                      # pylint: disable=unused-argument
+    x = rpn.globl.param_stack.pop()
+    y = rpn.globl.param_stack.pop()
+    if    type(x) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float] \
+       or type(y) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
+        rpn.globl.param_stack.push(y)
+        rpn.globl.param_stack.push(x)
+        raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+
+    markup     = float(y.value)
+    purch_cost = float(x.value)
+    result = rpn.type.Float(purch_cost / (1.0 - (markup / 100.0)))
+    result.label = "price"
+    # The HP-32SII preserves the Y value (like %) but we do not
+    rpn.globl.param_stack.push(result)
+
+
 @defword(name='pushdisp', print_x=rpn.globl.PX_CONFIG, doc="""\
 Stash current display configuration.""")
 def w_pushdisp(name):                   # pylint: disable=unused-argument
