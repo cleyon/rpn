@@ -4203,14 +4203,14 @@ def w_shstat(name):                     # pylint: disable=unused-argument
 @defword(name='shunit', str_args=1, print_x=rpn.globl.PX_IO, doc="""\
 Describe unit given by string  [ "unit" -- ]""")
 def w_shunit(name):
-    unit_name = rpn.globl.string_stack.pop().value
-    (unit, prefix_power) = rpn.units.lookup_unit(unit_name)
+    uspec = rpn.globl.string_stack.pop().value
+    (unit, prefix_power) = rpn.units.lookup_unit(uspec)
     if unit is not None:
         rpn.globl.lnwriteln("Unit: {}".format(unit))
         rpn.globl.lnwriteln("Prefix power: {}".format(prefix_power))
     else:
-        rpn.globl.lnwriteln("No unit with name '{}' found".format(unit_name))
-    print("Ucat={}".format(rpn.units.ucat_from_string(unit_name)))
+        rpn.globl.lnwriteln("No unit with name '{}' found".format(uspec))
+    print("Ucat={}".format(rpn.units.ucat_from_string(uspec)))
 
 
 @defword(name='shunits', print_x=rpn.globl.PX_IO, doc="""\
@@ -4236,6 +4236,19 @@ def w_shunits_bang(name):                # pylint: disable-unused-argument
     for unit in rpn.units.units.values():
         if unit.base_unit_p or unit.primary_p:
             continue
+        my_units[unit.abbrev] = "{}={}".format(unit.abbrev, unit.definition())
+
+    sorted_units = []
+    for key in sorted(my_units, key=str.casefold):
+        sorted_units.append(my_units[key])
+    rpn.globl.list_in_columns(sorted_units, rpn.globl.scr_cols.obj.value - 1)
+
+
+@defword(name='shunits!!', print_x=rpn.globl.PX_IO, doc="""\
+List units with definitions""")
+def w_shunits_bang_bang(name):                # pylint: disable-unused-argument
+    my_units = dict()
+    for unit in rpn.units.units.values():
         my_units[unit.abbrev] = "{}={}".format(unit.abbrev, unit.definition())
 
     sorted_units = []
@@ -4684,7 +4697,7 @@ def w_unit_base(name):
     vu = x.valunit_in_base_units()
     if vu is None:
         rpn.globl.lnwriteln("{}: vu=None".format(name))
-        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, name, "('{}')".format(x.unit_str))
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, name, "('{}')".format(x))
     else:
         rpn.globl.lnwriteln("{}: vu={}".format(name, repr(vu)))
         rpn.globl.param_stack.push(vu)
@@ -4704,10 +4717,10 @@ def w_unit_parse(name):
     if type(x) is not rpn.type.Valunit:
         rpn.globl.param_stack.push(x)
         raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
-    ucat = rpn.units.ucat_from_string(x.unit_str)
+    ucat = rpn.units.ucat_from_string(x.uspec)
     if ucat is None:
-        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, name, "'{}".format(x.unit_str))
-    dbg("unit", 1, "{}: '{}' => ucat={}".format(name, x.unit_str, ucat))
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, name, "'{}".format(x.uspec))
+    dbg("unit", 1, "{}: '{}' => ucat={}".format(name, x.uspec, ucat))
 
 
 @defword(name='until', print_x=rpn.globl.PX_CONTROL, doc="""\

@@ -410,18 +410,18 @@ class String(rpn.exe.Executable):
 #
 #############################################################################
 class Valunit(Stackable):
-    def __init__(self, val, unit_str):
+    def __init__(self, val, uspec):
         super().__init__()
         self.name = "Valunit"
-        self.ucat = rpn.units.ucat_from_string(unit_str)
+        self.ucat = rpn.units.ucat_from_string(uspec)
         if self.ucat is None:
-            raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, "{}_{}".format(val, unit_str))
+            raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, "{}_{}".format(val, uspec))
         match = rpn.globl.INTEGER_RE.match(val)
         self.value = int(val) if match is not None else float(val)
-        self.unit_str = unit_str
+        self.uspec = uspec
         self.unit = None
         self.prefix_power = 0
-        (unit, prefix_power) = rpn.units.lookup_unit(unit_str)
+        (unit, prefix_power) = rpn.units.lookup_unit(uspec)
         if unit is not None:
             self.unit = unit
             self.prefix_power = prefix_power
@@ -436,9 +436,9 @@ class Valunit(Stackable):
     def valunit_in_base_units(self):
         # prefix_power = 0
         # if self.unit is None:
-        #     (unit, prefix_power) = rpn.units.lookup_unit(self.unit_str)
+        #     (unit, prefix_power) = rpn.units.lookup_unit(self.uspec)
         #     if unit is not None:
-        #         print("{}('{}'): self.unit={}, prefix_power={}".format(whoami(), self.unit_str, unit, prefix_power))
+        #         print("{}('{}'): self.unit={}, prefix_power={}".format(whoami(), self.uspec, unit, prefix_power))
         #         self.unit = unit
         # if self.unit.base_unit_p():
         #     print("{}: {} is already in base units".format(whoami(), self))
@@ -453,11 +453,14 @@ class Valunit(Stackable):
         print("{}: self={}".format(whoami(), repr(self)))
         base_units_s = rpn.units.base_units_string(self.ucat)
         print("{}: base units={}".format(whoami(), base_units_s))
-        new_val = self.value
-        if self.prefix_power is not None:
-            new_val *= 10**self.prefix_power
-        if self.unit is not None and self.unit.factor is not None:
-            new_val *= self.unit.factor
+
+        new_val = self.unit.base_factor
+        (unit_factor, unit_exponen) = self.unit.factor()
+        print("{}: unit_factor={}, unit_exponen={}".format(whoami(), unit_factor, unit_exponen))
+        #new_val *=
+        if self.prefix_power != 0:
+            new_val *= (10 ** self.prefix_power)
+        new_val *= self.value
         print("{}: new_val={}".format(whoami(), new_val))
         return Valunit(str(new_val), base_units_s)
 
@@ -484,13 +487,13 @@ class Valunit(Stackable):
         return self.value == 0
 
     def __str__(self):
-        s = "{}_{}".format(self.value, self.unit_str)
+        s = "{}_{}".format(self.value, self.uspec)
         l = r"  \ {}".format(self.label) if self.label is not None else ""
         return s + l
 
     def __repr__(self):
-        #return "Valunit[{},'{}',ucat={}]".format(repr(self.value), self.unit_str, self.ucat)
-        s = "Valunit[{}_{},ucat={}, prefix_power={}".format(self.value, self.unit_str,
+        #return "Valunit[{},'{}',ucat={}]".format(repr(self.value), self.uspec, self.ucat)
+        s = "Valunit[{}_{},ucat={}, prefix_power={}".format(self.value, self.uspec,
                                                             self.ucat, self.prefix_power)
         if self.unit is not None:
             s += ", unit={}".format(str(self.unit))

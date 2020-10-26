@@ -44,7 +44,7 @@ force_interactive = False
 load_init_file = True
 want_debug = False
 
-#rpn.flag.set_flag(rpn.flag.F_DEBUG_ENABLED)
+rpn.flag.set_flag(rpn.flag.F_DEBUG_ENABLED)
 
 
 def usage():
@@ -99,6 +99,7 @@ def initialize(argv):
             rpnrc.obj = rpn.type.String(init_file)
             load_file(init_file)
 
+    rpn.globl.lnwriteln("--------------------------------")
     if len(argv) > 0:
         global force_interactive        # pylint: disable=global-statement
         if not force_interactive:
