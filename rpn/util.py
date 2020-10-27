@@ -419,6 +419,13 @@ class Sequence:
 #
 #############################################################################
 class Stack:
+    '''Internally, in these methods, stacks are 0-based like the Python
+    lists in which they are implemented.  To the outside word, in user-
+    space, stacks are 1-based.  Try to make this implementation detail
+    invisible to the user.  All instances methods will internally convert
+    elements from 1-based to 0-based as needed.  Also, items_top_to_bottom()
+    et al return 1-based indices.'''
+
     def __init__(self, min_size=0, max_size=-1):
         self._min_size = min_size
         self._max_size = max_size
@@ -449,18 +456,21 @@ class Stack:
         return self._stack.pop()
 
     def pick(self, n):
-        if n < 0 or n >= self.size():
+        '''n will be 1-based, so handle appropriately.'''
+
+        if n < 1 or n > self.size():
             raise rpn.exception.FatalErr("{}: Bad index".format(whoami()))
-        return self._stack[self.size() - 1 - n]
+        return self._stack[self.size() - n]
 
     def roll(self, n):
-        if n < 0 or n >= self.size():
+        '''n will be 1-based, so handle appropriately.'''
+        if n < 1 or n > self.size():
             raise rpn.exception.FatalErr("{}: Bad index".format(whoami()))
         # Prevent stack underflow in unlucky situations.  Temporarily
         # increase the stack minimum size, because we're just going to
         # push an item back again to restore the situation.
         self._min_size += 1
-        item = self._stack.pop(self.size() - 1 - n)
+        item = self._stack.pop(self.size() - n)
         self._nitems -= 1
         self._min_size -= 1
         self.push(item)
@@ -475,7 +485,7 @@ class Stack:
         i = self._nitems + 1
         for item in self._stack:
             i -= 1
-            yield (i-1, item)
+            yield (i, item)     # This yields 1-based indices; use i-1 for 0-based
 
     def items_top_to_bottom(self):
         """Return stack items from top to bottom."""
