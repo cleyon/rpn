@@ -308,7 +308,7 @@ flag is True if initial parse error, False if no error'''
 
         # These need a second token or they will be very angry
         elif tok.type in ['AT_SIGN', 'CATCH', 'CONSTANT', 'EXCLAM', 'FORGET',
-                          'HELP', 'SHOW', 'UNDEF', 'VARIABLE' ]:
+                          'HELP', 'HIDE', 'SHOW', 'UNDEF', 'VARIABLE' ]:
             rpn.globl.parse_stack.push(tok.type)
             try:
                 tok2 = next(rpn.util.TokenMgr.next_token())
@@ -550,6 +550,8 @@ def define_secondary_words():
     rpn.globl.eval_string(r"""
 \ : BEGIN_SECONDARY_WORDS----------------------------- doc:" " ;
 
+
+\ Constants
 : TRUE          doc:"TRUE  ( -- 1 )
 Constant: Logical true"
   1     19 cf ;
@@ -576,11 +578,13 @@ PHI = (1 + sqrt(5)) / 2"
 : BL            doc:"BL  ( -- 32 )   ASCII code for a space character"
   32    19 cf ;
 
+
+\ I/O
 : ?cr           doc:"?cr  Print a newline only if necessary to return to left margin"
   @#OUT 0 > if  cr  then ;
 
 : prompt        doc:"prompt  ( -- n ) [ text -- ]  Prompt for numeric input"
-  $depth 1 < if "(1 required)" -260 $throw
+  $depth 1 < if "(1 required)" X_INSUFF_STR_PARAMS $throw
   else $. #in  then ;
 
 : space         doc:"space   Display one space character"
@@ -590,25 +594,26 @@ PHI = (1 + sqrt(5)) / 2"
   | in:n |
   @n 0 do space loop ;
 
+
 \ Stack manipulation
 : -rot          doc:"-rot  ( z y x -- x z y )  Rotate back
 Rotate top stack element back to third spot, pulling others down.
 Equivalent to ROT ROT"
-  depth 3 < if "(3 required)" -260 $throw
+  depth 3 < if "(3 required)" X_INSUFF_PARAMS $throw
   else  rot rot  then
   19 cf ;
 
 : nip           doc:"nip  ( y x -- x )
 Drop second stack element
 Equivalent to SWAP DROP.  J.V. Noble calls this PLUCK."
-  depth 2 < if  "(2 required)" -260 $throw
+  depth 2 < if  "(2 required)" X_INSUFF_PARAMS $throw
   else  swap drop then
   19 cf ;
 
 : tuck          doc:"tuck  ( y x -- x y x )
 Duplicate top stack element into third position
 Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
-  depth 2 < if "(2 required)" -260 $throw
+  depth 2 < if "(2 required)" X_INSUFF_PARAMS $throw
   else  swap over then
   19 cf ;
 
@@ -638,7 +643,7 @@ Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
 
 : mod           doc:"mod  ( y x -- remainder )  Remainder"
   | in:y in:x |
-  @x 0 = if  "X cannot be zero" -42 $throw then
+  @x 0 = if  "X cannot be zero" X_FP_DIVISION_BY_ZERO $throw then
   @y @x /mod  drop ;
 
 \ Conversion functions

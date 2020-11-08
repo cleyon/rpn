@@ -76,24 +76,30 @@ class Ascii(Executable):
 
     def __call__(self, name):
         dbg("trace", 2, "trace({})".format(repr(self)))
-        new_tok = lex.LexToken()
-        new_tok.type = 'INTEGER'
-        new_tok.lineno = 0
-        new_tok.lexpos = 0
+        new_tok = None
 
         rpn.globl.parse_stack.push("ASCII")
         try:
             tok = next(rpn.util.TokenMgr.next_token())
             dbg("ascii", 1, "ascii: tok={}".format(tok))
             c = tok.value[0]
+            new_tok = lex.LexToken()
+            new_tok.type = 'INTEGER'
             new_tok.value = "{}".format(ord(c))
+            new_tok.lineno = 0
+            new_tok.lexpos = 0
         except StopIteration:
             dbg("ascii", 2, "ascii: received StopIteration, returning -1")
+            new_tok = lex.LexToken()
+            new_tok.type = 'INTEGER'
             new_tok.value = "-1"
+            new_tok.lineno = 0
+            new_tok.lexpos = 0
         finally:
             rpn.globl.parse_stack.pop()
-            dbg("ascii", 1, "ascii: Pushing new token {}".format(new_tok))
-            rpn.util.TokenMgr.push_token(new_tok)
+            if new_tok is not None:
+                dbg("ascii", 1, "ascii: Pushing new token {}".format(new_tok))
+                rpn.util.TokenMgr.push_token(new_tok)
 
     def __str__(self):
         return "ascii"
@@ -541,8 +547,9 @@ the right thing with empty stack (uses zero)."""
                 rpn.globl.param_stack.push(rpn.type.Integer(0))
             rpn.globl.param_stack.push(var.obj)
 
-            # Save and restore show X flag
-            rpn.flag.copy_flag(rpn.flag.F_SHOW_X, 54)
+            # Don't show intermediate results from recall arithmetic (if any),
+            # but do show final value recalled to stack.
+            rpn.flag.clear_flag(rpn.flag.F_SHOW_X)
             if self._modifier == '.':
                 rpn.word.w_dot('.')
             elif self._modifier == '+':
@@ -553,8 +560,7 @@ the right thing with empty stack (uses zero)."""
                 rpn.word.w_star('*')
             elif self._modifier == '/':
                 rpn.word.w_slash('/')
-            rpn.flag.copy_flag(54, rpn.flag.F_SHOW_X)
-            rpn.flag.clear_flag(54)
+            rpn.flag.set_flag(rpn.flag.F_SHOW_X)
 
     def __str__(self):
         return "@{}{}".format(self._modifier if self._modifier is not None else "",
@@ -583,7 +589,7 @@ class Forget(Executable):
     def __call__(self, name):
         dbg("trace", 1, "trace({})".format(repr(self)))
         if self._word.protected:
-            raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_FORGET, 'forget', "'{}' is protected".format(self._word.name))
+            raise rpn.exception.RuntimeErr(rpn.exception.X_PROTECTED, 'forget', "Cannot forget '{}'".format(self._word.name))
         self._scope.delete_word(self._word.name)
 
     def __str__(self):
@@ -619,6 +625,31 @@ class Help(Executable):
 
     def __repr__(self):
         return "Help[{}]".format(repr(self.identifier()))
+
+
+#############################################################################
+#
+#       H I D E
+#
+#############################################################################
+class Hide(Executable):
+    def __init__(self, word):
+        self.name = 'hide'
+        if type(word) is not rpn.util.Word:
+            raise rpn.exception.FatalErr("{}: {} is not a Word".format(whoami(), repr(word)))
+        self._word = word
+
+    def __call__(self, name):
+        dbg("trace", 1, "trace({})".format(repr(self)))
+        if self._word.protected:
+            raise rpn.exception.RuntimeErr(rpn.exception.X_PROTECTED, 'hide', "Cannot hide '{}'".format(self._word.name))
+        self._word.hidden = True
+
+    def __str__(self):
+        return "hide {}".format(self._word.name)
+
+    def __repr__(self):
+        return "Hide[{}]".format(repr(self._word.name))
 
 
 #############################################################################
@@ -708,14 +739,11 @@ class Recurse(Executable):
 #
 #############################################################################
 class Show(Executable):
-    def __init__(self, word, scope):
+    def __init__(self, word):
         self.name = 'show'
         if type(word) is not rpn.util.Word:
             raise rpn.exception.FatalErr("{}: Word {} is not an rpn.util.Word".format(whoami(), repr(word)))
-        if type(scope) is not rpn.util.Scope:
-            raise rpn.exception.FatalErr("{}: Scope {} is not a Scope".format(whoami(), repr(scope)))
         self._word = word
-        self._scope = scope
 
     def __call__(self, name):
         dbg("trace", 1, "trace({})".format(repr(self)))

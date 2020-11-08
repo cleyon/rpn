@@ -1,0 +1,53 @@
+\ Primary physical constants
+299792458            constant c     \ m s^-1            \ Speed of light in vacuum
+1.602176634e-19      constant e     \ C                 \ Charge on electron
+6.6742867e-11        constant G     \ m^3 kg^-1 s^-2    \ Universal gravitation
+9.806                constant g     \ m s^-2            \ Earth acceleration
+6.62607015e-34       constant h     \ J s               \ Planck constant
+1.380649e-23         constant k     \ J K^-1            \ Boltzmann constant
+5.9722e24            constant Me    \ kg                \ Mass of earth
+1.98847e30           constant Msol  \ kg                \ Mass of sun
+4 PI * 1e-7 *        constant mu0   \ N / A^2           \ Magnetic constant (vacuum permeability)
+6.02214076e23        constant NA    \ mol               \ Avogadro constant
+6373e3               constant Re    \ m                 \ Radius of earth
+                                                        \    R_equater=6378 km, R_pole=6356 km.
+                                                        \    This value is consistent with g=9.806
+696e6                constant Rsol  \ m                 \ Radius of sun
+
+\ Secondary constants
+\ @mu0 @c sq * inv   constant eps0  \ F / m             \ Electric constant (vacuum permittivity)
+\ @NA @e *           constant F     \ C / mol           \ Faraday constant
+@h TAU /             constant hbar  \ J s               \ Reduced Planck constant
+@NA @k *             constant R     \ J / K mol         \ Universal Gas constant
+\ @mu0 @c *          constant Z0    \ ohms?             \ Characteristic impedance of vacuum
+
+\ Tertiary constants
+\ 4 PI * @eps0 * inv constant kappa \ N m^2 / C^2       \ Coulomb's constant
+
+
+: F_grav
+  doc:"Fgrav  ( m1_kg m2_kg d_m -- F_N )
+Compute the force of gravity using Newton's law of universal gravitation.
+
+DEFINITION:
+        G * m1 * m2
+Fgrav = -----------
+            d^2
+
+qv G"
+  | in:m1 in:m2 in:d |
+  @G @m1 @m2 * *
+  @d sq /
+  "N" label
+;
+
+: F_smbh
+  doc:"Investigate gravitational forces approaching a super-massive black hole.
+
+Inputs: m=Your mass in kg, d=distance in meters
+Assumptions: Black hole mass is one billion times that of the sun."
+  | in:m in:d
+    bh_mass_factor |
+  1e9 !bh_mass_factor
+  @Msol @bh_mass_factor *  @m  @d  F_grav
+;

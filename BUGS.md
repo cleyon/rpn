@@ -7,3 +7,8 @@
 - `[3 2 1] 3 *` crashes
 
 - Bad pick value shows weird message "Stack index out of range (0..-1 expected)"
+
+- Another quick way to crash:
+  variable foo
+  undef foo
+  @foo
