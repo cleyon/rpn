@@ -8,7 +8,7 @@
 5.9722e24            constant Me    \ kg                \ Mass of earth
 1.98847e30           constant Msol  \ kg                \ Mass of sun
 4 PI * 1e-7 *        constant mu0   \ N / A^2           \ Magnetic constant (vacuum permeability)
-6.02214076e23        constant NA    \ mol^-1            \ Avogadro constant
+6.02214076e23        constant NA    \ mol               \ Avogadro constant
 6373e3               constant Re    \ m                 \ Radius of earth
                                                         \    R_equater=6378 km, R_pole=6356 km.
                                                         \    This value is consistent with g=9.806
