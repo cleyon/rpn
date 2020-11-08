@@ -79,6 +79,9 @@ X_QUIT                = -56
 X_CHAR_IO             = -57
 X_IF_THEN             = -58
 
+FIRST_STD_THROW_CODE  = X_ABORT
+LAST_STD_THROW_CODE   = X_IF_THEN
+
 X_LEAVE               = -256
 X_EXIT                = -257
 X_FP_NAN              = -258
@@ -91,7 +94,8 @@ X_NO_SOLUTION         = -264
 X_UNDEFINED_VARIABLE  = -265
 X_PROTECTED           = -266
 
-LAST_THROW_CODE       = X_PROTECTED     # Keep updated!
+FIRST_SYS_THROW_CODE  = X_LEAVE
+LAST_SYS_THROW_CODE   = X_PROTECTED     # Keep updated!
 
 throw_code_text = {
     X_ABORT               : 'ABORT',
@@ -178,7 +182,8 @@ class RuntimeErr(Exception):
         s = ""
         if len(self.word) > 0:
             s += "{}: ".format(self.word)
-        if (X_IF_THEN <= self.code <= X_ABORT) or (LAST_THROW_CODE <= self.code <= X_LEAVE):
+        if    (LAST_STD_THROW_CODE <= self.code <= FIRST_STD_THROW_CODE) \
+           or (LAST_SYS_THROW_CODE <= self.code <= FIRST_SYS_THROW_CODE):
             s += throw_code_text[self.code]
         if len(self.message) > 0:
             s += ": {}".format(self.message)
