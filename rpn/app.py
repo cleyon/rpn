@@ -550,6 +550,8 @@ def define_secondary_words():
     rpn.globl.eval_string(r"""
 \ : BEGIN_SECONDARY_WORDS----------------------------- doc:" " ;
 
+\ N.B. '19 cf' means "do not print X automatically"
+
 
 \ Constants
 : TRUE          doc:"TRUE  ( -- 1 )

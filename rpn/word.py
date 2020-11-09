@@ -2067,7 +2067,7 @@ def w_drop(name):                       # pylint: disable=unused-argument
 
 @defword(name='dup', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
 Duplicate top stack element  ( x -- x x )
-Equivalent to 0 PICK""")
+Equivalent to 1 PICK""")
 def w_dup(name):                        # pylint: disable=unused-argument
     x = rpn.globl.param_stack.top()
     rpn.globl.param_stack.push(x)
@@ -3429,7 +3429,7 @@ def w_otherwise(name):                  # pylint: disable=unused-argument
 
 @defword(name='over', args=2, print_x=rpn.globl.PX_CONFIG, doc="""\
 Duplicate second stack element  ( y x -- y x y )
-Equivalent to 1 PICK""")
+Equivalent to 2 PICK""")
 def w_over(name):                       # pylint: disable=unused-argument
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -3525,16 +3525,18 @@ def w_PI(name):                         # pylint: disable=unused-argument
 
 @defword(name='pick', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
 Pick an element from the stack  ( x -- )
-0 PICK ==> DUP, 1 PICK ==> OVER""")
+1 PICK ==> DUP, 2 PICK ==> OVER""")
 def w_pick(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
         raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
 
-    if x.value < 0 or x.value >= rpn.globl.param_stack.size():
+    if x.value == 0:
+        return
+    if x.value < 0 or x.value > rpn.globl.param_stack.size():
         rpn.globl.param_stack.push(x)
-        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_MEMORY, name, "Stack index out of range (0..{} expected)".format(rpn.globl.param_stack.size()-2))
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_MEMORY, name, "Stack index out of range (1..{} expected)".format(rpn.globl.param_stack.size()-1))
 
     result = rpn.globl.param_stack.pick(x.value)
     rpn.globl.param_stack.push(result)
@@ -4027,23 +4029,25 @@ def w_rnd(name):
 
 @defword(name='roll', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
 Roll stack elements  ( x -- )
-1 ROLL ==> SWAP, 2 ROLL ==> ROT""")
+2 ROLL ==> SWAP, 3 ROLL ==> ROT""")
 def w_roll(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
         raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
 
-    if x.value < 0 or x.value >= rpn.globl.param_stack.size():
+    if x.value == 0:
+        return
+    if x.value < 0 or x.value > rpn.globl.param_stack.size():
         rpn.globl.param_stack.push(x)
-        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_MEMORY, name, "Stack index out of range (0..{} expected)".format(rpn.globl.param_stack.size()-2))
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_MEMORY, name, "Stack index out of range (1..{} expected)".format(rpn.globl.param_stack.size()-1))
 
     rpn.globl.param_stack.roll(x.value)
 
 
 @defword(name='rot', args=3, print_x=rpn.globl.PX_CONFIG, doc="""\
 Rotate third stack element to the top, rolling others up  ( z y x -- y x z )
-Equivalent to 2 ROLL""")
+Equivalent to 3 ROLL""")
 def w_rot(name):                        # pylint: disable=unused-argument
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -4456,7 +4460,7 @@ def w_stoI(name):                       # pylint: disable=unused-argument
 
 @defword(name='swap', args=2, print_x=rpn.globl.PX_CONFIG, doc="""\
 Exchange top two stack elements  ( y x -- x y )
-Equivalent to 1 ROLL""")
+Equivalent to 2 ROLL""")
 def w_swap(name):                       # pylint: disable=unused-argument
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
