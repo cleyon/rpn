@@ -3532,7 +3532,9 @@ def w_pick(name):
         rpn.globl.param_stack.push(x)
         raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
 
-    if x.value < 1 or x.value > rpn.globl.param_stack.size():
+    if x.value == 0:
+        return
+    if x.value < 0 or x.value > rpn.globl.param_stack.size():
         rpn.globl.param_stack.push(x)
         raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_MEMORY, name, "Stack index out of range (1..{} expected)".format(rpn.globl.param_stack.size()-1))
 
@@ -4034,7 +4036,9 @@ def w_roll(name):
         rpn.globl.param_stack.push(x)
         raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
 
-    if x.value < 1 or x.value > rpn.globl.param_stack.size():
+    if x.value == 0:
+        return
+    if x.value < 0 or x.value > rpn.globl.param_stack.size():
         rpn.globl.param_stack.push(x)
         raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_MEMORY, name, "Stack index out of range (1..{} expected)".format(rpn.globl.param_stack.size()-1))
 
