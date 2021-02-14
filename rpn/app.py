@@ -44,6 +44,8 @@ force_interactive = False
 load_init_file = True
 want_debug = False
 
+rpn.flag.set_flag(rpn.flag.F_DEBUG_ENABLED)
+
 
 def usage():
     print("""\
@@ -76,6 +78,8 @@ def initialize(argv):
     # rpn.word.clflag('clflag')
     rpn.word.w_clfin('clfin')
     rpn.word.w_std('std')
+
+    # Define built-in (protected) words
     define_secondary_words()
 
     # Switch to user mode; words & variables are no longer protected
@@ -94,6 +98,7 @@ def initialize(argv):
             rpnrc.obj = rpn.type.String(init_file)
             load_file(init_file)
 
+    rpn.globl.lnwriteln("--------------------------------")
     if len(argv) > 0:
         global force_interactive        # pylint: disable=global-statement
         if not force_interactive:
@@ -276,8 +281,6 @@ def end_program():
         else:
             rpn.globl.lnwriteln("Stack:")
             rpn.word.w_dot_s('.s')
-
-    sys.exit(0)
 
 
 def generate_token_list():

@@ -93,9 +93,10 @@ X_SYNTAX              = -263
 X_NO_SOLUTION         = -264
 X_UNDEFINED_VARIABLE  = -265
 X_PROTECTED           = -266
+X_INVALID_UNIT        = -267
 
 FIRST_SYS_THROW_CODE  = X_LEAVE
-LAST_SYS_THROW_CODE   = X_PROTECTED     # Keep updated!
+LAST_SYS_THROW_CODE   = X_INVALID_UNIT # Keep updated!
 
 throw_code_text = {
     X_ABORT               : 'ABORT',
@@ -168,6 +169,7 @@ throw_code_text = {
     X_NO_SOLUTION         : 'No solution',
     X_UNDEFINED_VARIABLE  : 'Undefined variable',
     X_PROTECTED           : 'Protected',
+    X_INVALID_UNIT        : 'Invalid unit',
 }
 
 

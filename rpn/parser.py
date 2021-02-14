@@ -104,7 +104,7 @@ def t_STRING(t):
     return t
 
 # def t_RATIONAL_UNIT(t):
-#     r'(\d+::\d+)_([A-Za-z0-9()^*/]+)'
+#     r'(\d+::\d+)_([-A-Za-z0-9()^*/]+)'
 #     t.type = 'RATIONAL_UNIT'
 #     return t
 
@@ -119,7 +119,7 @@ def t_RATIONAL(t):
 #     return t
 
 def t_FLOAT_UNIT(t):
-    r'([-+]?(\d+(\.\d*[eE][-+]?\d+|[eE][-+]?\d+|\.\d*))|(\d*(\.\d+[eE][-+]?\d+|[eE][-+]?\d+|\.\d+)))_([A-Za-z0-9()^*/]+)'
+    r'([-+]?(\d+(\.\d*[eE][-+]?\d+|[eE][-+]?\d+|\.\d*))|(\d*(\.\d+[eE][-+]?\d+|[eE][-+]?\d+|\.\d+)))_([-A-Za-z0-9()^*/]+)'
     t.type = 'FLOAT_UNIT'
     return t
 
@@ -145,7 +145,7 @@ def t_ASCII(t):
 # Note a little Python magic: int(xxx, 0) will guess base and parse "0x", etc.
 # On the whole, the benefits outweigh the drawbacks.
 def t_INTEGER_UNIT(t):
-    r'([-+]?((((0x)|(0X))[0-9a-fA-F]+)|(((0o)|(0O))[0-7]+)|(((0b)|(0B))[0-1]+)|(\d+)))_([A-Za-z0-9()^*/]+)'
+    r'([-+]?((((0x)|(0X))[0-9a-fA-F]+)|(((0o)|(0O))[0-7]+)|(((0b)|(0B))[0-1]+)|(\d+)))_([-A-Za-z0-9()^*/]+)'
     t.type = 'INTEGER_UNIT'
     return t
 
