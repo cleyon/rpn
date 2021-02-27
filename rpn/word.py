@@ -3273,10 +3273,10 @@ def w_ln_1_plus_x(name):
 Load file specified on string stack  [ file -- ]""")
 def w_load(name):                       # pylint: disable=unused-argument
     filename = rpn.globl.string_stack.pop().value
-    if not os.path.isfile(filename):
-        rpn.globl.lnwriteln("load: Invalid file '{}'".format(filename))
-    else:
+    try:
         rpn.app.load_file(filename)
+    except rpn.exception.RuntimeErr as err_f_opt:
+        rpn.globl.lnwriteln(str(err_f_opt))
 
 
 @defword(name='log', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\

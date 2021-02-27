@@ -58,7 +58,7 @@ Usage: rpn [-d] [-f FILE] [-i] [-l FILE] [-q] cmds...
     sys.exit(64)                # EX_USAGE
 
 
-def initialize(argv):
+def initialize(rpndir, argv):
     # Set up low level stuff, stacks, variables
     rpn.globl.go_interactive = True
     sys.setrecursionlimit(2000) # default is 10002
@@ -79,14 +79,23 @@ def initialize(argv):
     rpn.word.w_clfin('clfin')
     rpn.word.w_std('std')
 
-    # Define built-in (protected) words
+    # Define built-in secondary (protected) words
     if not disable_all_extensions:
-        define_secondary_words()
+        try:
+            load_file(os.path.join(rpndir, "secondary.rpn"))
+        except rpn.exception.RuntimeErr as err_f_opt:
+            rpn.globl.lnwriteln(str(err_f_opt))
+            sys.exit(1)
 
-    # Switch to user mode; words & variables are no longer protected
+    # Switch to user mode, where words and variables are no longer
+    # protected, and define built-in tertiary (non-protected) words
     rpn.globl.default_protected = False
     if not disable_all_extensions:
-        define_tertiary_words()
+        try:
+            load_file(os.path.join(rpndir, "tertiary.rpn"))
+        except rpn.exception.RuntimeErr as err_f_opt:
+            rpn.globl.lnwriteln(str(err_f_opt))
+            sys.exit(1)
 
     # Parse command line
     argv = parse_args(argv)
@@ -190,9 +199,6 @@ def parse_args(argv):
         elif opt == "-f":
             try:
                 load_file(arg)
-            except FileNotFoundError:
-                rpn.globl.lnwriteln("-f: File '{}' does not exist".format(arg))
-                sys.exit(1)
             except rpn.exception.RuntimeErr as err_f_opt:
                 rpn.globl.lnwriteln(str(err_f_opt))
                 sys.exit(1)
@@ -204,8 +210,6 @@ def parse_args(argv):
         elif opt == "-l":
             try:
                 load_file(arg)
-            except FileNotFoundError:
-                rpn.globl.lnwriteln("-l: File '{}' does not exist".format(arg))
             except rpn.exception.RuntimeErr as err_l_opt:
                 rpn.globl.lnwriteln(str(err_l_opt))
         elif opt == "-q":
@@ -223,6 +227,8 @@ def parse_args(argv):
 
 
 def load_file(filename):
+    if not os.path.isfile(filename):
+        raise rpn.exception.RuntimeErr(rpn.exception.X_NON_EXISTENT_FILE, "load", filename)
     try:
         with open(filename, "r") as file:
             contents = file.read()
@@ -545,192 +551,3 @@ def post_clear_newly_unveiled_registers(_identifier, old, cur):
 
 def post_label_with_identifier(identifier, _old, cur):
     cur.label = identifier
-
-
-# Secondary words are protected by default
-def define_secondary_words():
-    rpn.globl.eval_string(r"""
-\ : BEGIN_SECONDARY_WORDS----------------------------- doc:" " ;
-
-\ N.B. 'F_SHOW_X cf' means "Do not print X automatically"
-
-
-\ Constants
-: TRUE          doc:"TRUE  ( -- 1 )
-Constant: Logical true"
-  1     F_SHOW_X cf ;
-
-: FALSE         doc:"FALSE  ( -- 0 )
-Constant: Logical false"
-  0     F_SHOW_X cf ;
-
-: i             doc:"i  ( -- i )  Imaginary unit (0,1)
-
-DEFINITION:
-i = sqrt(-1)
-
-Do not confuse this with the I command,
-which returns the index of a DO loop."
-  (0,1) F_SHOW_X cf ;
-
-: PHI           doc:"PHI  ( -- 1.618... )   Golden ratio
-
-DEFINITION:
-PHI = (1 + sqrt(5)) / 2"
-  5 sqrt 1 + 2 / ;
-
-: BL            doc:"BL  ( -- 32 )   ASCII code for a space character"
-  32    F_SHOW_X cf ;
-
-
-\ I/O
-: ?cr           doc:"?cr  Print a newline only if necessary to return to left margin"
-  @#OUT 0 > if  cr  then ;
-
-: prompt        doc:"prompt  ( -- n ) [ text -- ]  Prompt for numeric input"
-  $depth 1 < if "(1 required)" X_INSUFF_STR_PARAMS $throw
-  else $. #in  then ;
-
-: space         doc:"space   Display one space character"
-  BL emit ;
-
-: spaces        doc:"spaces  ( n -- )   Display N space characters"
-  | in:n |
-  @n 0 do space loop ;
-
-
-\ Stack manipulation
-: -rot          doc:"-rot  ( z y x -- x z y )  Rotate back
-Rotate top stack element back to third spot, pulling others down.
-Equivalent to ROT ROT"
-  depth 3 < if "(3 required)" X_INSUFF_PARAMS $throw
-  else  rot rot  then
-  F_SHOW_X cf ;
-
-: nip           doc:"nip  ( y x -- x )
-Drop second stack element
-Equivalent to SWAP DROP.  J.V. Noble calls this PLUCK."
-  depth 2 < if  "(2 required)" X_INSUFF_PARAMS $throw
-  else  swap drop then
-  F_SHOW_X cf ;
-
-: tuck          doc:"tuck  ( y x -- x y x )
-Duplicate top stack element into third position
-Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
-  depth 2 < if "(2 required)" X_INSUFF_PARAMS $throw
-  else  swap over then
-  F_SHOW_X cf ;
-
-: debug         doc:"debug  ( -- )  Toggle debugging state"
-  F_DEBUG_ENABLED dup tf  fs? if ."Debugging is now ENABLED"
-  else              ."Debugging is now disabled"
-  cr then ;
-
-: debug?        doc:"debug?  ( -- flag )  Test if debugging is enabled"
-  F_DEBUG_ENABLED fs? ;
-
-: deg?          doc:"deg?  ( -- flag )  Test if angular mode is degrees"
-  F_GRAD fc?  F_RAD fc?  and ;
-
-: rad?          doc:"rad?  ( -- flag )  Test if angular mode is radians"
-  F_GRAD fc?  F_RAD fs?  and ;
-
-: grad?         doc:"grad?  ( -- flag )  Test if angular mode is gradians"
-  F_GRAD fs?  F_RAD fc?  and ;
-
-: mod           doc:"mod  ( y x -- remainder )  Remainder"
-  | in:y in:x |
-  @x 0 = if  "X cannot be zero" X_FP_DIVISION_BY_ZERO $throw then
-  @y @x /mod  drop ;
-
-
-\ Conversion functions
-: mm->in doc:"mm->in  ( mm -- inch )  Convert millimeters to inches"
-  25.4 / ;
-
-: m->ft  doc:"m->ft  ( m -- ft )  Convert meters to feet"
-  1000 * mm->in   12 / ;
-
-: km->mi doc:"km->mi  ( km -- mile )  Convert kilometers to miles"
-  1000 *  m->ft 5280 / ;
-
-: in->mm doc:"in->mm  ( inch -- mm )  Convert inches to millimeters"
-  25.4 * ;
-
-: ft->m doc:"ft->m  ( ft -- m )  Convert feet to meters"
-  12   * in->mm 1000 / ;
-
-: mi->km doc:"mi->km  ( mile -- km )  Convert miles to kilometers"
-  5280   * ft->m  1000 / ;
-
-: f->c doc:"f->c  ( f -- c )  Convert degrees fahrenheit to degrees celcius"
-  32 - 5 * 9 / ;
-
-: c->f doc:"c->f  ( c -- f )  Convert degrees celcius to degrees fahrenheit"
-  9 * 5 / 32 + ;
-
-: g->oz doc:"g->oz  ( g -- oz )  Convert grams to ounces"
-  28.349523 / ;
-
-: gal->l  doc:"gal->l  ( gal -- liter )  Convert gallons to liters"
-  3.7854118 * ;
-
-: l->gal  doc:"l->gal  ( liter -- gal )  Convert liters to gallons"
-  3.7854118 / ;
-
-: kg->lb doc:"kg->lb  ( kg -- lb )  Convert kilograms to pounds"
-  0.45359237 / ;
-
-\ : cm3->in3 doc:"cm3->in3  ( cm^3 -- in^3 )  Convert cubic centimeters to cubic inches"
-\   16.3871     / ;
-
-: oz->g    doc:"oz->g  ( oz -- g )  Convert ounces to grams"
-  28.349523 * ;
-
-: lb->kg   doc:"lb->kg  ( lb -- kg )  Convert pounds to kilograms"
-  0.45359237 * ;
-
-\ : in3->cm3  doc:"in3->cm3  ( in^3 -- cm^3 )  Convert cubic inches to cubic centimeters"
-\   16.3871     * ;
-
-\ String functions
-: anum          doc:"anum  ( x -- )  [ s -- s' ]  Append numeric x to top string"
-  | in:x |
-  $depth 0 = if "" then
-  @x #->$ $cat ;
-
-: $date         doc:"$date  [ -- date ]  Current date as string"
-  date d->jd jd->$ ;
-
-: adate         doc:"adate  Append current date to top string stack element"
-  $depth 0 = if "" then
-  $date $cat  ;
-
-: atime         doc:"atime  Append current time to top string stack element"
-  $depth 0 = if "" then
-  $time $cat  ;
-
-\ : END_SECONDARY_WORDS----------------------------- doc:" " ;
-""")
-
-
-# Tertiary words are not protected
-def define_tertiary_words():
-    rpn.globl.eval_string(r"""
-\ : BEGIN_TERTIARY_WORDS----------------------------- doc:" " ;
-
-: sum           doc:"sum  ( ... -- sum )  Sum all numbers on the stack"
-  depth 0= if
-      0
-  else
-      depth 1 > if
-          depth 1 - 0 do + loop
-      then
-  then
-;
-
-: ver           doc:"ver  Show RPN version"
-  "RPN version " @$VER $.  ;
-
-\ : END_TERTIARY_WORDS----------------------------- doc:" " ;
-""")

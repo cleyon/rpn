@@ -6,6 +6,8 @@
 #############################################################################
 '''
 
+import inspect
+import os
 import sys
 import traceback
 from rpn import app
@@ -13,8 +15,9 @@ from rpn import exception
 
 
 def main(argv):
+    rpndir = os.path.dirname(inspect.getsourcefile(app))
     try:
-        if app.initialize(argv):
+        if app.initialize(rpndir, argv):
             app.main_loop()
     except exception.EndProgram:
         pass
