@@ -216,7 +216,7 @@ def w_dollar_swap(name):                # pylint: disable=unused-argument
 Throw an exception with text  ( n -- )  [ msg -- ]
 
 qv CATCH""")
-def w_throw(name):
+def w_dollar_throw(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
@@ -4197,15 +4197,6 @@ def w_show(name):                       # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
-@defword(name='shstat', print_x=rpn.globl.PX_IO, doc="""\
-Print the statistics list""")
-def w_shstat(name):                     # pylint: disable=unused-argument
-    if len(rpn.globl.stat_data) == 0:
-        rpn.globl.writeln("No statistics data")
-    else:
-        rpn.globl.writeln(rpn.globl.stat_data)
-
-
 @defword(name='shreg', print_x=rpn.globl.PX_IO, doc="""\
 Show status of all registers ( -- )""")
 def w_shreg(name):                      # pylint: disable=unused-argument
@@ -4216,6 +4207,15 @@ def w_shreg(name):                      # pylint: disable=unused-argument
         regs.append("R%02d=%s" % (r, rpn.globl.fmt(rpn.globl.register[r])))
 
     rpn.globl.list_in_columns(regs, rpn.globl.scr_cols.obj.value - 1)
+
+
+@defword(name='shstat', print_x=rpn.globl.PX_IO, doc="""\
+Print the statistics list""")
+def w_shstat(name):                     # pylint: disable=unused-argument
+    if len(rpn.globl.stat_data) == 0:
+        rpn.globl.writeln("No statistics data")
+    else:
+        rpn.globl.writeln(rpn.globl.stat_data)
 
 
 @defword(name='sign', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\

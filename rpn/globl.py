@@ -174,6 +174,14 @@ def eval_string(s):
         param_stack.clear()
         string_stack.clear()
         return_stack.clear()
+    except rpn.exception.RuntimeErr as err_eval_string:
+        dbg(whoami(), 1, "{}: Caught RuntimeErr, code={}".format(whoami(), err_eval_string.code))
+        if err_eval_string.code >= 0:
+            raise
+        if err_eval_string.code == rpn.exception.X_EXIT:
+            return
+        lnwriteln(str(err_eval_string))
+
     else:
         if result is not None:
             dbg("eval_string", 1, "result={}".format(result))
