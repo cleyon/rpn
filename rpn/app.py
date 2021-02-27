@@ -40,6 +40,7 @@ import rpn.util
 import rpn.word
 
 
+disable_all_extensions = False
 force_interactive = False
 load_init_file = True
 want_debug = False
@@ -55,7 +56,8 @@ Usage: rpn [-d] [-f FILE] [-i] [-l FILE] [-q] cmds...
 -f FILE   Load FILE and exit
 -i        Force interactive mode
 -l FILE   Load FILE
--q        Do not load init file (~/.rpnrc)""")
+-q        Do not load init file (~/.rpnrc)
+-Q        Disable all extensions (implies -q)""")
     sys.exit(64)                # EX_USAGE
 
 
@@ -79,15 +81,17 @@ def initialize(argv):
     rpn.word.w_clfin('clfin')
     rpn.word.w_std('std')
 
+    # Parse command line
+    argv = parse_args(argv)
+
     # Define built-in (protected) words
-    define_secondary_words()
+    if not disable_all_extensions:
+        define_secondary_words()
 
     # Switch to user mode; words & variables are no longer protected
     rpn.globl.default_protected = False
-    define_tertiary_words()
-
-    # Parse command line
-    argv = parse_args(argv)
+    if not disable_all_extensions:
+        define_tertiary_words()
 
     # Hopefully load the user's init file
     global load_init_file               # pylint: disable=global-statement
@@ -98,7 +102,7 @@ def initialize(argv):
             rpnrc.obj = rpn.type.String(init_file)
             load_file(init_file)
 
-    rpn.globl.lnwriteln("--------------------------------")
+    # rpn.globl.lnwriteln("--------------------------------")
     if len(argv) > 0:
         global force_interactive        # pylint: disable=global-statement
         if not force_interactive:
@@ -174,7 +178,7 @@ def define_variables():
 
 def parse_args(argv):
     try:
-        opts, argv = getopt.getopt(argv, "dDf:il:q")
+        opts, argv = getopt.getopt(argv, "dDf:il:qQ")
     except getopt.GetoptError as e:
         print(str(e))           # OK
         usage()
@@ -209,6 +213,10 @@ def parse_args(argv):
         elif opt == "-q":
             global load_init_file       # pylint: disable=global-statement
             load_init_file = False
+        elif opt == "-Q":
+            global disable_all_extensions
+            load_init_file = False
+            disable_all_extensions = True
         else:
             print("Unhandled option {}".format(opt)) # OK
             sys.exit(1)
@@ -232,7 +240,7 @@ def main_loop():
 
     # Non-existence of ~/.rpnrc is indicator of novice mode
     (rpnrc, _) = rpn.globl.lookup_variable("RPNRC")
-    if len(rpnrc.obj.value) == 0:
+    if len(rpnrc.obj.value) == 0 and not disable_all_extensions:
         rpn.globl.lnwriteln("Type ? for information, help <word> for help on a specific word.")
         rpn.globl.lnwriteln("Type vlist for a list of all words, vars to see your variables.")
         rpn.globl.lnwriteln("Type .s to display the stack non-destructively, and bye to exit.")
