@@ -45,8 +45,6 @@ force_interactive = False
 load_init_file = True
 want_debug = False
 
-rpn.flag.set_flag(rpn.flag.F_DEBUG_ENABLED)
-
 
 def usage():
     print("""\
@@ -561,17 +559,17 @@ def define_secondary_words():
     rpn.globl.eval_string(r"""
 \ : BEGIN_SECONDARY_WORDS----------------------------- doc:" " ;
 
-\ N.B. '19 cf' means "do not print X automatically"
+\ N.B. 'F_SHOW_X cf' means "Do not print X automatically"
 
 
 \ Constants
 : TRUE          doc:"TRUE  ( -- 1 )
 Constant: Logical true"
-  1     19 cf ;
+  1     F_SHOW_X cf ;
 
 : FALSE         doc:"FALSE  ( -- 0 )
 Constant: Logical false"
-  0     19 cf ;
+  0     F_SHOW_X cf ;
 
 : i             doc:"i  ( -- i )  Imaginary unit (0,1)
 
@@ -580,7 +578,7 @@ i = sqrt(-1)
 
 Do not confuse this with the I command,
 which returns the index of a DO loop."
-  (0,1) 19 cf ;
+  (0,1) F_SHOW_X cf ;
 
 : PHI           doc:"PHI  ( -- 1.618... )   Golden ratio
 
@@ -589,7 +587,7 @@ PHI = (1 + sqrt(5)) / 2"
   5 sqrt 1 + 2 / ;
 
 : BL            doc:"BL  ( -- 32 )   ASCII code for a space character"
-  32    19 cf ;
+  32    F_SHOW_X cf ;
 
 
 \ I/O
@@ -614,45 +612,38 @@ Rotate top stack element back to third spot, pulling others down.
 Equivalent to ROT ROT"
   depth 3 < if "(3 required)" X_INSUFF_PARAMS $throw
   else  rot rot  then
-  19 cf ;
+  F_SHOW_X cf ;
 
 : nip           doc:"nip  ( y x -- x )
 Drop second stack element
 Equivalent to SWAP DROP.  J.V. Noble calls this PLUCK."
   depth 2 < if  "(2 required)" X_INSUFF_PARAMS $throw
   else  swap drop then
-  19 cf ;
+  F_SHOW_X cf ;
 
 : tuck          doc:"tuck  ( y x -- x y x )
 Duplicate top stack element into third position
 Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
   depth 2 < if "(2 required)" X_INSUFF_PARAMS $throw
   else  swap over then
-  19 cf ;
-
-: sum           doc:"sum  ( ... -- sum )  Sum all numbers on the stack"
-  depth 0= if
-      0
-  else
-      depth 1 > if
-          depth 1 - 0 do + loop
-      then
-  then
-;
+  F_SHOW_X cf ;
 
 : debug         doc:"debug  ( -- )  Toggle debugging state"
-  20 dup tf  fs? if ."Debugging is now ENABLED"
+  F_DEBUG_ENABLED dup tf  fs? if ."Debugging is now ENABLED"
   else              ."Debugging is now disabled"
   cr then ;
 
+: debug?        doc:"debug?  ( -- flag )  Test if debugging is enabled"
+  F_DEBUG_ENABLED fs? ;
+
 : deg?          doc:"deg?  ( -- flag )  Test if angular mode is degrees"
-  42 fc?  43 fc?  and ;
+  F_GRAD fc?  F_RAD fc?  and ;
 
 : rad?          doc:"rad?  ( -- flag )  Test if angular mode is radians"
-  42 fc?  43 fs?  and ;
+  F_GRAD fc?  F_RAD fs?  and ;
 
 : grad?         doc:"grad?  ( -- flag )  Test if angular mode is gradians"
-  42 fs?  43 fc?  and ;
+  F_GRAD fs?  F_RAD fc?  and ;
 
 : mod           doc:"mod  ( y x -- remainder )  Remainder"
   | in:y in:x |
@@ -714,12 +705,12 @@ Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
   date d->jd jd->$ ;
 
 : adate         doc:"adate  Append current date to top string stack element"
-  $date
-  $depth 1 > if $cat then ;
+  $depth 0 = if "" then
+  $date $cat  ;
 
 : atime         doc:"atime  Append current time to top string stack element"
-  $time
-  $depth 1 > if $cat then ;
+  $depth 0 = if "" then
+  $time $cat  ;
 
 \ : END_SECONDARY_WORDS----------------------------- doc:" " ;
 """)
@@ -727,5 +718,18 @@ Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
 
 # Tertiary words are not protected
 def define_tertiary_words():
-    rpn.globl.eval_string("""
+    rpn.globl.eval_string(r"""
+\ : BEGIN_TERTIARY_WORDS----------------------------- doc:" " ;
+
+: sum           doc:"sum  ( ... -- sum )  Sum all numbers on the stack"
+  depth 0= if
+      0
+  else
+      depth 1 > if
+          depth 1 - 0 do + loop
+      then
+  then
+;
+
+\ : END_TERTIARY_WORDS----------------------------- doc:" " ;
 """)

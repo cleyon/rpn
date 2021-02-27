@@ -2296,6 +2296,42 @@ def w_exp(name):
     rpn.globl.param_stack.push(result)
 
 
+@defword(name='F_DEBUG_ENABLED', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
+Debug enabled""")
+def w_F_DEBUG_ENABLED(name):    # pylint: disable=unused-argument
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.flag.F_DEBUG_ENABLED))
+
+
+@defword(name='F_GRAD', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
+Gradians""")
+def w_F_GRAD(name):    # pylint: disable=unused-argument
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.flag.F_GRAD))
+
+
+@defword(name='F_PRINTER_ENABLED', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
+Printer enabled""")
+def w_F_PRINTER_ENABLED(name):    # pylint: disable=unused-argument
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.flag.F_PRINTER_ENABLED))
+
+
+@defword(name='F_PRINTER_EXISTS', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
+Printer exists""")
+def w_F_PRINTER_EXISTS(name):    # pylint: disable=unused-argument
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.flag.F_PRINTER_EXISTS))
+
+
+@defword(name='F_RAD', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
+Radians""")
+def w_F_RAD(name):                      # pylint: disable=unused-argument
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.flag.F_RAD))
+
+
+@defword(name='F_SHOW_X', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
+Show X""")
+def w_F_SHOW_X(name):    # pylint: disable=unused-argument
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.flag.F_SHOW_X))
+
+
 @defword(name='fact', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Factorial ( x -- x! )
 
@@ -4710,10 +4746,13 @@ def w_vars(name):                       # pylint: disable=unused-argument
             var = scope.variable(v)
             if var.hidden:
                 continue
-            my_vars[var.name] = "{}:[undef]".format(var.name) if not var.defined() else \
-                                "{}={}{}".format(var.name,
-                                                 var.obj.value,
-                                                 "(" + typename(var.obj) + ")" if rpn.flag.flag_set_p(rpn.flag.F_DEBUG_ENABLED) else "")
+            if not var.defined():
+                disp = ':[undef]'
+            elif typename(var.obj) == "String":
+                disp = '="{}"'.format(var.obj.value)
+            else:
+                disp = '={}'.format(var.obj.value)
+            my_vars[var.name] = "{}{}".format(var.name, disp)
         sorted_vars = []
         for key in sorted(my_vars, key=str.casefold):
             sorted_vars.append(my_vars[key])
@@ -4791,348 +4830,353 @@ def w_x_exchange_indirect_i(name):
 @defword(name='X_ABORT', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 ABORT""")
 def w_X_ABORT(name):                    # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-1))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_ABORT))
 
 @defword(name='X_ABORT_QUOTE', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 ABORT" """)
 def w_X_ABORT_QUOTE(name):              # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-2))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_ABORT_QUOTE))
 
 @defword(name='X_STACK_OVERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Stack overflow""")
 def w_X_STACK_OVERFLOW(name):           # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-3))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_STACK_OVERFLOW))
 
 @defword(name='X_STACK_UNDERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Stack underflow""")
 def w_X_STACK_UNDERFLOW(name):          # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-4))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_STACK_UNDERFLOW))
 
 @defword(name='X_RSTACK_OVERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Return stack overflow""")
 def w_X_RSTACK_OVERFLOW(name):          # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-5))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_RSTACK_OVERFLOW))
 
 @defword(name='X_RSTACK_UNDERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Return stack underflow""")
 def w_X_RSTACK_UNDERFLOW(name):         # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-6))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_RSTACK_UNDERFLOW))
 
 @defword(name='X_DO_NESTING', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 DO-loops nested too deeply during execution""")
 def w_X_DO_NESTING(name):               # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-7))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_DO_NESTING))
 
 @defword(name='X_DICT_OVERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Dictionary overflow""")
 def w_X_DICT_OVERFLOW(name):            # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-8))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_DICT_OVERFLOW))
 
 @defword(name='X_INVALID_MEMORY', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Invalid memory address""")
 def w_X_INVALID_MEMORY(name):           # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-9))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_INVALID_MEMORY))
 
 @defword(name='X_DIVISION_BY_ZERO', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Division by zero""")
 def w_X_DIVISION_BY_ZERO(name):         # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-10))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_DIVISION_BY_ZERO))
 
 @defword(name='X_RESULT_OO_RANGE', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Result out of range""")
 def w_X_RESULT_OO_RANGE(name):          # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-11))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_RESULT_OO_RANGE))
 
 @defword(name='X_ARG_TYPE_MISMATCH', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Argument type mismatch""")
 def w_X_ARG_TYPE_MISMATCH(name):        # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-12))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_ARG_TYPE_MISMATCH))
 
 @defword(name='X_UNDEFINED_WORD', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Undefined word""")
 def w_X_UNDEFINED_WORD(name):           # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-13))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_UNDEFINED_WORD))
 
 @defword(name='X_COMPILE_ONLY', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Interpreting a compile-only word""")
 def w_X_COMPILE_ONLY(name):             # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-14))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_COMPILE_ONLY))
 
 @defword(name='X_INVALID_FORGET', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Invalid FORGET
 (Do not use, prefer X_PROTECTED)""")
 def w_X_INVALID_FORGET(name):           # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-15))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_INVALID_FORGET))
 
 @defword(name='X_ZERO_LEN_STR', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Attempt to use a zero-length string as a name""")
 def w_X_ZERO_LEN_STR(name):             # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-16))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_ZERO_LEN_STR))
 
 @defword(name='X_PIC_STRING_OVERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Pictured numeric output string overflow""")
 def w_X_PIC_STRING_OVERFLOW(name):      # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-17))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_PIC_STRING_OVERFLOW))
 
 @defword(name='X_STRING_OVERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Parsed string overflow""")
 def w_X_STRING_OVERFLOW(name):          # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-18))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_STRING_OVERFLOW))
 
 @defword(name='X_NAME_TOO_LONG', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Definition name too long""")
 def w_X_NAME_TOO_LONG(name):            # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-19))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_NAME_TOO_LONG))
 
 @defword(name='X_READ_ONLY', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Write to a read-only location""")
 def w_X_READ_ONLY(name):                # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-20))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_READ_ONLY))
 
 @defword(name='X_UNSUPPORTED', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Unsupported operation""")
 def w_X_UNSUPPORTED(name):              # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-21))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_UNSUPPORTED))
 
 @defword(name='X_CTL_STRUCTURE', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Control structure mismatch""")
 def w_X_CTL_STRUCTURE(name):            # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-22))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_CTL_STRUCTURE))
 
 @defword(name='X_ALIGNMENT', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Address alignment exception""")
 def w_X_ALIGNMENT(name):                # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-23))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_ALIGNMENT))
 
 @defword(name='X_INVALID_ARG', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Invalid argument""")
 def w_X_INVALID_ARG(name):              # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-24))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_INVALID_ARG))
 
 @defword(name='X_RSTACK_IMBALANCE', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Return stack imbalance""")
 def w_X_RSTACK_IMBALANCE(name):         # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-25))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_RSTACK_IMBALANCE))
 
 @defword(name='X_LOOP_PARAMS', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Loop parameters unavailable""")
 def w_X_LOOP_PARAMS(name):              # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-26))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_LOOP_PARAMS))
 
 @defword(name='X_INVALID_RECURSION', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Invalid recursion""")
 def w_X_INVALID_RECURSION(name):        # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-27))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_INVALID_RECURSION))
 
 @defword(name='X_INTERRUPT', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 User interrupt""")
 def w_X_INTERRUPT(name):                # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-28))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_INTERRUPT))
 
 @defword(name='X_NESTING', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Compiler nesting""")
 def w_X_NESTING(name):                  # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-29))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_NESTING))
 
 @defword(name='X_OBSOLETE', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Obsolescent feature""")
 def w_X_OBSOLETE(name):                 # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-30))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_OBSOLETE))
 
 @defword(name='X_BODY', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 >BODY used on a non-CREATEd definition""")
 def w_X_BODY(name):                     # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-31))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_BODY))
 
 @defword(name='X_INVALID_NAME', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Invalid name argument""")
 def w_X_INVALID_NAME(name):             # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-32))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_INVALID_NAME))
 
 @defword(name='X_BLK_READ', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Block read exception""")
 def w_X_BLK_READ(name):                 # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-33))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_BLK_READ))
 
 @defword(name='X_BLK_WRITE', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Block write exception""")
 def w_X_BLK_WRITE(name):                # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-34))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_BLK_WRITE))
 
 @defword(name='X_INVALID_BLK_NUM', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Invalid block number""")
 def w_X_INVALID_BLK_NUM(name):          # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-35))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_INVALID_BLK_NUM))
 
 @defword(name='X_INVALID_FILE_POS', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Invalid file position""")
 def w_X_INVALID_FILE_POS(name):         # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-36))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_INVALID_FILE_POS))
 
 @defword(name='X_FILE_IO', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 File I/O exception""")
 def w_X_FILE_IO(name):                  # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-37))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_FILE_IO))
 
 @defword(name='X_NON_EXISTENT_FILE', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Non-existent file""")
 def w_X_NON_EXISTENT_FILE(name):        # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-38))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_NON_EXISTENT_FILE))
 
 @defword(name='X_EOF', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Unexpected end of file""")
 def w_X_EOF(name):                      # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-39))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_EOF))
 
 @defword(name='X_INVALID_BASE', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Invalid BASE for floating point conversion""")
 def w_X_INVALID_BASE(name):             # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-40))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_INVALID_BASE))
 
 @defword(name='X_PRECISION_LOSS', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Loss of precision""")
 def w_X_PRECISION_LOSS(name):           # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-41))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_PRECISION_LOSS))
 
 @defword(name='X_FP_DIVISION_BY_ZERO', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Floating-point divide by zero""")
 def w_X_FP_DIVISION_BY_ZERO(name):      # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-42))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_FP_DIVISION_BY_ZERO))
 
 @defword(name='X_FP_RESULT_OO_RANGE', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Floating-point result out of range""")
 def w_X_FP_RESULT_OO_RANGE(name):       # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-43))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_FP_RESULT_OO_RANGE))
 
 @defword(name='X_FP_STACK_OVERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Floating-point stack overflow""")
 def w_X_FP_STACK_OVERFLOW(name):        # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-44))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_FP_STACK_OVERFLOW))
 
 @defword(name='X_FP_STACK_UNDERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Floating-point stack underflow""")
 def w_X_FP_STACK_UNDERFLOW(name):       # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-45))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_FP_STACK_UNDERFLOW))
 
 @defword(name='X_FP_INVALID_ARG', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Floating-point invalid argument""")
 def w_X_FP_INVALID_ARG(name):           # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-46))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_FP_INVALID_ARG))
 
 @defword(name='X_COMP_WORD_DEL', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Compilation word list deleted""")
 def w_X_COMP_WORD_DEL(name):            # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-47))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_COMP_WORD_DEL))
 
 @defword(name='X_INVALID_POSTPONE', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Invalid POSTPONE""")
 def w_X_INVALID_POSTPONE(name):         # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-48))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_INVALID_POSTPONE))
 
 @defword(name='X_SO_OVERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Search-order overflow""")
 def w_X_SO_OVERFLOW(name):              # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-49))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_SO_OVERFLOW))
 
 @defword(name='X_SO_UNDERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Search-order underflow""")
 def w_X_SO_UNDERFLOW(name):             # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-50))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_SO_UNDERFLOW))
 
 @defword(name='X_COMP_WORD_CHG', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Compilatin word list changed""")
 def w_X_COMP_WORD_CHG(name):            # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-51))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_COMP_WORD_CHG))
 
 @defword(name='X_CTL_STACK_OVERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Control-flow stack overflow""")
 def w_X_CTL_STACK_OVERFLOW(name):       # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-52))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_CTL_STACK_OVERFLOW))
 
 @defword(name='X_XSTACK_OVERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Exception stack overflow""")
 def w_X_XSTACK_OVERFLOW(name):          # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-53))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_XSTACK_OVERFLOW))
 
 @defword(name='X_FP_UNDERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Floating-point underflow""")
 def w_X_FP_UNDERFLOW(name):             # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-54))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_FP_UNDERFLOW))
 
 @defword(name='X_FP_FAULT', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Floating-point unidentified fault""")
 def w_X_FP_FAULT(name):                 # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-55))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_FP_FAULT))
 
 @defword(name='X_QUIT', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 QUIT""")
 def w_X_QUIT(name):                     # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-56))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_QUIT))
 
 @defword(name='X_CHAR_IO', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Exception in sending or receiving a character""")
 def w_X_CHAR_IO(name):                  # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-57))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_CHAR_IO))
 
 @defword(name='X_IF_THEN', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 [IF], [ELSE], or [THEN] exception""")
 def w_X_IF_THEN(name):                  # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-58))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_IF_THEN))
 
 @defword(name='X_LEAVE', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 LEAVE""")
 def w_X_LEAVE(name):                    # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-256))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_LEAVE))
 
 @defword(name='X_EXIT', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 EXIT""")
 def w_X_EXIT(name):                     # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-257))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_EXIT))
 
 @defword(name='X_FP_NAN', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Floating-point Not a Number""")
 def w_X_FP_NAN(name):                   # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-258))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_FP_NAN))
 
 @defword(name='X_INSUFF_PARAMS', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Insufficient parameters""")
 def w_X_INSUFF_PARAMS(name):            # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-259))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_INSUFF_PARAMS))
 
 @defword(name='X_INSUFF_STR_PARAMS', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Insufficient string parameters""")
 def w_X_INSUFF_STR_PARAMS(name):        # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-260))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_INSUFF_STR_PARAMS))
 
 @defword(name='X_CONFORMABILITY', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Comformability error""")
 def w_X_CONFORMABILITY(name):           # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-261))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_CONFORMABILITY))
 
 @defword(name='X_BAD_DATA', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Bad data""")
 def w_X_BAD_DATA(name):                 # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-262))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_BAD_DATA))
 
 @defword(name='X_SYNTAX', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Syntax error""")
 def w_X_SYNTAX(name):                   # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-263))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_SYNTAX))
 
 @defword(name='X_NO_SOLUTION', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 No solution""")
 def w_X_NO_SOLUTION(name):              # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-264))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_NO_SOLUTION))
 
 @defword(name='X_UNDEFINED_VARIABLE', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Undefined variable""")
 def w_X_UNDEFINED_VARIABLE(name):       # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-265))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_UNDEFINED_VARIABLE))
 
 @defword(name='X_PROTECTED', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Protected""")
 def w_X_PROTECTED(name):                # pylint: disable=unused-argument
-    rpn.globl.param_stack.push(rpn.type.Integer(-266))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_PROTECTED))
+
+@defword(name='X_INVALID_UNIT', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
+Invalid unit""")
+def w_X_INVALID_UNIT(name):             # pylint: disable=unused-argument
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_INVALID_UNIT))
 
 
 @defword(name='xor', args=2, print_x=rpn.globl.PX_PREDICATE, doc="""\
