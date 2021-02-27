@@ -69,7 +69,6 @@ reserved_words = {
 
 tokens = [
     'ABORT_QUOTE',
-    'ASTERISK',
     'AT_SIGN',
     'CLOSE_BRACKET',
     'CLOSE_PAREN',
@@ -79,19 +78,13 @@ tokens = [
     'DOT_QUOTE',
     'EXCLAM',
     'FLOAT',
-#    'FLOAT_UNIT',
     'IDENTIFIER',
     'INTEGER',
-#    'INTEGER_UNIT',
     'OPEN_BRACKET',
     'OPEN_PAREN',
     'RATIONAL',
-#    'RATIONAL_UNIT',
     'SEMICOLON',
-    'SLASH',
     'STRING',
-    'USYMBOL',
-    'UNDERSCORE',
     'VBAR',
     'WS',
 ] + list(reserved_words.values())
@@ -107,11 +100,6 @@ def t_STRING(t):
     t.type = 'STRING'
     return t
 
-# def t_RATIONAL_UNIT(t):
-#     r'(\d+::\d+)_([-A-Za-z0-9()^*/]+)'
-#     t.type = 'RATIONAL_UNIT'
-#     return t
-
 def t_RATIONAL(t):
     r'\d+::\d+'
     t.type = 'RATIONAL'
@@ -120,11 +108,6 @@ def t_RATIONAL(t):
 # def t_CMPLX(t):
 #     r'\([-+]?(\d+(\.\d*[eE][-+]?\d+|[eE][-+]?\d+|\.\d*))|(\d*(\.\d+[eE][-+]?\d+|[eE][-+]?\d+|\.\d+)),[-+]?(\d+(\.\d*[eE][-+]?\d+|[eE][-+]?\d+|\.\d*))|(\d*(\.\d+[eE][-+]?\d+|[eE][-+]?\d+|\.\d+))\)'
 #     t.type = 'CMPLX'
-#     return t
-
-# def t_FLOAT_UNIT(t):
-#     r'([-+]?(\d+(\.\d*[eE][-+]?\d+|[eE][-+]?\d+|\.\d*))|(\d*(\.\d+[eE][-+]?\d+|[eE][-+]?\d+|\.\d+)))_([-A-Za-z0-9()^*/]+)'
-#     t.type = 'FLOAT_UNIT'
 #     return t
 
 def t_FLOAT(t):
@@ -148,11 +131,6 @@ def t_ASCII(t):
 # Beware bad input - e.g., "0b177" is parsed as two token, "0b1" and "77".
 # Note a little Python magic: int(xxx, 0) will guess base and parse "0x", etc.
 # On the whole, the benefits outweigh the drawbacks.
-# def t_INTEGER_UNIT(t):
-#     r'([-+]?((((0x)|(0X))[0-9a-fA-F]+)|(((0o)|(0O))[0-7]+)|(((0b)|(0B))[0-1]+)|(\d+)))_([-A-Za-z0-9()^*/]+)'
-#     t.type = 'INTEGER_UNIT'
-#     return t
-
 def t_INTEGER(t):
     r'[-+]?((((0x)|(0X))[0-9a-fA-F]+)|(((0o)|(0O))[0-7]+)|(((0b)|(0B))[0-1]+)|(\d+))'
     t.value = str(int(t.value, 0))
@@ -163,10 +141,10 @@ def t_ABORT_QUOTE(t):
     r'abort"([^"]|\n)*"'
     return t
 
-def t_ASTERISK(t):
-    r'*'
-    t.type = 'ASTERISK'
-    return t
+# def t_ASTERISK(t):
+#     r'\*'
+#     t.type = 'ASTERISK'
+#     return t
 
 def t_AT_SIGN(t):
     r'@'
@@ -227,20 +205,20 @@ def t_OPEN_PAREN(t):
     t.type = 'OPEN_PAREN'
     return t
 
-def t_SLASH(t):
-    r'/'
-    t.type = 'SLASH'
-    return t
+# def t_SLASH(t):
+#     r'/'
+#     t.type = 'SLASH'
+#     return t
 
-def t_UNDERSCORE(t):
-    r'_'
-    t.type = 'UNDERSCORE'
-    return t
+# def t_UNDERSCORE(t):
+#     r'_'
+#     t.type = 'UNDERSCORE'
+#     return t
 
-def t_USYMBOL(t):
-    r'[A-Za-z]+'
-    t.type = 'USYMBOL'
-    return t
+# def t_USYMBOL(t):
+#     r'[A-Za-z]+'
+#     t.type = 'USYMBOL'
+#     return t
 
 def t_VBAR(t):
     r'\|'
@@ -390,11 +368,6 @@ def p_complex(p):
     '''complex : OPEN_PAREN real COMMA real CLOSE_PAREN '''
     p[0] = rpn.type.Complex(p[2].value, p[4].value)
 
-def p_composite_unit(p):
-    '''composite_unit : OPEN_PAREN ASTERISK unit_list CLOSE_PAREN
-                      | OPEN_PAREN SLASH unit unit CLOSE_PAREN'''
-    p[0] = 'composite_unit' # XXX
-
 def p_constant(p):
     '''constant : CONSTANT IDENTIFIER'''
     ident = p[2]
@@ -463,7 +436,6 @@ def p_executable(p):
                   | if_else_then
                   | matrix
                   | number
-                  | number_unit
                   | recurse
                   | show
                   | store_var
@@ -668,16 +640,6 @@ def p_number_list(p):
     elif len(p) == 3:
         p[0] = rpn.util.List(p[1], p[2])
 
-def p_number_unit(p):
-    '''number_unit : number UNDERSCORE composite_unit'''
-    print("Found number='{}' composite_unit='{}'".format(p[1], p[3]))
-    p[0] = p[1]
-
-# def p_number_unit(p):
-#     '''number_unit : INTEGER_UNIT
-#                    | FLOAT_UNIT'''
-#     p[0] = rpn.type.Unit.from_string(p[1])
-
 def p_otherwise_list(p):
     '''otherwise_list : empty
                       | OTHERWISE sequence'''
@@ -714,11 +676,6 @@ def p_show(p):
         rpn.globl.lnwriteln("show: Word '{}' not found".format(name))
         raise SyntaxError
     p[0] = rpn.exe.Show(word)
-
-def p_simple_unit(p):
-    '''simple_unit : USYMBOL
-                   | number'''
-    p[0] = p[1]
 
 def p_store_var(p):
     '''store_var : EXCLAM IDENTIFIER'''
@@ -774,11 +731,6 @@ def p_undef(p):
     cur_obj = None
     for post_hook_func in var.post_hooks():
         post_hook_func(ident, old_obj, cur_obj)
-
-def p_unit(p):
-    '''unit : simple_unit
-            | composite_unit'''
-    p[0] = p[1]
 
 def p_variable(p):
     '''variable :  VARIABLE IDENTIFIER'''

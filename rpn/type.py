@@ -406,57 +406,6 @@ class String(rpn.exe.Executable):
 
 #############################################################################
 #
-#       U N I T
-#
-#############################################################################
-class Unit(Stackable):
-    def __init__(self, val, unit):
-        super().__init__()
-        self.name = "Unit"
-        match = rpn.globl.INTEGER_RE.match(val)
-        self.value = int(val) if match is not None else float(val)
-        self.unit = unit
-
-    @classmethod
-    def from_string(cls, s):
-        match = rpn.globl.UNIT_RE.match(s)
-        if match is None:
-            raise rpn.exception.FatalErr("Unit pattern failed to match '{}'".format(s))
-        return cls(match.group(1), match.group(2))
-
-    def typ(self):
-        if type(self.value) is int:
-            t = 0
-        elif type(self.value) is Fraction:
-            t = 1
-        elif type(self.value) is float:
-            t = 2
-        return (1<<4) + t
-
-    @property
-    def value(self):
-        return self._value
-
-    @value.setter
-    def value(self, new_value):
-        if type(new_value) not in (int, float):
-            raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'Unit#value()', "({})".format(typename(new_value)))
-        self._value = new_value
-
-    def zerop(self):
-        return self.value() == 0
-
-    def __str__(self):
-        s = "{}_{}".format(self.value, self.unit)
-        l = r"  \ {}".format(self.label) if self.label is not None else ""
-        return s + l
-
-    def __repr__(self):
-        return "Unit[{},'{}']".format(repr(self.value), self.unit)
-
-
-#############################################################################
-#
 #       V E C T O R
 #
 #############################################################################

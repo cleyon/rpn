@@ -75,7 +75,7 @@ PRECISION_MAX           =  16
 MATRIX_MAX              = 999
 RATIONAL_RE             = re.compile(r'^(\d+)::(\d+)$')              # ddd::ddd
 TIME_RE                 = re.compile(r'^[-+]?(\d+)\.(\d{,2})(\d*)$') # HH.MMSSsss
-UNIT_RE                 = re.compile(r'^([^_]+)_(.+)$')              # Not rigorous because we assume lexer got it right
+#UNIT_RE                 = re.compile(r'^([^_]+)_(.+)$')              # Not rigorous because we assume lexer got it right
 
 # DEG_PER_RAD  = 360 / TAU
 # E            = Base of natural logarithms = exp(1.0)
