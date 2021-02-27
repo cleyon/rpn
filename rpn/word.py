@@ -3997,6 +3997,12 @@ def w_repeat(name):                     # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
+@defword(name='resize', print_x=rpn.globl.PX_CONFIG, doc="""\
+Reset ROWS and COLS to actual values.""")
+def w_resize(name):                       # pylint: disable=unused-argument
+    rpn.globl.update_screen_size()
+
+
 @defword(name='rms', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Root Mean Square  ( v -- rms )
 

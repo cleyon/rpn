@@ -10,7 +10,6 @@ import getopt
 import os
 import random
 import signal
-import subprocess
 import sys
 
 try:
@@ -479,22 +478,7 @@ flag is True if initial parse error, False if no error'''
 # Simple SIGWINCH handler can become overwhelmed and crash if window
 # changes come too fast.  Consider using shutil.get_terminal_size()
 def sigwinch_handler(_signum, _frame):
-    tty_rows = 0
-    tty_columns = 0
-    if sys.stdin.isatty():
-        stty_size = subprocess.check_output(['stty', 'size']).decode().split()
-        if len(stty_size) == 2:
-            tty_rows, tty_columns = stty_size
-
-    #rpn.globl.lnwriteln("{} x {}".format(tty_rows, tty_columns))
-    if int(tty_columns) == 0:
-        env_cols = os.getenv("COLUMNS")
-        tty_columns = int(env_cols) if env_cols is not None else 80
-    if int(tty_rows) == 0:
-        env_rows = os.getenv("ROWS")
-        tty_rows = int(env_rows) if env_rows is not None else 24
-    rpn.globl.scr_rows.obj = rpn.type.Integer(tty_rows)
-    rpn.globl.scr_cols.obj = rpn.type.Integer(tty_columns)
+    rpn.globl.update_screen_size()
 
 
 def sigquit_handler(_signum, _frame):
