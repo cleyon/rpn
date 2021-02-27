@@ -65,8 +65,6 @@ def dbg(resource, level=1, text=None):
     '''Note that a level of -1 will always be True and possibly print the text.
 This can be useful to quickly turn a debugging statement on unilaterally;
 just change "dbg(res,1,xxx)" to "dbg(res,-1,xxx)".'''
-    # global debug_levels
-
     if resource not in debug_levels:
         print("dbg: Resource '{}' not valid".format(resource)) # OK
         traceback.print_stack(file=sys.stderr)
@@ -81,8 +79,6 @@ just change "dbg(res,1,xxx)" to "dbg(res,-1,xxx)".'''
 
 
 def set_debug_level(resource, level=1):
-    # global debug_levels
-
     if resource not in debug_levels:
         print("set_debug_level: Resource '{}' not valid".format(resource)) # OK
         traceback.print_stack(file=sys.stderr)

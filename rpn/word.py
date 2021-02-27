@@ -98,8 +98,8 @@ def w_number_in(name):
         try:
             x = input()
             dbg(name, 1, "#in: '{}'".format(x))
-        except EOFError:
-            raise rpn.exception.RuntimeErr(rpn.exception.X_EOF, name)
+        except EOFError as e:
+            raise rpn.exception.RuntimeErr(rpn.exception.X_EOF, name) from e
         finally:
             rpn.globl.sharpout.obj = rpn.type.Integer(0)
 
@@ -136,8 +136,8 @@ def w_dollar_in(name):
         try:
             x = input()
             dbg(name, 1, "$in: '{}'".format(x))
-        except EOFError:
-            raise rpn.exception.RuntimeErr(rpn.exception.X_EOF, name)
+        except EOFError as e:
+            raise rpn.exception.RuntimeErr(rpn.exception.X_EOF, name) from e
         finally:
             rpn.globl.sharpout.obj = rpn.type.Integer(0)
 
@@ -371,10 +371,10 @@ def w_star(name):
          type(y) in [rpn.type.Vector, rpn.type.Matrix]:
         try:
             r = np.dot(y.value, x.value)
-        except ValueError:
+        except ValueError as e:
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_CONFORMABILITY, name)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_CONFORMABILITY, name) from e
         result = rpn.type.Matrix.from_numpy(r)
     else:
         rpn.globl.param_stack.push(y)
@@ -1075,9 +1075,9 @@ def w_caret(name):
 
     try:
         r = pow(y.value, x.value)
-    except OverflowError:
+    except OverflowError as e:
         rpn.globl.param_stack.push(x)
-        raise rpn.exception.RuntimeErr(rpn.exception.X_FP_RESULT_OO_RANGE, name)
+        raise rpn.exception.RuntimeErr(rpn.exception.X_FP_RESULT_OO_RANGE, name) from e
 
     if type(r) is int:
         result = rpn.type.Integer(r)
@@ -1149,17 +1149,17 @@ def w_acos(name):
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         try:
             r = math.acos(float(x.value))
-        except ValueError:
+        except ValueError as e:
             rpn.globl.param_stack.push(x)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name) from e
         result = rpn.type.Float(rpn.globl.convert_radians_to_mode(r))
         result.label = rpn.globl.angle_mode_label()
     elif type(x) is rpn.type.Complex:
         try:
             r = cmath.acos(x.value)
-        except ValueError:
+        except ValueError as e:
             rpn.globl.param_stack.push(x)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name) from e
         result = rpn.type.Complex.from_complex(r)
     else:
         rpn.globl.param_stack.push(x)
@@ -1177,16 +1177,16 @@ def w_acosh(name):
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         try:
             r = math.acosh(float(x.value))
-        except ValueError:
+        except ValueError as e:
             rpn.globl.param_stack.push(x)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name) from e
         result = rpn.type.Float(r)
     elif type(x) is rpn.type.Complex:
         try:
             r = cmath.acosh(x.value)
-        except ValueError:
+        except ValueError as e:
             rpn.globl.param_stack.push(x)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name) from e
         result = rpn.type.Complex.from_complex(r)
     else:
         rpn.globl.param_stack.push(x)
@@ -1250,17 +1250,17 @@ def w_asin(name):
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         try:
             r = math.asin(float(x.value))
-        except ValueError:
+        except ValueError as e:
             rpn.globl.param_stack.push(x)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name) from e
         result = rpn.type.Float(rpn.globl.convert_radians_to_mode(r))
         result.label = rpn.globl.angle_mode_label()
     elif type(x) is rpn.type.Complex:
         try:
             r = cmath.asin(x.value)
-        except ValueError:
+        except ValueError as e:
             rpn.globl.param_stack.push(x)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name) from e
         result = rpn.type.Complex.from_complex(r)
     else:
         rpn.globl.param_stack.push(x)
@@ -1278,16 +1278,16 @@ def w_asinh(name):
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         try:
             r = math.asinh(float(x.value))
-        except ValueError:
+        except ValueError as e:
             rpn.globl.param_stack.push(x)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name) from e
         result = rpn.type.Float(r)
     elif type(x) is rpn.type.Complex:
         try:
             r = cmath.asinh(x.value)
-        except ValueError:
+        except ValueError as e:
             rpn.globl.param_stack.push(x)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name) from e
         result = rpn.type.Complex.from_complex(r)
     else:
         rpn.globl.param_stack.push(x)
@@ -1305,17 +1305,17 @@ def w_atan(name):
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         try:
             r = math.atan(float(x.value))
-        except ValueError:
+        except ValueError as e:
             rpn.globl.param_stack.push(x)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name) from e
         result = rpn.type.Float(rpn.globl.convert_radians_to_mode(r))
         result.label = rpn.globl.angle_mode_label()
     elif type(x) is rpn.type.Complex:
         try:
             r = cmath.atan(x.value)
-        except ValueError:
+        except ValueError as e:
             rpn.globl.param_stack.push(x)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name) from e
         result = rpn.type.Complex.from_complex(r)
     else:
         rpn.globl.param_stack.push(x)
@@ -1331,10 +1331,10 @@ def w_atan2(name):
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         try:
             r = math.atan2(float(y.value), float(x.value))
-        except ValueError:
+        except ValueError as e:
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name) from e
         result = rpn.type.Float(rpn.globl.convert_radians_to_mode(r))
         result.label = rpn.globl.angle_mode_label()
     elif type(x) is rpn.type.Complex:
@@ -1362,16 +1362,16 @@ def w_atanh(name):
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         try:
             r = math.atanh(float(x.value))
-        except ValueError:
+        except ValueError as e:
             rpn.globl.param_stack.push(x)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name) from e
         result = rpn.type.Float(r)
     elif type(x) is rpn.type.Complex:
         try:
             r = cmath.atanh(x.value)
-        except ValueError:
+        except ValueError as e:
             rpn.globl.param_stack.push(x)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name) from e
         result = rpn.type.Complex.from_complex(r)
     else:
         rpn.globl.param_stack.push(x)
@@ -2007,10 +2007,10 @@ Vector dot product  ( vec_y vec_x -- real )""")
         if type(x) is rpn.type.Vector and type(y) is rpn.type.Vector:
             try:
                 r = y.value.dot(x.value)
-            except ValueError:
+            except ValueError as e:
                 rpn.globl.param_stack.push(y)
                 rpn.globl.param_stack.push(x)
-                raise rpn.exception.RuntimeErr(rpn.exception.X_CONFORMABILITY, name, "Vectors are not same size")
+                raise rpn.exception.RuntimeErr(rpn.exception.X_CONFORMABILITY, name, "Vectors are not same size") from e
 
             result = rpn.globl.to_rpn_class(r)
         else:
@@ -2215,9 +2215,9 @@ def w_erf(name):
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         try:
             r = math.erf(float(x.value))
-        except ValueError:
+        except ValueError as e:
             rpn.globl.param_stack.push(x)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name) from e
         result = rpn.type.Float(r)
     elif type(x) is rpn.type.Complex:
         if not rpn.globl.have_module('scipy'):
@@ -2242,9 +2242,9 @@ def w_erfc(name):
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         try:
             r = math.erfc(float(x.value))
-        except ValueError:
+        except ValueError as e:
             rpn.globl.param_stack.push(x)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name) from e
         result = rpn.type.Float(r)
     elif type(x) is rpn.type.Complex:
         if not rpn.globl.have_module('scipy'):
@@ -2279,16 +2279,16 @@ def w_exp(name):
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         try:
             r = math.exp(float(x.value))
-        except OverflowError:
+        except OverflowError as e:
             rpn.globl.param_stack.push(x)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_RESULT_OO_RANGE, name)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_RESULT_OO_RANGE, name) from e
         result = rpn.type.Float(r)
     elif type(x) is rpn.type.Complex:
         try:
             r = cmath.exp(complex(x.value))
-        except OverflowError:
+        except OverflowError as e:
             rpn.globl.param_stack.push(x)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_RESULT_OO_RANGE, name)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_RESULT_OO_RANGE, name) from e
         result = rpn.type.Complex.from_complex(r)
     else:
         rpn.globl.param_stack.push(x)
@@ -2297,39 +2297,51 @@ def w_exp(name):
 
 
 @defword(name='F_DEBUG_ENABLED', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Debug enabled""")
+Flag number for Debug enabled""")
 def w_F_DEBUG_ENABLED(name):    # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.flag.F_DEBUG_ENABLED))
 
 
 @defword(name='F_GRAD', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Gradians""")
+Flag number for Gradians""")
 def w_F_GRAD(name):    # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.flag.F_GRAD))
 
 
 @defword(name='F_PRINTER_ENABLED', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Printer enabled""")
+Flag number for Printer enabled""")
 def w_F_PRINTER_ENABLED(name):    # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.flag.F_PRINTER_ENABLED))
 
 
 @defword(name='F_PRINTER_EXISTS', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Printer exists""")
+Flag number for Printer exists""")
 def w_F_PRINTER_EXISTS(name):    # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.flag.F_PRINTER_EXISTS))
 
 
 @defword(name='F_RAD', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Radians""")
+Flag number for Radians""")
 def w_F_RAD(name):                      # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.flag.F_RAD))
 
 
 @defword(name='F_SHOW_X', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Show X""")
+Flag number for Show X""")
 def w_F_SHOW_X(name):    # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.flag.F_SHOW_X))
+
+
+@defword(name='F_TVM_BEGIN_MODE', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
+Flag number for TVM Begin mode""")
+def w_F_TVM_BEGIN_MODE(name):                      # pylint: disable=unused-argument
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.flag.F_TVM_BEGIN_MODE))
+
+
+@defword(name='F_TVM_CONTINUOUS', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
+Flag number for TVM Continuous""")
+def w_F_TVM_CONTINUOUS(name):                      # pylint: disable=unused-argument
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.flag.F_TVM_CONTINUOUS))
 
 
 @defword(name='fact', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -2569,7 +2581,7 @@ Name of function must be on string stack.
 Implemented via scipy.optimize.fsolve()""")
 def w_fsolve(name):
     func_to_solve = rpn.globl.string_stack.pop().value
-    (word, scope) = rpn.globl.lookup_word(func_to_solve)
+    (word, _) = rpn.globl.lookup_word(func_to_solve)
     if word is None:
         raise rpn.exception.RuntimeErr(rpn.exception.X_UNDEFINED_WORD, name, "'{}'".format(func_to_solve))
 
@@ -2642,9 +2654,9 @@ def w_gamma(name):
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         try:
             r = math.gamma(float(x.value))
-        except ValueError:
+        except ValueError as e:
             rpn.globl.param_stack.push(x)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name, "X cannot be a non-positive integer")
+            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name, "X cannot be a non-positive integer") from e
         if type(x) is rpn.type.Integer:
             result = rpn.type.Integer(r)
         else:
@@ -3111,9 +3123,9 @@ def w_inv(name):
     elif type(x) is rpn.type.Matrix:
         try:
             r = np.linalg.inv(x.value)
-        except np.linalg.LinAlgError:
+        except np.linalg.LinAlgError as e:
             rpn.globl.param_stack.push(x)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name, "Singular matrix has no inverse")
+            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name, "Singular matrix has no inverse") from e
         result = rpn.type.Matrix.from_numpy(r)
     else:
         rpn.globl.param_stack.push(x)
@@ -3584,8 +3596,8 @@ FN is the (string) name of a function which must implement ( x -- y ).
 Y-axis is autoscaled.
 
 EXAMPLE:
-rad  80 !COLS  24 !ROWS
-TAU chs TAU "sin" plot  =>
+  rad  80 !COLS  24 !ROWS
+  TAU chs TAU "sin"  plot
 
       1.000 |------------------------------------*---------------------|
             |     ****                   :     ** *                    |
@@ -3664,8 +3676,8 @@ Pop current display configuration.""")
 def w_popdisp(name):                    # pylint: disable=unused-argument
     try:
         rpn.globl.disp_stack.pop()
-    except rpn.exception.StackUnderflow:
-        raise rpn.exception.RuntimeErr(rpn.exception.X_STACK_UNDERFLOW, name, "No display configuration")
+    except rpn.exception.StackUnderflow as e:
+        raise rpn.exception.RuntimeErr(rpn.exception.X_STACK_UNDERFLOW, name, "No display configuration") from e
 
 
 @defword(name='price', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -3751,7 +3763,7 @@ EXAMPLE: Integrate a bessel function jv(2.5, x) along the interval [0,4.5]:
 0: 1.1178179380783249  \ quad""")
     def quad(name):
         func_to_integrate = rpn.globl.string_stack.pop().value
-        (word, scope) = rpn.globl.lookup_word(func_to_integrate)
+        (word, _) = rpn.globl.lookup_word(func_to_integrate)
         if word is None:
             raise rpn.exception.RuntimeErr(rpn.exception.X_UNDEFINED_WORD, name, "'{}'".format(func_to_integrate))
 
@@ -4510,6 +4522,54 @@ def w_swap(name):                       # pylint: disable=unused-argument
     rpn.globl.param_stack.push(y)
 
 
+@defword(name='T_COMPLEX', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
+Type number for Complex""")
+def w_T_COMPLEX(name):          # pylint: disable=unused-argument
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.type.T_COMPLEX))
+
+
+@defword(name='T_FLOAT', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
+Type number for Float""")
+def w_T_FLOAT(name):            # pylint: disable=unused-argument
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.type.T_FLOAT))
+
+
+@defword(name='T_INTEGER', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
+Type number for Integer""")
+def w_T_INTEGER(name):          # pylint: disable=unused-argument
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.type.T_INTEGER))
+
+
+@defword(name='T_LIST', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
+Type number for List""")
+def w_T_LIST(name):             # pylint: disable=unused-argument
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.type.T_LIST))
+
+
+@defword(name='T_MATRIX', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
+Type number for Matrix""")
+def w_T_MATRIX(name):           # pylint: disable=unused-argument
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.type.T_MATRIX))
+
+
+@defword(name='T_RATIONAL', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
+Type number for Rational""")
+def w_T_RATIONAL(name):         # pylint: disable=unused-argument
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.type.T_RATIONAL))
+
+
+@defword(name='T_STRING', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
+Type number for String""")
+def w_T_STRING(name):           # pylint: disable=unused-argument
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.type.T_STRING))
+
+
+@defword(name='T_VECTOR', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
+Type number for Vector""")
+def w_T_VECTOR(name):           # pylint: disable=unused-argument
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.type.T_VECTOR))
+
+
 @defword(name='tan', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Tangent  ( angle -- tangent )
 
@@ -4520,16 +4580,16 @@ def w_tan(name):
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         try:
             r = math.tan(rpn.globl.convert_mode_to_radians(x.value))
-        except ValueError:
+        except ValueError as e:
             rpn.globl.param_stack.push(x)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name) from e
         result = rpn.type.Float(r)
     elif type(x) is rpn.type.Complex:
         try:
             r = cmath.tan(x.value)
-        except ValueError:
+        except ValueError as e:
             rpn.globl.param_stack.push(x)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_FP_INVALID_ARG, name) from e
         result = rpn.type.Complex.from_complex(r)
     else:
         rpn.globl.param_stack.push(x)
@@ -4671,22 +4731,24 @@ Return a code for the type of the value in X  ( x -- x code )
 Unlike most other words, type preserves the top of stack,
 assuming that you'll still want to work on the value later.
 
-  0000 - Integer X
-  0001 - Rational X
-  0010 - Float X
-  0011 - Complex X
-  0100 - Vector X
-  0101 - Matrix X
-  0110 - String X
-  0111 - List (not implemented)
-  1___ - [Reserved]
- 1____ - Has Unit (16 +)
-1_____ - Has Label (32 +)""")
-def w_type(name):
+__0000 - Integer  = 0
+__0001 - Rational = 1
+__0010 - Float    = 2
+__0011 - Complex  = 3
+__0100 - Vector   = 4
+__0101 - Matrix   = 5
+__0110 - String   = 6
+__0111 - List     = 7  (not implemented)
+__1___ - [Reserved]
+_1____ - Has Unit  (type + 16)
+1_____ - Has Label (type + 32)""")
+def w_type(name):               # pylint: disable=unused-argument
     x = rpn.globl.param_stack.top()
     t = x.typ()
+    # if <x has a unit>:
+    #     t += rpn.type.T_HAS_UNIT
     if x.label is not None:
-        t += (1<<5)
+        t += rpn.type.T_HAS_LABEL
     rpn.globl.param_stack.push(rpn.type.Integer(t))
 
 

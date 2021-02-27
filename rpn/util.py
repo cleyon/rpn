@@ -382,8 +382,7 @@ class Sequence:
                         rpn.globl.param_stack.pop()
                     if rpn.globl.sigint_detected:
                         raise KeyboardInterrupt
-                    else:
-                        raise rpn.exception.RuntimeErr(rpn.exception.X_UNDEFINED_VARIABLE, self.scope_template().name, "Variable '{}' was never set".format(vname.ident))
+                    raise rpn.exception.RuntimeErr(rpn.exception.X_UNDEFINED_VARIABLE, self.scope_template().name, "Variable '{}' was never set".format(vname.ident))
                 dbg(whoami(), 3, "{} is {}".format(vname.ident, repr(var.obj)))
                 rpn.globl.param_stack.push(var.obj)
                 param_stack_pushes += 1
@@ -557,16 +556,16 @@ class TokenMgr:
                         # ^D (eof) on input signals end of input tokens
                         rpn.globl.lnwrite()
                         return
-                    except KeyboardInterrupt:
+                    except KeyboardInterrupt as e:
                         # ^C can either void the parse_stack, or the end program
                         rpn.globl.sigint_detected = False
                         if rpn.globl.parse_stack.empty():
                             if rpn.globl.got_interrupt:
-                                raise rpn.exception.EndProgram()
+                                raise rpn.exception.EndProgram() from e
                             rpn.globl.lnwriteln("<Once more to quit>")
                             rpn.globl.got_interrupt = True
                             continue
-                        raise rpn.exception.TopLevel()
+                        raise rpn.exception.TopLevel() from e
                     else:
                         rpn.globl.got_interrupt = False
 

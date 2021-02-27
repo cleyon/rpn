@@ -212,7 +212,7 @@ def parse_args(argv):
             global load_init_file       # pylint: disable=global-statement
             load_init_file = False
         elif opt == "-Q":
-            global disable_all_extensions
+            global disable_all_extensions # pylint: disable=global-statement
             load_init_file = False
             disable_all_extensions = True
         else:
@@ -226,8 +226,8 @@ def load_file(filename):
     try:
         with open(filename, "r") as file:
             contents = file.read()
-    except PermissionError:
-        raise rpn.exception.RuntimeErr(rpn.exception.X_FILE_IO, "load", "Cannot open file '{}'".format(filename))
+    except PermissionError as e:
+        raise rpn.exception.RuntimeErr(rpn.exception.X_FILE_IO, "load", "Cannot open file '{}'".format(filename)) from e
     else:
         dbg("load_file", 3, "load_file({})='{}'".format(filename, contents))
         rpn.globl.eval_string(contents)

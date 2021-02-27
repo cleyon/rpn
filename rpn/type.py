@@ -5,6 +5,8 @@
 #
 #       - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #
+#       NB - These aren't the values currently used by TYPE
+#
 #       | HP-48 OBJECT TYPE |       |
 #       |-------------------+-------|
 #       | Real number       |     0 |
@@ -44,6 +46,17 @@
 from   fractions import Fraction
 import datetime
 
+T_INTEGER   = 0
+T_RATIONAL  = 1
+T_FLOAT     = 2
+T_COMPLEX   = 3
+T_VECTOR    = 4
+T_MATRIX    = 5
+T_STRING    = 6
+T_LIST      = 7                  # Not implemented yet
+T_HAS_UNIT  = 1 << 4
+T_HAS_LABEL = 1 << 5
+
 # Check if NumPy is available
 try:
     import numpy as np
@@ -72,6 +85,7 @@ class Stackable(rpn.exe.Executable):
     def __init__(self):
         self._value = None
         self._label = None
+        self._type  = None
 
     @property
     def label(self):
@@ -80,6 +94,9 @@ class Stackable(rpn.exe.Executable):
     @label.setter
     def label(self, new_label):
         self._label = new_label
+
+    def typ(self):
+        return self._type
 
     def __call__(self, name):
         dbg("trace", 1, "trace({})".format(repr(self)))
@@ -95,14 +112,12 @@ class Complex(Stackable):
     def __init__(self, real=0.0, imag=0.0):
         super().__init__()
         self.name = "Complex"
+        self._type = T_COMPLEX
         self.value = complex(float(real), float(imag))
 
     @classmethod
     def from_complex(cls, cplx):
         return cls(cplx.real, cplx.imag)
-
-    def typ(self):
-        return 3
 
     @property
     def value(self):
@@ -141,10 +156,8 @@ class Float(Stackable):
     def __init__(self, val=0.0):
         super().__init__()
         self.name = "Float"
+        self._type = T_FLOAT
         self.value = float(val)
-
-    def typ(self):
-        return 2
 
     @property
     def value(self):
@@ -221,10 +234,8 @@ class Integer(Stackable):
     def __init__(self, val=0):
         super().__init__()
         self.name = "Integer"
+        self._type = T_INTEGER
         self.value = int(val)
-
-    def typ(self):
-        return 0
 
     @property
     def value(self):
@@ -259,6 +270,7 @@ class Matrix(Stackable):
             raise rpn.exception.RuntimeErr(rpn.exception.X_UNSUPPORTED, "", "Matrices require 'numpy' library")
         super().__init__()
         self.name = "Matrix"
+        self._type = T_MATRIX
         #rpn.globl.lnwriteln("{}: vals={}".format(whoami(), repr(vals)))
         self._nrows = len(vals)
         cols = -1
@@ -283,9 +295,6 @@ class Matrix(Stackable):
         obj._nrows, obj._ncols = x.shape
         obj.value = x
         return obj
-
-    def typ(self):
-        return 5
 
     @property
     def value(self):
@@ -319,6 +328,7 @@ class Rational(Stackable):
     def __init__(self, num=0, denom=1):
         super().__init__()
         self.name = "Rational"
+        self._type = T_RATIONAL
         self.value = Fraction(int(num), int(denom))
 
     @classmethod
@@ -331,9 +341,6 @@ class Rational(Stackable):
         if match is None:
             raise rpn.exception.FatalErr("Rational pattern failed to match '{}'".format(s))
         return cls(match.group(1), match.group(2))
-
-    def typ(self):
-        return 1
 
     @property
     def value(self):
@@ -374,14 +381,12 @@ class Rational(Stackable):
 class String(rpn.exe.Executable):
     def __init__(self, val):
         self.name = "String"
+        self._type = T_STRING
         self.value = val
 
     @classmethod
     def from_string(cls, s):
         return cls("{}".format(s))
-
-    def typ(self):
-        return 6
 
     @property
     def value(self):
@@ -392,6 +397,9 @@ class String(rpn.exe.Executable):
         if type(new_value) is not str:
             raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'String#value()', "({})".format(typename(new_value)))
         self._value = new_value
+
+    def typ(self):
+        return self._type
 
     def __call__(self, name):
         dbg("trace", 1, "trace({})".format(repr(self)))
@@ -415,6 +423,7 @@ class Vector(Stackable):
             raise rpn.exception.RuntimeErr(rpn.exception.X_UNSUPPORTED, "", "Vectors require 'numpy' library")
         super().__init__()
         self.name = "Vector"
+        self._type = T_VECTOR
         if type(vals) is not rpn.util.List:
             raise rpn.exception.FatalErr("{}: {} is not a List".format(whoami(), repr(vals)))
         self.value = np.array([elem.value for elem in vals.listval()])
@@ -426,9 +435,6 @@ class Vector(Stackable):
         # print("from_numpy: {}".format(repr(obj)))
         obj.value = x
         return obj
-
-    def typ(self):
-        return 4
 
     @property
     def value(self):

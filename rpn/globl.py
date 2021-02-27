@@ -8,6 +8,7 @@
 
 from   fractions import Fraction
 import itertools
+import os
 import re
 import subprocess
 import sys
@@ -207,7 +208,7 @@ def execute(executable):
             if type(executable) is rpn.util.Word and executable.typ == "colon":
                 rpn.globl.colon_stack.pop()
     except KeyboardInterrupt:
-        sigint_detected = False
+        rpn.globl.sigint_detected = False
     except RecursionError:
         lnwriteln("{}: Excessive recursion".format(executable))
     except rpn.exception.RuntimeErr as err_execute:
@@ -362,9 +363,9 @@ def normalize_hms(hh, mm, ss):
 def pop_scope(why):
     try:
         scope = scope_stack.pop()
-    except rpn.exception.StackUnderflow:
+    except rpn.exception.StackUnderflow as e:
         traceback.print_stack(file=sys.stderr)
-        raise rpn.exception.FatalErr("Attempting to pop Root scope!")
+        raise rpn.exception.FatalErr("Attempting to pop Root scope!") from e
 
     dbg("scope", 2, "Pop  {} due to {}".format(repr(scope), why))
     #dbg("scope", 1, "Pop  {}".format(repr(scope)))

@@ -352,7 +352,7 @@ def p_colon_define_word(p):
         kwargs['doc'] = doc_str
 
     # Check if word is protected
-    (word, scope) = rpn.globl.lookup_word(identifier)
+    (word, _) = rpn.globl.lookup_word(identifier)
     if word is not None and word.protected:
         raise rpn.exception.RuntimeErr(rpn.exception.X_PROTECTED, ": ", "Cannot redefine '{}'".format(identifier))
 
