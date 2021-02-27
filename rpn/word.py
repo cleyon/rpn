@@ -3587,27 +3587,27 @@ EXAMPLE:
 rad  80 !COLS  24 !ROWS
 TAU chs TAU "sin" plot  =>
 
-      1.000 :------------------------------------*---------------------:
-            :     ****                   |     ** *                    :
-            :    *    *                  |    *    *                   :
-            :   *      *                 |          *                  :
-            :                            |   *       *                 :
-            :  *        *                |  *                          :
-            : *                          |            *                :
-            :            *               | *                           :
-            :*                           |             *               :
-            :             *              |*                            :
-            *                            |              *              :
-            :==============*=============+=============================*
-            :                            *               *             :
-            :               *            |                            *:
-            :                           *|                *            :
-            :                *           |                           * :
-            :                          * |                 *        *  :
-            :                 *       *  |                             :
-            :                  *         |                  *      *   :
-            :                   *    *   |                   *    *    :
-     =1.000 :--------------------****-------------------------****-----:
+      1.000 |------------------------------------*---------------------|
+            |     ****                   :     ** *                    |
+            |    *    *                  :    *    *                   |
+            |   *      *                 :          *                  |
+            |                            :   *       *                 |
+            |  *        *                :  *                          |
+            | *                          :            *                |
+            |            *               : *                           |
+            |*                           :             *               |
+            |             *              :*                            |
+            *                            :              *              |
+            |..............*.............+.............................*
+            |                            *               *             |
+            |               *            :                            *|
+            |                           *:                *            |
+            |                *           :                           * |
+            |                          * :                 *        *  |
+            |                 *       *  :                             |
+            |                  *         :                  *      *   |
+            |                   *    *   :                   *    *    |
+     -1.000 |--------------------****-------------------------****-----|
              -6.283                                                   6.283""")
 def w_plot(name):
     x = rpn.globl.param_stack.pop()
@@ -5334,24 +5334,25 @@ def plot_helper(func, x_low, x_high):
     cols = rpn.globl.scr_cols.obj.value
     rows = rpn.globl.scr_rows.obj.value
 
+    BLANK  = ' '
+    HFRAME = '-'
+    MARK   = '*'
+    ORIGIN = '+'
+    VFRAME = '|'
+    X_AXIS = '.'
+    Y_AXIS = ':'
+
     ISCR   = cols - 20
     JSCR   = rows -  3
-    BLANK  = ' '
-    VERT   = ':'
-    VZERO  = '|'
-    HORIZ  = '-'
-    HZERO  = '='
-    ORIGIN = '+'
-    FF     = '*'
     scr = [[BLANK for i in range(1,JSCR+2)] for j in range(1,ISCR+2)]
 
     # Build frame
     for j in range(1, JSCR+1):
-        scr[1][j] = VERT
-        scr[ISCR][j] = VERT
+        scr[1][j] = VFRAME
+        scr[ISCR][j] = VFRAME
     for i in range(2, ISCR):
-        scr[i][1] = HORIZ
-        scr[i][JSCR] = HORIZ
+        scr[i][1] = HFRAME
+        scr[i][JSCR] = HFRAME
         for j in range(2, JSCR):
             scr[i][j] = BLANK
 
@@ -5379,16 +5380,16 @@ def plot_helper(func, x_low, x_high):
     for i in range(2, ISCR):
         for j in range(2, JSCR):
             if i == iz:
-                scr[i][j] = VZERO
+                scr[i][j] = Y_AXIS
             if j == jz:
-                scr[i][j] = HZERO
+                scr[i][j] = X_AXIS
             if i == iz and j == jz:
                 scr[i][j] = ORIGIN
 
     # Populate data points
     for i in range(1, ISCR+1):
         j = 1 + int((y[i] - ysml) * dyj)
-        scr[i][j] = FF
+        scr[i][j] = MARK
 
     # Display plot
     rpn.globl.write(" {:10.3f} ".format(ybig))
