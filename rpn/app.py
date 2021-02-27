@@ -694,6 +694,11 @@ Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
 \   16.3871     * ;
 
 \ String functions
+: anum          doc:"anum  ( x -- )  [ s -- s' ]  Append numeric x to top string"
+  | in:x |
+  $depth 0 = if "" then
+  @x #->$ $cat ;
+
 : $date         doc:"$date  [ -- date ]  Current date as string"
   date d->jd jd->$ ;
 
@@ -723,6 +728,9 @@ def define_tertiary_words():
       then
   then
 ;
+
+: ver           doc:"ver  Show RPN version"
+  "RPN version " @$VER $.  ;
 
 \ : END_TERTIARY_WORDS----------------------------- doc:" " ;
 """)

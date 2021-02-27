@@ -506,10 +506,20 @@ class DotQuote(Executable):
 #
 #############################################################################
 class FetchVar(Executable):
-    """Fetch variable.
+    """Fetch variable.  Format: @<modifier>VARIABLE
 
+Modifier: ?
 It is normally an error to fetch an undefined variable,
 but @?VAR will return 0 if VAR is not defined.
+
+Modifier: .
+Print the value of the variable.
+"@.foo" is shorthand for "@foo ."
+
+Modifier: $
+Append the value of the variable to the top of string stack.
+"@$foo" is shorthand for "@foo anum".  This works for string
+variables too, using "$cat".
 
 In addition to fetching the value of a variable,
 "recall arithmetic" modifies the TOS (X) value in an
@@ -537,8 +547,16 @@ the right thing with empty stack (uses zero)."""
                 # The variable remains undefined
             else:
                 raise rpn.exception.RuntimeErr(rpn.exception.X_UNDEFINED_VARIABLE, str(self))
-        elif self._modifier == '$' or type(var.obj) is rpn.type.String:
-            rpn.globl.string_stack.push(var.obj)
+        elif self._modifier is not None and self._modifier == '$':
+            if rpn.globl.string_stack.empty():
+                rpn.globl.string_stack.push(rpn.type.String(""))
+            if type(var.obj) is rpn.type.String:
+                rpn.globl.string_stack.push(var.obj)
+                rpn.word.w_dollar_cat('$cat')
+            else:
+                rpn.globl.param_stack.push(var.obj)
+                rpn.globl.eval_string("anum")
+            rpn.flag.clear_flag(rpn.flag.F_SHOW_X)
         else:
             if self._modifier is not None and self._modifier == '/' and var.obj.zerop():
                 raise rpn.exception.RuntimeErr(rpn.exception.X_DIVISION_BY_ZERO, str(self))
