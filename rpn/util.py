@@ -17,8 +17,6 @@ import rpn.globl
 import rpn.type
 
 
-got_interrupt = False
-
 #############################################################################
 #
 #       D I S P L A Y   C O N F I G
@@ -382,7 +380,10 @@ class Sequence:
                     # Undo any previous param_stack pushes if we come across an out variable that's not defined
                     for _ in range(param_stack_pushes):
                         rpn.globl.param_stack.pop()
-                    raise rpn.exception.RuntimeErr(rpn.exception.X_UNDEFINED_VARIABLE, self.scope_template().name, "Variable '{}' was never set".format(vname.ident))
+                    if rpn.globl.sigint_detected:
+                        raise KeyboardInterrupt
+                    else:
+                        raise rpn.exception.RuntimeErr(rpn.exception.X_UNDEFINED_VARIABLE, self.scope_template().name, "Variable '{}' was never set".format(vname.ident))
                 dbg(whoami(), 3, "{} is {}".format(vname.ident, repr(var.obj)))
                 rpn.globl.param_stack.push(var.obj)
                 param_stack_pushes += 1
@@ -546,7 +547,6 @@ class TokenMgr:
 
     @classmethod
     def next_token(cls):
-        global got_interrupt            # pylint: disable=global-statement
         if cls.qtok.empty():
             if cls.e == 0:
                 new_toks = 0
@@ -559,16 +559,16 @@ class TokenMgr:
                         return
                     except KeyboardInterrupt:
                         # ^C can either void the parse_stack, or the end program
+                        rpn.globl.sigint_detected = False
                         if rpn.globl.parse_stack.empty():
-                            if got_interrupt:
+                            if rpn.globl.got_interrupt:
                                 raise rpn.exception.EndProgram()
-                            rpn.globl.lnwriteln("[Interrupt; once more to quit]")
-                            got_interrupt = True
+                            rpn.globl.lnwriteln("<Once more to quit>")
+                            rpn.globl.got_interrupt = True
                             continue
-                        rpn.globl.lnwriteln("[Interrupt]")
                         raise rpn.exception.TopLevel()
                     else:
-                        got_interrupt = False
+                        rpn.globl.got_interrupt = False
 
         try:
             yield cls.qtok.get()

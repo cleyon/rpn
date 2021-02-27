@@ -63,10 +63,12 @@ register                = dict()
 stat_data = []
 go_interactive = None
 default_protected = True
+got_interrupt = False
 lexer = None
 scr_cols = None
 scr_rows = None
 sharpout = None
+sigint_detected = False
 rpn_parser = None
 
 DATE_RE                 = re.compile(r'^(\d{1,2})\.(\d{2})(\d{4})$') # MM.DDYYYY
@@ -205,7 +207,7 @@ def execute(executable):
             if type(executable) is rpn.util.Word and executable.typ == "colon":
                 rpn.globl.colon_stack.pop()
     except KeyboardInterrupt:
-        lnwriteln("[Interrupt]")
+        sigint_detected = False
     except RecursionError:
         lnwriteln("{}: Excessive recursion".format(executable))
     except rpn.exception.RuntimeErr as err_execute:

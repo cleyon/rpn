@@ -8,7 +8,7 @@
   ."I'll stake you " @.initial_stake ."zorkmids to get started." cr
 
   : place_bet
-    | valid bet |   FALSE !valid
+    | valid out:bet |   FALSE !valid
     begin
       "How much do you wager (0 to quit)? " prompt int !bet
       @bet 0 < if
@@ -21,7 +21,6 @@
         then
       then
     @valid until
-    @bet
   ;
 
   : play

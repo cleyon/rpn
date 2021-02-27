@@ -68,6 +68,7 @@ def initialize(argv):
     define_variables()
 
     # Set up signal handling
+    signal.signal(signal.SIGINT, sigint_handler)
     signal.signal(signal.SIGQUIT, sigquit_handler)
     signal.signal(signal.SIGWINCH, sigwinch_handler)
     sigwinch_handler(0, 0)     # Read & define ROWS and COLS via stty(1)
@@ -78,9 +79,6 @@ def initialize(argv):
     rpn.word.w_clfin('clfin')
     rpn.word.w_std('std')
 
-    # Parse command line
-    argv = parse_args(argv)
-
     # Define built-in (protected) words
     if not disable_all_extensions:
         define_secondary_words()
@@ -89,6 +87,9 @@ def initialize(argv):
     rpn.globl.default_protected = False
     if not disable_all_extensions:
         define_tertiary_words()
+
+    # Parse command line
+    argv = parse_args(argv)
 
     # Hopefully load the user's init file
     global load_init_file               # pylint: disable=global-statement
@@ -479,6 +480,14 @@ flag is True if initial parse error, False if no error'''
 # changes come too fast.  Consider using shutil.get_terminal_size()
 def sigwinch_handler(_signum, _frame):
     rpn.globl.update_screen_size()
+
+
+def sigint_handler(_signam, _frame):
+    rpn.globl.sigint_detected = True
+    sys.stderr.write("^C")
+    sys.stderr.flush()
+    rpn.globl.eval_string("?cr")
+    raise KeyboardInterrupt
 
 
 def sigquit_handler(_signum, _frame):
