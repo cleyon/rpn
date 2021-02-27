@@ -894,7 +894,7 @@ class Word:
 
     def as_definition(self):
         if typename(self._defn) == 'function':
-            return self.name
+            return repr(self)
         if type(self._defn) is rpn.util.Sequence:
             return ": {} {}{} ;".format(self.name,
                                         'doc:"{}"\n'.format(self.doc()) if self.doc() is not None and len(self.doc()) > 0 else "",

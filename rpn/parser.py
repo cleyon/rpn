@@ -351,6 +351,11 @@ def p_colon_define_word(p):
         doc_str = doc_str[5:-1]
         kwargs['doc'] = doc_str
 
+    # Check if word is protected
+    (word, scope) = rpn.globl.lookup_word(identifier)
+    if word is not None and word.protected:
+        raise rpn.exception.RuntimeErr(rpn.exception.X_PROTECTED, ": ", "Cannot redefine '{}'".format(identifier))
+
     # p_sequence() has already popped the scope for this word, so
     # creating it now in rpn.globl.scope_stack.top() will be correct.
     new_word = rpn.util.Word(identifier, "colon", sequence, **kwargs)

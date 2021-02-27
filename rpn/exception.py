@@ -174,7 +174,7 @@ throw_code_text = {
 
 
 class RuntimeErr(Exception):
-    def __init__(self, code=0, word="", message=""):
+    def __init__(self, code=0, word=None, message=None):
         super().__init__()
         self.code = code
         self.word = word
@@ -182,12 +182,12 @@ class RuntimeErr(Exception):
 
     def __str__(self):
         s = ""
-        if len(self.word) > 0:
+        if self.word is not None and len(self.word) > 0:
             s += "{}: ".format(self.word)
         if    (LAST_STD_THROW_CODE <= self.code <= FIRST_STD_THROW_CODE) \
            or (LAST_SYS_THROW_CODE <= self.code <= FIRST_SYS_THROW_CODE):
             s += throw_code_text[self.code]
-        if len(self.message) > 0:
+        if self.message is not None and len(self.message) > 0:
             s += ": {}".format(self.message)
         if len(s) == 0:
             s = "Unknown error"
