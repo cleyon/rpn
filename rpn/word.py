@@ -2705,7 +2705,7 @@ def w_gcd(name):
 
 if sys.version_info >= (3, 8):
     @defword(name='gmean', print_x=rpn.globl.PX_COMPUTE, doc="""\
-    Print the geometric mean of the statistics data""")
+Print the geometric mean of the statistics data""")
     def gmean(name):
         if len(rpn.globl.stat_data) == 0:
             raise rpn.exception.RuntimeErr(rpn.exception.X_BAD_DATA, name, "No statistics data")

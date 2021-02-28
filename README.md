@@ -2,6 +2,12 @@
 
 RPN calculator and programming language
 
+## Installation
+
+``` shell
+sudo python3 setup.py install
+```
+
 ## Requirements
 
 - Python 3

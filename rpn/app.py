@@ -68,8 +68,8 @@ def initialize(rpndir, argv):
     define_variables()
 
     # Set up signal handling
-    signal.signal(signal.SIGINT, sigint_handler)
-    signal.signal(signal.SIGQUIT, sigquit_handler)
+    signal.signal(signal.SIGINT,   sigint_handler)
+    signal.signal(signal.SIGQUIT,  sigquit_handler)
     signal.signal(signal.SIGWINCH, sigwinch_handler)
     sigwinch_handler(0, 0)     # Read & define ROWS and COLS via stty(1)
 
