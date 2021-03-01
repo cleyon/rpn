@@ -67,21 +67,28 @@
     ."You now have " @.cash ."zorkmids." cr
   ;
 
+  : end_game
+    | diff |
+    @cash @initial_stake - !diff
+    @diff 0 >= if
+      ."After my initial " @.initial_stake ."zorkmid loan, "
+      @diff 0 > if
+        ."you leave with " @.diff ."zorkmids."
+      else
+        ."you didn't win anything."
+      then cr
+    else
+      -1 !*diff
+      ."You still owe me " @.diff ."zorkmids!" cr
+    then
+    ."Thanks for playing!" cr exit
+  ;
+
   \ craps main code
   begin
-    place_bet
-    ?dup 0= if
-      | diff |
-      @cash @initial_stake - !diff
-      @diff 0 > if
-        ."After my initial " @.initial_stake ."zorkmid loan, "
-        ."you leave with " @.diff ."zorkmids." cr
-      else
-        -1 !*diff
-        ."You still owe me " @.diff ."zorkmids!" cr
-      then
-      ."Thanks for playing!" cr exit
-    then
+    catch place_bet     \ ."Catch returned " dup . cr
+    0 <> if end_game then
+    ?dup 0= if end_game then
 
     play
 
