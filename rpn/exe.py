@@ -55,8 +55,7 @@ class AbortQuote(Executable):
             rpn.globl.param_stack.push(flag)
             raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'abort"', "({})".format(typename(flag)))
         if flag.value != 0:
-            rpn.globl.lnwriteln("{}".format(self.stringval()))
-            raise rpn.exception.Abort()
+            rpn.exception.throw(rpn.exception.X_ABORT_QUOTE, self.name, self.stringval())
 
     def __str__(self):
         return 'abort"{}"'.format(self.stringval())

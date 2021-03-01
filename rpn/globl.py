@@ -50,13 +50,13 @@ PX_PREDICATE            = None  # Predicates
 REG_SIZE_MIN            =  17
 REG_SIZE_MAX            = 100   # R00..R99; further restricted by SIZE
 
-disp_stack   = rpn.util.Stack(1)
-param_stack  = rpn.util.Stack()
-parse_stack  = rpn.util.Stack()
-return_stack = rpn.util.Stack()
-scope_stack  = rpn.util.Stack(1)
-string_stack = rpn.util.Stack()
-colon_stack  = rpn.util.Stack()
+disp_stack   = rpn.util.Stack("Display stack", 1)
+param_stack  = rpn.util.Stack("Parameter stack")
+parse_stack  = rpn.util.Stack("Parse stack")
+return_stack = rpn.util.Stack("Return stack")
+scope_stack  = rpn.util.Stack("Scope stack", 1)
+string_stack = rpn.util.Stack("String stack")
+colon_stack  = rpn.util.Stack("Colon stack")
 
 root_scope = rpn.util.Scope("ROOT")
 
@@ -174,17 +174,22 @@ def eval_string(s):
     except rpn.exception.ParseErr as e:
         if str(e) != 'EOF':
             rpn.globl.lnwriteln("Parse error: {}".format(str(e)))
-    except rpn.exception.Abort:
-        param_stack.clear()
-        string_stack.clear()
-        return_stack.clear()
-    except rpn.exception.RuntimeErr as err_eval_string:
-        dbg(whoami(), 1, "{}: Caught RuntimeErr, code={}".format(whoami(), err_eval_string.code))
-        if err_eval_string.code >= 0:
+    except rpn.exception.RuntimeErr as e:
+        dbg(whoami(), 1, "{}: Caught RuntimeErr, code={}".format(whoami(), e.code))
+        if e.code >= 0:
             raise
-        if err_eval_string.code == rpn.exception.X_EXIT:
+        if e.code == rpn.exception.X_ABORT or \
+           e.code == rpn.exception.X_ABORT_QUOTE:
+            param_stack.clear()
+            string_stack.clear()
+            return_stack.clear()
+            if e.code == rpn.exception.X_ABORT_QUOTE:
+                lnwriteln(e.message)
+        elif e.code == rpn.exception.X_EXIT or \
+             e.code == rpn.exception.X_INTERRUPT:
             return
-        lnwriteln(str(err_eval_string))
+        else:
+            lnwriteln("eval_string: " + str(e))
 
     else:
         if result is not None:
@@ -207,16 +212,22 @@ def execute(executable):
         finally:
             if type(executable) is rpn.util.Word and executable.typ == "colon":
                 rpn.globl.colon_stack.pop()
-    except KeyboardInterrupt:
-        rpn.globl.sigint_detected = False
     except RecursionError:
         lnwriteln("{}: Excessive recursion".format(executable))
     except rpn.exception.RuntimeErr as err_execute:
-        if err_execute.code >= 0:
+        if err_execute.code == rpn.exception.X_INTERRUPT:
+            rpn.globl.lnwriteln(rpn.exception.throw_code_text[rpn.exception.X_INTERRUPT])
+            rpn.globl.sigint_detected = False
             raise
-        if err_execute.code == rpn.exception.X_EXIT:
+        elif err_execute.code == rpn.exception.X_EXIT:
             return
-        lnwriteln(str(err_execute))
+        elif err_execute.code == rpn.exception.X_ABORT or \
+             err_execute.code == rpn.exception.X_ABORT_QUOTE:
+            raise
+        elif err_execute.code >= 0:
+            raise
+        else:
+            lnwriteln("execute: " + str(err_execute))
 
 # I should really just use __format__() correctly
 def fmt(x, show_label=True):
@@ -363,9 +374,12 @@ def normalize_hms(hh, mm, ss):
 def pop_scope(why):
     try:
         scope = scope_stack.pop()
-    except rpn.exception.StackUnderflow as e:
-        traceback.print_stack(file=sys.stderr)
-        raise rpn.exception.FatalErr("Attempting to pop Root scope!") from e
+    except rpn.exception.RuntimeErr as e:
+        if e.code == rpn.exception.X_STACK_UNDERFLOW:
+            traceback.print_stack(file=sys.stderr)
+            raise rpn.exception.FatalErr("Attempting to pop Root scope!") from e
+        else:
+            raise
 
     dbg("scope", 2, "Pop  {} due to {}".format(repr(scope), why))
     #dbg("scope", 1, "Pop  {}".format(repr(scope)))

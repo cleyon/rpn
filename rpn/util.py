@@ -381,7 +381,7 @@ class Sequence:
                     for _ in range(param_stack_pushes):
                         rpn.globl.param_stack.pop()
                     if rpn.globl.sigint_detected:
-                        raise KeyboardInterrupt
+                        rpn.exception.throw(rpn.exception.X_INTERRUPT, self.scope_template().name)
                     raise rpn.exception.RuntimeErr(rpn.exception.X_UNDEFINED_VARIABLE, self.scope_template().name, "Variable '{}' was never set".format(vname.ident))
                 dbg(whoami(), 3, "{} is {}".format(vname.ident, repr(var.obj)))
                 rpn.globl.param_stack.push(var.obj)
@@ -426,10 +426,14 @@ class Stack:
     elements from 1-based to 0-based as needed.  Also, items_top_to_bottom()
     et al return 1-based indices.'''
 
-    def __init__(self, min_size=0, max_size=-1):
+    def __init__(self, name, min_size=0, max_size=-1):
+        self._name = name
         self._min_size = min_size
         self._max_size = max_size
         self.clear()
+
+    def name(self):
+        return self._name
 
     def clear(self):
         self._stack = []
@@ -443,7 +447,7 @@ class Stack:
 
     def push(self, item):
         if self.size() == self._max_size:
-            raise rpn.exception.StackOverflow("Stack overflow ({}) on {}".format(self._max_size, item))
+            rpn.exception.throw(X_STACK_OVERFLOW, whoami(), "{} exceeded max size={} when attempting to push {}".format(self.name(), self._max_size, item))
         self._nitems += 1
         self._stack.append(item)
 
@@ -451,7 +455,7 @@ class Stack:
         if self.empty():
             raise rpn.exception.FatalErr("{}: Empty stack".format(whoami()))
         if self.size() == self._min_size:
-            raise rpn.exception.StackUnderflow("Stack underflow ({})".format(self._min_size))
+            rpn.exception.throw(rpn.exception.X_STACK_UNDERFLOW, whoami(), "{} has min size={}".format(self.name, self._min_size))
         self._nitems -= 1
         return self._stack.pop()
 
@@ -556,16 +560,21 @@ class TokenMgr:
                         # ^D (eof) on input signals end of input tokens
                         rpn.globl.lnwrite()
                         return
-                    except KeyboardInterrupt as e:
-                        # ^C can either void the parse_stack, or the end program
-                        rpn.globl.sigint_detected = False
-                        if rpn.globl.parse_stack.empty():
-                            if rpn.globl.got_interrupt:
-                                raise rpn.exception.EndProgram() from e
-                            rpn.globl.lnwriteln("<Once more to quit>")
-                            rpn.globl.got_interrupt = True
-                            continue
-                        raise rpn.exception.TopLevel() from e
+                    except rpn.exception.RuntimeErr as e:
+                        if e.code == rpn.exception.X_INTERRUPT:
+                            rpn.globl.lnwrite(rpn.exception.throw_code_text[rpn.exception.X_INTERRUPT])
+                            # ^C can either void the parse_stack, or the end program
+                            rpn.globl.sigint_detected = False
+                            if rpn.globl.parse_stack.empty():
+                                if rpn.globl.got_interrupt:
+                                    rpn.globl.writeln()
+                                    raise rpn.exception.EndProgram() from e
+                                rpn.globl.writeln("; once more to quit")
+                                rpn.globl.got_interrupt = True
+                                continue
+                            raise rpn.exception.TopLevel() from e
+                        else:
+                            rpn.globl.got_interrupt = False
                     else:
                         rpn.globl.got_interrupt = False
 

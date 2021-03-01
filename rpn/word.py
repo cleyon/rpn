@@ -229,7 +229,7 @@ def w_dollar_throw(name):
     if not rpn.globl.colon_stack.empty():
         thrown_from = rpn.globl.colon_stack.top().name
     dbg("catch", 1, "{}: Throwing {} from '{}'".format(name, x.value, thrown_from))
-    raise rpn.exception.RuntimeErr(x.value, thrown_from, message)
+    rpn.exception.throw(x.value, thrown_from, message)
 
 
 @defword(name='$time', print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -1095,7 +1095,8 @@ Abort execution and return to top level
 
 qv ABORT", EXIT, LEAVE""")
 def w_abort(name):
-    raise rpn.exception.Abort()
+    # raise rpn.exception.Abort()
+    rpn.exception.throw(rpn.exception.X_ABORT, name)
 
 
 @defword(name='abort"', print_x=rpn.globl.PX_CONTROL, doc="""\
@@ -2574,35 +2575,36 @@ def w_fs_query_set(name):
         rpn.flag.set_flag(flag)
 
 
-@defword(name='fsolve', args=1, str_args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
+if rpn.globl.have_module('scipy'):
+    @defword(name='fsolve', args=1, str_args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Root solving  ( init.guess -- root )
 Name of function must be on string stack.
 
 Implemented via scipy.optimize.fsolve()""")
-def w_fsolve(name):
-    func_to_solve = rpn.globl.string_stack.pop().value
-    (word, _) = rpn.globl.lookup_word(func_to_solve)
-    if word is None:
-        raise rpn.exception.RuntimeErr(rpn.exception.X_UNDEFINED_WORD, name, "'{}'".format(func_to_solve))
+    def w_fsolve(name):
+        func_to_solve = rpn.globl.string_stack.pop().value
+        (word, _) = rpn.globl.lookup_word(func_to_solve)
+        if word is None:
+            raise rpn.exception.RuntimeErr(rpn.exception.X_UNDEFINED_WORD, name, "'{}'".format(func_to_solve))
 
-    x = rpn.globl.param_stack.pop()
-    if    type(x) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
-        rpn.globl.param_stack.push(x)
-        raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
-    #init_guess = float(x.value)
+        x = rpn.globl.param_stack.pop()
+        if    type(x) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
+            rpn.globl.param_stack.push(x)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        #init_guess = float(x.value)
 
-    # XXX There are probably error conditions/exceptions I need to catch
-    def func(x):
-        rpn.globl.param_stack.push(rpn.type.Float(x))
-        rpn.globl.eval_string(func_to_solve)
-        return rpn.globl.param_stack.pop().value
+        # XXX There are probably error conditions/exceptions I need to catch
+        def func(x):
+            rpn.globl.param_stack.push(rpn.type.Float(x))
+            rpn.globl.eval_string(func_to_solve)
+            return rpn.globl.param_stack.pop().value
 
-    r = scipy.optimize.fsolve(func, 3)
-    # The return value of fsolve is a numpy array of length n for a root
-    # finding problem with n variables.
-    result = rpn.type.Float(r[0])
-    result.label = "fsolve"
-    rpn.globl.param_stack.push(result)
+        r = scipy.optimize.fsolve(func, 3)
+        # The return value of fsolve is a numpy array of length n for a root
+        # finding problem with n variables.
+        result = rpn.type.Float(r[0])
+        result.label = "fsolve"
+        rpn.globl.param_stack.push(result)
 
 
 @defword(name='FV', print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -3276,7 +3278,7 @@ def w_load(name):                       # pylint: disable=unused-argument
     try:
         rpn.app.load_file(filename)
     except rpn.exception.RuntimeErr as err_f_opt:
-        rpn.globl.lnwriteln(str(err_f_opt))
+        rpn.globl.lnwriteln("load: " + str(err_f_opt))
 
 
 @defword(name='log', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -3676,8 +3678,11 @@ Pop current display configuration.""")
 def w_popdisp(name):                    # pylint: disable=unused-argument
     try:
         rpn.globl.disp_stack.pop()
-    except rpn.exception.StackUnderflow as e:
-        raise rpn.exception.RuntimeErr(rpn.exception.X_STACK_UNDERFLOW, name, "No display configuration") from e
+    except rpn.exception.RuntimeErr as e:
+        if e.code == rpn.exception.X_STACK_UNDERFLOW:
+            raise rpn.exception.RuntimeErr(rpn.exception.X_STACK_UNDERFLOW, name, "{} has no display configuration".format(rpn.globl.disp_stack.name())) from e
+        else:
+            raise
 
 
 @defword(name='price', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -3859,7 +3864,7 @@ def w_r_dot_s(name):                    # pylint: disable=unused-argument
 Pop return stack onto parameter stack  ( -- x )""")
 def w_r_from(name):
     if rpn.globl.return_stack.empty():
-        raise rpn.exception.RuntimeErr(rpn.exception.X_RSTACK_UNDERFLOW, name)
+        rpn.exception.throw(rpn.exception.X_RSTACK_UNDERFLOW, name)
     rpn.globl.param_stack.push(rpn.globl.return_stack.pop())
 
 
@@ -4667,7 +4672,7 @@ def w_throw(name):
     if not rpn.globl.colon_stack.empty():
         thrown_from = rpn.globl.colon_stack.top().name
     dbg("catch", 1, "{}: Throwing {} from '{}'".format(name, x.value, thrown_from))
-    raise rpn.exception.RuntimeErr(x.value, thrown_from)
+    rpn.exception.throw(x.value, thrown_from)
 
 
 @defword(name='time', print_x=rpn.globl.PX_COMPUTE, doc="""\

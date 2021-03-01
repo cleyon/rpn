@@ -174,16 +174,16 @@ throw_code_text = {
 
 
 class RuntimeErr(Exception):
-    def __init__(self, code=0, word=None, message=None):
+    def __init__(self, code=0, from_thrower="", message=""):
         super().__init__()
         self.code = code
-        self.word = word
+        self.from_thrower = from_thrower
         self.message = message
 
     def __str__(self):
         s = ""
-        if self.word is not None and len(self.word) > 0:
-            s += "{}: ".format(self.word)
+        if self.from_thrower is not None and len(self.from_thrower) > 0:
+            s += "{}: ".format(self.from_thrower)
         if    (LAST_STD_THROW_CODE <= self.code <= FIRST_STD_THROW_CODE) \
            or (LAST_SYS_THROW_CODE <= self.code <= FIRST_SYS_THROW_CODE):
             s += throw_code_text[self.code]
@@ -203,35 +203,23 @@ class RpnException(Exception):
         return str(self._message)
 
 
-class Abort(RpnException):
-    """Abort is raised by the ABORT and ABORT" words.
-It clears the parameter, return, and string stacks.  Caught in p_execute."""
-
-
 class EndProgram(RpnException):
     """EndProgram is raised when there is no more input to parse, or
 the interrupt key is signaled.  It is caught in __main__, where processing
 is halted, the exit routine prints the stack, and the program exits."""
-
 
 class FatalErr(RpnException):
     """FatalErr is raised whenever an internal error is detected that
 forces the program to abend.  It is caught in __main__ and causes an
 immediate program termination."""
 
-
 class ParseErr(RpnException):
     """ParseError is raised by p_error and is caught in eval_string()."""
-
-
-class StackOverflow(RpnException):
-    """Stack overflow."""
-
-
-class StackUnderflow(RpnException):
-    """Stack underflow."""
-
 
 class TopLevel(RpnException):
     """TopLevel is raised by typing a sufficient number of interrupt keys.
 It causes an immediate return to the top level prompt in app.py::main_loop()."""
+
+
+def throw(code, from_thrower="", message=""):
+    raise RuntimeErr(code, from_thrower, message)

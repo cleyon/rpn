@@ -490,11 +490,13 @@ def sigwinch_handler(_signum, _frame):
 
 def sigint_handler(_signam, _frame):
     rpn.globl.sigint_detected = True
-    sys.stderr.write("^C")
-    sys.stderr.flush()
-    rpn.globl.eval_string("?cr")
-    raise KeyboardInterrupt
-
+    # It is NOT safe to do I/O inside a signal handler.
+    # Can crash with error:
+    #   RuntimeError: reentrant call inside <_io.BufferedWriter name='<stdout>'>
+    # sys.stderr.write("^C")
+    # sys.stderr.flush()
+    # rpn.globl.eval_string("?cr")
+    rpn.exception.throw(rpn.exception.X_INTERRUPT)
 
 def sigquit_handler(_signum, _frame):
     rpn.globl.lnwriteln("[Quit]")
