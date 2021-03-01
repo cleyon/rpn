@@ -74,10 +74,7 @@ def initialize(rpndir, argv):
     sigwinch_handler(0, 0)     # Read & define ROWS and COLS via stty(1)
 
     # Set initial conditions
-    rpn.word.w_clreg('clreg')
-    # rpn.word.clflag('clflag')
-    rpn.word.w_clfin('clfin')
-    rpn.word.w_std('std')
+    rpn.globl.eval_string("clreg clflag clfin std")
 
     # Define built-in secondary (protected) words
     if not disable_all_extensions:
