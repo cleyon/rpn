@@ -101,7 +101,7 @@ def t_STRING(t):
     return t
 
 def t_RATIONAL(t):
-    r'\d+::\d+'
+    r'\d+::\d+(_[^ \t\n]+)?'
     t.type = 'RATIONAL'
     return t
 
@@ -111,8 +111,8 @@ def t_RATIONAL(t):
 #     return t
 
 def t_FLOAT(t):
-    r'[-+]?(\d+(\.\d*[eE][-+]?\d+|[eE][-+]?\d+|\.\d*))|(\d*(\.\d+[eE][-+]?\d+|[eE][-+]?\d+|\.\d+))'
-    t.value = str(float(t.value))
+    r'[-+]?((\d+(\.\d*[eE][-+]?\d+|[eE][-+]?\d+|\.\d*))|(\d*(\.\d+[eE][-+]?\d+|[eE][-+]?\d+|\.\d+)))(_[^ \t\n]+)?'
+    #t.value = str(float(t.value))
     t.type = 'FLOAT'
     return t
 
@@ -132,8 +132,8 @@ def t_ASCII(t):
 # Note a little Python magic: int(xxx, 0) will guess base and parse "0x", etc.
 # On the whole, the benefits outweigh the drawbacks.
 def t_INTEGER(t):
-    r'[-+]?((((0x)|(0X))[0-9a-fA-F]+)|(((0o)|(0O))[0-7]+)|(((0b)|(0B))[0-1]+)|(\d+))'
-    t.value = str(int(t.value, 0))
+    r'[-+]?((((0x)|(0X))[0-9a-fA-F]+)|(((0o)|(0O))[0-7]+)|(((0b)|(0B))[0-1]+)|(\d+))(_[^ \t\n]+)?'
+    #t.value = str(int(t.value, 0))
     t.type = 'INTEGER'
     return t
 
@@ -213,11 +213,6 @@ def t_OPEN_PAREN(t):
 # def t_UNDERSCORE(t):
 #     r'_'
 #     t.type = 'UNDERSCORE'
-#     return t
-
-# def t_USYMBOL(t):
-#     r'[A-Za-z]+'
-#     t.type = 'USYMBOL'
 #     return t
 
 def t_VBAR(t):
@@ -492,7 +487,7 @@ def p_fetch_var(p):
 
 def p_float(p):
     '''float : FLOAT'''
-    p[0] = rpn.type.Float(p[1])
+    p[0] = rpn.type.Float.from_string(p[1])
 
 def p_forget(p):
     '''forget : FORGET IDENTIFIER'''
@@ -578,7 +573,7 @@ def p_if_then(p):
 
 def p_integer(p):
     '''integer : INTEGER'''
-    p[0] = rpn.type.Integer(p[1])
+    p[0] = rpn.type.Integer.from_string(p[1])
 
 def p_locals(p):
     '''locals : empty
@@ -785,4 +780,5 @@ def p_word(p):
 
 
 def initialize_parser():
-    rpn.globl.rpn_parser = yacc.yacc(start='evaluate') # , errorlog=yacc.NullLogger())
+    #rpn.globl.rpn_parser = yacc.yacc(start='evaluate') # , errorlog=yacc.NullLogger())
+    rpn.globl.rpn_parser = yacc.yacc(start='evaluate', errorlog=yacc.NullLogger())

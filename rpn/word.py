@@ -83,7 +83,7 @@ class defword():
 @defword(name='#->$', args=1, print_x=rpn.globl.PX_IO, doc="""\
 Convert top of stack to string  ( n -- )""")
 def w_num_to_dollar(name):              # pylint: disable=unused-argument
-    rpn.globl.string_stack.push(rpn.type.String("{}".format(rpn.globl.fmt(rpn.globl.param_stack.pop(), False))))
+    rpn.globl.string_stack.push(rpn.type.String(rpn.globl.gfmt(rpn.globl.param_stack.pop())))
 
 
 @defword(name='#in', print_x=rpn.globl.PX_IO, doc="""\
@@ -380,6 +380,13 @@ def w_star(name):
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
         raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+
+    if x.has_uexpr_p() and not y.has_uexpr_p():
+        result.uexpr = x.uexpr
+    elif not x.has_uexpr_p() and y.has_uexpr_p():
+        result.uexpr = y.uexpr
+    elif x.has_uexpr_p() and y.has_uexpr_p():
+        result.uexpr = rpn.unit.UProd(y.uexpr, x.uexpr)
     rpn.globl.param_stack.push(result)
 
 
@@ -512,7 +519,7 @@ Print top stack value  ( x -- )
 A space is also printed after the number, but no newline.
 If you need a newline, call CR.""")
 def w_dot(name):                        # pylint: disable=unused-argument
-    rpn.globl.write("{} ".format(rpn.globl.fmt(rpn.globl.param_stack.pop())))
+    rpn.globl.write("{} ".format(str(rpn.globl.param_stack.pop())))
 
 
 @defword(name='.!', hidden=True, print_x=rpn.globl.PX_IO, args=1)
@@ -537,7 +544,7 @@ def w_dot_all(name):                    # pylint: disable=unused-argument
     x = rpn.globl.param_stack.pop()
     xval = x.value
 
-    out = "{}".format(rpn.globl.fmt(x))
+    out = rpn.globl.gfmt(x)
     more = ""
     if type(x) is rpn.type.Integer:
         more += "  Hex={}".format(hex(x.value))
@@ -632,7 +639,7 @@ def w_dot_r(name):
     if width == 0:
         return
 
-    s = rpn.globl.fmt(y, False)       # No label
+    s = rpn.globl.gfmt(y)
     if len(s) > width:
         s = s[:width]       # This seems a bit harsh, but it's documented
     rpn.globl.write("{:>{width}}".format(s, width=width))
@@ -693,6 +700,14 @@ def w_slash(name):
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
         raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+
+    if x.has_uexpr_p() and not y.has_uexpr_p():
+        result.uexpr = x.uexpr.invert()
+    elif not x.has_uexpr_p() and y.has_uexpr_p():
+        result.uexpr = y.uexpr
+    elif x.has_uexpr_p() and y.has_uexpr_p():
+        result.uexpr = rpn.unit.UQuot(y.uexpr, x.uexpr)
+
     rpn.globl.param_stack.push(result)
 
 
@@ -880,10 +895,58 @@ def w_to_c(name):
     rpn.globl.param_stack.push(rpn.type.Complex(float(x.value), float(y.value)))
 
 
+@defword(name='>debug', args=1, str_args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
+Set debug level  ( lev -- )  [ "facility" -- ]""")
+def w_to_debug(name):
+    x = rpn.globl.param_stack.pop()
+    if type(x) is not rpn.type.Integer:
+        rpn.globl.param_stack.push(x)
+        raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+    level = x.value
+    if level < 0 or level > 9:
+        rpn.globl.param_stack.push(x)
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_ARG, name, "Level {} out of range (0..9 expected)".format(level))
+    resource = rpn.globl.string_stack.pop()
+    if not resource.value in rpn.debug.debug_levels:
+        rpn.globl.param_stack.push(x)
+        rpn.globl.string_stack.push(resource)
+        raise rpn.exception.RuntimeErr(rpn.exception.X_UNDEFINED_WORD, name, "Resource '{}' not recognized".format(resource.value))
+    rpn.debug.set_debug_level(resource.value, level)
+
+
+@defword(name='>disp', print_x=rpn.globl.PX_CONFIG, doc="""\
+Push current display configuration.""")
+def w_to_disp(name):                   # pylint: disable=unused-argument
+    d = rpn.util.DisplayConfig()
+    d.style = rpn.globl.disp_stack.top().style
+    d.prec = rpn.globl.disp_stack.top().prec
+    rpn.globl.disp_stack.push(d)
+
+
+@defword(name='>label', args=1, str_args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
+Set label of X  ( x -- x )  [ "label" -- ]""")
+def w_to_label(name):           # pylint: disable=unused-argument
+    x = rpn.globl.param_stack.top()
+    label = rpn.globl.string_stack.pop().value
+    x.label = label
+
+
 @defword(name='>r', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
 Push X onto return stack  ( x -- )""")
 def w_to_r(name):                       # pylint: disable=unused-argument
     rpn.globl.return_stack.push(rpn.globl.param_stack.pop())
+
+
+@defword(name='>unit', args=1, str_args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
+Set unit of X  ( x -- x )  [ "unit" -- ]""")
+def w_to_unit(name):           # pylint: disable=unused-argument
+    strobj = rpn.globl.string_stack.pop()
+    ustr = strobj.value
+    ue = rpn.unit.try_parsing(ustr)
+    if ue is None:
+        rpn.globl.string_stack.push(strobj)
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, name, ustr)
+    rpn.globl.param_stack.top().uexpr = ue
 
 
 if rpn.globl.have_module('numpy'):
@@ -1087,6 +1150,14 @@ def w_caret(name):
         result = rpn.type.Complex.from_complex(r)
     else:
         raise rpn.exception.FatalErr("pow() returned a strange type '{}'".format(type(r)))
+
+    if x.has_uexpr_p():
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INCONSISTENT_UNITS, name, "X cannot have unit expression")
+    if y.has_uexpr_p():
+        result.uexpr = rpn.unit.UPow(y.uexpr, x.value)
+        if isinstance(result.uexpr, rpn.unit.UNull):
+            result.uexpr = None
+
     rpn.globl.param_stack.push(result)
 
 
@@ -1693,6 +1764,40 @@ def w_constant(name):                   # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
+@defword(name='convert', args=1, str_args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
+Convert units of X to those in string  ( x -- x' )  [ units -- ]""")
+def w_convert(name):
+    x = rpn.globl.param_stack.pop()
+    if not x.has_uexpr_p():
+        rpn.globl.param_stack.push(x)
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_ARG, name, "Not a unit")
+    dbg("unit", 2, "{}: orig X={}".format(name, repr(x)))
+
+    new_ustr = rpn.globl.string_stack.pop()
+    ue = rpn.unit.try_parsing(new_ustr.value)
+    if ue is None:
+        rpn.globl.param_stack.push(x)
+        rpn.globl.string_stack.push(new_ustr)
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, name, new_ustr)
+
+    if not rpn.unit.units_conform(x.uexpr, ue):
+        rpn.globl.param_stack.push(x)
+        rpn.globl.string_stack.push(new_ustr)
+        raise rpn.exception.RuntimeErr(rpn.exception.X_CONFORMABILITY, name, '"{}", "{}"'.format(x.uexpr, ue))
+
+    dbg("unit", 1, "{}: ue={}".format(name, repr(ue)))
+    new_x = rpn.type.Float(0.0)
+    new_x.value = float(x.value)
+    new_x.value *= x.uexpr.base_factor() * (10 ** x.uexpr.exp())
+    new_x.value /= ue.base_factor()
+    new_x.value /= (10 ** ue.exp())
+    new_x.uexpr = ue
+    if x.has_label_p():
+        new_x.label = x.label
+    dbg("unit", 2, "{}: new X={}".format(name, repr(new_x)))
+    rpn.globl.param_stack.push(new_x)
+
+
 @defword(name='cos', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Cosine  ( angle -- cosine )""")
 def w_cos(name):
@@ -1982,6 +2087,18 @@ def w_dim(name):
         rpn.globl.param_stack.push(x)
         raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
     rpn.globl.param_stack.push(result)
+
+
+@defword(name='disp>', print_x=rpn.globl.PX_CONFIG, doc="""\
+Pop current display configuration.""")
+def w_disp_from(name):                    # pylint: disable=unused-argument
+    try:
+        rpn.globl.disp_stack.pop()
+    except rpn.exception.RuntimeErr as e:
+        if e.code == rpn.exception.X_STACK_UNDERFLOW:
+            raise rpn.exception.RuntimeErr(rpn.exception.X_STACK_UNDERFLOW, name, "{} has no display configuration".format(rpn.globl.disp_stack.name())) from e
+        else:
+            raise
 
 
 @defword(name='do', print_x=rpn.globl.PX_CONTROL, doc="""\
@@ -3133,6 +3250,9 @@ def w_inv(name):
         rpn.globl.param_stack.push(x)
         raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
 
+    if x.has_uexpr_p():
+        result.uexpr = x.uexpr.invert()
+
     rpn.globl.param_stack.push(result)
 
 
@@ -3151,12 +3271,24 @@ def w_key(name):                        # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(val))
 
 
-@defword(name='label', args=1, str_args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-Set label of X  ( x -- x )  [ "label" -- ]""")
-def w_label(name):                      # pylint: disable=unused-argument
+@defword(name='label>', args=1, print_x=rpn.globl.PX_PREDICATE, doc="""\
+label>  ( x -- x' )  [ -- label ]
+Separate a label from the stack element.""")
+def w_label_from(name):
     x = rpn.globl.param_stack.top()
-    label = rpn.globl.string_stack.pop().value
-    x.label = label
+    if not x.has_label_p():
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_ARG, name, "X does not have a label")
+    rpn.globl.string_stack.push(rpn.type.String(x.label))
+    x.label = None
+
+
+@defword(name='label?', args=1, print_x=rpn.globl.PX_PREDICATE, doc="""\
+Test if X has a label  ( x -- bool )""")
+def w_label_query(name):
+    x = rpn.globl.param_stack.pop()
+    rc = x.has_label_p()
+    result = rpn.type.Integer(rc)
+    rpn.globl.param_stack.push(result)
 
 
 @defword(name='lcm', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -3673,18 +3805,6 @@ def w_PMT(name):
     rpn.globl.param_stack.push(result)
 
 
-@defword(name='popdisp', print_x=rpn.globl.PX_CONFIG, doc="""\
-Pop current display configuration.""")
-def w_popdisp(name):                    # pylint: disable=unused-argument
-    try:
-        rpn.globl.disp_stack.pop()
-    except rpn.exception.RuntimeErr as e:
-        if e.code == rpn.exception.X_STACK_UNDERFLOW:
-            raise rpn.exception.RuntimeErr(rpn.exception.X_STACK_UNDERFLOW, name, "{} has no display configuration".format(rpn.globl.disp_stack.name())) from e
-        else:
-            raise
-
-
 @defword(name='price', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Price   ( markup purch_cost -- price )
 
@@ -3716,15 +3836,6 @@ def w_price(name):                      # pylint: disable=unused-argument
     result.label = "price"
     # The HP-32SII preserves the Y value (like %) but we do not
     rpn.globl.param_stack.push(result)
-
-
-@defword(name='pushdisp', print_x=rpn.globl.PX_CONFIG, doc="""\
-Stash current display configuration.""")
-def w_pushdisp(name):                   # pylint: disable=unused-argument
-    d = rpn.util.DisplayConfig()
-    d.style = rpn.globl.disp_stack.top().style
-    d.prec = rpn.globl.disp_stack.top().prec
-    rpn.globl.disp_stack.push(d)
 
 
 @defword(name='PV', print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -3764,8 +3875,8 @@ EXAMPLE: Integrate a bessel function jv(2.5, x) along the interval [0,4.5]:
 
 : J2.5  2.5 swap Jv ;
 0 4.5 "J2.5" quad .s  =>
-1: 7.866317216380692e-09  \ error
-0: 1.1178179380783249  \ quad""")
+1: 7.866317216380692e-09 \ error
+0: 1.1178179380783249 \ quad""")
     def quad(name):
         func_to_integrate = rpn.globl.string_stack.pop().value
         (word, _) = rpn.globl.lookup_word(func_to_integrate)
@@ -4156,25 +4267,6 @@ def w_scopes(name):                     # pylint: disable=unused-argument
         rpn.globl.lnwriteln("Variables: {}".format([str(x) for x in item.variables().values()]))
         rpn.globl.lnwriteln("Words: {}".format([str(x) for x in item.words().values()]))
 
-@defword(name='setdebug', args=1, str_args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-Set debug level  ( lev -- )  [ "facility" -- ]""")
-def w_setdebug(name):
-    x = rpn.globl.param_stack.pop()
-    if type(x) is not rpn.type.Integer:
-        rpn.globl.param_stack.push(x)
-        raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
-    level = x.value
-    if level < 0 or level > 9:
-        rpn.globl.param_stack.push(x)
-        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_ARG, name, "Level {} out of range (0..9 expected)".format(level))
-    resource = rpn.globl.string_stack.pop()
-    if not resource.value in rpn.debug.debug_levels:
-        rpn.globl.param_stack.push(x)
-        rpn.globl.string_stack.push(resource)
-        raise rpn.exception.RuntimeErr(rpn.exception.X_UNDEFINED_WORD, name, "Resource '{}' not recognized".format(resource.value))
-    rpn.debug.set_debug_level(resource.value, level)
-
-
 @defword(name='sf', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
 Set flag  ( f -- )""")
 def w_sf(name):
@@ -4193,9 +4285,24 @@ def w_sf(name):
 
 
 @defword(name='shdebug', print_x=rpn.globl.PX_IO, doc="""\
-Show all debug levels""")
+Show active debug levels""")
 def w_showdebug(name):                  # pylint: disable=unused-argument
-    rpn.globl.lnwriteln("Debugging is {}".format("ENABLED" if rpn.flag.flag_set_p(rpn.flag.F_DEBUG_ENABLED) else "disabled"))
+    rpn.globl.lnwriteln("Debugging is {}".format("enabled" if rpn.flag.flag_set_p(rpn.flag.F_DEBUG_ENABLED) else "disabled"))
+
+    dbgs = dict()
+    for (resource, level) in rpn.debug.debug_levels.items():
+        if level != 0:
+            dbgs[resource] = "{}={}".format(resource, level)
+    sorted_dbgs = []
+    for key in sorted(dbgs, key=str.casefold):
+        sorted_dbgs.append(dbgs[key])
+    rpn.globl.list_in_columns(sorted_dbgs, rpn.globl.scr_cols.obj.value - 1)
+
+
+@defword(name='shdebug!', print_x=rpn.globl.PX_IO, doc="""\
+Show all debug levels""")
+def w_showdebug_bang(name):     # pylint: disable=unused-argument
+    rpn.globl.lnwriteln("Debugging is {}".format("enabled" if rpn.flag.flag_set_p(rpn.flag.F_DEBUG_ENABLED) else "disabled"))
 
     dbgs = dict()
     for (resource, level) in rpn.debug.debug_levels.items():
@@ -4206,18 +4313,24 @@ def w_showdebug(name):                  # pylint: disable=unused-argument
     rpn.globl.list_in_columns(sorted_dbgs, rpn.globl.scr_cols.obj.value - 1)
 
 
+@defword(name='shdisp', print_x=rpn.globl.PX_CONFIG, doc="""\
+Show current display setting""")
+def w_shdisp(name):           # pylint: disable=unused-argument
+    rpn.globl.writeln(rpn.globl.disp_stack.top())
+
+
 @defword(name='shfin', print_x=rpn.globl.PX_IO, doc="""\
 Show financial variables""")
 def w_shfin(name):                      # pylint: disable=unused-argument
     rpn.globl.lnwrite()
-    rpn.globl.writeln("N:   {}".format(rpn.globl.fmt(rpn.tvm.N  .obj.value) if rpn.tvm.N  .defined() else "[Not set]"))
-    rpn.globl.writeln("INT: {}".format(rpn.globl.fmt(rpn.tvm.INT.obj.value) if rpn.tvm.INT.defined() else "[Not set]"))
-    rpn.globl.writeln("PV:  {}".format(rpn.globl.fmt(rpn.tvm.PV. obj.value) if rpn.tvm.PV .defined() else "[Not set]"))
-    rpn.globl.writeln("PMT: {}".format(rpn.globl.fmt(rpn.tvm.PMT.obj.value) if rpn.tvm.PMT.defined() else "[Not set]"))
-    rpn.globl.writeln("FV:  {}".format(rpn.globl.fmt(rpn.tvm.FV .obj.value) if rpn.tvm.FV .defined() else "[Not set]"))
+    rpn.globl.writeln("N:   {}".format(rpn.globl.gfmt(rpn.tvm.N  .obj.value) if rpn.tvm.N  .defined() else "[Not set]"))
+    rpn.globl.writeln("INT: {}".format(rpn.globl.gfmt(rpn.tvm.INT.obj.value) if rpn.tvm.INT.defined() else "[Not set]"))
+    rpn.globl.writeln("PV:  {}".format(rpn.globl.gfmt(rpn.tvm.PV. obj.value) if rpn.tvm.PV .defined() else "[Not set]"))
+    rpn.globl.writeln("PMT: {}".format(rpn.globl.gfmt(rpn.tvm.PMT.obj.value) if rpn.tvm.PMT.defined() else "[Not set]"))
+    rpn.globl.writeln("FV:  {}".format(rpn.globl.gfmt(rpn.tvm.FV .obj.value) if rpn.tvm.FV .defined() else "[Not set]"))
     rpn.globl.writeln("--------------")
-    rpn.globl.writeln("CF:  {}".format(rpn.globl.fmt(rpn.tvm.CF .obj.value) if rpn.tvm.CF .defined() else "[Not set]"))
-    rpn.globl.writeln("PF:  {}".format(rpn.globl.fmt(rpn.tvm.PF .obj.value) if rpn.tvm.PF .defined() else "[Not set]"))
+    rpn.globl.writeln("CF:  {}".format(rpn.globl.gfmt(rpn.tvm.CF .obj.value) if rpn.tvm.CF .defined() else "[Not set]"))
+    rpn.globl.writeln("PF:  {}".format(rpn.globl.gfmt(rpn.tvm.PF .obj.value) if rpn.tvm.PF .defined() else "[Not set]"))
 
     rpn.globl.writeln("{} compounding (flag {} is {})".format("CONTINUOUS" if rpn.flag.flag_set_p(rpn.flag.F_TVM_CONTINUOUS) else "DISCRETE",
                                                               rpn.flag.F_TVM_CONTINUOUS,
@@ -4257,13 +4370,13 @@ def w_show(name):                       # pylint: disable=unused-argument
 
 
 @defword(name='shreg', print_x=rpn.globl.PX_IO, doc="""\
-Show status of all registers ( -- )""")
+Show status of all registers  ( -- )""")
 def w_shreg(name):                      # pylint: disable=unused-argument
     (reg_size, _) = rpn.globl.lookup_variable("SIZE")
     regs = []
-    regs.append("I=%s" % rpn.globl.fmt(rpn.globl.register['I']))
+    regs.append("I=%s" % rpn.globl.gfmt(rpn.globl.register['I']))
     for r in range(reg_size.obj.value):
-        regs.append("R%02d=%s" % (r, rpn.globl.fmt(rpn.globl.register[r])))
+        regs.append("R%02d=%s" % (r, rpn.globl.gfmt(rpn.globl.register[r])))
 
     rpn.globl.list_in_columns(regs, rpn.globl.scr_cols.obj.value - 1)
 
@@ -4275,6 +4388,46 @@ def w_shstat(name):                     # pylint: disable=unused-argument
         rpn.globl.writeln("No statistics data")
     else:
         rpn.globl.writeln(rpn.globl.stat_data)
+
+
+@defword(name='shunit', print_x=rpn.globl.PX_IO, doc="""\
+List all units  ( -- )
+
+qv USHOW""")
+def w_shunit(name):
+    units = dict()
+    for u in rpn.unit.units.values():
+        if u.hidden:
+            continue
+        id = u.abbrev if u.abbrev is not None else u.name
+        units[id] = id
+    sorted_units = []
+    for key in sorted(units, key=str.casefold):
+        sorted_units.append(units[key])
+    rpn.globl.list_in_columns(sorted_units, rpn.globl.scr_cols.obj.value - 1)
+
+
+@defword(name='shunit!', print_x=rpn.globl.PX_IO, doc="""\
+List all units with more details  ( -- )""")
+def w_shunit_bang(name):
+    units = dict()
+    for u in rpn.unit.units.values():
+        cat = rpn.unit.Category.lookup_by_dim(u.dim())
+        id = str(u)
+        if u.abbrev is not None:
+            s = u.abbrev + " ({}".format(u.name)
+            if cat is not None:
+                s += ", {}".format(cat.measure)
+            s += ")"
+        else:
+            s = u.name
+            if cat is not None:
+                s += " ({})".format(cat.measure)
+        units[id] = s
+    sorted_units = []
+    for key in sorted(units, key=str.casefold):
+        sorted_units.append(units[key])
+    rpn.globl.list_in_columns(sorted_units, rpn.globl.scr_cols.obj.value - 1)
 
 
 @defword(name='sign', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -4426,6 +4579,8 @@ def w_sq(name):
         rpn.globl.param_stack.push(x)
         raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
 
+    if x.has_uexpr_p():
+        result.uexpr = x.uexpr.raise_to_power(2)
     rpn.globl.param_stack.push(result)
 
 
@@ -4708,7 +4863,7 @@ Toggle tracing state""")
 def w_trace(name):                      # pylint: disable=unused-argument
     if dbg("trace"):
         rpn.debug.set_debug_level("trace", 0)
-        rpn.globl.lnwriteln("trace: Tracing is now disabled")
+        rpn.globl.lnwriteln("trace: Tracing is now DISABLED")
     else:
         rpn.flag.set_flag(rpn.flag.F_DEBUG_ENABLED)
         rpn.debug.set_debug_level("trace", 1)
@@ -4750,11 +4905,74 @@ _1____ - Has Unit  (type + 16)
 def w_type(name):               # pylint: disable=unused-argument
     x = rpn.globl.param_stack.top()
     t = x.typ()
-    # if <x has a unit>:
-    #     t += rpn.type.T_HAS_UNIT
+    if x.has_uexpr_p():
+        t += rpn.type.T_HAS_UNIT
     if x.label is not None:
         t += rpn.type.T_HAS_LABEL
     rpn.globl.param_stack.push(rpn.type.Integer(t))
+
+
+@defword(name='ubase', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
+Convert a unit-object into base (SI) units.""")
+def w_ubase(name):
+    x = rpn.globl.param_stack.pop()
+    if not x.has_uexpr_p():
+        rpn.globl.param_stack.push(x)
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_ARG, name, "Not a unit")
+
+    dbg("unit", 1, "{}: Old_x={}".format(name, repr(x)))
+    ue_base = x.uexpr.ubase()
+
+    # BUG: Everything is coerced to a Float.  This might not be so bad
+    # for Integers and Rationals, but Complex should be handled better.
+    new_x = rpn.type.Float(0.0)
+    new_x.value = float(x.value)
+    new_x.value *= x.uexpr.base_factor() * (10 ** x.uexpr.exp())
+    if ue_base.exp() != 0:
+        new_x.value *= (10 ** ue_base.exp())
+        ue_base._exp = 0
+    new_x.uexpr = ue_base
+    if x.has_label_p():
+        new_x.label = x.label
+    dbg("unit", 1, "{}: New_x={}".format(name, repr(new_x)))
+    rpn.globl.param_stack.push(new_x)
+
+
+@defword(name='udim', args=1, print_x=rpn.globl.PX_IO, hidden=True, doc="""\
+Print unit dimension vector""")
+def w_udim(name):
+    x = rpn.globl.param_stack.top()
+    if not x.has_uexpr_p():
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_ARG, name, "Not a unit")
+    rpn.globl.lnwriteln(x.uexpr.dim())
+
+
+# FIXME - Not done
+# XXX Double check example and general algorthm in HP48 manual
+@defword(name='ufact', args=1, str_args=1, print_x=rpn.globl.PX_COMPUTE, hidden=True, doc="""\
+Factor out one unit from another  ( x -- x' )  [ units -- ]
+
+EXAMPLE:
+1_J "N" ufact  =>  1_m""")
+def w_ufact(name):
+    x = rpn.globl.param_stack.pop()
+    if not x.has_uexpr_p():
+        rpn.globl.param_stack.push(x)
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_ARG, name, "Not a unit")
+    dbg("unit", 2, "{}: orig X={}".format(name, repr(x)))
+
+    ustr = rpn.globl.string_stack.pop()
+    ue = rpn.unit.try_parsing(ustr.value)
+    if ue is None:
+        rpn.globl.param_stack.push(x)
+        rpn.globl.string_stack.push(ustr)
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, name, new_ustr)
+
+    print("{}: X ={}".format(name, repr(x.uexpr)))
+    print("{}: ue={}".format(name, repr(ue)))
+    new_ue = rpn.unit.UExpr()
+    foo = [ adim - bdim  for adim, bdim in zip(x.uexpr.dim(), ue.dim()) ]
+    print("{}: foo={}".format(name, repr(new_ue)))
 
 
 @defword(name='undef', print_x=rpn.globl.PX_CONFIG, doc="""\
@@ -4762,6 +4980,27 @@ Undefine a variable, removing it from the current scope.
 UNDEF <var>""")
 def w_undef(name):                      # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
+
+
+@defword(name='unit>', args=1, print_x=False, doc="""\
+unit>  ( x -- x' )  [ -- ustr ]
+Separate a unit expression from the stack into its value and unit string.""")
+def w_unit_from(name):
+    x = rpn.globl.param_stack.top()
+    if not x.has_uexpr_p():
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_ARG, name, "X does not have a unit expression")
+    ue = x.uexpr
+    rpn.globl.string_stack.push(rpn.type.String(str(ue)))
+    x.uexpr = None
+
+
+@defword(name='unit?', args=1, print_x=rpn.globl.PX_PREDICATE, doc="""\
+Test if X has a unit expression  ( x -- bool )""")
+def w_unit_query(name):
+    x = rpn.globl.param_stack.pop()
+    rc = x.has_uexpr_p()
+    result = rpn.type.Integer(rc)
+    rpn.globl.param_stack.push(result)
 
 
 @defword(name='until', print_x=rpn.globl.PX_CONTROL, doc="""\
@@ -4775,6 +5014,64 @@ while something is true, rather than until it becomes true.
 qv AGAIN, BEGIN, LEAVE, REPEAT, WHILE""")
 def w_until(name):                      # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
+
+
+@defword(name='ushow', str_args=1, print_x=rpn.globl.PX_IO, doc="""\
+Show detailed information about a unit  [ unit -- ]
+
+qv SHUNIT""")
+def w_ushow(name):
+    s = rpn.globl.string_stack.pop()
+    ustr = s.value
+    ue = rpn.unit.unit_lookup(ustr)
+
+    # See if it's a real unit
+    if ue is not None:
+        unit = ue.unit
+        rpn.globl.lnwrite("\"{}\" refers to the unit '{}'".format(ustr, unit.name))
+        if ue.prefix is not None:
+            rpn.globl.write(" with prefix '{}' (x10^{})".format(ue.prefix[0], ue.prefix[2]))
+        rpn.globl.writeln()
+        if ue.unit.base_p:
+            rpn.globl.writeln('SI units: "{}" is a base unit'.format(unit.name))
+        else:
+            defn = "{}".format(unit._factor)
+            e = unit._orig_exp
+            if e is not None and e != 0:
+                defn += " * 10^{}".format(e)
+            defn += " {}".format(unit.deriv)
+            rpn.globl.writeln("Definition: {}".format(defn))
+
+            x = rpn.type.Integer.from_string("1_{}".format(ustr))
+            base_ue = x.uexpr.ubase()
+            value = x.uexpr.base_factor() * (10 ** x.uexpr.exp())
+            if base_ue.exp() != 0:
+                value *= (10 ** base_ue.exp())
+            rpn.globl.writeln("SI units: 1 {} = {} {}".format(unit.name, value, base_ue))
+        cat = rpn.unit.Category.lookup_by_dim(ue.dim())
+        if cat is not None:
+            rpn.globl.writeln("It is a measure of {}".format(cat.measure))
+        else:
+            rpn.globl.writeln("It has dimensions = {}".format(ue.dim()))
+        return
+
+    # See if it's a valid combination of units
+    ue = rpn.unit.try_parsing(ustr)
+    if ue is not None:
+        rpn.globl.lnwriteln("\"{}\" is a unit expression".format(ustr))
+        base_ue = ue.ubase()
+        rpn.globl.writeln("SI units: {}".format(base_ue))
+        cat = rpn.unit.Category.lookup_by_dim(ue.dim())
+        if cat is not None:
+            rpn.globl.writeln("It is a measure of {}".format(cat.measure))
+        else:
+            rpn.globl.writeln("It has dimensions = {}".format(ue.dim()))
+        return
+
+    # Not valid
+    rpn.globl.string_stack.push(s)
+    raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, name, ustr)
+
 
 
 if rpn.globl.have_module('numpy'):
@@ -5250,6 +5547,11 @@ def w_X_PROTECTED(name):                # pylint: disable=unused-argument
 Invalid unit""")
 def w_X_INVALID_UNIT(name):             # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_INVALID_UNIT))
+
+@defword(name='X_INCONSISTENT_UNITS', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
+Inconsistent units""")
+def w_X_INCONSISTENT_UNITS(name):       # pylint: disable=unused-argument
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.exception.X_INCONSISTENT_UNITS))
 
 
 @defword(name='xor', args=2, print_x=rpn.globl.PX_PREDICATE, doc="""\

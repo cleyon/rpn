@@ -1025,8 +1025,7 @@ def t_foo_newline(t):
    A token can be declared in multiple states by including multiple state
    names in the declaration. For example:
 
-t_foo_bar_NUMBER = r'\d+'         # Defines token 'NUMBER' in both state 'foo' a
-nd 'bar'
+t_foo_bar_NUMBER = r'\d+'         # Defines token 'NUMBER' in both state 'foo' and 'bar'
 
    Alternative, a token can be declared in all states using the 'ANY' in
    the name.
@@ -1264,8 +1263,7 @@ factor      : NUMBER                factor.val = int(NUMBER.lexval)
    special symbol $ represents the end of input.
 
 Step Symbol Stack           Input Tokens            Action
----- ---------------------  ---------------------   ----------------------------
----
+---- ---------------------  ---------------------   -------------------------------
 1                           3 + 5 * ( 10 - 20 )$    Shift 3
 2    3                        + 5 * ( 10 - 20 )$    Reduce factor : NUMBER
 3    factor                   + 5 * ( 10 - 20 )$    Reduce term   : factor
@@ -1628,8 +1626,7 @@ expression : expression PLUS expression
    stack:
 
 Step Symbol Stack           Input Tokens            Action
----- ---------------------  ---------------------   ----------------------------
----
+---- ---------------------  ---------------------   -------------------------------
 1    $                                3 * 4 + 5$    Shift 3
 2    $ 3                                * 4 + 5$    Reduce : expression : NUMBER
 3    $ expr                             * 4 + 5$    Shift *
@@ -1686,10 +1683,8 @@ expression : expression PLUS expression                 # level = 1, left
            | expression MINUS expression                # level = 1, left
            | expression TIMES expression                # level = 2, left
            | expression DIVIDE expression               # level = 2, left
-           | LPAREN expression RPAREN                   # level = None (not spec
-ified)
-           | NUMBER                                     # level = None (not spec
-ified)
+           | LPAREN expression RPAREN                   # level = None (not specified)
+           | NUMBER                                     # level = None (not specified)
 
    When shift/reduce conflicts are encountered, the parser generator
    resolves the conflict by looking at the precedence rules and
@@ -1798,8 +1793,7 @@ expression  : NUMBER
    warning message such as this:
 
 WARNING: 1 reduce/reduce conflict
-WARNING: reduce/reduce conflict in state 15 resolved using rule (assignment -> I
-D EQUALS NUMBER)
+WARNING: reduce/reduce conflict in state 15 resolved using rule (assignment -> ID EQUALS NUMBER)
 WARNING: rejected rule (expression -> NUMBER)
 
    This message identifies the two rules that are in conflict. However, it

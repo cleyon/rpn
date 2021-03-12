@@ -35,6 +35,7 @@ import rpn.flag
 import rpn.globl
 import rpn.tvm
 import rpn.type
+import rpn.unit
 import rpn.util
 import rpn.word
 
@@ -63,8 +64,10 @@ def initialize(rpndir, argv):
     rpn.globl.go_interactive = True
     sys.setrecursionlimit(2000) # default is 10002
     random.seed()
-    rpn.globl.disp_stack.push(rpn.util.DisplayConfig())
     rpn.globl.push_scope(rpn.globl.root_scope, "Root scope")
+    rpn.globl.disp_stack.push(rpn.util.DisplayConfig())
+    rpn.word.w_std('std')
+    rpn.unit.define_units()
     define_variables()
 
     # Set up signal handling
@@ -74,7 +77,7 @@ def initialize(rpndir, argv):
     sigwinch_handler(0, 0)     # Read & define ROWS and COLS via stty(1)
 
     # Set initial conditions
-    rpn.globl.eval_string("clreg clflag clfin std")
+    rpn.globl.eval_string("clreg clflag clfin")
 
     # Define built-in secondary (protected) words
     if not disable_all_extensions:

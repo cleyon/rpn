@@ -77,7 +77,7 @@ INTEGER_RE              = re.compile(r'^\d+$')
 JULIAN_OFFSET           = 1721424 # date.toordinal() returns 1 for 0001-01-01, so compensate
 PRECISION_MAX           =  16
 MATRIX_MAX              = 999
-RATIONAL_RE             = re.compile(r'^(\d+)::(\d+)$')              # ddd::ddd
+RATIONAL_RE             = re.compile(r'^(\d+)::(\d+)(_([a-zA-Z]+))?$')              # ddd::ddd
 TIME_RE                 = re.compile(r'^[-+]?(\d+)\.(\d{,2})(\d*)$') # HH.MMSSsss
 #UNIT_RE                 = re.compile(r'^([^_]+)_(.+)$')              # Not rigorous because we assume lexer got it right
 
@@ -95,7 +95,8 @@ TIME_RE                 = re.compile(r'^[-+]?(\d+)\.(\d{,2})(\d*)$') # HH.MMSSss
 # TAU          = Number of radians in a circle = 2*PI
 
 RAD_PER_GRAD =  0.0157079632679489661923132169163975144209858469968755291048747229615390820314310449931401741267105853
-RAD_PER_DEG  =  0.0174532925199432957692369076848861271344287188854172545609719144017100911460344944368224156963450948
+RAD_PER_DEG  =  0.0174532925199432957692369076848861271344287188854172545609719144017100911460344944368224156963450948 # TAU/360
+INV_PI       =  0.3183098861837906715377675267450287240689192914809128974953346881177935952684530701802276055325061719
 GAMMA        =  0.5772156649015328606065120900824024310421593359399235988057672348848677267776646709369470632917467495
 LN_2         =  0.6931471805599453094172321214581765680755001343602552541206900094933936219696947156058633269964186875
 SQRT_2       =  1.4142135623730950488016887242096980785696718753769480731766797379907324784621070388503875343276415727
@@ -189,8 +190,10 @@ def eval_string(s):
              e.code == rpn.exception.X_INTERRUPT:
             return
         else:
-            lnwriteln("eval_string: " + str(e))
-
+            if rpn.flag.flag_set_p(rpn.flag.F_DEBUG_ENABLED):
+                lnwriteln("eval_string: " + str(e))
+            else:
+                lnwriteln(str(e))
     else:
         if result is not None:
             dbg("eval_string", 1, "result={}".format(result))
@@ -227,11 +230,15 @@ def execute(executable):
         elif err_execute.code >= 0:
             raise
         else:
-            lnwriteln("execute: " + str(err_execute))
+            if rpn.flag.flag_set_p(rpn.flag.F_DEBUG_ENABLED):
+                lnwriteln("execute: " + str(err_execute))
+            else:
+                lnwriteln(str(err_execute))
+
 
 # I should really just use __format__() correctly
-def fmt(x, show_label=True):
-    return disp_stack.top().fmt(x, show_label)
+def gfmt(x):
+    return disp_stack.top().dcfmt(x)
 
 
 def have_module(modname):
@@ -425,17 +432,13 @@ def to_python_class(n):
 
 def to_rpn_class(n):
     t = type(n)
-    if t is np.int64:
+    if t in [int, np.int64]:
         return rpn.type.Integer(n)
-    if t is float:
-        return rpn.type.Float(n)
-    if t is np.float64:
+    if t in [float, np.float64]:
         return rpn.type.Float(n)
     if t is Fraction:
         return rpn.type.Rational.from_Fraction(n)
-    if t is complex:
-        return rpn.type.Complex.from_complex(n)
-    if t is np.complex128:
+    if t in [complex, np.complex128]:
         return rpn.type.Complex.from_complex(n)
     raise rpn.exception.FatalErr("{}: Cannot handle type {}".format(whoami(), t))
 

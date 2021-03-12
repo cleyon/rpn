@@ -79,6 +79,7 @@ except ImportError:
 from   rpn.debug import dbg, typename, whoami
 import rpn.exe
 import rpn.globl
+import rpn.unit
 
 
 class Stackable(rpn.exe.Executable):
@@ -98,9 +99,33 @@ class Stackable(rpn.exe.Executable):
     def typ(self):
         return self._type
 
+    def has_label_p(self):
+        return self.label is not None
+
+    def has_uexpr_p(self):
+        return self.uexpr is not None
+
     def __call__(self, name):
         dbg("trace", 1, "trace({})".format(repr(self)))
         rpn.globl.param_stack.push(self)
+
+    def __str__(self):
+        s = self.instfmt()
+        if self.has_uexpr_p():
+            #print("{}: self.uexpr={}".format(whoami(), repr(self.uexpr)))
+            s += "_{}".format(str(self.uexpr))
+        if self.label is not None:
+            s += " \\ {}".format(self.label)
+        return s
+
+    def __repr__(self):
+        s = self.name + "[{}".format(self.instfmt())
+        if self.uexpr is not None:
+            s += ",uexpr={}".format(repr(self.uexpr))
+        if self.label is not None:
+            s += ",label={}".format(self.label)
+        return s + "]"
+
 
 
 #############################################################################
@@ -111,9 +136,10 @@ class Stackable(rpn.exe.Executable):
 class Complex(Stackable):
     def __init__(self, real=0.0, imag=0.0):
         super().__init__()
-        self.name = "Complex"
-        self._type = T_COMPLEX
-        self.value = complex(float(real), float(imag))
+        self.name   = "Complex"
+        self._type  = T_COMPLEX
+        self._value = complex(float(real), float(imag))
+        self.uexpr  = None
 
     @classmethod
     def from_complex(cls, cplx):
@@ -138,13 +164,9 @@ class Complex(Stackable):
     def zerop(self):
         return self.real() == 0.0 and self.imag() == 0.0
 
-    def __str__(self):
-        s = "({},{})".format(rpn.globl.fmt(self.real()), rpn.globl.fmt(self.imag()))
-        l = r"  \ " + "{}".format(self.label) if self.label is not None else ""
-        return s + l
-
-    def __repr__(self):
-        return "Complex[{}]".format(repr(self.value))
+    def instfmt(self):
+        return "({},{})".format(rpn.globl.gfmt(self.real()),
+                                rpn.globl.gfmt(self.imag()))
 
 
 #############################################################################
@@ -153,11 +175,27 @@ class Complex(Stackable):
 #
 #############################################################################
 class Float(Stackable):
-    def __init__(self, val=0.0):
+    def __init__(self, val=0.0, unit=None):
         super().__init__()
-        self.name = "Float"
-        self._type = T_FLOAT
-        self.value = float(val)
+        self.name   = "Float"
+        self._type  = T_FLOAT
+        self._value = float(val)
+        self.uexpr  = unit
+
+    @classmethod
+    def from_string(cls, s):
+        if "_" in s:
+            try:
+                (val, ustr) = s.split("_")
+            except ValueError:
+                raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, "Integer#from_string", s)
+
+            ue = rpn.unit.try_parsing(ustr)
+            if ue is None:
+                raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, "Float#from_string", ustr)
+            return cls(val, ue)
+        else:
+            return cls(s, None)
 
     @property
     def value(self):
@@ -216,13 +254,8 @@ Failure:  (False, None, None, None, None)"""
             timeobj = None
         return (True, hh, mm, ss, timeobj)
 
-    def __str__(self):
-        l = r"  \ " + "{}".format(self.label) if self.label is not None else ""
-        s = "{}".format(self.value)
-        return s + l
-
-    def __repr__(self):
-        return "Float[{}]".format(repr(self.value))
+    def instfmt(self):
+        return "{}".format(rpn.globl.gfmt(self.value))
 
 
 #############################################################################
@@ -231,11 +264,27 @@ Failure:  (False, None, None, None, None)"""
 #
 #############################################################################
 class Integer(Stackable):
-    def __init__(self, val=0):
+    def __init__(self, val, unit=None):
         super().__init__()
-        self.name = "Integer"
-        self._type = T_INTEGER
-        self.value = int(val)
+        self.name   = "Integer"
+        self._type  = T_INTEGER
+        self._value = int(val)
+        self.uexpr  = unit
+
+    @classmethod
+    def from_string(cls, s):
+        if "_" in s:
+            try:
+                (val, ustr) = s.split("_")
+            except ValueError:
+                raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, "Integer#from_string", s)
+
+            ue = rpn.unit.try_parsing(ustr)
+            if ue is None:
+                raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, "Integer#from_string", ustr)
+            return cls(val, ue)
+        else:
+            return cls(s, None)
 
     @property
     def value(self):
@@ -250,13 +299,8 @@ class Integer(Stackable):
     def zerop(self):
         return self.value == 0
 
-    def __str__(self):
-        s = "{}".format(self.value)
-        l = r"  \ " + "{}".format(self.label) if self.label is not None else ""
-        return s + l
-
-    def __repr__(self):
-        return "Integer[{}]".format(repr(self.value))
+    def instfmt(self):
+        return "{}".format(rpn.globl.gfmt(self.value))
 
 
 #############################################################################
@@ -306,17 +350,17 @@ class Matrix(Stackable):
         #     raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'Matrix#value()', "({})".format(typename(new_value)))
         self._value = new_value
 
+    def has_uexpr_p(self):
+        return False
+
     def nrows(self):
         return self._nrows
 
     def ncols(self):
         return self._ncols
 
-    def __str__(self):
+    def instfmt(self):          # XXX
         return str(self.value)
-
-    def __repr__(self):
-        return "Matrix[{}]".format(repr(self.value))
 
 
 #############################################################################
@@ -325,11 +369,12 @@ class Matrix(Stackable):
 #
 #############################################################################
 class Rational(Stackable):
-    def __init__(self, num=0, denom=1):
+    def __init__(self, num=0, denom=1, unit=None):
         super().__init__()
-        self.name = "Rational"
+        self.name  = "Rational"
         self._type = T_RATIONAL
         self.value = Fraction(int(num), int(denom))
+        self.uexpr = unit
 
     @classmethod
     def from_Fraction(cls, frac):
@@ -340,7 +385,8 @@ class Rational(Stackable):
         match = rpn.globl.RATIONAL_RE.match(s)
         if match is None:
             raise rpn.exception.FatalErr("Rational pattern failed to match '{}'".format(s))
-        return cls(match.group(1), match.group(2))
+        #print("m1='{}', m2='{}', m4='{}'".format(match.group(1), match.group(2), match.group(4)))
+        return cls(match.group(1), match.group(2), match.group(4))
 
     @property
     def value(self):
@@ -364,18 +410,18 @@ class Rational(Stackable):
     def zerop(self):
         return self.numerator() == 0
 
-    def __str__(self):
-        s = "{}::{}".format(self.numerator(), self.denominator())
-        l = r"  \ {}".format(self.label) if self.label is not None else ""
-        return s + l
-
-    def __repr__(self):
-        return "Rational[{}]".format(repr(self.value))
+    def instfmt(self):
+        return "{}::{}".format(rpn.globl.gfmt(self.numerator()),
+                               rpn.globl.gfmt(self.denominator()))
 
 
 #############################################################################
 #
 #       S T R I N G
+#
+#       - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#
+#       String is included here, although it's the only non Stackable class.
 #
 #############################################################################
 class String(rpn.exe.Executable):
@@ -424,6 +470,7 @@ class Vector(Stackable):
         super().__init__()
         self.name = "Vector"
         self._type = T_VECTOR
+        self.uexpr = None
         if type(vals) is not rpn.util.List:
             raise rpn.exception.FatalErr("{}: {} is not a List".format(whoami(), repr(vals)))
         self.value = np.array([elem.value for elem in vals.listval()])
@@ -447,13 +494,13 @@ class Vector(Stackable):
         #     raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'Vector#value()', "({})".format(typename(new_value)))
         self._value = new_value
 
+    def has_uexpr_p(self):
+        return False
+
     def size(self):
         return self.value.size
 
-    def __str__(self):
+    def instfmt(self):
         if self.size() == 0:
             return "[]"
         return "[ " + " ".join([str(rpn.globl.to_rpn_class(e)) for e in self.value]) +" ]"
-
-    def __repr__(self):
-        return "Vector[{}]".format(repr(self.value))

@@ -75,6 +75,14 @@ class DisplayConfig:
             else:
                 rpn.flag.clear_flag(39 - bit)
 
+    def __str__(self):
+        s = ""
+        if self.style in ["fix", "sci", "eng"]:
+            s += "{} ".format(self.prec)
+        s += self.style
+        return s
+
+
     def eng_notate(self, x):
         """
         Convert a float to a string in engineering units, with specified
@@ -111,7 +119,10 @@ class DisplayConfig:
         exp_str = "{:02d}".format(abs(3*p3))
         return mant_sign + num_str + "e" + exp_sign + exp_str
 
-    def fmt(self, x, show_label=True):
+    def dcfmt(self, x):
+        if type(x) is int:
+            return str(x)
+
         if type(x) is float:
             if self.style == "fix":
                 return "{:.{prec}{style}}".format(x, style="f", prec=self.prec)
@@ -121,16 +132,11 @@ class DisplayConfig:
                 return self.eng_notate(x)
             if self.style == "std":
                 return str(x)
-            raise rpn.exception.FatalErr("{}: Invalid style '{}'".format(whoami(), self.style))
-        if type(x) is rpn.type.Float:
-            s = self.fmt(x.value)
-            l = ""
-            if show_label and x.label is not None:
-                l = r"  \ " + "{}".format(x.label)
-            return s + l
-        if type(x) is rpn.type.String:
-            return x.value
-        return str(x)
+
+        if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex]:
+            return x.instfmt()
+
+        raise rpn.exception.FatalErr("{}: Cannot handle type '{}' for object {}".format(whoami(), typename(x), x))
 
 
 #############################################################################
@@ -498,7 +504,7 @@ class Stack:
     def __str__(self):
         sa = []
         for (i, item) in self.items_bottom_to_top():
-            sa.append("{}: {}".format(i, rpn.globl.fmt(item)))
+            sa.append("{}: {}".format(i, str(item)))
         #print(sa)
         return "\n".join(sa)
 
@@ -528,7 +534,7 @@ class TokenMgr:
         # Read characters from input stream
         while data == "":
             if rpn.flag.flag_set_p(rpn.flag.F_SHOW_X) and not rpn.globl.param_stack.empty():
-                rpn.globl.writeln("{}".format(rpn.globl.fmt(rpn.globl.param_stack.top())))
+                rpn.globl.write("{} ".format(str(rpn.globl.param_stack.top())))
             rpn.flag.clear_flag(rpn.flag.F_SHOW_X)
 
             rpn.globl.lnwrite()

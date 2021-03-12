@@ -1,28 +1,30 @@
 \ Primary physical constants
-299792458            constant c     \ m s^-1            \ Speed of light in vacuum
-1.602176634e-19      constant e     \ C                 \ Charge on electron
-6.6742867e-11        constant G     \ m^3 kg^-1 s^-2    \ Universal gravitation
-9.80665              constant g     \ m s^-2            \ Earth acceleration
-6.62607015e-34       constant h     \ J s               \ Planck constant
-1.380649e-23         constant k     \ J K^-1            \ Boltzmann constant
-5.9722e24            constant Me    \ kg                \ Mass of earth
-1.98847e30           constant Msol  \ kg                \ Mass of sun
-4 PI * 1e-7 *        constant mu0   \ N / A^2           \ Magnetic constant (vacuum permeability)
-6.02214076e23        constant NA    \ mol^-1            \ Avogadro constant
-6373e3               constant Re    \ m                 \ Radius of earth
-                                                        \    R_equater=6378 km, R_pole=6356 km.
-                                                        \    This value is consistent with g=9.806
-696e6                constant Rsol  \ m                 \ Radius of sun
+299792458_m/s             "Speed of light in vacuum" >label constant c
+1.602176634e-19_C         "Charge on electron" >label       constant e
+9.1093837015e-31_kg       "Mass of electron" >label         constant Me
+6.6742867e-11_m^3/kg*s^2  "Universal gravitation"  >label   constant G
+9.80665_m/s^2             "Earth gravity" >label            constant g
+6.62607015e-34_J*s        "Planck constant" >label          constant h
+1.38064852e-23_J/K        "Boltzmann constant" >label       constant k
+5.9722e24_kg              "Mass of earth" >label            constant Mearth
+1.98847e30_kg             "Mass of sun" >label              constant Msol
+4_N/A^2 PI * 1e7 /        "Magnetic constant" >label        constant mu0 \ Vacuum permeability
+6.02214076e23_mol^-1      "Avogadro constant" >label        constant NA
+6373e3_m                  "Radius of earth" >label          constant Rearth \ R_equater=6378 km, R_pole=6356 km
+                                                                            \ This value is consistent with g=9.806
+6.957e8_m                 "Radius of sun" >label            constant Rsol
+10973731.568508_1/m       "Rydberg's constant" >label       constant Ryd
+22.710947e-3_m^3/mol      "Std volume of ideal gas" >label  constant V0
 
 \ Secondary constants
-\ @mu0 @c sq * inv   constant eps0  \ F / m             \ Electric constant (vacuum permittivity)
-\ @NA @e *           constant F     \ C / mol           \ Faraday constant
-@h TAU /             constant hbar  \ J s               \ Reduced Planck constant
-@NA @k *             constant R     \ J / K mol         \ Universal Gas constant
-\ @mu0 @c *          constant Z0    \ ohms?             \ Characteristic impedance of vacuum
+@mu0 @c sq * inv  "Electric constant" >label                  constant eps0 \ Vacuum permittivity
+@NA @e *          "Faraday constant" >label                   constant F
+@h TAU /          "Reduced Planck constant" >label            constant hbar
+@NA @k *          "Universal Gas constant" >label             constant R
+@mu0 @c *         "Characteristic impedance of vacuum" >label constant Z0
 
 \ Tertiary constants
-\ 4 PI * @eps0 * inv constant kappa \ N m^2 / C^2       \ Coulomb's constant
+4 PI * @eps0 * inv "Coulomb's constant" >label constant ke
 
 
 : F_grav
@@ -38,7 +40,7 @@ qv G"
   | in:m1 in:m2 in:d |
   @G @m1 @m2 * *
   @d sq /
-  "N" label
+  "N" >unit
 ;
 
 : F_smbh

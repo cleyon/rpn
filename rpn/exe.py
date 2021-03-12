@@ -545,7 +545,7 @@ the right thing with empty stack (uses zero)."""
                 rpn.globl.param_stack.push(rpn.type.Integer(0))
                 # The variable remains undefined
             else:
-                raise rpn.exception.RuntimeErr(rpn.exception.X_UNDEFINED_VARIABLE, str(self))
+                raise rpn.exception.RuntimeErr(rpn.exception.X_UNDEFINED_VARIABLE, str(self), self.identifier())
         elif self._modifier is not None and self._modifier == '$':
             if rpn.globl.string_stack.empty():
                 rpn.globl.string_stack.push(rpn.type.String(""))
