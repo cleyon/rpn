@@ -315,41 +315,41 @@ class UQuot:
             return UQuot(self.denom, self.numer)
 
 class UProd:
-    def __new__(cls, a, b):
-        if isinstance(a, UNull):
-            return b
-        elif isinstance(b, UNull):
-            return a
-        elif isinstance(a, UQuot) and isinstance(b, UExpr):
-            a.numer = UProd(a.numer, b)
-            return a
-        elif isinstance(a, UExpr) and isinstance(b, UQuot):
-            b.numer = UProd(a, b.numer)
-            return b
-        elif isinstance(a, UQuot) and isinstance(b, UQuot):
-            obj = UQuot(UProd(a.numer, b.numer),
-                        UProd(a.denom, b.denom))
+    def __new__(cls, lhs, rhs):
+        if isinstance(lhs, UNull):
+            return rhs
+        elif isinstance(rhs, UNull):
+            return lhs
+        elif isinstance(lhs, UQuot) and isinstance(rhs, UExpr):
+            lhs.numer = UProd(lhs.numer, rhs)
+            return lhs
+        elif isinstance(lhs, UExpr) and isinstance(rhs, UQuot):
+            rhs.numer = UProd(lhs, rhs.numer)
+            return rhs
+        elif isinstance(lhs, UQuot) and isinstance(rhs, UQuot):
+            obj = UQuot(UProd(lhs.numer, rhs.numer),
+                        UProd(lhs.denom, rhs.denom))
             return obj
         else:
             obj = object.__new__(cls)
-            obj.a = a
-            obj.b = b
+            obj.lhs = lhs
+            obj.rhs = rhs
             return obj
     def __str__(self):
-        return str(self.a) + "*" + str(self.b)
+        return str(self.lhs) + "*" + str(self.rhs)
     def __repr__(self):
-        return "UProd[{},{}]".format(repr(self.a), repr(self.b))
+        return "UProd[{},{}]".format(repr(self.lhs), repr(self.rhs))
     def dim(self):
-        return [ adim + bdim  for adim, bdim in zip(self.a.dim(), self.b.dim()) ]
+        return [ adim + bdim  for adim, bdim in zip(self.lhs.dim(), self.rhs.dim()) ]
     def exp(self):
-        return self.a.exp() + self.b.exp()
+        return self.lhs.exp() + self.rhs.exp()
     def base_factor(self):
-        return self.a.base_factor() * self.b.base_factor()
+        return self.lhs.base_factor() * self.rhs.base_factor()
     def raise_to_power(self, p):
-        return UProd(self.a.raise_to_power(p),
-                     self.b.raise_to_power(p))
+        return UProd(self.lhs.raise_to_power(p),
+                     self.rhs.raise_to_power(p))
     def ubase(self):
-        return UProd(self.a.ubase(), self.b.ubase())
+        return UProd(self.lhs.ubase(), self.rhs.ubase())
     def invert(self):
         return UQuot(UNull(), self)
 
@@ -368,18 +368,13 @@ class UPow:
             obj.power = int(power)
             return obj
         elif isinstance(mantissa, UQuot):
-            mantissa.numer = UPow(mantissa.numer, power)
-            mantissa.denom = UPow(mantissa.denom, power)
-            return mantissa
+            return UQuot(UPow(mantissa.numer, power), UPow(mantissa.denom, power))
         elif isinstance(mantissa, UProd):
-            mantissa.a = UPow(mantissa.a, power)
-            mantissa.b = UPow(mantissa.b, power)
-            return mantissa
+            return UProd(UPow(mantissa.lhs, power), UPow(mantissa.rhs, power))
         elif isinstance(mantissa, UParen):
-            mantissa.a = UPow(mantissa.a, power)
-            return mantissa
+            return UParen(UPow(mantissa.inner, power))
         elif isinstance(mantissa, UNull):
-            return mantissa
+            return UNull()
         else:
             print("UPow fell through -- should not happen")
             obj = object.__new__(cls)
@@ -404,29 +399,29 @@ class UPow:
         return UQuot(UNull(), self)
 
 class UParen:
-    def __new__(cls, a):
-        if isinstance(a, UExpr) or isinstance(a, UNull):
-            return a
+    def __new__(cls, inner):
+        if isinstance(inner, UExpr) or isinstance(inner, UNull):
+            return inner
         else:
             obj = object.__new__(cls)
-            obj.a = a
+            obj.inner = inner
             return obj
     def __str__(self):
-        return "(" + str(self.a) + ")"
+        return "(" + str(self.inner) + ")"
     def __repr__(self):
-        return "UParen[{}]".format(repr(self.a))
+        return "UParen[{}]".format(repr(self.inner))
     def exp(self):
-        return self.a.exp()
+        return self.inner.exp()
     def dim(self):
-        return self.a.dim()
+        return self.inner.dim()
     def base_factor(self):
-        return self.a.base_factor()
+        return self.inner.base_factor()
     def raise_to_power(self, p):
-        return UParen(self.a.raise_to_power(p))
+        return UParen(self.inner.raise_to_power(p))
     def ubase(self):
-        return UParen(self.a.ubase())
+        return UParen(self.inner.ubase())
     def invert(self):
-        return UQuot(UNull(), self)
+        return UParen(self.inner.invert())
 
 #############################################################################
 #
