@@ -87,6 +87,7 @@ class Stackable(rpn.exe.Executable):
         self._value = None
         self._label = None
         self._type  = None
+        self._uexpr = None
 
     @property
     def label(self):
@@ -95,6 +96,14 @@ class Stackable(rpn.exe.Executable):
     @label.setter
     def label(self, new_label):
         self._label = new_label
+
+    @property
+    def uexpr(self):
+        return self._uexpr
+
+    @uexpr.setter
+    def uexpr(self, new_uexpr):
+        self._uexpr = new_uexpr
 
     def typ(self):
         return self._type
@@ -109,6 +118,31 @@ class Stackable(rpn.exe.Executable):
         dbg("trace", 1, "trace({})".format(repr(self)))
         rpn.globl.param_stack.push(self)
 
+    def uexpr_convert(self, new_ustr):
+        if not self.has_uexpr_p():
+            raise rpn.exception.FatalErr("{}: No uexpr - caller should have checked".format(whoami()))
+        ue = rpn.unit.try_parsing(new_ustr)
+        if ue is None:
+            raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, "", new_ustr)
+        if not rpn.unit.units_conform(self.uexpr, ue):
+            raise rpn.exception.RuntimeErr(rpn.exception.X_CONFORMABILITY, "", '"{}", "{}"'.format(self.uexpr, ue))
+        if type(self) in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
+            new_x = rpn.type.Float()
+            new_x.value = float(self.value)
+        elif type(self) is rpn.type.Complex:
+            new_x = rpn.type.Complex()
+            new_x.value = self.value
+        else:
+            raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, "", "{} does not support units".format(typename(self)))
+
+        new_x.value *= self.uexpr.base_factor() * (10 ** self.uexpr.exp())
+        new_x.value /= ue.base_factor()
+        new_x.value /= (10 ** ue.exp())
+        new_x.uexpr = ue
+        if self.has_label_p():
+            new_x.label = self.label
+        return new_x
+
     def __str__(self):
         s = self.instfmt()
         if self.has_uexpr_p():
@@ -120,7 +154,7 @@ class Stackable(rpn.exe.Executable):
 
     def __repr__(self):
         s = self.name + "[{}".format(self.instfmt())
-        if self.uexpr is not None:
+        if self.has_uexpr_p():
             s += ",uexpr={}".format(repr(self.uexpr))
         if self.label is not None:
             s += ",label={}".format(self.label)
@@ -139,7 +173,7 @@ class Complex(Stackable):
         self.name   = "Complex"
         self._type  = T_COMPLEX
         self._value = complex(float(real), float(imag))
-        self.uexpr  = None
+        self._uexpr  = None
 
     @classmethod
     def from_complex(cls, cplx):
@@ -175,12 +209,12 @@ class Complex(Stackable):
 #
 #############################################################################
 class Float(Stackable):
-    def __init__(self, val=0.0, unit=None):
+    def __init__(self, val=0.0, uexpr=None):
         super().__init__()
         self.name   = "Float"
         self._type  = T_FLOAT
         self._value = float(val)
-        self.uexpr  = unit
+        self._uexpr  = uexpr
 
     @classmethod
     def from_string(cls, s):
@@ -264,12 +298,12 @@ Failure:  (False, None, None, None, None)"""
 #
 #############################################################################
 class Integer(Stackable):
-    def __init__(self, val, unit=None):
+    def __init__(self, val, uexpr=None):
         super().__init__()
         self.name   = "Integer"
         self._type  = T_INTEGER
         self._value = int(val)
-        self.uexpr  = unit
+        self._uexpr  = uexpr
 
     @classmethod
     def from_string(cls, s):
@@ -369,12 +403,12 @@ class Matrix(Stackable):
 #
 #############################################################################
 class Rational(Stackable):
-    def __init__(self, num=0, denom=1, unit=None):
+    def __init__(self, num=0, denom=1, uexpr=None):
         super().__init__()
         self.name  = "Rational"
         self._type = T_RATIONAL
         self.value = Fraction(int(num), int(denom))
-        self.uexpr = unit
+        self._uexpr = uexpr
 
     @classmethod
     def from_Fraction(cls, frac):
@@ -470,7 +504,7 @@ class Vector(Stackable):
         super().__init__()
         self.name = "Vector"
         self._type = T_VECTOR
-        self.uexpr = None
+        self._uexpr = None
         if type(vals) is not rpn.util.List:
             raise rpn.exception.FatalErr("{}: {} is not a List".format(whoami(), repr(vals)))
         self.value = np.array([elem.value for elem in vals.listval()])

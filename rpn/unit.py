@@ -178,6 +178,14 @@ and are often None.'''
         self.unit = None
         self.prefix = None
 
+    # Extremely simple equality check, only looks at dimension vector
+    # and whether string representations are same.  Could be much more
+    # intelligent.  For example, ft should be considered equal to kft
+    # with appropriate exp adjustment.
+    def __eq__(self, other):
+        return self.dim() == other.dim() and \
+               str(self)  == str(other)
+
     def invert(self):
         return UQuot(UNull(), self)
 
@@ -288,6 +296,8 @@ class UQuot:
         elif isinstance(numer, UQuot):
             numer.denom = UProd(numer.denom, denom)
             return numer
+        elif numer == denom:
+            return None
         else:
             obj = object.__new__(cls)
             obj.numer = numer
@@ -327,9 +337,10 @@ class UProd:
             rhs.numer = UProd(lhs, rhs.numer)
             return rhs
         elif isinstance(lhs, UQuot) and isinstance(rhs, UQuot):
-            obj = UQuot(UProd(lhs.numer, rhs.numer),
-                        UProd(lhs.denom, rhs.denom))
-            return obj
+            return UQuot(UProd(lhs.numer, rhs.numer),
+                         UProd(lhs.denom, rhs.denom))
+        elif lhs == rhs:
+            return UPow(lhs, 2)
         else:
             obj = object.__new__(cls)
             obj.lhs = lhs

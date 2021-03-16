@@ -433,6 +433,24 @@ def w_plus(name):
 | ^Y    X> | Integer  | Float   | Rational | Complex | Vector | Matrix |"""
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
+
+    if (x.has_uexpr_p() and not y.has_uexpr_p()) or \
+       (y.has_uexpr_p() and not x.has_uexpr_p()):
+        rpn.globl.param_stack.push(y)
+        rpn.globl.param_stack.push(x)
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INCONSISTENT_UNITS, name)
+    if x.has_uexpr_p() and y.has_uexpr_p():
+        if not rpn.unit.units_conform(x.uexpr, y.uexpr):
+            rpn.globl.param_stack.push(y)
+            rpn.globl.param_stack.push(x)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_CONFORMABILITY, name)
+        new_ustr = str(x.uexpr)
+        # We need to convert y to the units of x, but this means
+        # replacing the y object, because it is not in general possible
+        # to express the old value in new units.  Integers are particularly
+        # susceptible.
+        y = y.uexpr_convert(new_ustr)
+
     if type(x) is rpn.type.Integer and type(y) is rpn.type.Integer:
         result = rpn.type.Integer(y.value + x.value)
     elif    type(x) is rpn.type.Float and type(y) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational] \
@@ -474,6 +492,9 @@ def w_plus(name):
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
         raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+
+    if x.has_uexpr_p():
+        result.uexpr = x.uexpr
     rpn.globl.param_stack.push(result)
 
 
@@ -496,6 +517,24 @@ Subtraction  ( y x -- y-x )""")
 def w_minus(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
+
+    if (x.has_uexpr_p() and not y.has_uexpr_p()) or \
+       (y.has_uexpr_p() and not x.has_uexpr_p()):
+        rpn.globl.param_stack.push(y)
+        rpn.globl.param_stack.push(x)
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INCONSISTENT_UNITS, name)
+    if x.has_uexpr_p() and y.has_uexpr_p():
+        if not rpn.unit.units_conform(x.uexpr, y.uexpr):
+            rpn.globl.param_stack.push(y)
+            rpn.globl.param_stack.push(x)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_CONFORMABILITY, name)
+        new_ustr = str(x.uexpr)
+        # We need to convert y to the units of x, but this means
+        # replacing the y object, because it is not in general possible
+        # to express the old value in new units.  Integers are particularly
+        # susceptible.
+        y = y.uexpr_convert(new_ustr)
+
     if type(x) is rpn.type.Integer and type(y) is rpn.type.Integer:
         result = rpn.type.Integer(y.value - x.value)
     elif    type(x) is rpn.type.Float and type(y) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational] \
@@ -511,6 +550,9 @@ def w_minus(name):
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
         raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+
+    if x.has_uexpr_p():
+        result.uexpr = x.uexpr
     rpn.globl.param_stack.push(result)
 
 
