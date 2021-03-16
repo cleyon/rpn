@@ -224,17 +224,8 @@ def execute(executable):
             raise
         elif err_execute.code == rpn.exception.X_EXIT:
             return
-        elif err_execute.code == rpn.exception.X_ABORT or \
-             err_execute.code == rpn.exception.X_ABORT_QUOTE:
-            raise
-        elif err_execute.code >= 0:
-            raise
         else:
-            if rpn.flag.flag_set_p(rpn.flag.F_DEBUG_ENABLED):
-                lnwriteln("execute: " + str(err_execute))
-            else:
-                lnwriteln(str(err_execute))
-
+            raise
 
 # I should really just use __format__() correctly
 def gfmt(x):

@@ -28,25 +28,51 @@
 
 
 : F_grav
-  doc:"Fgrav  ( m1_kg m2_kg d_m -- F_N )
+  doc:"F_grav  ( m1 m2 d -- F_N )
 Compute the force of gravity using Newton's law of universal gravitation.
 
 DEFINITION:
-        G * m1 * m2
-Fgrav = -----------
-            d^2
+         G * m1 * m2
+F_grav = -----------
+             d^2
 
 qv G"
   | in:m1 in:m2 in:d |
+
+  @m1 "kg" catch convert
+  ?dup if
+    X_CONFORMABILITY = if
+      @.m1 ."is not a Mass unit" abort
+    then
+  then
+  !m1
+
+  @m2 "kg" catch convert
+  ?dup if
+    X_CONFORMABILITY = if
+      @.m2 ."is not a Mass unit" abort
+    then
+  then
+  !m2
+
+  @d "m" catch convert
+  ?dup if
+    X_CONFORMABILITY = if
+      @.d ."is not a Length unit" abort
+    then
+  then
+  !d
+
   @G @m1 @m2 * *
   @d sq /
   "N" >unit
 ;
 
+
 : F_smbh
   doc:"Investigate gravitational forces approaching a super-massive black hole.
 
-Inputs: m=Your mass in kg, d=distance in meters
+Inputs: m=Your mass, d=distance to black hole
 Assumptions: Black hole mass is one billion times that of the sun."
   | in:m in:d
     bh_mass_factor |
