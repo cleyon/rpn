@@ -118,14 +118,14 @@ class Stackable(rpn.exe.Executable):
         dbg("trace", 1, "trace({})".format(repr(self)))
         rpn.globl.param_stack.push(self)
 
-    def uexpr_convert(self, new_ustr):
+    def uexpr_convert(self, new_ustr, name=""):
         if not self.has_uexpr_p():
             raise rpn.exception.FatalErr("{}: No uexpr - caller should have checked".format(whoami()))
         ue = rpn.unit.try_parsing(new_ustr)
         if ue is None:
-            raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, "", new_ustr)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, name, new_ustr)
         if not rpn.unit.units_conform(self.uexpr, ue):
-            raise rpn.exception.RuntimeErr(rpn.exception.X_CONFORMABILITY, "", '"{}", "{}"'.format(self.uexpr, ue))
+            raise rpn.exception.RuntimeErr(rpn.exception.X_CONFORMABILITY, name, '"{}", "{}"'.format(self.uexpr, ue))
         if type(self) in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
             new_x = rpn.type.Float()
             new_x.value = float(self.value)
@@ -133,7 +133,7 @@ class Stackable(rpn.exe.Executable):
             new_x = rpn.type.Complex()
             new_x.value = self.value
         else:
-            raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, "", "{} does not support units".format(typename(self)))
+            raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "{} does not support units".format(typename(self)))
 
         new_x.value *= self.uexpr.base_factor() * (10 ** self.uexpr.exp())
         new_x.value /= ue.base_factor()

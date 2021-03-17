@@ -1814,28 +1814,8 @@ def w_convert(name):
         rpn.globl.param_stack.push(x)
         raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_ARG, name, "Not a unit")
     dbg("unit", 2, "{}: orig X={}".format(name, repr(x)))
-
     new_ustr = rpn.globl.string_stack.pop()
-    ue = rpn.unit.try_parsing(new_ustr.value)
-    if ue is None:
-        rpn.globl.param_stack.push(x)
-        rpn.globl.string_stack.push(new_ustr)
-        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, name, new_ustr)
-
-    if not rpn.unit.units_conform(x.uexpr, ue):
-        rpn.globl.param_stack.push(x)
-        rpn.globl.string_stack.push(new_ustr)
-        raise rpn.exception.RuntimeErr(rpn.exception.X_CONFORMABILITY, name, '"{}", "{}"'.format(x.uexpr, ue))
-
-    dbg("unit", 1, "{}: ue={}".format(name, repr(ue)))
-    new_x = rpn.type.Float(0.0)
-    new_x.value = float(x.value)
-    new_x.value *= x.uexpr.base_factor() * (10 ** x.uexpr.exp())
-    new_x.value /= ue.base_factor()
-    new_x.value /= (10 ** ue.exp())
-    new_x.uexpr = ue
-    if x.has_label_p():
-        new_x.label = x.label
+    new_x = x.uexpr_convert(new_ustr.value, name)
     dbg("unit", 2, "{}: new X={}".format(name, repr(new_x)))
     rpn.globl.param_stack.push(new_x)
 

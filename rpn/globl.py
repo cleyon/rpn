@@ -45,7 +45,7 @@ PX_COMPUTE              = True  # Arithmetic/Computed functions print their resu
 PX_CONFIG               = None  # Stack manip, flags, modes, register, conversions, etc
 PX_CONTROL              = None  # Control structures (IF/THEN, DO/LOOP) have no effect
 PX_IO                   = False # I/O (.", .s, etc) disable printing
-PX_PREDICATE            = None  # Predicates
+PX_PREDICATE            = True  # Predicates.  (Was None, but I want to try seeing the values)
 
 REG_SIZE_MIN            =  17
 REG_SIZE_MAX            = 100   # R00..R99; further restricted by SIZE
