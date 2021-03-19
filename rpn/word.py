@@ -444,12 +444,9 @@ def w_plus(name):
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
             raise rpn.exception.RuntimeErr(rpn.exception.X_CONFORMABILITY, name)
+        # Convert Y to the units of X
         new_ustr = str(x.uexpr)
-        # We need to convert y to the units of x, but this means
-        # replacing the y object, because it is not in general possible
-        # to express the old value in new units.  Integers are particularly
-        # susceptible.
-        y = y.uexpr_convert(new_ustr)
+        y = y.uexpr_convert(new_ustr, name)
 
     if type(x) is rpn.type.Integer and type(y) is rpn.type.Integer:
         result = rpn.type.Integer(y.value + x.value)
@@ -528,12 +525,9 @@ def w_minus(name):
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
             raise rpn.exception.RuntimeErr(rpn.exception.X_CONFORMABILITY, name)
+        # Convert Y to the units of X
         new_ustr = str(x.uexpr)
-        # We need to convert y to the units of x, but this means
-        # replacing the y object, because it is not in general possible
-        # to express the old value in new units.  Integers are particularly
-        # susceptible.
-        y = y.uexpr_convert(new_ustr)
+        y = y.uexpr_convert(new_ustr, name)
 
     if type(x) is rpn.type.Integer and type(y) is rpn.type.Integer:
         result = rpn.type.Integer(y.value - x.value)
@@ -799,15 +793,28 @@ Test if Y is less than X  ( y x -- flag )""")
 def w_less_than(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
-    if     type(x) in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float] \
-       and type(y) in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
-        yval = float(y.value)
-        xval = float(x.value)
-        rpn.globl.param_stack.push(rpn.type.Integer(rpn.globl.bool_to_int(yval < xval)))
-    else:
+
+    if    type(x) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float] \
+       or type(y) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
         raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+    if (x.has_uexpr_p() and not y.has_uexpr_p()) or \
+       (y.has_uexpr_p() and not x.has_uexpr_p()):
+        rpn.globl.param_stack.push(y)
+        rpn.globl.param_stack.push(x)
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INCONSISTENT_UNITS, name)
+    if x.has_uexpr_p() and y.has_uexpr_p():
+        if not rpn.unit.units_conform(x.uexpr, y.uexpr):
+            rpn.globl.param_stack.push(y)
+            rpn.globl.param_stack.push(x)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_CONFORMABILITY, name)
+        x = x.ubase_convert(name)
+        y = y.ubase_convert(name)
+
+    yval = float(y.value)
+    xval = float(x.value)
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.globl.bool_to_int(yval < xval)))
 
 
 @defword(name='<<', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -833,17 +840,28 @@ Test if Y is less than or equal to X  ( y x -- flag )""")
 def w_less_than_or_equal(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
-    if     type(x) in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float] \
-       and type(y) in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
-        yval = float(y.value)
-        xval = float(x.value)
-        rpn.globl.param_stack.push(rpn.type.Integer(rpn.globl.bool_to_int(yval <= xval)))
-    else:
+
+    if    type(x) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float] \
+       or type(y) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
         raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+    if (x.has_uexpr_p() and not y.has_uexpr_p()) or \
+       (y.has_uexpr_p() and not x.has_uexpr_p()):
+        rpn.globl.param_stack.push(y)
+        rpn.globl.param_stack.push(x)
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INCONSISTENT_UNITS, name)
+    if x.has_uexpr_p() and y.has_uexpr_p():
+        if not rpn.unit.units_conform(x.uexpr, y.uexpr):
+            rpn.globl.param_stack.push(y)
+            rpn.globl.param_stack.push(x)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_CONFORMABILITY, name)
+        y = y.ubase_convert(name)
+        x = x.ubase_convert(name)
 
-
+    yval = float(y.value)
+    xval = float(x.value)
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.globl.bool_to_int(yval <= xval)))
 
 
 @defword(name='<>', args=2, print_x=rpn.globl.PX_PREDICATE, doc="""\
@@ -852,7 +870,22 @@ def w_not_equal(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
 
-    equal = equal_helper(x, y)
+    if (x.has_uexpr_p() and not y.has_uexpr_p()) or \
+       (y.has_uexpr_p() and not x.has_uexpr_p()):
+        rpn.globl.param_stack.push(y)
+        rpn.globl.param_stack.push(x)
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INCONSISTENT_UNITS, name)
+    if x.has_uexpr_p() and y.has_uexpr_p():
+        if not rpn.unit.units_conform(x.uexpr, y.uexpr):
+            rpn.globl.param_stack.push(y)
+            rpn.globl.param_stack.push(x)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_CONFORMABILITY, name)
+        cvt_x = x.ubase_convert(name)
+        cvt_y = y.ubase_convert(name)
+        equal = equal_helper(cvt_x, cvt_y)
+    else:
+        equal = equal_helper(x, y)
+
     if equal == -1:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
@@ -866,7 +899,22 @@ def w_equal(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
 
-    equal = equal_helper(x, y)
+    if (x.has_uexpr_p() and not y.has_uexpr_p()) or \
+       (y.has_uexpr_p() and not x.has_uexpr_p()):
+        rpn.globl.param_stack.push(y)
+        rpn.globl.param_stack.push(x)
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INCONSISTENT_UNITS, name)
+    if x.has_uexpr_p() and y.has_uexpr_p():
+        if not rpn.unit.units_conform(x.uexpr, y.uexpr):
+            rpn.globl.param_stack.push(y)
+            rpn.globl.param_stack.push(x)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_CONFORMABILITY, name)
+        cvt_x = x.ubase_convert(name)
+        cvt_y = y.ubase_convert(name)
+        equal = equal_helper(cvt_x, cvt_y)
+    else:
+        equal = equal_helper(x, y)
+
     if equal == -1:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
@@ -879,15 +927,28 @@ Test if Y is greater than X  ( y x -- flag )""")
 def w_greater_than(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
-    if     type(x) in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float] \
-       and type(y) in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
-        yval = float(y.value)
-        xval = float(x.value)
-        rpn.globl.param_stack.push(rpn.type.Integer(rpn.globl.bool_to_int(yval > xval)))
-    else:
+
+    if    type(x) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float] \
+       or type(y) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
         raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+    if (x.has_uexpr_p() and not y.has_uexpr_p()) or \
+       (y.has_uexpr_p() and not x.has_uexpr_p()):
+        rpn.globl.param_stack.push(y)
+        rpn.globl.param_stack.push(x)
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INCONSISTENT_UNITS, name)
+    if x.has_uexpr_p() and y.has_uexpr_p():
+        if not rpn.unit.units_conform(x.uexpr, y.uexpr):
+            rpn.globl.param_stack.push(y)
+            rpn.globl.param_stack.push(x)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_CONFORMABILITY, name)
+        y = y.ubase_convert(name)
+        x = x.ubase_convert(name)
+
+    yval = float(y.value)
+    xval = float(x.value)
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.globl.bool_to_int(yval > xval)))
 
 
 @defword(name='>=', args=2, print_x=rpn.globl.PX_PREDICATE, doc="""\
@@ -895,15 +956,28 @@ Test if Y is greater than or equal to X  ( y x -- flag )""")
 def w_greater_than_or_equal(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
-    if     type(x) in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float] \
-       and type(y) in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
-        yval = float(y.value)
-        xval = float(x.value)
-        rpn.globl.param_stack.push(rpn.type.Integer(rpn.globl.bool_to_int(yval >= xval)))
-    else:
+
+    if    type(x) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float] \
+       or type(y) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
         raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+    if (x.has_uexpr_p() and not y.has_uexpr_p()) or \
+       (y.has_uexpr_p() and not x.has_uexpr_p()):
+        rpn.globl.param_stack.push(y)
+        rpn.globl.param_stack.push(x)
+        raise rpn.exception.RuntimeErr(rpn.exception.X_INCONSISTENT_UNITS, name)
+    if x.has_uexpr_p() and y.has_uexpr_p():
+        if not rpn.unit.units_conform(x.uexpr, y.uexpr):
+            rpn.globl.param_stack.push(y)
+            rpn.globl.param_stack.push(x)
+            raise rpn.exception.RuntimeErr(rpn.exception.X_CONFORMABILITY, name)
+        y = y.ubase_convert(name)
+        x = x.ubase_convert(name)
+
+    yval = float(y.value)
+    xval = float(x.value)
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.globl.bool_to_int(yval >= xval)))
 
 
 @defword(name='>>', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -1813,9 +1887,10 @@ def w_convert(name):
     if not x.has_uexpr_p():
         rpn.globl.param_stack.push(x)
         raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_ARG, name, "Not a unit")
+
     dbg("unit", 2, "{}: orig X={}".format(name, repr(x)))
-    new_ustr = rpn.globl.string_stack.pop()
-    new_x = x.uexpr_convert(new_ustr.value, name)
+    new_ustr = rpn.globl.string_stack.pop().value
+    new_x = x.uexpr_convert(new_ustr, name)
     dbg("unit", 2, "{}: new X={}".format(name, repr(new_x)))
     rpn.globl.param_stack.push(new_x)
 
@@ -3293,7 +3368,7 @@ def w_key(name):                        # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(val))
 
 
-@defword(name='label>', args=1, print_x=rpn.globl.PX_PREDICATE, doc="""\
+@defword(name='label>', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
 label>  ( x -- x' )  [ -- label ]
 Separate a label from the stack element.""")
 def w_label_from(name):
@@ -4935,7 +5010,7 @@ def w_type(name):               # pylint: disable=unused-argument
 
 
 @defword(name='ubase', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Convert a unit-object into base (SI) units.""")
+Convert a unit-object into base (SI) units  ( x -- x' )""")
 def w_ubase(name):
     x = rpn.globl.param_stack.pop()
     if not x.has_uexpr_p():
@@ -4943,19 +5018,7 @@ def w_ubase(name):
         raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_ARG, name, "Not a unit")
 
     dbg("unit", 1, "{}: Old_x={}".format(name, repr(x)))
-    ue_base = x.uexpr.ubase()
-
-    # BUG: Everything is coerced to a Float.  This might not be so bad
-    # for Integers and Rationals, but Complex should be handled better.
-    new_x = rpn.type.Float(0.0)
-    new_x.value = float(x.value)
-    new_x.value *= x.uexpr.base_factor() * (10 ** x.uexpr.exp())
-    if ue_base.exp() != 0:
-        new_x.value *= (10 ** ue_base.exp())
-        ue_base._exp = 0
-    new_x.uexpr = ue_base
-    if x.has_label_p():
-        new_x.label = x.label
+    new_x = x.ubase_convert(name)
     dbg("unit", 1, "{}: New_x={}".format(name, repr(new_x)))
     rpn.globl.param_stack.push(new_x)
 
@@ -5004,7 +5067,7 @@ def w_undef(name):                      # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
-@defword(name='unit>', args=1, print_x=False, doc="""\
+@defword(name='unit>', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
 unit>  ( x -- x' )  [ -- ustr ]
 Separate a unit expression from the stack into its value and unit string.""")
 def w_unit_from(name):

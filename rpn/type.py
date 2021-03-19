@@ -127,21 +127,28 @@ class Stackable(rpn.exe.Executable):
         if not rpn.unit.units_conform(self.uexpr, ue):
             raise rpn.exception.RuntimeErr(rpn.exception.X_CONFORMABILITY, name, '"{}", "{}"'.format(self.uexpr, ue))
         if type(self) in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
-            new_x = rpn.type.Float()
-            new_x.value = float(self.value)
+            new_obj = rpn.type.Float()
+            new_obj.value = float(self.value)
         elif type(self) is rpn.type.Complex:
-            new_x = rpn.type.Complex()
-            new_x.value = self.value
+            new_obj = rpn.type.Complex()
+            new_obj.value = self.value
         else:
             raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "{} does not support units".format(typename(self)))
 
-        new_x.value *= self.uexpr.base_factor() * (10 ** self.uexpr.exp())
-        new_x.value /= ue.base_factor()
-        new_x.value /= (10 ** ue.exp())
-        new_x.uexpr = ue
+        new_obj.value *= self.uexpr.base_factor() * (10 ** self.uexpr.exp())
+        new_obj.value /= ue.base_factor()
+        new_obj.value /= (10 ** ue.exp())
+        new_obj.uexpr = ue
         if self.has_label_p():
-            new_x.label = self.label
-        return new_x
+            new_obj.label = self.label
+        return new_obj
+
+    def ubase_convert(self, name=""):
+        if not self.has_uexpr_p():
+            raise rpn.exception.FatalErr("{}: No uexpr - caller should have checked".format(whoami()))
+        base_ustr = str(self.uexpr.ubase())
+        new_obj = self.uexpr_convert(base_ustr, name)
+        return new_obj
 
     def __str__(self):
         s = self.instfmt()
