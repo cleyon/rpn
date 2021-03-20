@@ -45,15 +45,16 @@ PHI = (1 + sqrt(5)) / 2"
   @#OUT 0 > if  cr  then ;
 
 : prompt        doc:"prompt  ( -- n ) [ text -- ]  Prompt for numeric input"
-  $depth 1 < if "(1 required)" X_INSUFF_STR_PARAMS $throw
-  else $. #in  then ;
+  $depth 0 = if "(1 required)" X_INSUFF_STR_PARAMS $throw then
+  $. #in ;
 
 : space         doc:"space   Display one space character"
   BL emit ;
 
 : spaces        doc:"spaces  ( n -- )   Display N space characters"
   | in:n |
-  @n 0 do space loop ;
+  "" @n 0 do " " $cat loop
+  $.  ;
 
 
 \ #############################################################################
@@ -64,22 +65,22 @@ PHI = (1 + sqrt(5)) / 2"
 : -rot          doc:"-rot  ( z y x -- x z y )  Rotate back
 Rotate top stack element back to third spot, pulling others down.
 Equivalent to ROT ROT"
-  depth 3 < if "(3 required)" X_INSUFF_PARAMS $throw
-  else  rot rot  then
+  depth 3 < if "(3 required)" X_INSUFF_PARAMS $throw then
+  rot rot
   F_SHOW_X cf ;
 
 : nip           doc:"nip  ( y x -- x )
 Drop second stack element
 Equivalent to SWAP DROP.  J.V. Noble calls this PLUCK."
-  depth 2 < if  "(2 required)" X_INSUFF_PARAMS $throw
-  else  swap drop then
+  depth 2 < if  "(2 required)" X_INSUFF_PARAMS $throw then
+  swap drop
   F_SHOW_X cf ;
 
 : tuck          doc:"tuck  ( y x -- x y x )
 Duplicate top stack element into third position
 Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
-  depth 2 < if "(2 required)" X_INSUFF_PARAMS $throw
-  else  swap over then
+  depth 2 < if "(2 required)" X_INSUFF_PARAMS $throw then
+  swap over
   F_SHOW_X cf ;
 
 
@@ -89,9 +90,10 @@ Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
 \ #
 \ #############################################################################
 : debug         doc:"debug  ( -- )  Toggle debugging state"
-  F_DEBUG_ENABLED dup tf  fs? if ."Debugging is now ENABLED"
-  else              ."Debugging is now disabled"
-  cr then ;
+  F_DEBUG_ENABLED dup tf
+  fs? if ."Debugging is now ENABLED"
+  else   ."Debugging is now disabled" then
+  cr ;
 
 : debug?        doc:"debug?  ( -- flag )  Test if debugging is enabled"
   F_DEBUG_ENABLED fs? ;
@@ -107,8 +109,13 @@ Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
 
 : mod           doc:"mod  ( y x -- remainder )  Remainder"
   | in:y in:x |
-  @x 0 = if  "X cannot be zero" X_FP_DIVISION_BY_ZERO $throw then
+  @x 0 = if  @y @x "X cannot be zero" X_FP_DIVISION_BY_ZERO $throw then
   @y @x /mod  drop ;
+
+: ushow         doc:"ushow  ( x_uexpr -- x_uexpr )  Show unit expression"
+  | in:x |
+  @x unit? not if @x "Not a unit" X_INVALID_ARG $throw then
+  @x unit> $ushow  ;
 
 
 \ #############################################################################
@@ -117,10 +124,12 @@ Equivalent to SWAP OVER.  J.V. Noble calls this UNDER."
 \ #
 \ #############################################################################
 : f->c doc:"f->c  ( f -- c )  Convert degrees fahrenheit to degrees celcius"
-  32 - 5 * 9 / ;
+  | in:f |
+  @f 32 - 5 * 9 / ;
 
 : c->f doc:"c->f  ( c -- f )  Convert degrees celcius to degrees fahrenheit"
-  9 * 5 / 32 + ;
+  | in:c |
+  @c 9 * 5 / 32 + ;
 
 
 \ #############################################################################

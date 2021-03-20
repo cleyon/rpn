@@ -89,7 +89,7 @@ def set_debug_level(resource, level=1):
         sys.exit(1)             # Harsh!
 
     if level < 0 or level > 9:
-        raise rpn.exception.FatalErr("set_debug_level: Level {} out of range (0..9 expected)".format(level))
+        raise FatalErr("set_debug_level: Level {} out of range (0..9 expected)".format(level))
     debug_levels[resource] = level
 
 

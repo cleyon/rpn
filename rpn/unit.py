@@ -3,8 +3,8 @@ import re
 import ply.lex  as lex
 import ply.yacc as yacc
 
-from   rpn.debug import dbg, whoami
-import rpn.exception
+from   rpn.debug     import dbg, whoami
+from   rpn.exception import *
 import rpn.globl
 
 
@@ -63,9 +63,9 @@ it's simply a CompositeUnit "m/s^2".'''
     @classmethod
     def lookup_by_dim(cls, dimension):
         if type(dimension) is not list:
-            raise rpn.exception.FatalErr("{}: dimension is not a List".format(whoami()))
+            raise FatalErr("{}: dimension is not a List".format(whoami()))
         if len(dimension) != dim_size:
-            raise rpn.exception.FatalErr("{}: len(dimension) != {}".format(whoami(), dim_size))
+            raise FatalErr("{}: len(dimension) != {}".format(whoami(), dim_size))
 
         my_cats = list(filter(lambda c: list(c.dim()) == dimension, category.values()))
         if len(my_cats) == 0:
@@ -73,7 +73,7 @@ it's simply a CompositeUnit "m/s^2".'''
         elif len(my_cats) == 1:
             return my_cats[0]
         else:
-            raise rpn.exception.FatalErr("{}: More than one category matched dimension {}".format(whoami(), dimension))
+            raise FatalErr("{}: More than one category matched dimension {}".format(whoami(), dimension))
 
 def defcategory(measure_name, dimension):
     cat = Category(measure_name, dimension)
@@ -163,7 +163,7 @@ def define_categories():
 class UExpr:
     '''UExprs are objects which are attached to Rpn Stackable objects.
 They are created with the x_UNIT syntax.  They are similar to Units in that
-they have dimensionsm, but also they carry along an exp.  They can be created
+they have dimensions, but also they carry along an exp.  They can be created
 on the fly, and do not necessarily have to relate to "real world" units.
 For example, it is perfectly valid to specify "3_m^4".
 
@@ -201,7 +201,7 @@ and are often None.'''
             unit_match_list = list(filter(lambda unit: unit.dim() == unit_dim and \
                                                        unit.base_p, units.values()))
             if len(unit_match_list) == 0 or len(unit_match_list) > 1:
-                raise rpn.exception.FatalErr("{}: Found {} unit matches for dim {}: {}".format(whoami(), len(unit_match_list), unit_dim, unit_match_list))
+                raise FatalErr("{}: Found {} unit matches for dim {}: {}".format(whoami(), len(unit_match_list), unit_dim, unit_match_list))
             base_unit = unit_match_list[0]
             dbg("unit", 2, "{}: base unit for dimension x is {}".format(whoami(), base_unit))
             abbr = base_unit.abbrev
@@ -224,7 +224,7 @@ and are often None.'''
             s += "/" + "*".join(denom)
         ue = try_parsing(s)
         if ue is None:
-            raise rpn.exception.FatalErr("UExpr#ubase: Could not parse base unit string '{}'".format(s, repr(self)))
+            raise FatalErr("UExpr#ubase: Could not parse base unit string '{}'".format(s, repr(self)))
 
         dbg("unit", 1, "{}: Returning {}".format(whoami(), ue))
         return ue
@@ -440,14 +440,14 @@ class UParen:
 #
 #############################################################################
 def p_error(p):
-    raise rpn.exception.ParseErr(p if p is not None else '???')
+    raise ParseErr(p if p is not None else '???')
 
 def unit_lookup(text):
     '''Look up a Unit by matching text to unit name, abbrev, or synonym.
 Optional prefix is also considered.  Returns a UExpr object with appropriate
-dim, exp, and base_factor.
+dim, exp, and base_factor.  This only is used to find Units, not UExprs,
+which do not have names.
 
-This only is used to find Units, not UExprs, which do not have names.
 One annoyance of this algorithm is that I often (mistakenly) enter "hr"
 expecting 'hours', but this returns hectoradians.'''
 
@@ -582,7 +582,7 @@ def p_ufactor(p):
     elif len(p) == 2:
         ue = unit_lookup(p[1])
         if ue is None:
-            raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, "", p[1])
+            throw(X_INVALID_UNIT, "", p[1])
         p[0] = ue
 
 
@@ -593,8 +593,8 @@ def try_parsing(text):
     '''Returns an UExpr object, or None if error'''
     try:
         result = uparser.parse(text, lexer=ulexer)
-    except rpn.exception.RuntimeErr as e:
-        if e.code == rpn.exception.X_INVALID_UNIT:
+    except RuntimeErr as e:
+        if e.code == X_INVALID_UNIT:
             result = None
         else:
             raise
@@ -673,7 +673,7 @@ class Unit:
         if "category" in kwargs:
             c = kwargs["category"]
             if not c in category:
-                raise rpn.exception.FatalErr("Could not construct unit '{}'; category '{}' not valid".format(name, c))
+                raise FatalErr("Could not construct unit '{}'; category '{}' not valid".format(name, c))
             self._dim = category[c].dim()
             self.base_p = True
             del kwargs["category"]
@@ -699,7 +699,7 @@ class Unit:
             u = kwargs["units"]
             unit = try_parsing(u)
             if unit is None:
-                raise rpn.exception.FatalErr("Could not construct unit '{}'; units '{}' not valid".format(name, u))
+                raise FatalErr("Could not construct unit '{}'; units '{}' not valid".format(name, u))
             self.deriv = unit
             del kwargs["units"]
 
@@ -709,16 +709,16 @@ class Unit:
         if len(kwargs) > 0:
             for (key, val) in kwargs.items():
                 print("Unrecognized keyword '{}'={}".format(key, val)) # OK
-                raise rpn.exception.FatalErr("Could not construct unit '{}'".format(name))
+                raise FatalErr("Could not construct unit '{}'".format(name))
 
         if self._dim is None:
             if self.deriv is not None:
                 self._dim = self.deriv.dim()
             else:
-                raise rpn.exception.FatalErr("Unit '{}' missing dim".format(name))
+                raise FatalErr("Unit '{}' missing dim".format(name))
 
         if not self.base_p and self.deriv is None:
-            raise rpn.exception.FatalErr("Unit '{}' is not base and not derived".format(name))
+            raise FatalErr("Unit '{}' is not base and not derived".format(name))
 
         if self._exp is None:
             if self.base_p:

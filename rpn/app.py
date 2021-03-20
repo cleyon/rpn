@@ -30,7 +30,8 @@ except ModuleNotFoundError:
 # except ModuleNotFoundError:
 #     pass
 
-from   rpn.debug import dbg, typename
+from   rpn.debug     import dbg, typename
+from   rpn.exception import *
 import rpn.flag
 import rpn.globl
 import rpn.tvm
@@ -83,7 +84,7 @@ def initialize(rpndir, argv):
     if not disable_all_extensions:
         try:
             load_file(os.path.join(rpndir, "secondary.rpn"))
-        except rpn.exception.RuntimeErr as err_f_opt:
+        except RuntimeErr as err_f_opt:
             rpn.globl.lnwriteln(str(err_f_opt))
             sys.exit(1)
 
@@ -93,7 +94,7 @@ def initialize(rpndir, argv):
     if not disable_all_extensions:
         try:
             load_file(os.path.join(rpndir, "tertiary.rpn"))
-        except rpn.exception.RuntimeErr as err_f_opt:
+        except RuntimeErr as err_f_opt:
             rpn.globl.lnwriteln(str(err_f_opt))
             sys.exit(1)
 
@@ -199,7 +200,7 @@ def parse_args(argv):
         elif opt == "-f":
             try:
                 load_file(arg)
-            except rpn.exception.RuntimeErr as err_f_opt:
+            except RuntimeErr as err_f_opt:
                 rpn.globl.lnwriteln(str(err_f_opt))
                 sys.exit(1)
             else:
@@ -210,7 +211,7 @@ def parse_args(argv):
         elif opt == "-l":
             try:
                 load_file(arg)
-            except rpn.exception.RuntimeErr as err_l_opt:
+            except RuntimeErr as err_l_opt:
                 rpn.globl.lnwriteln(str(err_l_opt))
         elif opt == "-q":
             global load_init_file       # pylint: disable=global-statement
@@ -228,12 +229,12 @@ def parse_args(argv):
 
 def load_file(filename):
     if not os.path.isfile(filename):
-        raise rpn.exception.RuntimeErr(rpn.exception.X_NON_EXISTENT_FILE, "load", filename)
+        throw(X_NON_EXISTENT_FILE, "load", filename)
     try:
         with open(filename, "r") as file:
             contents = file.read()
     except PermissionError as e:
-        raise rpn.exception.RuntimeErr(rpn.exception.X_FILE_IO, "load", "Cannot open file '{}'".format(filename)) from e
+        throw(X_FILE_IO, "load", "Cannot open file '{}'".format(filename))
     else:
         dbg("load_file", 3, "load_file({})='{}'".format(filename, contents))
         rpn.globl.eval_string(contents)
@@ -265,7 +266,7 @@ def main_loop():
             (error, tok_list) = generate_token_list()
         except StopIteration:
             return
-        except rpn.exception.TopLevel:
+        except TopLevel:
             continue
         if error is True:
             rpn.globl.lnwriteln("Parse error: Could not get next token")
@@ -496,11 +497,11 @@ def sigint_handler(_signam, _frame):
     # sys.stderr.write("^C")
     # sys.stderr.flush()
     # rpn.globl.eval_string("?cr")
-    rpn.exception.throw(rpn.exception.X_INTERRUPT)
+    throw(X_INTERRUPT)
 
 def sigquit_handler(_signum, _frame):
     rpn.globl.lnwriteln("[Quit]")
-    raise rpn.exception.EndProgram()
+    raise EndProgram()
 
 
 # def example_pre_hook_func(ident, cur_obj, new_obj):
@@ -510,7 +511,7 @@ def sigquit_handler(_signum, _frame):
 #     print("new_obj={}".format(repr(new_obj)))
 #     # Check against None first due to undef case
 #     if new_obj is not None and new_obj.value < 0:
-#         raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_ARG, "!{}".format(identifier), "Must be positive")
+#         throw(X_INVALID_ARG, "!{}".format(identifier), "Must be positive")
 #
 # def example_post_hook_func(ident, old_obj, cur_obj):
 #     print("example_post_hook_func:")
@@ -520,26 +521,26 @@ def sigquit_handler(_signum, _frame):
 
 def pre_require_int(identifier, _cur, new):
     if type(new) is not rpn.type.Integer:
-        raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, "!{}".format(identifier), "({})".format(typename(new)))
+        throw(X_ARG_TYPE_MISMATCH, "!{}".format(identifier), "({})".format(typename(new)))
 
 def pre_require_int_or_float(identifier, _cur, new):
     if type(new) not in [rpn.type.Integer, rpn.type.Float]:
-        raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, "!{}".format(identifier), "({})".format(typename(new)))
+        throw(X_ARG_TYPE_MISMATCH, "!{}".format(identifier), "({})".format(typename(new)))
 
 def pre_require_positive(identifier, _cur, new):
     if new.value <= 0:
-        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_ARG, "!{}".format(identifier), "Must be positive")
+        throw(X_INVALID_ARG, "!{}".format(identifier), "Must be positive")
 
 def pre_require_non_negative(identifier, _cur, new):
     if new.value < 0:
-        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_ARG, "!{}".format(identifier), "Must be non-negative")
+        throw(X_INVALID_ARG, "!{}".format(identifier), "Must be non-negative")
 
 def pre_validate_size_arg(identifier, _cur, new):
     if type(new) is not rpn.type.Integer:
-        raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, "!{}".format(identifier), "({})".format(typename(new)))
+        throw(X_ARG_TYPE_MISMATCH, "!{}".format(identifier), "({})".format(typename(new)))
     new_size = new.value
     if new_size < rpn.globl.REG_SIZE_MIN or new_size > rpn.globl.REG_SIZE_MAX:
-        raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_ARG, "!{}".format(identifier), "Size {} out of range ({}..{} expected)".format(new_size, rpn.globl.REG_SIZE_MIN, rpn.globl.REG_SIZE_MAX))
+        throw(X_INVALID_ARG, "!{}".format(identifier), "Size {} out of range ({}..{} expected)".format(new_size, rpn.globl.REG_SIZE_MIN, rpn.globl.REG_SIZE_MAX))
 
 def post_clear_newly_unveiled_registers(_identifier, old, cur):
     old_size = old.value

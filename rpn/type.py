@@ -120,12 +120,12 @@ class Stackable(rpn.exe.Executable):
 
     def uexpr_convert(self, new_ustr, name=""):
         if not self.has_uexpr_p():
-            raise rpn.exception.FatalErr("{}: No uexpr - caller should have checked".format(whoami()))
+            raise FatalErr("{}: No uexpr - caller should have checked".format(whoami()))
         ue = rpn.unit.try_parsing(new_ustr)
         if ue is None:
-            raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, name, new_ustr)
+            throw(X_INVALID_UNIT, name, new_ustr)
         if not rpn.unit.units_conform(self.uexpr, ue):
-            raise rpn.exception.RuntimeErr(rpn.exception.X_CONFORMABILITY, name, '"{}", "{}"'.format(self.uexpr, ue))
+            throw(X_CONFORMABILITY, name, '"{}", "{}"'.format(self.uexpr, ue))
         if type(self) in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
             new_obj = rpn.type.Float()
             new_obj.value = float(self.value)
@@ -133,7 +133,7 @@ class Stackable(rpn.exe.Executable):
             new_obj = rpn.type.Complex()
             new_obj.value = self.value
         else:
-            raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, name, "{} does not support units".format(typename(self)))
+            throw(X_ARG_TYPE_MISMATCH, name, "{} does not support units".format(typename(self)))
 
         new_obj.value *= self.uexpr.base_factor() * (10 ** self.uexpr.exp())
         new_obj.value /= ue.base_factor()
@@ -145,7 +145,7 @@ class Stackable(rpn.exe.Executable):
 
     def ubase_convert(self, name=""):
         if not self.has_uexpr_p():
-            raise rpn.exception.FatalErr("{}: No uexpr - caller should have checked".format(whoami()))
+            raise FatalErr("{}: No uexpr - caller should have checked".format(whoami()))
         base_ustr = str(self.uexpr.ubase())
         new_obj = self.uexpr_convert(base_ustr, name)
         return new_obj
@@ -193,7 +193,7 @@ class Complex(Stackable):
     @value.setter
     def value(self, new_value):
         if type(new_value) is not complex:
-            raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'Complex#value()', "({})".format(typename(new_value)))
+            throw(X_ARG_TYPE_MISMATCH, 'Complex#value()', "({})".format(typename(new_value)))
         self._value = new_value
 
     def real(self):
@@ -229,11 +229,11 @@ class Float(Stackable):
             try:
                 (val, ustr) = s.split("_")
             except ValueError:
-                raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, "Integer#from_string", s)
+                throw(X_INVALID_UNIT, "Integer#from_string", s)
 
             ue = rpn.unit.try_parsing(ustr)
             if ue is None:
-                raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, "Float#from_string", ustr)
+                throw(X_INVALID_UNIT, "Float#from_string", ustr)
             return cls(val, ue)
         else:
             return cls(s, None)
@@ -245,7 +245,7 @@ class Float(Stackable):
     @value.setter
     def value(self, new_value):
         if type(new_value) is not float:
-            raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'Float#value()', "({})".format(typename(new_value)))
+            throw(X_ARG_TYPE_MISMATCH, 'Float#value()', "({})".format(typename(new_value)))
         self._value = new_value
 
     def zerop(self):
@@ -318,11 +318,11 @@ class Integer(Stackable):
             try:
                 (val, ustr) = s.split("_")
             except ValueError:
-                raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, "Integer#from_string", s)
+                throw(X_INVALID_UNIT, "Integer#from_string", s)
 
             ue = rpn.unit.try_parsing(ustr)
             if ue is None:
-                raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_UNIT, "Integer#from_string", ustr)
+                throw(X_INVALID_UNIT, "Integer#from_string", ustr)
             return cls(val, ue)
         else:
             return cls(s, None)
@@ -334,7 +334,7 @@ class Integer(Stackable):
     @value.setter
     def value(self, new_value):
         if type(new_value) is not int:
-            raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'Integer#value()', "({})".format(typename(new_value)))
+            throw(X_ARG_TYPE_MISMATCH, 'Integer#value()', "({})".format(typename(new_value)))
         self._value = new_value
 
     def zerop(self):
@@ -352,7 +352,7 @@ class Integer(Stackable):
 class Matrix(Stackable):
     def __init__(self, vals):
         if not rpn.globl.have_module('numpy'):
-            raise rpn.exception.RuntimeErr(rpn.exception.X_UNSUPPORTED, "", "Matrices require 'numpy' library")
+            throw(X_UNSUPPORTED, "", "Matrices require 'numpy' library")
         super().__init__()
         self.name = "Matrix"
         self._type = T_MATRIX
@@ -367,7 +367,7 @@ class Matrix(Stackable):
                 cols = x.size()
             else:
                 if x.size() != cols:
-                    raise rpn.exception.RuntimeErr(rpn.exception.X_SYNTAX, "", "Matrix columns not consistent")
+                    throw(X_SYNTAX, "", "Matrix columns not consistent")
         self._ncols = cols
         #rpn.globl.lnwriteln("{} rows x {} columns".format(self.nrows(), self.ncols()))
         #print("vecs", vecs)
@@ -388,7 +388,7 @@ class Matrix(Stackable):
     @value.setter
     def value(self, new_value):
         # if type(new_value) is not rpn.type.Matrix: # FIXME
-        #     raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'Matrix#value()', "({})".format(typename(new_value)))
+        #     throw(X_ARG_TYPE_MISMATCH, 'Matrix#value()', "({})".format(typename(new_value)))
         self._value = new_value
 
     def has_uexpr_p(self):
@@ -425,7 +425,7 @@ class Rational(Stackable):
     def from_string(cls, s):
         match = rpn.globl.RATIONAL_RE.match(s)
         if match is None:
-            raise rpn.exception.FatalErr("Rational pattern failed to match '{}'".format(s))
+            raise FatalErr("Rational pattern failed to match '{}'".format(s))
         #print("m1='{}', m2='{}', m4='{}'".format(match.group(1), match.group(2), match.group(4)))
         return cls(match.group(1), match.group(2), match.group(4))
 
@@ -436,7 +436,7 @@ class Rational(Stackable):
     @value.setter
     def value(self, new_value):
         if type(new_value) is not Fraction:
-            raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'Rational#value()', "({})".format(typename(new_value)))
+            throw(X_ARG_TYPE_MISMATCH, 'Rational#value()', "({})".format(typename(new_value)))
         self._value = new_value
 
     def numerator(self):
@@ -482,7 +482,7 @@ class String(rpn.exe.Executable):
     @value.setter
     def value(self, new_value):
         if type(new_value) is not str:
-            raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'String#value()', "({})".format(typename(new_value)))
+            throw(X_ARG_TYPE_MISMATCH, 'String#value()', "({})".format(typename(new_value)))
         self._value = new_value
 
     def typ(self):
@@ -507,13 +507,13 @@ class String(rpn.exe.Executable):
 class Vector(Stackable):
     def __init__(self, vals):
         if not rpn.globl.have_module('numpy'):
-            raise rpn.exception.RuntimeErr(rpn.exception.X_UNSUPPORTED, "", "Vectors require 'numpy' library")
+            throw(X_UNSUPPORTED, "", "Vectors require 'numpy' library")
         super().__init__()
         self.name = "Vector"
         self._type = T_VECTOR
         self._uexpr = None
         if type(vals) is not rpn.util.List:
-            raise rpn.exception.FatalErr("{}: {} is not a List".format(whoami(), repr(vals)))
+            raise FatalErr("{}: {} is not a List".format(whoami(), repr(vals)))
         self.value = np.array([elem.value for elem in vals.listval()])
 
     @classmethod
@@ -532,7 +532,7 @@ class Vector(Stackable):
     def value(self, new_value):
         #numpy.ndarray ok
         # if type(new_value) is not rpn.type.Vector: # FIXME
-        #     raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'Vector#value()', "({})".format(typename(new_value)))
+        #     throw(X_ARG_TYPE_MISMATCH, 'Vector#value()', "({})".format(typename(new_value)))
         self._value = new_value
 
     def has_uexpr_p(self):

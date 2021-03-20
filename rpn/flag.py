@@ -7,7 +7,7 @@
 '''
 
 #from   rpn.debug import dbg, typename, whoami
-import rpn.exception
+from rpn.exception import *
 
 
 F_TVM_CONTINUOUS     =   8 # Set: Continuous compounding Clear: Discrete compounding
@@ -32,18 +32,18 @@ flags_vec = 0
 def clear_flag(flag):
     global flags_vec                    # pylint: disable=global-statement
     if flag < 0 or flag >= MAX:
-        raise rpn.exception.FatalErr("{}: Flag {} out of range".format(rpn.debug.whoami(), flag))
+        raise FatalErr("{}: Flag {} out of range".format(rpn.debug.whoami(), flag))
     flags_vec &= ~(1<<flag)
 
 def set_flag(flag):
     global flags_vec                    # pylint: disable=global-statement
     if flag < 0 or flag >= MAX:
-        raise rpn.exception.FatalErr("{}: Flag {} out of range".format(rpn.debug.whoami(), flag))
+        raise FatalErr("{}: Flag {} out of range".format(rpn.debug.whoami(), flag))
     flags_vec |= (1<<flag)
 
 def toggle_flag(flag):
     if flag < 0 or flag >= MAX:
-        raise rpn.exception.FatalErr("{}: Flag {} out of range".format(rpn.debug.whoami(), flag))
+        raise FatalErr("{}: Flag {} out of range".format(rpn.debug.whoami(), flag))
     if flag_set_p(flag):
         clear_flag(flag)
     else:
@@ -51,9 +51,9 @@ def toggle_flag(flag):
 
 def copy_flag(src_flag, dst_flag):
     if src_flag < 0 or src_flag >= MAX:
-        raise rpn.exception.FatalErr("{}: Flag {} out of range".format(rpn.debug.whoami(), src_flag))
+        raise FatalErr("{}: Flag {} out of range".format(rpn.debug.whoami(), src_flag))
     if dst_flag < 0 or dst_flag >= MAX:
-        raise rpn.exception.FatalErr("{}: Flag {} out of range".format(rpn.debug.whoami(), dst_flag))
+        raise FatalErr("{}: Flag {} out of range".format(rpn.debug.whoami(), dst_flag))
     if flag_set_p(src_flag):
         set_flag(dst_flag)
     else:
@@ -61,10 +61,10 @@ def copy_flag(src_flag, dst_flag):
 
 def flag_int_value(flag):
     if flag < 0 or flag >= MAX:
-        raise rpn.exception.FatalErr("{}: Flag {} out of range".format(rpn.debug.whoami(), flag))
+        raise FatalErr("{}: Flag {} out of range".format(rpn.debug.whoami(), flag))
     return rpn.globl.bool_to_int(flag_set_p(flag))
 
 def flag_set_p(flag):
     if flag < 0 or flag >= MAX:
-        raise rpn.exception.FatalErr("{}: Flag {} out of range".format(rpn.debug.whoami(), flag))
+        raise FatalErr("{}: Flag {} out of range".format(rpn.debug.whoami(), flag))
     return bool(flags_vec & 1<<flag != 0)

@@ -1,8 +1,9 @@
 \ Convenient abbreviations
 : c     clst  ;         hide c
+: $c    $clst ;         hide c
 : d     drop  ;         hide d
+: $d    $drop ;         hide d
 : pi    PI    ;         hide pi
-: q     bye   ;         hide q
 : s     swap  ;         hide s
 
 \ Example of word definition

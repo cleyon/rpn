@@ -307,7 +307,7 @@ def p_case_clause_list(p):
 
 def p_case_scope_push(p):               # pylint: disable=unused-argument
     '''case_scope_push : empty'''
-    scope = rpn.util.Scope("Parse_case")
+    scope = rpn.util.Scope("case")
     scope.add_vname(rpn.util.VName("caseval"))
     rpn.globl.push_scope(scope, "Parsing Case")
 
@@ -342,14 +342,14 @@ def p_colon_define_word(p):
     kwargs = dict()
     if doc_str is not None:
         if len(doc_str) < 6 or doc_str[0:5] != 'doc:"' or doc_str[-1] != '"':
-            raise rpn.exception.FatalErr("{}: Malformed doc_str: '{}'".format(whoami(), doc_str))
+            raise FatalErr("{}: Malformed doc_str: '{}'".format(whoami(), doc_str))
         doc_str = doc_str[5:-1]
         kwargs['doc'] = doc_str
 
     # Check if word is protected
     (word, _) = rpn.globl.lookup_word(identifier)
     if word is not None and word.protected:
-        raise rpn.exception.RuntimeErr(rpn.exception.X_PROTECTED, ": ", "Cannot redefine '{}'".format(identifier))
+        throw(X_PROTECTED, ": ", "Cannot redefine '{}'".format(identifier))
 
     # p_sequence() has already popped the scope for this word, so
     # creating it now in rpn.globl.scope_stack.top() will be correct.
@@ -409,7 +409,7 @@ def p_empty(p):                         # pylint: disable=unused-argument
     '''empty :'''
 
 def p_error(p):
-    raise rpn.exception.ParseErr(p if p is not None else 'EOF')
+    raise ParseErr(p if p is not None else 'EOF')
 
 def p_evaluate(p):                      # pylint: disable=unused-argument
     '''evaluate : cmd
@@ -594,7 +594,7 @@ def p_locals(p):
             dbg(whoami(), 3, "p_locals: Not sure about {}".format(p[idx]))
             # scope_name = "locals"
             idx -= 1
-    scope = rpn.util.Scope("Parse_" + scope_name)
+    scope = rpn.util.Scope(scope_name)
     dbg(whoami(), 1, "{}: Creating new scope {}".format(whoami(), repr(scope)))
 
     if len(p) == 4:
@@ -624,7 +624,7 @@ def p_matrix(p):
     if rpn.globl.have_module('numpy'):
         p[0] = rpn.type.Matrix(p[2])
     else:
-        raise rpn.exception.ParseErr("Matrices require 'numpy' library")
+        raise ParseErr("Matrices require 'numpy' library")
 
 def p_number(p):
     '''number : real
@@ -699,7 +699,7 @@ def p_string(p):
     '''string : STRING'''
     s = p[1]
     if len(s) < 2 or s[0] != '"' or s[-1] != '"':
-        raise rpn.exception.FatalErr("{}: Malformed string: '{}'".format(whoami(), s))
+        raise FatalErr("{}: Malformed string: '{}'".format(whoami(), s))
     p[0] = rpn.type.String(s[1:-1])
 
 def p_undef(p):
@@ -723,7 +723,7 @@ def p_undef(p):
     for pre_hook_func in var.pre_hooks():
         try:
             pre_hook_func(ident, cur_obj, new_obj)
-        except rpn.exception.RuntimeErr as err_pre_hook_undef:
+        except RuntimeErr as err_pre_hook_undef:
             rpn.globl.lnwriteln(str(err_pre_hook_undef))
             return
     old_obj = cur_obj
@@ -755,7 +755,7 @@ def p_vector(p):
     if rpn.globl.have_module('numpy'):
         p[0] = rpn.type.Vector(p[2])
     else:
-        raise rpn.exception.ParseErr("Vectors require 'numpy' library")
+        raise ParseErr("Vectors require 'numpy' library")
 
 def p_vector_list(p):
     '''vector_list : vector

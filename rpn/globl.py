@@ -33,7 +33,8 @@ except ImportError:
 # except ModuleNotFoundError:
 #     pass
 
-from   rpn.debug import dbg, whoami
+from   rpn.debug     import dbg, whoami
+from   rpn.exception import *
 import rpn.flag
 import rpn.parser
 import rpn.util
@@ -111,7 +112,7 @@ GRAD_PER_RAD = 63.66197723675813430755350534900574481378385829618257949906693762
 
 def angle_mode_letter():
     if rpn.flag.flag_set_p(rpn.flag.F_RAD) and rpn.flag.flag_set_p(rpn.flag.F_GRAD):
-        raise rpn.exception.FatalErr("angle_mode_letter: Bad angle mode: RAD and GRAD both set")
+        raise FatalErr("angle_mode_letter: Bad angle mode: RAD and GRAD both set")
     if rpn.flag.flag_set_p(rpn.flag.F_RAD):
         return "r"
     if rpn.flag.flag_set_p(rpn.flag.F_GRAD):
@@ -121,7 +122,7 @@ def angle_mode_letter():
 
 def angle_mode_label():
     if rpn.flag.flag_set_p(rpn.flag.F_RAD) and rpn.flag.flag_set_p(rpn.flag.F_GRAD):
-        raise rpn.exception.FatalErr("angle_mode_label: Bad angle mode: RAD and GRAD both set")
+        raise FatalErr("angle_mode_label: Bad angle mode: RAD and GRAD both set")
     if rpn.flag.flag_set_p(rpn.flag.F_RAD):
         return "Rad"
     if rpn.flag.flag_set_p(rpn.flag.F_GRAD):
@@ -141,7 +142,7 @@ def convert_mode_to_radians(x, force_mode=None):
         return x / DEG_PER_RAD
     if mode == "g":
         return x / GRAD_PER_RAD
-    raise rpn.exception.FatalErr("{}: Bad angle_mode '{}'".format(whoami(), mode))
+    raise FatalErr("{}: Bad angle_mode '{}'".format(whoami(), mode))
 
 
 def convert_radians_to_mode(r, force_mode=None):
@@ -152,12 +153,12 @@ def convert_radians_to_mode(r, force_mode=None):
         return r * DEG_PER_RAD
     if mode == "g":
         return r * GRAD_PER_RAD
-    raise rpn.exception.FatalErr("{}: Bad angle_mode '{}'".format(whoami(), mode))
+    raise FatalErr("{}: Bad angle_mode '{}'".format(whoami(), mode))
 
 
 def defvar(name, value, **kwargs):
     if type(name) is not str:
-        raise rpn.exception.FatalErr("defvar: name '{}' is not a string ".format(name))
+        raise FatalErr("defvar: name '{}' is not a string ".format(name))
     root_scope.add_vname(rpn.util.VName(name))
     var = rpn.util.Variable(name, value, **kwargs)
     dbg(whoami(), 1, "{}: Creating variable {} at address {} in {}".format(whoami(), name, hex(id(var)), repr(root_scope)))
@@ -172,22 +173,22 @@ def eval_string(s):
     rpn.parser.initialize_parser()
     try:
         result = rpn_parser.parse(s) # , debug=dbg("eval_string"))
-    except rpn.exception.ParseErr as e:
+    except ParseErr as e:
         if str(e) != 'EOF':
             rpn.globl.lnwriteln("Parse error: {}".format(str(e)))
-    except rpn.exception.RuntimeErr as e:
+    except RuntimeErr as e:
         dbg(whoami(), 1, "{}: Caught RuntimeErr, code={}".format(whoami(), e.code))
         if e.code >= 0:
             raise
-        if e.code == rpn.exception.X_ABORT or \
-           e.code == rpn.exception.X_ABORT_QUOTE:
+        if e.code == X_ABORT or \
+           e.code == X_ABORT_QUOTE:
             param_stack.clear()
             string_stack.clear()
             return_stack.clear()
-            if e.code == rpn.exception.X_ABORT_QUOTE:
+            if e.code == X_ABORT_QUOTE:
                 lnwriteln(e.message)
-        elif e.code == rpn.exception.X_EXIT or \
-             e.code == rpn.exception.X_INTERRUPT:
+        elif e.code == X_EXIT or \
+             e.code == X_INTERRUPT:
             return
         else:
             if rpn.flag.flag_set_p(rpn.flag.F_DEBUG_ENABLED):
@@ -217,12 +218,12 @@ def execute(executable):
                 rpn.globl.colon_stack.pop()
     except RecursionError:
         lnwriteln("{}: Excessive recursion".format(executable))
-    except rpn.exception.RuntimeErr as err_execute:
-        if err_execute.code == rpn.exception.X_INTERRUPT:
-            rpn.globl.lnwriteln(rpn.exception.throw_code_text[rpn.exception.X_INTERRUPT])
+    except RuntimeErr as err_execute:
+        if err_execute.code == X_INTERRUPT:
+            rpn.globl.lnwriteln(throw_code_text[X_INTERRUPT])
             rpn.globl.sigint_detected = False
             raise
-        elif err_execute.code == rpn.exception.X_EXIT:
+        elif err_execute.code == X_EXIT:
             return
         else:
             raise
@@ -330,7 +331,7 @@ def lookup_variable(name, how_many=1):
 
 def lookup_vname(ident):
     if type(ident) is not str:
-        raise rpn.exception.FatalErr("lookup_vname: ident '{}' is not a string".format(ident))
+        raise FatalErr("lookup_vname: ident '{}' is not a string".format(ident))
     for (_, scope) in scope_stack.items_top_to_bottom():
         dbg(whoami(), 1, "{}: Looking for vname {} in {}...".format(whoami(), ident, repr(scope)))
         dbg(whoami(), 3, "{} has vnames: {}".format(scope, scope.vnames()))
@@ -372,10 +373,10 @@ def normalize_hms(hh, mm, ss):
 def pop_scope(why):
     try:
         scope = scope_stack.pop()
-    except rpn.exception.RuntimeErr as e:
-        if e.code == rpn.exception.X_STACK_UNDERFLOW:
+    except RuntimeErr as e:
+        if e.code == X_STACK_UNDERFLOW:
             traceback.print_stack(file=sys.stderr)
-            raise rpn.exception.FatalErr("Attempting to pop Root scope!") from e
+            raise FatalErr("Attempting to pop Root scope!") from e
         else:
             raise
 
@@ -383,7 +384,7 @@ def pop_scope(why):
     #dbg("scope", 1, "Pop  {}".format(repr(scope)))
     if scope == root_scope:
         traceback.print_stack(file=sys.stderr)
-        raise rpn.exception.FatalErr("Attempting to pop Root scope!")
+        raise FatalErr("Attempting to pop Root scope!")
 
 
 def push_scope(scope, why):
@@ -418,7 +419,7 @@ def to_python_class(n):
         return float(n)
     if t is np.complex128:
         return complex(n)
-    raise rpn.exception.FatalErr("{}: Cannot handle type {}".format(whoami(), t))
+    raise FatalErr("{}: Cannot handle type {}".format(whoami(), t))
 
 
 def to_rpn_class(n):
@@ -431,7 +432,7 @@ def to_rpn_class(n):
         return rpn.type.Rational.from_Fraction(n)
     if t in [complex, np.complex128]:
         return rpn.type.Complex.from_complex(n)
-    raise rpn.exception.FatalErr("{}: Cannot handle type {}".format(whoami(), t))
+    raise FatalErr("{}: Cannot handle type {}".format(whoami(), t))
 
 
 def write(s=""):

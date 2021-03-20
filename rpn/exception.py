@@ -172,6 +172,7 @@ throw_code_text = {
     X_PROTECTED           : 'Protected',
     X_INVALID_UNIT        : 'Invalid unit',
     X_INCONSISTENT_UNITS  : 'Inconsistent units',
+    # be sure to update LAST_SYS_THROW_CODE above
 }
 
 

@@ -15,14 +15,14 @@ except ModuleNotFoundError:
     print("RPN requires the 'ply' library; please consult the README") # OK
     sys.exit(1)
 
-from   rpn.debug import dbg, whoami, typename
-import rpn.exception
+from   rpn.debug     import dbg, whoami, typename
+from   rpn.exception import *
 import rpn.globl
 
 
 class Executable:
     def __call__(self, name):
-        raise rpn.exception.FatalErr("Executable#__call__: Subclass responsibility")
+        raise FatalErr("Executable#__call__: Subclass responsibility")
 
     def patch_recurse(self, _):
         pass
@@ -40,7 +40,7 @@ class AbortQuote(Executable):
     def __init__(self, val):
         self.name = 'abort"'
         if len(val) < 7 or val[0:6] != 'abort"' or val[-1] != '"':
-            raise rpn.exception.FatalErr("{}: Malformed string: '{}'".format(whoami(), val))
+            raise FatalErr("{}: Malformed string: '{}'".format(whoami(), val))
         self._str = val[6:-1]
 
     def stringval(self):
@@ -49,13 +49,13 @@ class AbortQuote(Executable):
     def __call__(self, name):
         dbg("trace", 1, "trace({})".format(repr(self)))
         if rpn.globl.param_stack.empty():
-            raise rpn.exception.RuntimeErr(rpn.exception.X_INSUFF_PARAMS, 'abort"', "(1 required)")
+            throw(X_INSUFF_PARAMS, 'abort"', "(1 required)")
         flag = rpn.globl.param_stack.pop()
         if type(flag) is not rpn.type.Integer:
             rpn.globl.param_stack.push(flag)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'abort"', "({})".format(typename(flag)))
+            throw(X_ARG_TYPE_MISMATCH, 'abort"', "({})".format(typename(flag)))
         if flag.value != 0:
-            rpn.exception.throw(rpn.exception.X_ABORT_QUOTE, self.name, self.stringval())
+            throw(X_ABORT_QUOTE, self.name, self.stringval())
 
     def __str__(self):
         return 'abort"{}"'.format(self.stringval())
@@ -122,8 +122,8 @@ class BeginAgain(Executable):
         try:
             while True:
                 self._begin_seq.__call__("begin_seq")
-        except rpn.exception.RuntimeErr as err_begin_again:
-            if err_begin_again.code != rpn.exception.X_LEAVE:
+        except RuntimeErr as err_begin_again:
+            if err_begin_again.code != X_LEAVE:
                 raise
 
     def patch_recurse(self, new_word):
@@ -152,15 +152,15 @@ class BeginUntil(Executable):
             while True:
                 self._begin_seq.__call__("begin_seq")
                 if rpn.globl.param_stack.empty():
-                    raise rpn.exception.RuntimeErr(rpn.exception.X_INSUFF_PARAMS, "until", "(1 required)")
+                    throw(X_INSUFF_PARAMS, "until", "(1 required)")
                 flag = rpn.globl.param_stack.pop()
                 if type(flag) is not rpn.type.Integer:
                     rpn.globl.param_stack.push(flag)
-                    raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'until', "({})".format(typename(flag)))
+                    throw(X_ARG_TYPE_MISMATCH, 'until', "({})".format(typename(flag)))
                 if flag.value != 0:
                     break
-        except rpn.exception.RuntimeErr as err_begin_until:
-            if err_begin_until.code != rpn.exception.X_LEAVE:
+        except RuntimeErr as err_begin_until:
+            if err_begin_until.code != X_LEAVE:
                 raise
 
     def patch_recurse(self, new_word):
@@ -190,16 +190,16 @@ class BeginWhile(Executable):
             while True:
                 self._begin_seq.__call__("begin_seq")
                 if rpn.globl.param_stack.empty():
-                    raise rpn.exception.RuntimeErr(rpn.exception.X_INSUFF_PARAMS, "while", "(1 required)")
+                    throw(X_INSUFF_PARAMS, "while", "(1 required)")
                 flag = rpn.globl.param_stack.pop()
                 if type(flag) is not rpn.type.Integer:
                     rpn.globl.param_stack.push(flag)
-                    raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'while', "({})".format(typename(flag)))
+                    throw(X_ARG_TYPE_MISMATCH, 'while', "({})".format(typename(flag)))
                 if flag.value == 0:
                     break
                 self._while_seq.__call__("while_seq")
-        except rpn.exception.RuntimeErr as err_begin_while:
-            if err_begin_while.code != rpn.exception.X_LEAVE:
+        except RuntimeErr as err_begin_while:
+            if err_begin_while.code != X_LEAVE:
                 raise
 
     def patch_recurse(self, new_word):
@@ -227,11 +227,11 @@ class Case(Executable):
     def __call__(self, name):
         dbg("trace", 2, "trace({})".format(repr(self)))
         if rpn.globl.param_stack.empty():
-            raise rpn.exception.RuntimeErr(rpn.exception.X_INSUFF_PARAMS, "case", "(1 required)")
+            throw(X_INSUFF_PARAMS, "case", "(1 required)")
         n = rpn.globl.param_stack.pop()
         if type(n) is not rpn.type.Integer:
             rpn.globl.param_stack.push(n)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'case', "({})".format(typename(n)))
+            throw(X_ARG_TYPE_MISMATCH, 'case', "({})".format(typename(n)))
         nval = n.value
 
         # Determine the correct sequence to call
@@ -307,9 +307,9 @@ class Catch(Executable):
     def __init__(self, word, scope):
         self.name = 'catch'
         if type(word) is not rpn.util.Word:
-            raise rpn.exception.FatalErr("{}: Word {} is not an rpn.util.Word".format(whoami(), repr(word)))
+            raise FatalErr("{}: Word {} is not an rpn.util.Word".format(whoami(), repr(word)))
         if type(scope) is not rpn.util.Scope:
-            raise rpn.exception.FatalErr("{}: Scope {} is not an rpn.util.Scope".format(whoami(), repr(scope)))
+            raise FatalErr("{}: Scope {} is not an rpn.util.Scope".format(whoami(), repr(scope)))
         dbg("catch", 1, "{}: Catch({})".format(whoami(), word))
         self._word = word
         self._scope = scope
@@ -319,7 +319,7 @@ class Catch(Executable):
         dbg("catch", 1, "Calling {}: word={}, scope={}".format(whoami(), repr(self._word), repr(self._scope)))
         try:
             rpn.globl.execute(self._word)
-        except rpn.exception.RuntimeErr as err_catch:
+        except RuntimeErr as err_catch:
             dbg("catch", 1, "{}: Caught a throw, e={}".format(whoami(), str(err_catch)))
             rpn.globl.param_stack.push(rpn.type.Integer(int(err_catch.code)))
         else:
@@ -346,7 +346,7 @@ class Constant(Executable):
     def __call__(self, name):
         dbg("trace", 1, "trace({})".format(repr(self)))
         if rpn.globl.param_stack.empty():
-            raise rpn.exception.RuntimeErr(rpn.exception.X_INSUFF_PARAMS, "constant", "(1 required)")
+            throw(X_INSUFF_PARAMS, "constant", "(1 required)")
         self._variable.obj = rpn.globl.param_stack.pop()
 
     def __str__(self):
@@ -369,13 +369,13 @@ class DoLoop(Executable):
     def __call__(self, name):
         dbg("trace", 2, "trace({})".format(repr(self)))
         if rpn.globl.param_stack.size() < 2:
-            raise rpn.exception.RuntimeErr(rpn.exception.X_INSUFF_PARAMS, "do", "(2 required)")
+            throw(X_INSUFF_PARAMS, "do", "(2 required)")
         x = rpn.globl.param_stack.pop()
         y = rpn.globl.param_stack.pop()
         if type(y) is not rpn.type.Integer or type(x) is not rpn.type.Integer:
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'do', "({} {})".format(typename(y), typename(x)))
+            throw(X_ARG_TYPE_MISMATCH, 'do', "({} {})".format(typename(y), typename(x)))
         limit = y.value
         i = x.value
         if i == limit:
@@ -395,8 +395,8 @@ class DoLoop(Executable):
                 _I.obj = rpn.type.Integer(i)
                 if i >= limit:
                     break
-        except rpn.exception.RuntimeErr as err_do_loop:
-            if err_do_loop.code != rpn.exception.X_LEAVE:
+        except RuntimeErr as err_do_loop:
+            if err_do_loop.code != X_LEAVE:
                 raise
         finally:
             rpn.globl.pop_scope("DoLoop complete")
@@ -424,13 +424,13 @@ class DoPlusLoop(Executable):
     def __call__(self, name):
         dbg("trace", 2, "trace({})".format(repr(self)))
         if rpn.globl.param_stack.size() < 2:
-            raise rpn.exception.RuntimeErr(rpn.exception.X_INSUFF_PARAMS, "do", "(2 required)")
+            throw(X_INSUFF_PARAMS, "do", "(2 required)")
         x = rpn.globl.param_stack.pop()
         y = rpn.globl.param_stack.pop()
         if type(y) is not rpn.type.Integer or type(x) is not rpn.type.Integer:
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'do', "({} {})".format(typename(y), typename(x)))
+            throw(X_ARG_TYPE_MISMATCH, 'do', "({} {})".format(typename(y), typename(x)))
         limit = y.value
         i = x.value
         if i == limit:
@@ -447,18 +447,18 @@ class DoPlusLoop(Executable):
             while True:
                 self._do_seq.__call__("do_seq")
                 if rpn.globl.param_stack.empty():
-                    raise rpn.exception.RuntimeErr(rpn.exception.X_INSUFF_PARAMS, "+loop", "(1 required)")
+                    throw(X_INSUFF_PARAMS, "+loop", "(1 required)")
                 incr = rpn.globl.param_stack.pop()
                 if type(incr) is not rpn.type.Integer:
                     rpn.globl.param_stack.push(incr)
-                    raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, '+loop', "({})".format(typename(incr)))
+                    throw(X_ARG_TYPE_MISMATCH, '+loop', "({})".format(typename(incr)))
                 i += incr.value
                 _I.obj = rpn.type.Integer(i)
                 if    incr.value > 0 and i >= limit \
                    or incr.value < 0 and i < limit:
                     break
-        except rpn.exception.RuntimeErr as err_do_plusloop:
-            if err_do_plusloop.code != rpn.exception.X_LEAVE:
+        except RuntimeErr as err_do_plusloop:
+            if err_do_plusloop.code != X_LEAVE:
                 raise
         finally:
             rpn.globl.pop_scope("DoPlusLoop complete")
@@ -482,7 +482,7 @@ class DotQuote(Executable):
     def __init__(self, val):
         self.name = '."'
         if len(val) < 3 or val[0:2] != '."' or val[-1] != '"':
-            raise rpn.exception.FatalErr("{}: Malformed string: '{}'".format(whoami(), val))
+            raise FatalErr("{}: Malformed string: '{}'".format(whoami(), val))
         self._str = val[2:-1]
 
     def stringval(self):
@@ -539,13 +539,15 @@ the right thing with empty stack (uses zero)."""
         dbg("trace", 1, "trace({})".format(repr(self)))
         (var, _) = rpn.globl.lookup_variable(self.identifier())
         if var is None:
-            raise rpn.exception.FatalErr("{}: Variable has vanished!".format(str(self)))
+            raise FatalErr("{}: Variable has vanished!".format(str(self)))
         if var.obj is None:
             if self._modifier == '?':
                 rpn.globl.param_stack.push(rpn.type.Integer(0))
                 # The variable remains undefined
             else:
-                raise rpn.exception.RuntimeErr(rpn.exception.X_UNDEFINED_VARIABLE, str(self), self.identifier())
+                throw(X_UNDEFINED_VARIABLE, str(self), self.identifier())
+        elif self._modifier is None and type(var.obj) is rpn.type.String:
+            rpn.globl.string_stack.push(var.obj)
         elif self._modifier is not None and self._modifier == '$':
             if rpn.globl.string_stack.empty():
                 rpn.globl.string_stack.push(rpn.type.String(""))
@@ -558,7 +560,7 @@ the right thing with empty stack (uses zero)."""
             rpn.flag.clear_flag(rpn.flag.F_SHOW_X)
         else:
             if self._modifier is not None and self._modifier == '/' and var.obj.zerop():
-                raise rpn.exception.RuntimeErr(rpn.exception.X_DIVISION_BY_ZERO, str(self))
+                throw(X_DIVISION_BY_ZERO, str(self))
             if self._modifier is not None and self._modifier != '.' and rpn.globl.param_stack.empty():
                 # Fake a zero on the stack so recall arithmetic continues to work
                 rpn.globl.param_stack.push(rpn.type.Integer(0))
@@ -597,16 +599,16 @@ class Forget(Executable):
     def __init__(self, word, scope):
         self.name = 'forget'
         if type(word) is not rpn.util.Word:
-            raise rpn.exception.FatalErr("{}: {} is not a Word".format(whoami(), repr(word)))
+            raise FatalErr("{}: {} is not a Word".format(whoami(), repr(word)))
         if type(scope) is not rpn.util.Scope:
-            raise rpn.exception.FatalErr("{}: {} is not a Scope".format(whoami(), repr(scope)))
+            raise FatalErr("{}: {} is not a Scope".format(whoami(), repr(scope)))
         self._word = word
         self._scope = scope
 
     def __call__(self, name):
         dbg("trace", 1, "trace({})".format(repr(self)))
         if self._word.protected:
-            raise rpn.exception.RuntimeErr(rpn.exception.X_PROTECTED, 'forget', "Cannot forget '{}'".format(self._word.name))
+            throw(X_PROTECTED, 'forget', "Cannot forget '{}'".format(self._word.name))
         self._scope.delete_word(self._word.name)
 
     def __str__(self):
@@ -653,13 +655,13 @@ class Hide(Executable):
     def __init__(self, word):
         self.name = 'hide'
         if type(word) is not rpn.util.Word:
-            raise rpn.exception.FatalErr("{}: {} is not a Word".format(whoami(), repr(word)))
+            raise FatalErr("{}: {} is not a Word".format(whoami(), repr(word)))
         self._word = word
 
     def __call__(self, name):
         dbg("trace", 1, "trace({})".format(repr(self)))
         if self._word.protected:
-            raise rpn.exception.RuntimeErr(rpn.exception.X_PROTECTED, 'hide', "Cannot hide '{}'".format(self._word.name))
+            throw(X_PROTECTED, 'hide', "Cannot hide '{}'".format(self._word.name))
         self._word.hidden = True
 
     def __str__(self):
@@ -683,11 +685,11 @@ class IfElse(Executable):
     def __call__(self, name):
         dbg("trace", 2, "trace({})".format(repr(self)))
         if rpn.globl.param_stack.empty():
-            raise rpn.exception.RuntimeErr(rpn.exception.X_INSUFF_PARAMS, "if", "(1 required)")
+            throw(X_INSUFF_PARAMS, "if", "(1 required)")
         flag = rpn.globl.param_stack.pop()
         if type(flag) is not rpn.type.Integer:
             rpn.globl.param_stack.push(flag)
-            raise rpn.exception.RuntimeErr(rpn.exception.X_ARG_TYPE_MISMATCH, 'if', "({})".format(typename(flag)))
+            throw(X_ARG_TYPE_MISMATCH, 'if', "({})".format(typename(flag)))
         if flag.value != 0:
             self._if_seq.__call__("if_seq")
         elif self._else_seq is not None:
@@ -723,13 +725,13 @@ class Recurse(Executable):
     def __init__(self, target=None):
         self.name = 'recurse'
         if target is not None and type(target) is not rpn.util.Word:
-            raise rpn.exception.FatalErr("{}: Target '{}' is not an rpn.util.Word".format(whoami(), repr(target)))
+            raise FatalErr("{}: Target '{}' is not an rpn.util.Word".format(whoami(), repr(target)))
         self._target = target
 
     def __call__(self, name):
         dbg("trace", 1, "trace({})".format(repr(self)))
         if self.target() is None:
-            raise rpn.exception.RuntimeErr(rpn.exception.X_INVALID_RECURSION, "recurse")
+            throw(X_INVALID_RECURSION, "recurse")
         self.target().__call__("target")
 
     def target(self):
@@ -739,7 +741,7 @@ class Recurse(Executable):
         if self.target() is None:
             self._target = new_word
         else:
-            raise rpn.exception.FatalErr("{}: Invoked on already patched Recurse object".format(whoami()))
+            raise FatalErr("{}: Invoked on already patched Recurse object".format(whoami()))
 
     def __str__(self):
         return "recurse"
@@ -759,7 +761,7 @@ class Show(Executable):
     def __init__(self, word):
         self.name = 'show'
         if type(word) is not rpn.util.Word:
-            raise rpn.exception.FatalErr("{}: Word {} is not an rpn.util.Word".format(whoami(), repr(word)))
+            raise FatalErr("{}: Word {} is not an rpn.util.Word".format(whoami(), repr(word)))
         self._word = word
 
     def __call__(self, name):
@@ -800,24 +802,24 @@ The TOS is consumed as normal."""
         (var, _) = rpn.globl.lookup_variable(self.identifier())
         stringp = bool(self._modifier == '$')
         if var is None:
-            raise rpn.exception.FatalErr("{}: Variable has vanished!".format(str(self)))
+            raise FatalErr("{}: Variable has vanished!".format(str(self)))
         if var.readonly():
-            raise rpn.exception.RuntimeErr(rpn.exception.X_READ_ONLY, str(self), "Variable cannot be modified")
+            throw(X_READ_ONLY, str(self), "Variable cannot be modified")
         if var.constant():
-            raise rpn.exception.RuntimeErr(rpn.exception.X_READ_ONLY, str(self), "Constant cannot be modified")
+            throw(X_READ_ONLY, str(self), "Constant cannot be modified")
         if stringp and rpn.globl.string_stack.empty():
-            raise rpn.exception.RuntimeErr(rpn.exception.X_INSUFF_STR_PARAMS, str(self), "(1 required)")
+            throw(X_INSUFF_STR_PARAMS, str(self), "(1 required)")
         if not stringp and rpn.globl.param_stack.empty():
-            raise rpn.exception.RuntimeErr(rpn.exception.X_INSUFF_PARAMS, str(self), "(1 required)")
+            throw(X_INSUFF_PARAMS, str(self), "(1 required)")
         if self._modifier == '/' and rpn.globl.param_stack.top().zerop():
-            raise rpn.exception.RuntimeErr(rpn.exception.X_DIVISION_BY_ZERO, str(self))
+            throw(X_DIVISION_BY_ZERO, str(self))
 
         cur_obj = var.obj
         new_obj = rpn.globl.string_stack.top() if stringp else rpn.globl.param_stack.top()
         for pre_hook_func in var.pre_hooks():
             try:
                 pre_hook_func(self.identifier(), cur_obj, new_obj)
-            except rpn.exception.RuntimeErr as err_pre_hook_store:
+            except RuntimeErr as err_pre_hook_store:
                 rpn.globl.lnwriteln(str(err_pre_hook_store))
                 return
 

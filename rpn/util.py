@@ -11,7 +11,8 @@ import math
 import queue
 import readline                         # pylint: disable=unused-import
 
-from   rpn.debug import dbg, typename, whoami
+from   rpn.debug     import dbg, typename, whoami
+from   rpn.exception import *
 import rpn.flag
 import rpn.globl
 import rpn.type
@@ -57,7 +58,7 @@ class DisplayConfig:
     @style.setter
     def style(self, new_style):
         if new_style not in ["std", "fix", "sci", "eng"]:
-            raise rpn.exception.FatalErr("{}: Invalid display style '{}'".format(whoami(), new_style))
+            raise FatalErr("{}: Invalid display style '{}'".format(whoami(), new_style))
         self._style = new_style
 
     @property
@@ -67,7 +68,7 @@ class DisplayConfig:
     @prec.setter
     def prec(self, new_prec):
         if new_prec < 0 or new_prec >= rpn.globl.PRECISION_MAX:
-            raise rpn.exception.FatalErr("{}: Invalid display precision '{}' (0..{} expected)".format(whoami(), new_prec, rpn.globl.PRECISION_MAX - 1))
+            raise FatalErr("{}: Invalid display precision '{}' (0..{} expected)".format(whoami(), new_prec, rpn.globl.PRECISION_MAX - 1))
         self._prec = new_prec
         for bit in range(4):
             if new_prec & 1<<bit != 0:
@@ -136,7 +137,7 @@ class DisplayConfig:
         if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex]:
             return x.instfmt()
 
-        raise rpn.exception.FatalErr("{}: Cannot handle type '{}' for object {}".format(whoami(), typename(x), x))
+        raise FatalErr("{}: Cannot handle type '{}' for object {}".format(whoami(), typename(x), x))
 
 
 #############################################################################
@@ -269,7 +270,7 @@ class Scope:
 
     def define_word(self, identifier, word):
         if type(word) is not rpn.util.Word:
-            raise rpn.exception.FatalErr("{}: '{}' is not a Word".format(whoami(), identifier))
+            raise FatalErr("{}: '{}' is not a Word".format(whoami(), identifier))
 
         if rpn.globl.default_protected:
             if (word.doc() is None or len(word.doc()) == 0) and not word.hidden:
@@ -298,7 +299,7 @@ class Scope:
 
     def define_variable(self, identifier, var):
         if type(var) is not Variable:
-            raise rpn.exception.FatalErr("{}: '{}' is not a Variable".format(whoami(), identifier))
+            raise FatalErr("{}: '{}' is not a Variable".format(whoami(), identifier))
         dbg(whoami(), 1, "{}: Setting variable '{}' to {} in {}".format(whoami(), identifier, repr(var), repr(self)))
         self._variables[identifier] = var
 
@@ -310,17 +311,17 @@ class Scope:
 
     def vname(self, ident):
         if type(ident) is not str:
-            raise rpn.exception.FatalErr("Looking for a non-string '{}'".format(ident))
+            raise FatalErr("Looking for a non-string '{}'".format(ident))
         return next(v for v in self._vnames if v.ident == ident)
 
     def add_vname(self, vname):
         if type(vname) is not rpn.util.VName:
-            raise rpn.exception.FatalErr("vname {} is not a VName".format(vname))
+            raise FatalErr("vname {} is not a VName".format(vname))
         self._vnames.append(vname)
 
     def has_vname_named(self, ident):
         if type(ident) is not str:
-            raise rpn.exception.FatalErr("Looking for a non-string '{}'".format(ident))
+            raise FatalErr("Looking for a non-string '{}'".format(ident))
         return ident in [v.ident for v in self._vnames]
 
 
@@ -348,11 +349,9 @@ class Sequence:
 
         in_vnames = list(filter(lambda v: v.in_p, self.scope_template().vnames()))
         if rpn.globl.param_stack.size() < len(in_vnames):
-            raise rpn.exception.RuntimeErr(rpn.exception.X_INSUFF_PARAMS, self.scope_template().name, "({} required)".format(len(in_vnames)))
+            throw(X_INSUFF_PARAMS, self.scope_template().name, "({} required)".format(len(in_vnames)))
 
         scope_name = self.scope_template().name
-        if scope_name[:6] == "Parse_":
-            scope_name = scope_name[6:]
         scope = rpn.util.Scope(scope_name)
         # XXX what about kwargs???
         for vname in self.scope_template().vnames():
@@ -381,14 +380,14 @@ class Sequence:
             for vname in out_vnames:
                 var = scope.variable(vname.ident)
                 if var is None:
-                    raise rpn.exception.FatalErr("{}: {}: Variable '{}' has vanished!".format(whoami(), self.scope_template().name, vname.ident))
+                    raise FatalErr("{}: {}: Variable '{}' has vanished!".format(whoami(), self.scope_template().name, vname.ident))
                 if not var.defined():
                     # Undo any previous param_stack pushes if we come across an out variable that's not defined
                     for _ in range(param_stack_pushes):
                         rpn.globl.param_stack.pop()
                     if rpn.globl.sigint_detected:
-                        rpn.exception.throw(rpn.exception.X_INTERRUPT, self.scope_template().name)
-                    raise rpn.exception.RuntimeErr(rpn.exception.X_UNDEFINED_VARIABLE, self.scope_template().name, "Variable '{}' was never set".format(vname.ident))
+                        throw(X_INTERRUPT, self.scope_template().name)
+                    throw(X_UNDEFINED_VARIABLE, self.scope_template().name, "Variable '{}' was never set".format(vname.ident))
                 dbg(whoami(), 3, "{} is {}".format(vname.ident, repr(var.obj)))
                 rpn.globl.param_stack.push(var.obj)
                 param_stack_pushes += 1
@@ -453,15 +452,15 @@ class Stack:
 
     def push(self, item):
         if self.size() == self._max_size:
-            rpn.exception.throw(X_STACK_OVERFLOW, whoami(), "{} exceeded max size={} when attempting to push {}".format(self.name(), self._max_size, item))
+            throw(X_STACK_OVERFLOW, whoami(), "{} exceeded max size={} when attempting to push {}".format(self.name(), self._max_size, item))
         self._nitems += 1
         self._stack.append(item)
 
     def pop(self):
         if self.empty():
-            raise rpn.exception.FatalErr("{}: Empty stack".format(whoami()))
+            raise FatalErr("{}: Empty stack".format(whoami()))
         if self.size() == self._min_size:
-            rpn.exception.throw(rpn.exception.X_STACK_UNDERFLOW, whoami(), "{} has min size={}".format(self.name, self._min_size))
+            throw(X_STACK_UNDERFLOW, whoami(), "{} has min size={}".format(self.name, self._min_size))
         self._nitems -= 1
         return self._stack.pop()
 
@@ -469,13 +468,13 @@ class Stack:
         '''n will be 1-based, so handle appropriately.'''
 
         if n < 1 or n > self.size():
-            raise rpn.exception.FatalErr("{}: Bad index".format(whoami()))
+            raise FatalErr("{}: Bad index".format(whoami()))
         return self._stack[self.size() - n]
 
     def roll(self, n):
         '''n will be 1-based, so handle appropriately.'''
         if n < 1 or n > self.size():
-            raise rpn.exception.FatalErr("{}: Bad index".format(whoami()))
+            raise FatalErr("{}: Bad index".format(whoami()))
         # Prevent stack underflow in unlucky situations.  Temporarily
         # increase the stack minimum size, because we're just going to
         # push an item back again to restore the situation.
@@ -487,7 +486,7 @@ class Stack:
 
     def top(self):
         if self.empty():
-            raise rpn.exception.FatalErr("{}: Empty stack".format(whoami()))
+            raise FatalErr("{}: Empty stack".format(whoami()))
         return self._stack[self.size() - 1]
 
     def items_bottom_to_top(self):
@@ -566,19 +565,19 @@ class TokenMgr:
                         # ^D (eof) on input signals end of input tokens
                         rpn.globl.lnwrite()
                         return
-                    except rpn.exception.RuntimeErr as e:
-                        if e.code == rpn.exception.X_INTERRUPT:
-                            rpn.globl.lnwrite(rpn.exception.throw_code_text[rpn.exception.X_INTERRUPT])
+                    except RuntimeErr as e:
+                        if e.code == X_INTERRUPT:
+                            rpn.globl.lnwrite(throw_code_text[X_INTERRUPT])
                             # ^C can either void the parse_stack, or the end program
                             rpn.globl.sigint_detected = False
                             if rpn.globl.parse_stack.empty():
                                 if rpn.globl.got_interrupt:
                                     rpn.globl.writeln()
-                                    raise rpn.exception.EndProgram() from e
+                                    raise EndProgram() from e
                                 rpn.globl.writeln("; once more to quit")
                                 rpn.globl.got_interrupt = True
                                 continue
-                            raise rpn.exception.TopLevel() from e
+                            raise TopLevel() from e
                         else:
                             rpn.globl.got_interrupt = False
                     else:
@@ -602,7 +601,7 @@ class TokenMgr:
 class Variable:
     def __init__(self, name, obj=None, **kwargs):
         if not Variable.name_valid_p(name):
-            raise rpn.exception.FatalErr("Invalid variable name '{}'".format(name))
+            raise FatalErr("Invalid variable name '{}'".format(name))
 
         self.name        = name
         self._constant   = False
@@ -663,8 +662,8 @@ class Variable:
         # following parameters: variable name, old object (be sure to
         # take .value), and the new proposed value.  For "undef", new
         # value is None.  If system wants to prevent the change, the
-        # pre_hook function should raise a rpn.exception.RuntimeErr
-        # exception.  Nothing needs to be returned.
+        # pre_hook function should raise a RuntimeErr exception (i.e.,
+        # throw()).  Nothing needs to be returned.
         if "pre_hooks" in kwargs:
             self._pre_hooks = kwargs["pre_hooks"]
             del kwargs["pre_hooks"]
@@ -685,7 +684,7 @@ class Variable:
         if len(kwargs) > 0:
             for (key, val) in kwargs.items():
                 print("Unrecognized keyword '{}'={}".format(key, val)) # OK
-                raise rpn.exception.FatalErr("Could not construct variable '{}'".format(name))
+                raise FatalErr("Could not construct variable '{}'".format(name))
 
     @classmethod
     def name_valid_p(cls, name):
@@ -786,9 +785,9 @@ class Word:
         my_print_x = None
 
         if name is None or len(name) == 0:
-            raise rpn.exception.FatalErr("Invalid word name '{}'".format(name))
+            raise FatalErr("Invalid word name '{}'".format(name))
         if defn is None:
-            raise rpn.exception.FatalErr("{}: defn is None".format(name))
+            raise FatalErr("{}: defn is None".format(name))
         #dbg(whoami(), 3, "defn is {}".format(type(defn)))
 
         # `args' is the number of numeric arguments that must be present
@@ -852,7 +851,7 @@ class Word:
         if len(kwargs) > 0:
             for (key, val) in kwargs.items():
                 print("Unrecognized keyword '{}'={}".format(key, val)) # OK
-                raise rpn.exception.FatalErr("Could not construct word '{}'".format(name))
+                raise FatalErr("Could not construct word '{}'".format(name))
 
         kwargs["print_x"] = my_print_x
 
@@ -863,9 +862,9 @@ class Word:
     def __call__(self, name):
         dbg("trace", 1, "trace({})".format(repr(self)))
         if rpn.globl.param_stack.size() < self.args():
-            raise rpn.exception.RuntimeErr(rpn.exception.X_INSUFF_PARAMS, self.name, "({} required)".format(self.args()))
+            throw(X_INSUFF_PARAMS, self.name, "({} required)".format(self.args()))
         if rpn.globl.string_stack.size() < self.str_args():
-            raise rpn.exception.RuntimeErr(rpn.exception.X_INSUFF_STR_PARAMS, self.name, "({} required)".format(self.str_args()))
+            throw(X_INSUFF_STR_PARAMS, self.name, "({} required)".format(self.str_args()))
 
         self._defn.__call__(self.name)
 
@@ -913,7 +912,7 @@ class Word:
             return ": {} {}{} ;".format(self.name,
                                         'doc:"{}"\n'.format(self.doc()) if self.doc() is not None and len(self.doc()) > 0 else "",
                                         str(self._defn))
-        raise rpn.exception.FatalErr("{}: Unhandled type {}".format(whoami(), type(self._defn)))
+        raise FatalErr("{}: Unhandled type {}".format(whoami(), type(self._defn)))
 
     def __str__(self):
         return self.name

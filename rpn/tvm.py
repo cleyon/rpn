@@ -59,7 +59,7 @@ def solve_for_interest():
             return i[k+1]
         k += 1
         if k > 100:
-            raise rpn.exception.RuntimeErr(rpn.exception.X_NO_SOLUTION, "int")
+            throw(X_NO_SOLUTION, "int")
 
 def i_initial_guess():
     n   = rpn.tvm.N  .obj.value
