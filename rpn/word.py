@@ -2081,17 +2081,24 @@ def w_d_to_jd(name):
     rpn.globl.param_stack.push(result)
 
 
-# XXX
 @defword(name='d->r', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Convert degrees to radians ( deg -- rad )""")
+Convert degrees to radians ( deg -- rad )
+(This will actually convert any angle measure to radians, not just degrees.)""")
 def w_d_to_r(name):
     x = rpn.globl.param_stack.pop()
-    if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
-        result = rpn.type.Float(rpn.globl.convert_mode_to_radians(float(x.value), "d"))
-        result.label = "Rad"
-    else:
+    if type(x) not in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+
+    if x.has_uexpr_p() and x.uexpr.dim() != rpn.unit.category["Null"].dim():
+        if x.uexpr.dim() != rpn.unit.category["Angle"].dim():
+            rpn.globl.param_stack.push(x)
+            throw(X_INCONSISTENT_UNITS, name, "'{}' is not an angular unit".format(x.uexpr))
+        result = x.ubase_convert(name) # convert to radians
+    else:
+        result = rpn.type.Float(rpn.globl.convert_mode_to_radians(float(x.value)))
+
+    result.uexpr = rpn.globl.uexpr["r"]
     rpn.globl.param_stack.push(result)
 
 
@@ -4075,16 +4082,23 @@ EXAMPLE: Integrate a bessel function jv(2.5, x) along the interval [0,4.5]:
         rpn.globl.param_stack.push(res_obj)
 
 
-# XXX
 @defword(name='r->d', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Convert radians to degrees ( rad -- deg )""")
+Convert radians to degrees ( rad -- deg )
+(This will actually convert any angle measure to degrees, not just radians.)""")
 def w_r_to_d(name):
     x = rpn.globl.param_stack.pop()
     if type(x) not in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+
+    if x.has_uexpr_p() and x.uexpr.dim() != rpn.unit.category["Null"].dim():
+        if x.uexpr.dim() != rpn.unit.category["Angle"].dim():
+            rpn.globl.param_stack.push(x)
+            throw(X_INCONSISTENT_UNITS, name, "'{}' is not an angular unit".format(x.uexpr))
+        x = x.ubase_convert(name) # convert to radians
+
     result = rpn.type.Float(rpn.globl.convert_radians_to_mode(float(x.value), "d"))
-    result.label = "Deg"
+    result.uexpr = rpn.globl.uexpr["d"]
     rpn.globl.param_stack.push(result)
 
 
