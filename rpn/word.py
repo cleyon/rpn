@@ -258,7 +258,7 @@ def w_dollar_time(name):        # pylint: disable=unused-argument
 $ushow   [ unit -- ]
 Show detailed information about a unit-expression.
 
-See also: shunit, ushow""")
+See also: units, ushow""")
 def w_dollar_ushow(name):
     s = rpn.globl.string_stack.pop()
     ustr = s.value
@@ -4720,48 +4720,6 @@ def w_shstat(name):             # pylint: disable=unused-argument
         rpn.globl.writeln(rpn.globl.stat_data)
 
 
-@defword(name='shunit', print_x=rpn.globl.PX_IO, doc="""\
-shunit   ( -- )
-List all units.
-
-See also: ushow""")
-def w_shunit(name):
-    units = dict()
-    for u in rpn.unit.units.values():
-        if u.hidden:
-            continue
-        id = u.abbrev if u.abbrev is not None else u.name
-        units[id] = id
-    sorted_units = []
-    for key in sorted(units, key=str.casefold):
-        sorted_units.append(units[key])
-    rpn.globl.list_in_columns(sorted_units, rpn.globl.scr_cols.obj.value - 1)
-
-
-@defword(name='shunit!', print_x=rpn.globl.PX_IO, doc="""\
-shunit!   ( -- )
-List all units with more details.""")
-def w_shunit_bang(name):
-    units = dict()
-    for u in rpn.unit.units.values():
-        cat = rpn.unit.Category.lookup_by_dim(u.dim())
-        id = str(u)
-        if u.abbrev is not None:
-            s = u.abbrev + " ({}".format(u.name)
-            if cat is not None:
-                s += ", {}".format(cat.measure)
-            s += ")"
-        else:
-            s = u.name
-            if cat is not None:
-                s += " ({})".format(cat.measure)
-        units[id] = s
-    sorted_units = []
-    for key in sorted(units, key=str.casefold):
-        sorted_units.append(units[key])
-    rpn.globl.list_in_columns(sorted_units, rpn.globl.scr_cols.obj.value - 1)
-
-
 @defword(name='sign', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
 sign   ( n -- sign )
 Signum function.  Returns -1, 0, or 1.""")
@@ -5382,6 +5340,48 @@ def w_unit_query(name):
     rpn.globl.param_stack.push(result)
 
 
+@defword(name='units', print_x=rpn.globl.PX_IO, doc="""\
+units   ( -- )
+List all units.
+
+See also: ushow""")
+def w_units(name):
+    units = dict()
+    for u in rpn.unit.units.values():
+        if u.hidden:
+            continue
+        id = u.abbrev if u.abbrev is not None else u.name
+        units[id] = id
+    sorted_units = []
+    for key in sorted(units, key=str.casefold):
+        sorted_units.append(units[key])
+    rpn.globl.list_in_columns(sorted_units, rpn.globl.scr_cols.obj.value - 1)
+
+
+@defword(name='units!', print_x=rpn.globl.PX_IO, doc="""\
+units!   ( -- )
+List all units with more details.""")
+def w_units_bang(name):
+    units = dict()
+    for u in rpn.unit.units.values():
+        cat = rpn.unit.Category.lookup_by_dim(u.dim())
+        id = str(u)
+        if u.abbrev is not None:
+            s = u.abbrev + " ({}".format(u.name)
+            if cat is not None:
+                s += ", {}".format(cat.measure)
+            s += ")"
+        else:
+            s = u.name
+            if cat is not None:
+                s += " ({})".format(cat.measure)
+        units[id] = s
+    sorted_units = []
+    for key in sorted(units, key=str.casefold):
+        sorted_units.append(units[key])
+    rpn.globl.list_in_columns(sorted_units, rpn.globl.scr_cols.obj.value - 1)
+
+
 @defword(name='until', print_x=rpn.globl.PX_CONTROL, doc="""\
 until   ( bool -- )
 Execute an indefinite loop until a condition is satisfied.
@@ -5469,6 +5469,22 @@ def w_vlist(name):            # pylint: disable=unused-argument
         word = rpn.globl.root_scope.word(wordname)
         if word.hidden:
             continue
+        words[word.name] = word.name
+    sorted_words = []
+    for key in sorted(words, key=str.casefold):
+        sorted_words.append(words[key])
+    rpn.globl.list_in_columns(sorted_words, rpn.globl.scr_cols.obj.value - 1)
+
+
+@defword(name='vlist!', hidden=True, print_x=rpn.globl.PX_IO, doc="""\
+vlist!   ( -- )
+Print the list of defined words.  Only words in the root scope are shown.
+
+See also: vlist, words""")
+def w_vlist_bang(name):       # pylint: disable=unused-argument
+    words = dict()
+    for wordname in rpn.globl.root_scope.words():
+        word = rpn.globl.root_scope.word(wordname)
         words[word.name] = word.name
     sorted_words = []
     for key in sorted(words, key=str.casefold):

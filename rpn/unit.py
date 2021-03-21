@@ -824,10 +824,10 @@ def define_units():
 
         # Speed
         Unit('speed of light', factor=299792458, units="m/s", abbrev="c"),
-        Unit('mph',       units="miles/hour"),
-        Unit("kph",       units="km/hour"),
-        Unit("knot",      units="nauticalmile/hour", syn=["knots"]),
-        Unit("mach",      factor=331.46, units="m/s"),
+        Unit('mph',                              units="miles/hour"),
+        Unit("kph",                              units="km/hour"),
+        Unit("knot",                             units="nauticalmile/hour", syn=["knots"]),
+        Unit("mach",               factor=761.2, units="mph"), # approx
 
         # Acceleration
         # Earth gravity
@@ -842,31 +842,30 @@ def define_units():
         Unit("barn",      exp=2,        units="fm^2", abbrev="b", syn=["barns"]),
 
         # Volume
-        Unit("liter",     exp=3,       units="cm^3",   abbrev="l",   syn=["liters"]),
-        Unit("cubiccm",                units="cm^3",   abbrev="cc",  hidden=True),
-        Unit("gallon",    factor= 231, units="in^3",   abbrev="gal", syn=["gallons", "gals"]),
-        Unit("quart",     factor=1/4,  units="gallon", abbrev="qt",  syn=["quarts"]),
-        Unit("fifth",     factor=1/5,  units="gallon",               syn=["fifths"]),
-        Unit("pint",      factor=1/2,  units="quart",  abbrev="pt",  syn=["pints"]),
-        Unit("fluidounce",factor=1/16, units="pint",   abbrev="ozfl",syn=["floz"]),
-        Unit("cup",       factor=8,    units="floz",   abbrev="cu",  syn=["cups"]), # 1/2 pint, 8 floz
-        Unit("gill",      factor=4,    units="floz",                 syn=["gills"]),
-        Unit("tablespoon",factor=1/2,  units="floz",   abbrev="tbsp"),
-        Unit("minim",     factor=59.1938802083, units="microliter",  syn=["minims"]),
-        Unit("fluidram",  factor=60,   units="minim",   abbrev="fldr", syn=["fluidrams"]),
-        Unit("teaspoon",  factor=1/3,  units="tbsp",   abbrev="tsp"),
-        Unit("stere",                  units="m^3",    abbrev="st",  syn=["steres"]),
-        Unit("barrel",    factor=42,   units="gallon", abbrev="bbl", syn=["barrels"]), # Oil
+        Unit("stere",                    units="m^3",    abbrev="st",   syn=["steres"]),
+        Unit("liter",             exp=3, units="cm^3",   abbrev="l",    syn=["liters"]),
+        Unit("cc",                       units="cm^3", hidden=True),
+        Unit("gallon",     factor=231,   units="in^3",   abbrev="gal",  syn=["gallons", "gals"]),
+        Unit("barrel",     factor=42,    units="gallon", abbrev="bbl",  syn=["barrels"]), # Oil
+        Unit("fifth",      factor=1/5,   units="gallon",                syn=["fifths"]),
+        Unit("fluidounce", factor=1/128, units="gallon", abbrev="ozfl", syn=["floz"]),
+        Unit("cup",        factor=8,     units="floz",   abbrev="cu",   syn=["cups"]), # 1/2 pint
+        Unit("pint",       factor=2,     units="cups",   abbrev="pt",   syn=["pints"]),
+        Unit("quart",      factor=2 ,    units="pint",   abbrev="qt",   syn=["quarts"]), # quart == 1/4 gallan
+        Unit("gill",       factor=4,     units="floz",                  syn=["gills"]),
+        Unit("teaspoon",   factor=1/6,   units="floz",   abbrev="tsp"),
+        Unit("tablespoon", factor=3,     units="tsp",    abbrev="tbsp"), # 1/2 floz
+        Unit("minim",      factor=59.1938802083, units="microliter",    syn=["minims"]),
+        Unit("fluidram",   factor=60,    units="minim",  abbrev="fldr", syn=["fluidrams"]),
 
         # Dry volume
-        Unit("bushel",    factor=2150.42, units="in^3"),
-        Unit("peck",      factor=1/4,  units="bushel", abbrev="pk",  syn=["pecks"]),
-        Unit("drygallon", factor=1/2,  units="peck", syn=["drygallons"]),
-        Unit("dryquart",  factor=1/4,  units="drygallon", syn=["dryquarts"]),
-        Unit("drypint",   factor=1/2,  units="dryquart", syn=["drypints"]),
-        Unit("drybarrel", factor=26.25,units="drygallons", syn=["drybarrels"]),
-
-        Unit("boardfoot", units="ft*ft*in", abbrev="fbm"),
+        Unit("drypint",   factor=33.6,  units="in^3",                   syn=["drypints"]),
+        Unit("dryquart",  factor=2,     units="drypints",               syn=["dryquarts"]),
+        Unit("drygallon", factor=4,     units="dryquarts",              syn=["drygallons"]),
+        Unit("peck",      factor=2,     units="drygallon", abbrev="pk", syn=["pecks"]),
+        Unit("bushel",    factor=4,     units="peck"),
+        Unit("drybarrel", factor=26.25, units="drygallons",             syn=["drybarrels"]),
+        Unit("boardfoot",               units="ft*ft*in", abbrev="fbm"),
 
         # Mass & Weights
         Unit("pound",     factor=0.45359237, units="kg",    abbrev="lb", syn=["pounds"]),
