@@ -578,8 +578,7 @@ class TokenMgr:
                                 rpn.globl.got_interrupt = True
                                 continue
                             raise TopLevel() from e
-                        else:
-                            rpn.globl.got_interrupt = False
+                        rpn.globl.got_interrupt = False
                     else:
                         rpn.globl.got_interrupt = False
 

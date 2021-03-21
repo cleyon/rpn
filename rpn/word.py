@@ -59,7 +59,7 @@ class defword():
         self._kwargs = kwargs
 
     def __call__(self, f):
-        def wrapped_f(name, **kwargs):  # pylint: disable=unused-argument
+        def wrapped_f(name, **kwargs): # pylint: disable=unused-argument
             #print("Decorator args: {}".format(self._kwargs))
             f(name)
             if "print_x" in self._kwargs and \
@@ -82,17 +82,19 @@ class defword():
 
 
 @defword(name='#->$', args=1, print_x=rpn.globl.PX_IO, doc="""\
-Convert top of stack to string  ( n -- )""")
-def w_num_to_dollar(name):              # pylint: disable=unused-argument
+#->$   ( n -- )
+Convert top of stack to string.""")
+def w_num_to_dollar(name):      # pylint: disable=unused-argument
     rpn.globl.string_stack.push(rpn.type.String(rpn.globl.gfmt(rpn.globl.param_stack.pop())))
 
 
 @defword(name='#in', print_x=rpn.globl.PX_IO, doc="""\
+#in   ( -- n )
 Read numeric input from the user.  #IN recognizes integers and floats,
 but not rationals or complex numbers.  The value is put on the stack.
 No prompt is provided.
 
-qv PROMPT""")
+See also: prompt""")
 def w_number_in(name):
     x = ""
     while len(x) == 0:
@@ -117,18 +119,20 @@ def w_number_in(name):
 
 
 @defword(name='$.', str_args=1, print_x=rpn.globl.PX_IO, doc="""\
-Print top item from string stack  [ str -- ]
-No extraneous white space or newline is printed.""")
-def w_dollar_dot(name):                 # pylint: disable=unused-argument
+$.   [ str -- ]
+Print top item from string stack.  No extraneous white space
+or newline is printed.""")
+def w_dollar_dot(name):         # pylint: disable=unused-argument
     rpn.globl.write(rpn.globl.string_stack.pop().value)
 
 
 @defword(name='$.!', hidden=True, print_x=rpn.globl.PX_IO, str_args=1)
-def w_dollar_dot_bang(name):            # pylint: disable=unused-argument
+def w_dollar_dot_bang(name):    # pylint: disable=unused-argument
     rpn.globl.lnwriteln(repr(rpn.globl.string_stack.top()))
 
 
 @defword(name='$in', print_x=rpn.globl.PX_IO, doc="""\
+$in   [ -- str ]
 Read a string from the keyboard.  The value is placed on the string stack.
 No prompt is provided.""")
 def w_dollar_in(name):
@@ -147,66 +151,74 @@ def w_dollar_in(name):
 
 
 @defword(name='$.s', print_x=rpn.globl.PX_IO, doc="""\
+$.s
 Display string stack.""")
-def w_dollar_dot_s(name):               # pylint: disable=unused-argument
+def w_dollar_dot_s(name):       # pylint: disable=unused-argument
     if not rpn.globl.string_stack.empty():
         rpn.globl.lnwriteln(rpn.globl.string_stack)
 
 
 @defword(name='$.s!', print_x=rpn.globl.PX_IO, hidden=True)
-def w_dollar_dot_s_bang(name):          # pylint: disable=unused-argument
+def w_dollar_dot_s_bang(name):  # pylint: disable=unused-argument
     if not rpn.globl.string_stack.empty():
         rpn.globl.lnwriteln(repr(rpn.globl.string_stack))
 
 
 @defword(name='$=', str_args=2, print_x=rpn.globl.PX_PREDICATE, doc="""\
-Test if two strings are equal  ( -- flag )""")
-def w_dollar_equal(name):               # pylint: disable=unused-argument
+$=   ( -- flag )
+Test if two strings are equal.""")
+def w_dollar_equal(name):       # pylint: disable=unused-argument
     s1 = rpn.globl.string_stack.pop()
     s2 = rpn.globl.string_stack.pop()
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.globl.bool_to_int(s1.value == s2.value)))
 
 
 @defword(name='$cat', str_args=2, print_x=rpn.globl.PX_IO, doc="""\
+$cat   [ s2 s1 -- s2s1 ]
 Concatentate two strings.
 
 EXAMPLE:
 "foo" "bar" $cat "baz" $cat  =>  "foobarbaz" """)
-def w_dollar_cat(name):                 # pylint: disable=unused-argument
+def w_dollar_cat(name):         # pylint: disable=unused-argument
     s1 = rpn.globl.string_stack.pop()
     s2 = rpn.globl.string_stack.pop()
     rpn.globl.string_stack.push(rpn.type.String.from_string(s2.value + s1.value))
 
 
 @defword(name='$clst', print_x=rpn.globl.PX_CONFIG, doc="""\
-Clear the string stack""")
-def w_dollar_clst(name):                # pylint: disable=unused-argument
+$clst   [ -- ]
+Clear the string stack.""")
+def w_dollar_clst(name):        # pylint: disable=unused-argument
     rpn.globl.string_stack.clear()
 
 
 @defword(name='$depth', print_x=rpn.globl.PX_COMPUTE, doc="""\
-String stack depth  ( -- n )""")
-def w_dollar_depth(name):               # pylint: disable=unused-argument
+$depth   ( -- n )
+String stack depth.""")
+def w_dollar_depth(name):       # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.globl.string_stack.size()))
 
 
 @defword(name='$drop', str_args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-Drop top of string stack  ( -- )""")
-def w_dollar_drop(name):                # pylint: disable=unused-argument
+$drop   ( -- )
+Drop top of string stack.""")
+def w_dollar_drop(name):        # pylint: disable=unused-argument
     rpn.globl.string_stack.pop()
 
 
 @defword(name='$len', str_args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Length of top element of string stack  ( -- n )""")
-def w_dollar_len(name):                 # pylint: disable=unused-argument
+$len   ( -- n )
+Length of top element of string stack.""")
+def w_dollar_len(name):         # pylint: disable=unused-argument
     s = rpn.globl.string_stack.top()
     r = len(s.value)
     rpn.globl.param_stack.push(rpn.type.Integer(r))
 
 
 @defword(name='$swap', str_args=2, print_x=rpn.globl.PX_CONFIG, doc="""\
-Exchange top two string stack elements  [ "y" "x" -- "x" "y" ]""")
-def w_dollar_swap(name):                # pylint: disable=unused-argument
+$swap   [ "y" "x" -- "x" "y" ]
+Exchange top two string stack elements.""")
+def w_dollar_swap(name):        # pylint: disable=unused-argument
     sx = rpn.globl.string_stack.pop()
     sy = rpn.globl.string_stack.pop()
     rpn.globl.string_stack.push(sx)
@@ -214,9 +226,10 @@ def w_dollar_swap(name):                # pylint: disable=unused-argument
 
 
 @defword(name='$throw', args=1, str_args=1, print_x=rpn.globl.PX_CONTROL, doc="""\
-Throw an exception with text  ( n -- )  [ msg -- ]
+$throw   ( n -- )  [ msg -- ]
+Throw an exception with text.
 
-qv CATCH""")
+See also: catch""")
 def w_dollar_throw(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -234,16 +247,18 @@ def w_dollar_throw(name):
 
 
 @defword(name='$time', print_x=rpn.globl.PX_COMPUTE, doc="""\
-Current time as string  [ -- HH:MM:SS ]""")
-def w_dollar_time(name):                # pylint: disable=unused-argument
+$time   [ -- HH:MM:SS ]
+Current time as string.""")
+def w_dollar_time(name):        # pylint: disable=unused-argument
     t = datetime.datetime.now().strftime("%H:%M:%S")
     rpn.globl.string_stack.push(rpn.type.String(t))
 
 
 @defword(name='$ushow', str_args=1, print_x=rpn.globl.PX_IO, doc="""\
-Show detailed information about a unit-expression  [ unit -- ]
+$ushow   [ unit -- ]
+Show detailed information about a unit-expression.
 
-qv SHUNIT, USHOW""")
+See also: shunit, ushow""")
 def w_dollar_ushow(name):
     s = rpn.globl.string_stack.pop()
     ustr = s.value
@@ -298,9 +313,8 @@ def w_dollar_ushow(name):
 
 
 @defword(name='%', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Percentage  ( base rate -- base percent )
-
-Base is maintained in Y.
+%   ( base rate -- base percent )
+Percentage.  Base is maintained in Y.
 
 DEFINTION:
                  rate
@@ -328,15 +342,13 @@ def w_percent(name):
 
 
 @defword(name='%ch', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Percentage change  ( old new -- %change )
+%ch   ( old new -- %change )
+Percentage change.  Old cannot be zero.
 
 DEFINITION:
-
           new - old
 %Change = --------- * 100
-             old
-
-old cannot be zero.""")
+             old""")
 def w_percent_ch(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -364,15 +376,14 @@ def w_percent_ch(name):
 
 
 @defword(name='%t', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Percent of total  ( total amount -- %tot )
+%t   ( total amount -- %tot )
+Percent of total.  Total cannot be zero.
 
 DEFINITION:
 
          amount
 %Total = ------ * 100
-         total
-
-total cannot be zero.""")
+         total""")
 def w_percent_t(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -400,7 +411,8 @@ def w_percent_t(name):
 
 
 @defword(name='*', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Multiplication  ( y x -- y*x )""")
+*   ( y x -- y*x )
+Multiplication.""")
 def w_star(name):
     """\
 |----------+----------+---------+----------+---------+--------+--------|
@@ -449,9 +461,8 @@ def w_star(name):
 
 
 @defword(name='*/', args=3, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Multiply and divide  ( z y x -- z*y/x )
-
-X cannot be zero.""")
+*/   ( z y x -- z*y/x )
+Multiply and divide.  X cannot be zero.""")
 def w_star_slash(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -477,7 +488,8 @@ def w_star_slash(name):
 
 
 @defword(name='+', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Addition  ( y x -- y+x )""")
++   ( y x -- y+x )
+Addition.""")
 def w_plus(name):
     """\
 |----------+----------+---------+----------+---------+--------+--------|
@@ -554,21 +566,24 @@ def w_plus(name):
 
 
 @defword(name='+loop', print_x=rpn.globl.PX_CONTROL, doc="""\
++loop
 Execute a definite loop.
 <limit> <initial> DO ... <incr> +LOOP
 
 The iteration counter is available via I.  LEAVE will exit the loop early.
 
-Example: 10 0 do I . 2 +loop
+EXAMPLE:
+10 0 do I . 2 +loop
 prints 0 2 4 6 8
 
-qv DO, I, LEAVE, LOOP""")
-def w_plusloop(name):                   # pylint: disable=unused-argument
+See also: do, I, leave, loop""")
+def w_plusloop(name):           # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 @defword(name='-', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Subtraction  ( y x -- y-x )""")
+-   ( y x -- y-x )
+Subtraction.""")
 def w_minus(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -609,32 +624,32 @@ def w_minus(name):
 
 
 @defword(name='.', args=1, print_x=rpn.globl.PX_IO, doc="""\
-Print top stack value  ( x -- )
-A space is also printed after the number, but no newline.
-If you need a newline, call CR.""")
-def w_dot(name):                        # pylint: disable=unused-argument
+.   ( x -- )
+Print top stack value.  A space is also printed after the number,
+but no newline.  (If you need a newline, use cr.)""")
+def w_dot(name):                # pylint: disable=unused-argument
     rpn.globl.write("{} ".format(str(rpn.globl.param_stack.pop())))
 
 
 @defword(name='.!', hidden=True, print_x=rpn.globl.PX_IO, args=1)
-def w_dot_bang(name):                   # pylint: disable=unused-argument
+def w_dot_bang(name):           # pylint: disable=unused-argument
     rpn.globl.lnwriteln(repr(rpn.globl.param_stack.top()))
 
 
 @defword(name='."', print_x=rpn.globl.PX_IO, doc="""\
-Display string enclosed by quotation marks.
-No newline is printed afterwards.
-
+."
+Display string enclosed by quotation marks.  No newline is printed afterwards.
 NOTE: The string begins immediately after the first ", so
   ."Hello, world!"
 is correct.  This is different from Forth, where the must be a space after ." """)
-def w_dot_quote(name):                  # pylint: disable=unused-argument
+def w_dot_quote(name):          # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 @defword(name='.all', args=1, print_x=rpn.globl.PX_IO, doc="""\
-Print X in a variety of formats  ( x -- )""")
-def w_dot_all(name):                    # pylint: disable=unused-argument
+.all   ( x -- )
+Print X in a variety of formats.""")
+def w_dot_all(name):            # pylint: disable=unused-argument
     x = rpn.globl.param_stack.pop()
     xval = x.value
 
@@ -677,8 +692,8 @@ def w_dot_all(name):                    # pylint: disable=unused-argument
 
 
 @defword(name='.bin', args=1, print_x=rpn.globl.PX_IO, doc="""\
-Print X in binary  ( i -- )
-X must be an integer.""")
+.bin   ( i -- )
+Print X in binary.  X must be an integer.""")
 def w_dot_bin(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -689,8 +704,8 @@ def w_dot_bin(name):
 
 
 @defword(name='.hex', args=1, print_x=rpn.globl.PX_IO, doc="""\
-Print X in hexadecimal  ( i -- )
-X must be an integer.""")
+.hex   ( i -- )
+Print X in hexadecimal.  X must be an integer.""")
 def w_dot_hex(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -701,8 +716,8 @@ def w_dot_hex(name):
 
 
 @defword(name='.oct', args=1, print_x=rpn.globl.PX_IO, doc="""\
-Print X in octal  ( i -- )
-X must be an integer.""")
+.oct   ( i -- )
+Print X in octal.  X must be an integer.""")
 def w_dot_oct(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -713,11 +728,11 @@ def w_dot_oct(name):
 
 
 @defword(name='.r', args=2, print_x=rpn.globl.PX_IO, doc="""\
-Print N right-justified in WIDTH  ( n width -- )
-
-This never outputs more than WIDTH characters, and will silently truncate the
-representation to fit.  It is wise to check the size of your values before
-printing - you have been warned!  No space is printed after the number.""")
+.r   ( n width -- )
+Print N right-justified in WIDTH.  This never outputs more than WIDTH
+characters, and will silently truncate the representation to fit.
+It is wise to check the size of your values before printing - you have
+been warned!  No space is printed after the number.""")
 def w_dot_r(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -740,22 +755,24 @@ def w_dot_r(name):
 
 
 @defword(name='.s', print_x=rpn.globl.PX_IO, doc="""\
-Print stack non-destructively""")
-def w_dot_s(name):                      # pylint: disable=unused-argument
+.s
+Print stack non-destructively.""")
+def w_dot_s(name):              # pylint: disable=unused-argument
     if not rpn.globl.param_stack.empty():
         rpn.globl.lnwriteln(rpn.globl.param_stack)
 
 
 @defword(name='.s!', hidden=True, print_x=rpn.globl.PX_IO, doc="""\
-Print stack non-destructively""")
-def w_dot_s_bang(name):                 # pylint: disable=unused-argument
+.s!
+Print stack non-destructively.""")
+def w_dot_s_bang(name):         # pylint: disable=unused-argument
     if not rpn.globl.param_stack.empty():
         rpn.globl.lnwriteln(repr(rpn.globl.param_stack))
 
 
 @defword(name='/', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Division  ( y x -- y/x )
-X cannot be zero.""")
+/   ( y x -- y/x )
+Division.  X cannot be zero.""")
 def w_slash(name):
     """\
 |----------+----------+---------+----------+---------+--------+--------|
@@ -806,10 +823,9 @@ def w_slash(name):
 
 
 @defword(name='/mod', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Division quotient and remainder  ( y x -- remainder quotient )
-
-Divide integers Y by X, returning integer remainder and quotient.
-Signs are whatever Python // and % give you.""")
+/mod   ( y x -- remainder quotient )
+Division quotient and remainder.  Divide integers Y by X, returning integer
+remainder and quotient.  Signs are whatever Python // and % give you.""")
 def w_slash_mod(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -828,26 +844,29 @@ def w_slash_mod(name):
 
 
 @defword(name=':', print_x=rpn.globl.PX_CONTROL, doc="""\
-Define a new word  ( -- )
+:   ( -- )
+Define a new word.  Define WORD with the specified definition.
+Terminate the definition with a semi-colon.
 : WORD  [def ...]  ;
 
-Define WORD with the specified definition.
-Terminate the definition with a semi-colon.
-
-qv SHOW""")
-def w_colon(name):                      # pylint: disable=unused-argument
+See also: ;, show""")
+def w_colon(name):              # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 @defword(name=';', print_x=rpn.globl.PX_CONTROL, doc="""\
-Terminate WORD definition  ( -- )
-: WORD  [def ...]  ;""")
-def w_semicolon(name):                  # pylint: disable=unused-argument
+;   ( -- )
+Terminate WORD definition.
+: WORD  [def ...]  ;
+
+See also: :, show""")
+def w_semicolon(name):          # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 @defword(name='<', args=2, print_x=rpn.globl.PX_PREDICATE, doc="""\
-Test if Y is less than X  ( y x -- flag )""")
+<   ( y x -- flag )
+Test if Y is less than X.""")
 def w_less_than(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -876,7 +895,8 @@ def w_less_than(name):
 
 
 @defword(name='<<', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-<<  ( i2 i1 -- i2 << i1 )  Bitwise left shift""")
+<<   ( i2 i1 -- i2 << i1 )
+Bitwise left shift.""")
 def w_leftshift(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -894,7 +914,8 @@ def w_leftshift(name):
 
 
 @defword(name='<=', args=2, print_x=rpn.globl.PX_PREDICATE, doc="""\
-Test if Y is less than or equal to X  ( y x -- flag )""")
+<=   ( y x -- flag )
+Test if Y is less than or equal to X.""")
 def w_less_than_or_equal(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -923,7 +944,8 @@ def w_less_than_or_equal(name):
 
 
 @defword(name='<>', args=2, print_x=rpn.globl.PX_PREDICATE, doc="""\
-Test if Y is not equal to X  ( y x -- flag )""")
+<>   ( y x -- flag )
+Test if Y is not equal to X.""")
 def w_not_equal(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -952,7 +974,8 @@ def w_not_equal(name):
 
 
 @defword(name='=', args=2, print_x=rpn.globl.PX_PREDICATE, doc="""\
-Test if Y is equal to X  ( y x -- flag )""")
+=   ( y x -- flag )
+Test if Y is equal to X.""")
 def w_equal(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -981,7 +1004,8 @@ def w_equal(name):
 
 
 @defword(name='>', args=2, print_x=rpn.globl.PX_PREDICATE, doc="""\
-Test if Y is greater than X  ( y x -- flag )""")
+>   ( y x -- flag )
+Test if Y is greater than X.""")
 def w_greater_than(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -1010,7 +1034,8 @@ def w_greater_than(name):
 
 
 @defword(name='>=', args=2, print_x=rpn.globl.PX_PREDICATE, doc="""\
-Test if Y is greater than or equal to X  ( y x -- flag )""")
+>=   ( y x -- flag )
+Test if Y is greater than or equal to X.""")
 def w_greater_than_or_equal(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -1039,7 +1064,8 @@ def w_greater_than_or_equal(name):
 
 
 @defword(name='>>', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
->>  ( i2 i1 -- i2 >> i1 )  Bitwise right shift""")
+>>   ( i2 i1 -- i2 >> i1 )
+Bitwise right shift.""")
 def w_rightshift(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -1057,7 +1083,8 @@ def w_rightshift(name):
 
 
 @defword(name='>c', args=2, print_x=rpn.globl.PX_CONFIG, doc="""\
-Construct a complex number from two reals  ( y x -- complex[x,y] )""")
+>c   ( y x -- (x,y) )
+Construct a complex number from two reals.""")
 def w_to_c(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -1070,7 +1097,8 @@ def w_to_c(name):
 
 
 @defword(name='>debug', args=1, str_args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-Set debug level  ( lev -- )  [ "facility" -- ]""")
+>debug   ( lev -- )  [ "facility" -- ]
+Set debug level.""")
 def w_to_debug(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -1089,8 +1117,9 @@ def w_to_debug(name):
 
 
 @defword(name='>disp', print_x=rpn.globl.PX_CONFIG, doc="""\
+>disp   ( -- )
 Push current display configuration.""")
-def w_to_disp(name):                   # pylint: disable=unused-argument
+def w_to_disp(name):            # pylint: disable=unused-argument
     d = rpn.util.DisplayConfig()
     d.style = rpn.globl.disp_stack.top().style
     d.prec = rpn.globl.disp_stack.top().prec
@@ -1098,7 +1127,8 @@ def w_to_disp(name):                   # pylint: disable=unused-argument
 
 
 @defword(name='>label', args=1, str_args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-Set label of X  ( x -- x )  [ "label" -- ]""")
+>label   ( x -- x )  [ "label" -- ]
+Set label of X.""")
 def w_to_label(name):           # pylint: disable=unused-argument
     x = rpn.globl.param_stack.top()
     label = rpn.globl.string_stack.pop().value
@@ -1106,14 +1136,16 @@ def w_to_label(name):           # pylint: disable=unused-argument
 
 
 @defword(name='>r', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-Push X onto return stack  ( x -- )""")
-def w_to_r(name):                       # pylint: disable=unused-argument
+>r   ( x -- )
+Push X onto return stack.""")
+def w_to_r(name):               # pylint: disable=unused-argument
     rpn.globl.return_stack.push(rpn.globl.param_stack.pop())
 
 
 @defword(name='>unit', args=1, str_args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-Set unit of X  ( x -- x )  [ "unit" -- ]""")
-def w_to_unit(name):           # pylint: disable=unused-argument
+>unit   ( x -- x )  [ "unit" -- ]
+Set unit of X.""")
+def w_to_unit(name):            # pylint: disable=unused-argument
     strobj = rpn.globl.string_stack.pop()
     ustr = strobj.value
     ue = rpn.unit.try_parsing(ustr)
@@ -1125,7 +1157,8 @@ def w_to_unit(name):           # pylint: disable=unused-argument
 
 if rpn.globl.have_module('numpy'):
     @defword(name='>v2', args=2, print_x=rpn.globl.PX_CONFIG, doc="""\
-Create a 2-vector from the stack  ( y x -- v )""")
+>v2   ( y x -- v )
+Create a 2-vector from the stack.""")
     def to_v_2(name):
         x = rpn.globl.param_stack.pop()
         y = rpn.globl.param_stack.pop()
@@ -1143,7 +1176,8 @@ Create a 2-vector from the stack  ( y x -- v )""")
 
 if rpn.globl.have_module('numpy'):
     @defword(name='>v3', args=3, print_x=rpn.globl.PX_CONFIG, doc="""\
-Create a 3-vector from the stack  ( z y x -- v )""")
+>v3   ( z y x -- v )
+Create a 3-vector from the stack.""")
     def to_v_3(name):
         x = rpn.globl.param_stack.pop()
         y = rpn.globl.param_stack.pop()
@@ -1164,8 +1198,9 @@ Create a 3-vector from the stack  ( z y x -- v )""")
 
 
 @defword(name='?', print_x=rpn.globl.PX_IO, doc="""\
-?[topic]   Display information on a variety of topics""")
-def w_info(name):                       # pylint: disable=unused-argument
+?[topic]
+Display information on a variety of topics.""")
+def w_info(name):               # pylint: disable=unused-argument
     rpn.globl.writeln("rpn version: {}".format(rpn.globl.RPN_VERSION))
 
     rpn.globl.write("NumPy:       ")
@@ -1197,7 +1232,7 @@ The following topics provide additional information:
 
 
 @defword(name='?datatypes', print_x=rpn.globl.PX_IO, hidden=True, doc="")
-def w_info_datatypes(name):             # pylint: disable=unused-argument
+def w_info_datatypes(name):     # pylint: disable=unused-argument
     print("""\
 rpn supports the following datatypes, which may be placed directly on the
 parameter stack.  Examples are also shown.
@@ -1217,7 +1252,8 @@ string stack.  "This is a sample string" """)
 
 
 @defword(name='?dup', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-Duplicate top stack element if non-zero  ( x -- x x | 0 )""")
+?dup   ( x -- x x | 0 )
+Duplicate top stack element if non-zero.""")
 def w_query_dup(name):
     x = rpn.globl.param_stack.top()
     if type(x) not in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex]:
@@ -1228,9 +1264,9 @@ def w_query_dup(name):
 
 
 @defword(name='?key', print_x=rpn.globl.PX_IO, doc="""\
-Read keystroke with flag ( -- key 1 | 0 | -1 )
-?key will NOT block but rather return a success/fail flag to the stack.
-ASCII code of keystroke will also be returned on success.
+?key   ( -- key 1 | 0 | -1 )
+Read keystroke with flag.  ?key does not block but returns a success/fail flag
+to the stack.  ASCII code of keystroke will also be returned on success.
 Keystroke WILL echo.  This works only on Unix/Linux.
 
 EXAMPLE:
@@ -1243,8 +1279,8 @@ EXAMPLE:
     otherwise cr ."Found garbage on stack" cr .s leave
   endcase again  ;
 
-qv key""")
-def w_query_key(name):                  # pylint: disable=unused-argument
+See also: key""")
+def w_query_key(name):     # pylint: disable=unused-argument
     # Input that is not a tty doesn't get to play
     if not sys.stdin.isatty():
         rpn.globl.param_stack.push(rpn.type.Integer(-1))
@@ -1275,7 +1311,7 @@ def w_query_key(name):                  # pylint: disable=unused-argument
 
 
 @defword(name='?variables', print_x=rpn.globl.PX_IO, hidden=True, doc="")
-def w_info_variables(name):             # pylint: disable=unused-argument
+def w_info_variables(name):     # pylint: disable=unused-argument
     print("""\
 Data from the stack may be stored in variables.  The syntax to store an object
 is !VAR.  For example, to store the constant Pi (3.14...) into variable "mypi",
@@ -1300,7 +1336,8 @@ variable is either findable by the system through its name, or it is not.""")
 
 
 @defword(name='^', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Exponentiation  ( y x -- y^x )""")
+^   ( y x -- y^x )
+Exponentiation.""")
 def w_caret(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -1336,27 +1373,27 @@ def w_caret(name):
 
 
 @defword(name='abort', print_x=rpn.globl.PX_CONTROL, doc="""\
-Abort execution and return to top level
+abort   ( -- )
+Abort execution and return to top level.
 
-qv ABORT", EXIT, LEAVE""")
+See also: abort", exit, leave""")
 def w_abort(name):
     throw(X_ABORT, name)
 
 
 @defword(name='abort"', print_x=rpn.globl.PX_CONTROL, doc="""\
-Conditionally abort execution  ( flag -- )
-If flag is non-zero, abort execution and print a message
-(up to the closing quotation mark) and return to top level
+abort"   ( flag -- )
+Conditionally abort execution.  If flag is non-zero, abort execution,
+print a message (up to the closing quotation mark), and return to top level.
 
-qv ABORT, EXIT, LEAVE""")
-def w_abort_quote(name):                # pylint: disable=unused-argument
+See also: abort, exit, leave""")
+def w_abort_quote(name):        # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 @defword(name='abs', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Absolute value  ( x -- |x| )
-
-NOTE: For complex numbers, ABS return the modulus (as a float).""")
+abs   ( x -- |x| )
+Absolute value.  For complex numbers, ABS return the modulus (as a float).""")
 def w_abs(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is rpn.type.Integer:
@@ -1387,8 +1424,8 @@ def w_abs(name):
 
 
 @defword(name='acos', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Inverse cosine  ( cosine -- angle )
-|x| <= 1""")
+acos   ( cosine -- angle )
+Inverse cosine.  |x| <= 1""")
 def w_acos(name):
     x = rpn.globl.param_stack.pop()
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
@@ -1413,7 +1450,8 @@ def w_acos(name):
 
 
 @defword(name='acosh', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Inverse hyperbolic cosine  ( cosine_h -- angle )
+acosh   ( cosine_h -- angle )
+Inverse hyperbolic cosine.
 
 DEFINITION:
 acosh(x) = ln(x + sqrt(x^2 - 1)), x >= 1""")
@@ -1440,18 +1478,20 @@ def w_acosh(name):
 
 
 @defword(name='again', print_x=rpn.globl.PX_CONTROL, doc="""\
+again   ( -- )
 Execute an indefinite loop forever.
-BEGIN ... AGAIN
+begin ... again
 
-LEAVE will exit the loop early.
+leave will exit the loop early.
 
-qv BEGIN, LEAVE, REPEAT, UNTIL, WHILE""")
-def w_again(name):                      # pylint: disable=unused-argument
+See also: begin, leave, repeat, until, while""")
+def w_again(name):              # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 @defword(name='alog', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Common exponential [antilogarithm]  ( x -- 10^x )""")
+alog   ( x -- 10^x )
+Common exponential (antilogarithm).""")
 def w_alog(name):
     x = rpn.globl.param_stack.pop()
     if type(x) not in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex]:
@@ -1466,8 +1506,8 @@ def w_alog(name):
 
 
 @defword(name='and', args=2, print_x=rpn.globl.PX_PREDICATE, doc="""\
-Logical AND  ( flag flag -- flag )
-(This is not a bitwise AND - use BITAND for that.)""")
+and   ( flag flag -- flag )
+Logical AND.  This is not a bitwise AND - use bitand for that.""")
 def w_logand(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -1480,16 +1520,15 @@ def w_logand(name):
 
 
 @defword(name='ascii', immediate=True, doc="""\
-ASCII code of following char  ( -- n )
-
-Returns -1 on any sort of error""")
-def w_ascii(name):                      # pylint: disable=unused-argument
+ascii   ( -- n )
+ASCII code of following char.  Returns -1 on any sort of error.""")
+def w_ascii(name):              # pylint: disable=unused-argument
     pass
 
 
 @defword(name='asin', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Inverse sine  ( sine -- angle )
-|x| <= 1""")
+asin   ( sine -- angle )
+Inverse sine.  |x| <= 1""")
 def w_asin(name):
     x = rpn.globl.param_stack.pop()
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
@@ -1514,7 +1553,8 @@ def w_asin(name):
 
 
 @defword(name='asinh', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Inverse hyperbolic sine  ( sine_h -- angle )
+asinh   ( sine_h -- angle )
+Inverse hyperbolic sine.
 
 DEFINITION:
 asinh(x) = ln(x + sqrt(x^2 + 1))""")
@@ -1541,10 +1581,9 @@ def w_asinh(name):
 
 
 @defword(name='atan', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Inverse tangent  ( tangent -- angle )
-
-NOTE:
-Consider using atan2 instead, especially if you are computing atan(y/x).""")
+atan   ( tangent -- angle )
+Inverse tangent.  Consider using atan2 instead,
+especially if you are computing atan(y/x).""")
 def w_atan(name):
     x = rpn.globl.param_stack.pop()
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
@@ -1569,7 +1608,8 @@ def w_atan(name):
 
 
 @defword(name='atan2', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Inverse tangent of y/x  ( y x -- angle )""")
+atan2   ( y x -- angle )
+Inverse tangent of y/x.""")
 def w_atan2(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -1598,7 +1638,8 @@ def w_atan2(name):
 
 
 @defword(name='atanh', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Inverse hyperbolic tangent  ( tangent_h -- angle )
+atanh   ( tangent_h -- angle )
+Inverse hyperbolic tangent.
 
 DEFINITION:
 atanh(x) = 1/2 ln((1+x) / (1-x)), |x| < 1""")
@@ -1625,36 +1666,37 @@ def w_atanh(name):
 
 
 @defword(name='beg', print_x=rpn.globl.PX_CONFIG, doc="""\
-Set "Begin" (annuity due) financial mode.
-
-Do not confuse this with the "begin" command, which starts a loop.""")
-def w_beg(name):                        # pylint: disable=unused-argument
+beg   ( -- )
+Set "Begin" (annuity due) financial mode.  Do not confuse this with the
+"begin" command, which starts a loop.""")
+def w_beg(name):                # pylint: disable=unused-argument
     rpn.flag.set_flag(rpn.flag.F_TVM_BEGIN_MODE)
 
 
 @defword(name='begin', print_x=rpn.globl.PX_CONTROL, doc="""\
+begin   ( -- )
 Execute an indefinite loop.
-BEGIN ... AGAIN
-BEGIN ... <flag> UNTIL
-BEGIN ... <flag> WHILE ... REPEAT
+begin ... again
+begin ... <flag> until
+begin ... <flag> while ... repeat
 
-LEAVE will exit the loop early.  Note that the effect of the test in
-BEGIN...WHILE is opposite that in BEGIN...UNTIL.  The loop repeats
-while something is true, rather than until it becomes true.
+leave will exit the loop early.  Note that the effect of the test in
+begin...while is opposite that in begin...until (i.e., the loop repeats
+while something is true, rather than until it becomes true.)
 
 Do not confuse this with the "beg" command, which sets 'begin mode' for
 Time Value of Money calculations.
 
-qv AGAIN, LEAVE, REPEAT, UNTIL, WHILE""")
-def w_begin(name):                      # pylint: disable=unused-argument
+See also: again, leave, repeat, until, while""")
+def w_begin(name):              # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 @defword(name='binom', args=3, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Binomial probability ( n k p -- prob )
-
-Return the probability of an event occurring exactly k times in n attempts,
-where the probability of it occurring in a single attempt is p.
+binom   ( n k p -- prob )
+Binomial probability.  Return the probability of an event occurring exactly
+k times in n attempts, where the probability of it occurring in a single
+attempt is p.
 
 DEFINITION:
 binom(n,k,p) = comb(n,k) * p^k * (1-p)^(n-k)""")
@@ -1684,9 +1726,8 @@ def w_binom(name):
 
 
 @defword(name='bitand', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-bitand  ( i2 i1 -- i2 AND i1 )  Bitwise AND
-
-Perform a bitwise boolean AND on two integers""")
+bitand   ( i2 i1 -- i2 AND i1 )
+Bitwise AND.  Perform a bitwise boolean AND on two integers.""")
 def w_bitand(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -1699,9 +1740,8 @@ def w_bitand(name):
 
 
 @defword(name='bitnot', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-bitnot  ( i1 -- NOT i1 )  Bitwise NOT
-
-Perform a bitwise boolean NOT on an integer.  Sometimes known as INVERT.""")
+bitnot   ( i1 -- NOT i1 )
+Bitwise NOT.  Perform a bitwise boolean NOT on an integer.""")
 def w_bitnot(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -1712,9 +1752,8 @@ def w_bitnot(name):
 
 
 @defword(name='bitor', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-bitor  ( i2 i1 -- i2 OR i1 )  Bitwise OR
-
-Perform a bitwise boolean OR on two integers""")
+bitor   ( i2 i1 -- i2 OR i1 )
+Bitwise OR.  Perform a bitwise boolean OR on two integers.""")
 def w_bitor(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -1727,9 +1766,9 @@ def w_bitor(name):
 
 
 @defword(name='bitxor', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-bitxor  ( i2 i1 -- i2 XOR i1 )  Bitwise XOR
+bitxor   ( i2 i1 -- i2 XOR i1 )
 
-Perform a bitwise boolean Exclusive OR on two integers""")
+Bitwise XOR.  Perform a bitwise boolean Exclusive OR on two integers.""")
 def w_bitxor(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -1742,13 +1781,15 @@ def w_bitxor(name):
 
 
 @defword(name='bye', print_x=rpn.globl.PX_CONTROL, doc="""\
-Exit program""")
+bye   ( -- )
+Exit rpn.""")
 def w_bye(name):
     raise EndProgram()
 
 
 @defword(name='c>', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-c>  ( c -- y x )  Extract imaginary and real parts of a complex number""")
+c>   ( c -- y x )
+Extract imaginary and real parts of a complex number.""")
 def w_c_from(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Complex:
@@ -1759,36 +1800,38 @@ def w_c_from(name):
 
 
 @defword(name='case', print_x=rpn.globl.PX_CONTROL, doc="""\
+case   ( n -- )
 Execute a sequence of words based on stack value.  Once a match is
-executed, no other clauses are considered.  OTHERWISE is optional.
-<n> and OF labels must be integers.  CASE consumes the top of stack
+executed, no other clauses are considered.  otherwise is optional.
+<n> and of labels must be integers.  case consumes the top of stack
 like any word; however the integer value is available to the sequence
 in variable "caseval".
 
-<n> CASE
-  <x> OF ... ENDOF
-  <y> OF ... ENDOF
-  <z> OF ... ENDOF
-  [ OTHERWISE ... ]
-ENDCASE
+<n> case
+  <x> of ... endof
+  <y> of ... endof
+  <z> of ... endof
+  [ otherwise ... ]
+endcase
 
-qv ENDCASE, ENDOF, OF, OTHERWISE""")
-def w_case(name):                       # pylint: disable=unused-argument
+See also: endcase, endof, of, otherwise""")
+def w_case(name):               # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 @defword(name='catch', print_x=rpn.globl.PX_CONTROL, doc="""\
+catch   ( -- )
 Catch any exceptions.
+catch <WORD>
 
-catch WORD
-
-qv THROW""")
-def w_catch(name):                      # pylint: disable=unused-argument
+See also: throw""")
+def w_catch(name):              # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 @defword(name='ceil', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Ceiling  ( x -- ceil )   Smallest integer greater than or equal to X""")
+ceil   ( x -- ceil )
+Ceiling: smallest integer greater than or equal to X.""")
 def w_ceil(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is rpn.type.Integer:
@@ -1802,9 +1845,8 @@ def w_ceil(name):
 
 
 @defword(name='cf', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-Clear flag  ( f -- )
-
-Do not confuse this with "CF", which is for Compounding Frequency""")
+cf   ( f -- )
+Clear flag.  Do not confuse this with CF, which is for Compounding Frequency.""")
 def w_cf(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -1821,7 +1863,8 @@ def w_cf(name):
 
 
 @defword(name='chr', args=1, print_x=rpn.globl.PX_IO, doc="""\
-chr  ( x -- )  Push string for a single ASCII character.""")
+chr   ( x -- )
+Push string for a single ASCII character.""")
 def w_chr(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -1832,7 +1875,8 @@ def w_chr(name):
 
 # Some HP calcs call this NEGATE, but why type 6 characters when 3 will do?
 @defword(name='chs', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Negation (change sign)  ( x -- -x )""")
+chs   ( x -- -x )
+Negation (change sign).""")
 def w_chs(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is rpn.type.Integer:
@@ -1850,8 +1894,9 @@ def w_chs(name):
 
 
 @defword(name='clfin', print_x=rpn.globl.PX_CONFIG, doc="""\
-Clear financial variables""")
-def w_clfin(name):                      # pylint: disable=unused-argument
+clfin   ( -- )
+Clear financial variables.""")
+def w_clfin(name):              # pylint: disable=unused-argument
     rpn.flag.clear_flag(rpn.flag.F_TVM_CONTINUOUS)
     rpn.flag.clear_flag(rpn.flag.F_TVM_BEGIN_MODE)
 
@@ -1866,15 +1911,17 @@ def w_clfin(name):                      # pylint: disable=unused-argument
 
 
 @defword(name='clflag', print_x=rpn.globl.PX_CONFIG, doc="""\
-Clear all flags  ( -- )""")
-def w_clflag(name):                     # pylint: disable=unused-argument
+clflag   ( -- )
+Clear all flags.""")
+def w_clflag(name):             # pylint: disable=unused-argument
     for i in range(rpn.flag.FENCE):
         rpn.flag.clear_flag(i)
 
 
 @defword(name='clreg', print_x=rpn.globl.PX_CONFIG, doc="""]
+clreg   ( -- )
 Clear all registers.""")
-def w_clreg(name):                      # pylint: disable=unused-argument
+def w_clreg(name):              # pylint: disable=unused-argument
     rpn.globl.register = dict()
     for i in range(rpn.globl.REG_SIZE_MAX):
         rpn.globl.register[i] = rpn.type.Float(0.0)
@@ -1882,33 +1929,34 @@ def w_clreg(name):                      # pylint: disable=unused-argument
 
 
 @defword(name='clrst', print_x=rpn.globl.PX_CONFIG, doc="""\
-Clear the return stack.
-
-Do not confuse this with the "clst" command, which clears the parameter stack.""")
-def w_clrst(name):                      # pylint: disable=unused-argument
+clrst   ( -- )
+Clear the return stack.  Do not confuse this with the clst command,
+which clears the parameter stack.""")
+def w_clrst(name):              # pylint: disable=unused-argument
     rpn.globl.return_stack.clear()
 
 
 @defword(name='clstat', print_x=rpn.globl.PX_CONFIG, doc="""\
-Clear the statistics array""")
-def w_clstat(name):                     # pylint: disable=unused-argument
+clstat   ( -- )
+Clear the statistics array.""")
+def w_clstat(name):             # pylint: disable=unused-argument
     rpn.globl.stat_data = []
 
 
 @defword(name='clst', print_x=rpn.globl.PX_CONFIG, doc="""\
-Clear the stack
-
-Do not confuse this with the "clrst" command, which clears the return stack.
+clst   ( -- )
+Clear the stack.  Do not confuse this with the clrst command,
+which clears the return stack.
 
 DEFINITION:
 : clst  depth 0 do drop loop ;""")
-def w_clst(name):                       # pylint: disable=unused-argument
+def w_clst(name):               # pylint: disable=unused-argument
     rpn.globl.param_stack.clear()
 
 
 @defword(name='comb', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Combinations  ( n r -- nCr )
-Choose from N objects R at a time, without regard to ordering.
+comb   ( n r -- nCr )
+Combinations.  Choose from N objects R at a time, without regard to ordering.
 
 DEFINITION:
           n!
@@ -1931,14 +1979,16 @@ def w_comb(name):
 
 
 @defword(name='constant', print_x=rpn.globl.PX_CONFIG, doc="""\
-Declare a constant variable  ( n -- )
+constant   ( n -- )
+Declare a constant variable.
 CONSTANT <ccc>""")
-def w_constant(name):                   # pylint: disable=unused-argument
+def w_constant(name):           # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 @defword(name='convert', args=1, str_args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Convert units of X to those in string  ( x -- x' )  [ units -- ]""")
+convert   ( x -- x' )  [ units -- ]
+Convert units of X to those in string.""")
 def w_convert(name):
     x = rpn.globl.param_stack.pop()
     if not x.has_uexpr_p():
@@ -1953,7 +2003,8 @@ def w_convert(name):
 
 
 @defword(name='cos', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Cosine  ( angle -- cosine )""")
+cos   ( angle -- cosine )
+Cosine.""")
 def w_cos(name):
     x = rpn.globl.param_stack.pop()
     if type(x) not in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex]:
@@ -1980,7 +2031,8 @@ def w_cos(name):
 
 
 @defword(name='cosh', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Hyperbolic cosine  ( angle -- cosine_h )
+cosh   ( angle -- cosine_h )
+Hyperbolic cosine.
 
 DEFINITION:
           e^x + e^(-x)
@@ -1999,7 +2051,8 @@ def w_cosh(name):
 
 
 @defword(name='CPF', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-Set CF and PF to N  ( n -- )""")
+CPF   ( n -- )
+Set CF and PF to N.""")
 def w_cpf(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -2020,8 +2073,9 @@ def w_cpf(name):
 
 
 @defword(name='cr', print_x=rpn.globl.PX_IO, doc="""\
-Print a newline""")
-def w_cr(name):                         # pylint: disable=unused-argument
+cr   ( -- )
+Print a newline.""")
+def w_cr(name):                 # pylint: disable=unused-argument
     rpn.globl.writeln()
 
 
@@ -2032,9 +2086,8 @@ def w_m306(m):
     return int(m * 30.6001)
 
 @defword(name='d->hp', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Convert date to HP day number  ( MM.DDYYYY -- day# )
-
-Day # 0 = October 15, 1582""")
+d->hp   ( MM.DDYYYY -- day# )
+Convert date to HP day number.  Day # 0 = October 15, 1582.""")
 def w_d_to_hp(name):
     day0_julian = 2299160
     x = rpn.globl.param_stack.pop()
@@ -2064,7 +2117,8 @@ def w_d_to_hp(name):
 
 
 @defword(name='d->jd', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Convert date to Julian day number ( MM.DDYYYY -- julian )""")
+d->jd   ( MM.DDYYYY -- julian )
+Convert date to Julian day number.""")
 def w_d_to_jd(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Float:
@@ -2082,8 +2136,9 @@ def w_d_to_jd(name):
 
 
 @defword(name='d->r', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Convert degrees to radians ( deg -- rad )
-(This will actually convert any angle measure to radians, not just degrees.)""")
+d->r   ( deg -- rad )
+Convert degrees to radians.  This will actually convert any angle measure
+to radians, not just degrees.""")
 def w_d_to_r(name):
     x = rpn.globl.param_stack.pop()
     if type(x) not in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
@@ -2103,8 +2158,9 @@ def w_d_to_r(name):
 
 
 @defword(name='date', print_x=rpn.globl.PX_COMPUTE, doc="""\
-Current date  ( -- MM.DDYYYY )""")
-def w_date(name):                       # pylint: disable=unused-argument
+date   ( -- MM.DDYYYY )
+Current date.""")
+def w_date(name):               # pylint: disable=unused-argument
     d = datetime.date.today().strftime("%m.%d%Y")
     result = rpn.type.Float(d)
     result.label = "MM.DDYYYY (Current)"
@@ -2112,7 +2168,8 @@ def w_date(name):                       # pylint: disable=unused-argument
 
 
 @defword(name='dateinfo', args=1, hidden=True, print_x=rpn.globl.PX_IO, doc="""\
-Show date_info() for Float  ( x -- )""")
+dateinfo   ( x -- )
+Show date_info() for Float.""")
 def w_dateinfo(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Float:
@@ -2122,7 +2179,8 @@ def w_dateinfo(name):
 
 
 @defword(name='date+', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Add N days to date  ( date1 N -- date2 )""")
+date+   ( date1 N -- date2 )
+Add N days to date.""")
 def w_date_plus(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -2145,7 +2203,8 @@ def w_date_plus(name):
 
 
 @defword(name='date-', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Subtract N days from date  ( date1 N -- date2 )""")
+date-   ( date1 N -- date2 )
+Subtract N days from date.""")
 def w_date_minus(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -2168,15 +2227,16 @@ def w_date_minus(name):
 
 
 @defword(name='dbg.token', hidden=True, print_x=rpn.globl.PX_CONFIG)
-def w_dbg_token(name):                  # pylint: disable=unused-argument
+def w_dbg_token(name):          # pylint: disable=unused-argument
     rpn.flag.set_flag(rpn.flag.F_DEBUG_ENABLED)
     rpn.globl.lnwriteln("Debugging is now ENABLED")
     rpn.debug.set_debug_level("token", 3)
 
 
 @defword(name='ddays', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Number of days between two dates  ( date1 date2 -- ddays )
-Usually the earlier date is in Y, and later date in X.""")
+ddays   ( date1 date2 -- ddays )
+Number of days between two dates.  Usually the earlier date is in Y,
+and later date in X.""")
 def w_ddays(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -2205,43 +2265,46 @@ def w_ddays(name):
 
 
 @defword(name='DEG', print_x=rpn.globl.PX_COMPUTE, doc="""\
-Constant: Degrees per radian  ( -- 57.29577... )
+DEG   ( -- 57.29577... )
+Degrees per radian.
 
 DEFINITION:
 DEG == 360/TAU == 180/PI
 
 WARNING:
-Do not confuse this with \"deg\" (which sets the angular mode to degrees).""")
-def w_DEG(name):                        # pylint: disable=unused-argument
+Do not confuse this with deg, which sets the angular mode to degrees.""")
+def w_DEG(name):                # pylint: disable=unused-argument
     result = rpn.type.Float(rpn.globl.DEG_PER_RAD)
     result.uexpr = rpn.globl.uexpr["deg/r"]
     rpn.globl.param_stack.push(result)
 
 
 @defword(name='deg', print_x=rpn.globl.PX_CONFIG, doc="""\
+deg   ( -- )
 Set angular mode to degrees.
 
 WARNING:
-Do not confuse this with \"DEG\" (which is the number of degrees per radian).""")
-def w_deg(name):                        # pylint: disable=unused-argument
+Do not confuse this with DEG, which is the number of degrees per radian.""")
+def w_deg(name):                # pylint: disable=unused-argument
     rpn.flag.clear_flag(rpn.flag.F_RAD)
     rpn.flag.clear_flag(rpn.flag.F_GRAD)
 
 
 @defword(name='depth', print_x=rpn.globl.PX_COMPUTE, doc="""\
-Current number of elements on stack  ( -- n )""")
-def w_depth(name):                      # pylint: disable=unused-argument
+depth   ( -- n )
+Current number of elements on stack.""")
+def w_depth(name):              # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.globl.param_stack.size()))
 
 
 @defword(name='dim', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
+dim   ( -- )
 Dimension(s) of X.
 
-For integers, floats, and rationals (scalars):
-                              return 0
-For complex numbers:          return 2
-For vectors of length N:      return a vector [N]
-For an M-row by N-col matrix: return a vector [M N]""")
+For integers, floats, and rationals (scalars): return 0.
+For complex numbers: return 2.
+For vectors of length N: return a vector [N].
+For an M-row by N-col matrix: return a vector [M N].""")
 def w_dim(name):
     x = rpn.globl.param_stack.pop()
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
@@ -2265,8 +2328,9 @@ def w_dim(name):
 
 
 @defword(name='disp>', print_x=rpn.globl.PX_CONFIG, doc="""\
+disp>   ( -- )
 Pop current display configuration.""")
-def w_disp_from(name):                    # pylint: disable=unused-argument
+def w_disp_from(name):          # pylint: disable=unused-argument
     try:
         rpn.globl.disp_stack.pop()
     except RuntimeErr as e:
@@ -2277,23 +2341,26 @@ def w_disp_from(name):                    # pylint: disable=unused-argument
 
 
 @defword(name='do', print_x=rpn.globl.PX_CONTROL, doc="""\
+do   ( limit initial -- )
 Execute a definite loop.
-<limit> <initial> DO ...        LOOP
-<limit> <initial> DO ... <incr> +LOOP
+<limit> <initial> do ...        loop
+<limit> <initial> do ... <incr> +loop
 
-The iteration counter is available via I.  LEAVE will exit the loop early.
+The iteration counter is available via I.  leave will exit the loop early.
 
-Example: 10 0 do I . loop
-prints 0 1 2 3 4 5 6 7 8 9
+EXAMPLE:
+10 0 do I . loop
+=> 0 1 2 3 4 5 6 7 8 9
 
-qv I, LEAVE, LOOP, +LOOP""")
-def w_do(name):                         # pylint: disable=unused-argument
+See also: I, leave, loop, +loop""")
+def w_do(name):                 # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 if rpn.globl.have_module('numpy'):
     @defword(name='dot', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Vector dot product  ( vec_y vec_x -- real )""")
+dot   ( vec_y vec_x -- real )
+Vector dot product.""")
     def dot_prod(name):
         x = rpn.globl.param_stack.pop()
         y = rpn.globl.param_stack.pop()
@@ -2315,8 +2382,8 @@ Vector dot product  ( vec_y vec_x -- real )""")
 
 
 @defword(name='dow', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Day of week  ( MM.DDYYYY -- dow )
-1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 7=Sun""")
+dow   ( MM.DDYYYY -- dow )
+Day of week.  1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 7=Sun.""")
 def w_dow(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Float:
@@ -2334,10 +2401,11 @@ def w_dow(name):
 
 
 @defword(name='dow$', args=1, print_x=rpn.globl.PX_IO, doc="""\
-Day of week name  ( dow -- )  [ -- abbrev ]
-Return abbreviated day of week name as string.  dow should be between 1 and 7.
+dow$   ( dow -- )  [ -- abbrev ]
+Day of week name.  Return abbreviated day of week name as string.
+dow should be between 1 and 7.
 
-qv DOW""")
+See also: dow""")
 def w_dow_dollar(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -2353,30 +2421,35 @@ def w_dow_dollar(name):
 
 
 @defword(name='drop', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-Remove top stack element  ( x -- )""")
-def w_drop(name):                       # pylint: disable=unused-argument
+drop   ( x -- )
+Remove top stack element.""")
+def w_drop(name):               # pylint: disable=unused-argument
     rpn.globl.param_stack.pop()
 
 
 @defword(name='dup', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-Duplicate top stack element  ( x -- x x )
-Equivalent to 1 PICK""")
-def w_dup(name):                        # pylint: disable=unused-argument
+dup   ( x -- x x )
+Duplicate top stack element.  Equivalent to 1 PICK.
+
+See also: ?dup""")
+def w_dup(name):                # pylint: disable=unused-argument
     x = rpn.globl.param_stack.top()
     rpn.globl.param_stack.push(x)
 
 
 @defword(name='E', print_x=rpn.globl.PX_COMPUTE, doc="""\
-Constant: Base of natural logarithms ( -- 2.71828... )""")
-def w_E(name):                          # pylint: disable=unused-argument
+E   ( -- 2.71828... )
+Base of natural logarithms.""")
+def w_E(name):                  # pylint: disable=unused-argument
     result = rpn.type.Float(rpn.globl.E)
     result.label = "E"
     rpn.globl.param_stack.push(result)
 
 
 @defword(name='edit', hidden=True, print_x=rpn.globl.PX_CONFIG, doc="""\
-Edit some text""")
-def w_edit(name):                       # pylint: disable=unused-argument
+edit   ( -- )
+Edit some text.""")
+def w_edit(name):               # pylint: disable=unused-argument
     env = os.environ
     if "VISUAL" in env:
         editor = env.get("VISUAL")
@@ -2399,7 +2472,8 @@ def w_edit(name):                       # pylint: disable=unused-argument
 
 
 @defword(name='expm1', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Calculate (e^X)-1 accurately  ( x -- (e^x)-1 )""")
+expm1   ( x -- (e^x)-1 )
+Calculate (e^X)-1 accurately.""")
 def w_e_x_minus_1(name):
     x = rpn.globl.param_stack.pop()
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
@@ -2413,17 +2487,18 @@ def w_e_x_minus_1(name):
 
 
 @defword(name='else', args=1, print_x=rpn.globl.PX_CONTROL, doc="""\
-Execute a conditional test.
-<flag> IF ... [ ELSE ... ] THEN
+else   ( -- )
+Execute other branch of conditional test.
+<flag> if ... [ else ... ] then
 
-qv IF, THEN""")
-def w_else(name):                       # pylint: disable=unused-argument
+See also: if, then""")
+def w_else(name):               # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 @defword(name='emit', args=1, print_x=rpn.globl.PX_IO, doc="""\
-emit  ( x -- )  Print a single ASCII character
-No space or newline is appended.""")
+emit   ( x -- )
+Print a single ASCII character.  No space or newline is appended.""")
 def w_emit(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -2433,49 +2508,51 @@ def w_emit(name):
 
 
 @defword(name='end', print_x=rpn.globl.PX_CONFIG, doc="""\
+end   ( -- )
 Set "End" (ordinary annuity) financial mode.""")
-def w_end(name):                        # pylint: disable=unused-argument
+def w_end(name):                # pylint: disable=unused-argument
     rpn.flag.clear_flag(rpn.flag.F_TVM_BEGIN_MODE)
 
 
 @defword(name='endcase', print_x=rpn.globl.PX_CONTROL, doc="""\
+endcase   ( -- )
 Execute a sequence of words based on stack value.  Once a match is
-executed, no other clauses are considered.  OTHERWISE is optional.
-<n> and OF labels must be integers.
+executed, no other clauses are considered.  otherwise is optional.
+<n> and of labels must be integers.
 
-<n> CASE
-  <x> OF ... ENDOF
-  <y> OF ... ENDOF
-  <z> OF ... ENDOF
-  [ OTHERWISE ... ]
-ENDCASE
+<n> case
+  <x> of ... endof
+  <y> of ... endof
+  <z> of ... endof
+  [ otherwise ... ]
+endcase
 
-qv CASE, ENDOF, OF, OTHERWISE""")
-def w_endcase(name):                    # pylint: disable=unused-argument
+See also: case, endof, of, otherwise""")
+def w_endcase(name):            # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 @defword(name='endof', print_x=rpn.globl.PX_CONTROL, doc="""\
+endof   ( -- )
 Execute a sequence of words based on stack value.  Once a match is
-executed, no other clauses are considered.  OTHERWISE is optional.
+executed, no other clauses are considered.  otherwise is optional.
 <n> and OF labels must be integers.
 
-<n> CASE
-  <x> OF ... ENDOF
-  <y> OF ... ENDOF
-  <z> OF ... ENDOF
-  [ OTHERWISE ... ]
-ENDCASE
+<n> case
+  <x> of ... endof
+  <y> of ... endof
+  <z> of ... endof
+  [ otherwise ... ]
+endcase
 
-qv CASE, ENDCASE, OF, OTHERWISE""")
-def w_endof(name):                      # pylint: disable=unused-argument
+See also: case, endcase, of, otherwise""")
+def w_endof(name):              # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 @defword(name='eng', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-Set engineering display  ( n -- )
-
-N specifies the total number of significant digits.""")
+eng   ( n -- )
+Set engineering display.  N specifies the total number of significant digits.""")
 def w_eng(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -2493,8 +2570,9 @@ def w_eng(name):
 
 
 @defword(name='epoch', print_x=rpn.globl.PX_COMPUTE, doc="""\
-Seconds since epoch  ( -- secs )""")
-def w_epoch(name):                      # pylint: disable=unused-argument
+epoch   ( -- secs )
+Seconds since epoch.""")
+def w_epoch(name):              # pylint: disable=unused-argument
     now = calendar.timegm(time.gmtime())
     result = rpn.type.Integer(now)
     result.label = "Epoch"
@@ -2502,7 +2580,8 @@ def w_epoch(name):                      # pylint: disable=unused-argument
 
 
 @defword(name='erf', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Error function  ( x -- erf[x] )""")
+erf   ( x -- erf[x] )
+Error function.""")
 def w_erf(name):
     x = rpn.globl.param_stack.pop()
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
@@ -2526,7 +2605,8 @@ def w_erf(name):
 
 
 @defword(name='erfc', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Complementary error function  ( x -- erfc[x] )
+erfc   ( x -- erfc[x] )
+Complementary error function.
 
 DEFINITION:
 erfc(x) = 1 - erf(x)""")
@@ -2553,20 +2633,23 @@ def w_erfc(name):
 
 
 @defword(name='eval', str_args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-Evaluate string on top of stack as a command sequence.""")
-def w_eval(name):                       # pylint: disable=unused-argument
+eval   [ cmd --- ]
+Evaluate string on top of string stack as a command sequence.""")
+def w_eval(name):               # pylint: disable=unused-argument
     s = rpn.globl.string_stack.pop().value
     rpn.globl.eval_string(s)
 
 
 @defword(name='exit', print_x=rpn.globl.PX_CONTROL, doc="""\
-Terminate execution of current word""")
+exit   ( -- )
+Terminate execution of current word.""")
 def w_exit(name):
     throw(X_EXIT)
 
 
 @defword(name='exp', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Natural exponential ( x -- e^x )""")
+exp   ( x -- e^x )
+Natural exponential.""")
 def w_exp(name):
     x = rpn.globl.param_stack.pop()
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
@@ -2590,62 +2673,70 @@ def w_exp(name):
 
 
 @defword(name='F_DEBUG_ENABLED', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Flag number for Debug enabled""")
+F_DEBUG_ENABLED   ( -- 20 )
+Flag number for Debug enabled.""")
 def w_F_DEBUG_ENABLED(name):    # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.flag.F_DEBUG_ENABLED))
 
 
 @defword(name='F_GRAD', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Flag number for Gradians""")
-def w_F_GRAD(name):    # pylint: disable=unused-argument
+F_GRAD   ( -- 42 )
+Flag number for Gradians mode.""")
+def w_F_GRAD(name):             # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.flag.F_GRAD))
 
 
 @defword(name='F_PRINTER_ENABLED', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Flag number for Printer enabled""")
-def w_F_PRINTER_ENABLED(name):    # pylint: disable=unused-argument
+F_PRINTER_ENABLED   ( -- 21 )
+Flag number for Printer enabled.""")
+def w_F_PRINTER_ENABLED(name):  # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.flag.F_PRINTER_ENABLED))
 
 
 @defword(name='F_PRINTER_EXISTS', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Flag number for Printer exists""")
-def w_F_PRINTER_EXISTS(name):    # pylint: disable=unused-argument
+F_PRINTER_EXISTS   ( -- 55 )
+Flag number for Printer exists.""")
+def w_F_PRINTER_EXISTS(name):   # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.flag.F_PRINTER_EXISTS))
 
 
 @defword(name='F_RAD', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Flag number for Radians""")
-def w_F_RAD(name):                      # pylint: disable=unused-argument
+F_RAD   ( -- 43 )
+Flag number for Radians mode.""")
+def w_F_RAD(name):              # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.flag.F_RAD))
 
 
 @defword(name='F_SHOW_X', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Flag number for Show X""")
-def w_F_SHOW_X(name):    # pylint: disable=unused-argument
+F_SHOW_X   ( -- 19 )
+Flag number for Show X.""")
+def w_F_SHOW_X(name):           # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.flag.F_SHOW_X))
 
 
 @defword(name='F_TVM_BEGIN_MODE', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Flag number for TVM Begin mode""")
-def w_F_TVM_BEGIN_MODE(name):                      # pylint: disable=unused-argument
+F_TVM_BEGIN_MODE   ( -- 9 )
+Flag number for TVM Begin mode.""")
+def w_F_TVM_BEGIN_MODE(name):   # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.flag.F_TVM_BEGIN_MODE))
 
 
 @defword(name='F_TVM_CONTINUOUS', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Flag number for TVM Continuous""")
-def w_F_TVM_CONTINUOUS(name):                      # pylint: disable=unused-argument
+F_TVM_CONTINUOUS   ( -- 8 )
+Flag number for TVM Continuous mode.""")
+def w_F_TVM_CONTINUOUS(name):   # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.flag.F_TVM_CONTINUOUS))
 
 
 @defword(name='fact', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Factorial ( x -- x! )
+fact   ( x -- x! )
+Factorial.  X cannot be negative.
 
 DEFINITION:
 x! = x * (x-1) * (x-2) ... * 2 * 1
 0! = 1
-X cannot be negative.
 
-qv gamma""")
+See also: gamma""")
 def w_fact(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -2659,7 +2750,8 @@ def w_fact(name):
 
 
 @defword(name='fc?', args=1, print_x=rpn.globl.PX_PREDICATE, doc="""\
-Test if flag is clear  ( -- bool )""")
+fc?   ( -- bool )
+Test if flag is clear.""")
 def w_fc_query(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -2675,7 +2767,8 @@ def w_fc_query(name):
 
 
 @defword(name='fc?c', args=1, print_x=rpn.globl.PX_PREDICATE, doc="""\
-Test if flag is clear, then clear  ( -- bool )""")
+fc?c   ( -- bool )
+Test if flag is clear, then clear it.""")
 def w_fc_query_clear(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -2693,7 +2786,8 @@ def w_fc_query_clear(name):
 
 
 @defword(name='fc?s', args=1, print_x=rpn.globl.PX_PREDICATE, doc="""\
-Test if flag is clear, then set  ( -- bool )""")
+fc?s   ( -- bool )
+Test if flag is clear, then set it.""")
 def w_fc_query_set(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -2711,14 +2805,13 @@ def w_fc_query_set(name):
 
 
 @defword(name='fib', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-N'th Fibonacci number  ( n -- fib )
+fib   ( n -- fib )
+Nth Fibonacci number.  N cannot be negative.
 
 DEFINITION:
 fib(0) = 0
 fib(1) = 1
-fib(n) = fib(n-1) + fib(n-2)
-
-n cannot be negative.""")
+fib(n) = fib(n-1) + fib(n-2)""")
 def w_fib(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -2732,9 +2825,8 @@ def w_fib(name):
 
 
 @defword(name='fix', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-Set fixed display  ( n -- )
-
-N specifies the number of digits after the decimal point.""")
+fix   ( n -- )
+Set fixed display.  N specifies the number of digits after the decimal point.""")
 def w_fix(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -2752,7 +2844,8 @@ def w_fix(name):
 
 
 @defword(name='floor', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Floor  ( x -- floor )   Largest integer not greater than X""")
+floor   ( x -- floor )
+Floor.  Largest integer not greater than X.""")
 def w_floor(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is rpn.type.Integer:
@@ -2766,10 +2859,9 @@ def w_floor(name):
 
 
 @defword(name='fmod', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Floating point remainder  ( y x -- rem )
-
-Return the remainder of dividing y by x.  Preferred for floats;
-'mod' is preferred for integers.""")
+fmod   ( y x -- rem )
+Floating point remainder.  Return the remainder of dividing y by x.  This is
+preferred for floats, while mod is preferred for integers.""")
 def w_fmod(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -2787,22 +2879,25 @@ def w_fmod(name):
 
 
 @defword(name='hide', print_x=rpn.globl.PX_CONFIG, doc="""\
+hide   ( -- )
 Make the following word hidden.  Only user-defined words can be hidden.
-NB - there is no way to "unhide" a word!""")
-def w_hide(name):                       # pylint: disable=unused-argument
+NOTE: there is no way to "unhide" a word!""")
+def w_hide(name):               # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 @defword(name='forget', print_x=rpn.globl.PX_CONFIG, doc="""\
+forget   ( -- )
 Forget the definition of the following word.""")
-def w_forget(name):                     # pylint: disable=unused-argument
+def w_forget(name):             # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 # HP-41 calls this FRC, HP-42 calls this FP.  I like FRAC (which appeared
 # on the HP-34C) because it is very clear but still short enough.
 @defword(name='frac', print_x=rpn.globl.PX_COMPUTE, args=1, doc="""\
-Fractional part ( x.q -- 0.q )""")
+frac   ( x.q -- 0.q )
+Fractional part.""")
 def w_frac(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is rpn.type.Integer:
@@ -2816,7 +2911,8 @@ def w_frac(name):
 
 
 @defword(name='fs?', print_x=rpn.globl.PX_PREDICATE, args=1, doc="""\
-Test if flag is set  ( -- bool )""")
+fc?   ( -- bool )
+Test if flag is set.""")
 def w_fs_query(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -2832,7 +2928,8 @@ def w_fs_query(name):
 
 
 @defword(name='fs?c', print_x=rpn.globl.PX_PREDICATE, args=1, doc="""\
-Test if flag is set, then clear  ( -- bool )""")
+fs?c   ( -- bool )
+Test if flag is set, then clear it.""")
 def w_fs_query_clear(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -2850,7 +2947,8 @@ def w_fs_query_clear(name):
 
 
 @defword(name='fs?s', print_x=rpn.globl.PX_PREDICATE, args=1, doc="""\
-Test if flag is set, then set  ( -- bool )""")
+fs?s   ( -- bool )
+Test if flag is set, then set it.""")
 def w_fs_query_set(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -2869,9 +2967,8 @@ def w_fs_query_set(name):
 
 if rpn.globl.have_module('scipy'):
     @defword(name='fsolve', args=1, str_args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Root solving  ( init.guess -- root )
-Name of function must be on string stack.
-
+fsolve   ( init.guess -- root )  [ func -- ]
+Solving for root.  Name of function must be on string stack.
 Implemented via scipy.optimize.fsolve()""")
     def w_fsolve(name):
         func_to_solve = rpn.globl.string_stack.pop().value
@@ -2900,7 +2997,8 @@ Implemented via scipy.optimize.fsolve()""")
 
 
 @defword(name='FV', print_x=rpn.globl.PX_COMPUTE, doc="""\
-Calculate Future Value (FV)
+FV   ( -- fv )
+Calculate Future Value (FV).
 
 DEFINITION:
      PMT * k         N    (      PMT * k )
@@ -2927,22 +3025,20 @@ def w_FV(name):
 
 
 @defword(name='GAMMA', print_x=rpn.globl.PX_COMPUTE, doc="""\
-Constant: Euler-Mascheroni number ( -- 0.5772... )
+GAMMA   ( -- 0.5772... )
+Euler-Mascheroni number.  Do not confuse this with the gamma function.
 
 DEFINITION:
-GAMMA = lim(n->inf, (-ln n + SUM(k=1,n, 1/k)))
-
-Do not confuse this with the "gamma" function.""")
-def w_GAMMA(name):                      # pylint: disable=unused-argument
+GAMMA = lim(n->inf, (-ln n + SUM(k=1,n, 1/k)))""")
+def w_GAMMA(name):              # pylint: disable=unused-argument
     result = rpn.type.Float(rpn.globl.GAMMA)
     result.label = "GAMMA"
     rpn.globl.param_stack.push(result)
 
 
 @defword(name='gamma', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Gamma function  ( x -- gamma[x] )
-
-Do not confuse this with the constant "GAMMA".""")
+gamma   ( x -- gamma[x] )
+Gamma function.  Do not confuse this with the constant GAMMA.""")
 def w_gamma(name):
     x = rpn.globl.param_stack.pop()
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
@@ -2972,8 +3068,10 @@ def w_gamma(name):
 
 
 @defword(name='gcd', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Greatest common divisor ( y x -- gcd )
+gcd   ( y x -- gcd )
+Greatest common divisor.
 
+DEFINITION:
 : gcd  begin ?dup while tuck mod repeat ;""")
 def w_gcd(name):
     x = rpn.globl.param_stack.pop()
@@ -2999,7 +3097,8 @@ def w_gcd(name):
 
 if sys.version_info >= (3, 8):
     @defword(name='gmean', print_x=rpn.globl.PX_COMPUTE, doc="""\
-Print the geometric mean of the statistics data""")
+gmean   ( -- gmean )
+Calculate the geometric mean of the statistics data.""")
     def gmean(name):
         if len(rpn.globl.stat_data) == 0:
             throw(X_BAD_DATA, name, "No statistics data")
@@ -3013,20 +3112,23 @@ Print the geometric mean of the statistics data""")
 
 
 @defword(name='grad', print_x=rpn.globl.PX_CONFIG, doc="""\
-Set angular mode to gradians""")
-def w_grad(name):                       # pylint: disable=unused-argument
+grad   ( -- )
+Set angular mode to gradians.""")
+def w_grad(name):               # pylint: disable=unused-argument
     rpn.flag.clear_flag(rpn.flag.F_RAD)
     rpn.flag.set_flag(rpn.flag.F_GRAD)
 
 
 @defword(name='help', print_x=rpn.globl.PX_IO, doc="""\
+help   ( -- )
 Show documentation for the following word.""")
-def w_help(name):                       # pylint: disable=unused-argument
+def w_help(name):               # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 @defword(name='hmean', print_x=rpn.globl.PX_COMPUTE, doc="""\
-Print the harmonic mean of the statistics data""")
+hmean   ( -- hmean )
+Return the harmonic mean of the statistics data.""")
 def w_hmean(name):
     if len(rpn.globl.stat_data) == 0:
         throw(X_BAD_DATA, name, "No statistics data")
@@ -3040,7 +3142,8 @@ def w_hmean(name):
 
 
 @defword(name='hms', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Convert decimal hours to hours/minutes/seconds  ( HH.nnn -- HH.MMSS )""")
+hms   ( HH.nnn -- HH.MMSS )
+Convert decimal hours to hours/minutes/seconds.""")
 def w_hms(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is rpn.type.Integer:
@@ -3061,7 +3164,8 @@ def w_hms(name):
 
 
 @defword(name='hms+', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Add hours/minutes/seconds  ( HH.MMSS HH.MMSS -- HH.MMSS )""")
+hms+   ( HH.MMSS HH.MMSS -- HH.MMSS )
+Add hours/minutes/seconds.""")
 def w_hms_plus(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -3099,7 +3203,8 @@ def w_hms_plus(name):
 
 
 @defword(name='hms-', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Subtract hours/minutes/seconds  ( HH.MMSS HH.MMSS -- HH.MMSS )""")
+hms-   ( HH.MMSS HH.MMSS -- HH.MMSS )
+Subtract hours/minutes/seconds.""")
 def w_hms_minus(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -3135,9 +3240,8 @@ def w_hms_minus(name):
 
 
 @defword(name='hp->d', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Convert HP day number to date  ( day# -- MM.DDYYYY )
-
-Day # 0 = October 15, 1582""")
+hp->d   ( day# -- MM.DDYYYY )
+Convert HP day number to date.  Day # 0 = October 15, 1582.""")
 def w_hp_to_d(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -3163,7 +3267,8 @@ def w_hp_to_d(name):
 
 
 @defword(name='hr', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Convert hours/minutes/seconds to decimal hours  ( HH.MMSS -- HH.nnn )""")
+hr   ( HH.MMSS -- HH.nnn )
+Convert hours/minutes/seconds to decimal hours.""")
 def w_hr(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is rpn.type.Integer:
@@ -3186,9 +3291,8 @@ def w_hr(name):
 
 
 @defword(name='hypot', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-hypot  ( y x -- hypot )  Hypotenuse distance
-
-Square root of the sum of squares.
+hypot   ( y x -- hypot )
+Hypotenuse distance.  Calculated as square root of the sum of squares.
 
 DEFINITION:
 hypot = sqrt(x^2 + y^2)""")
@@ -3207,12 +3311,9 @@ def w_hypot(name):
 
 
 @defword(name='I', print_x=rpn.globl.PX_CONFIG, doc="""\
-Index of DO current loop  ( -- x )
-
-Return the index of the most recent DO loop.
-
-Do not confuse this with the "i" command,
-which returns the complex number (0,1).""")
+I   ( -- x )
+Index of DO current loop.  Return the index of the most recent DO loop.  Do not
+confuse this with the "i" command, which returns the complex number (0,1).""")
 def w_I(name):
     (_I, _) = rpn.globl.lookup_variable('_I')
     if _I is None:
@@ -3224,7 +3325,8 @@ def w_I(name):
 
 if rpn.globl.have_module('numpy'):
     @defword(name='idn', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Create an NxN identity matrix  ( n -- mat )""")
+idn   ( n -- mat )
+Create an NxN identity matrix.""")
     def idn(name):
         x = rpn.globl.param_stack.pop()
         size = 0
@@ -3252,19 +3354,19 @@ Create an NxN identity matrix  ( n -- mat )""")
 
 
 @defword(name='if', args=1, print_x=rpn.globl.PX_CONTROL, doc="""\
-Test condition  ( flag -- )
-Execute a conditional test.
-<flag> IF ... [ ELSE ... ] THEN
+if   ( flag -- )
+Test condition.  Execute a conditional test.
+<flag> if ... [ else ... ] then
 
-qv ELSE, THEN""")
-def w_if(name):                         # pylint: disable=unused-argument
+See also: else, then""")
+def w_if(name):                 # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 @defword(name='INT', print_x=rpn.globl.PX_COMPUTE, doc="""\
-Calculate INTerest rate (INT)
-
-Do not confuse this with the "int" command, which truncates values to integers.""")
+INT   ( -- int )
+Calculate INTerest rate (INT).  Do not confuse this with the int command,
+which truncates values to integers.""")
 def w_INT(name):
     if any_undefined_p([rpn.tvm.N, rpn.tvm.PV, rpn.tvm.PMT, rpn.tvm.FV]):
         throw(X_BAD_DATA, name, "Need N, PV, PMT, and FV")
@@ -3292,11 +3394,10 @@ def w_INT(name):
 
 
 @defword(name='int', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-int  ( x -- int )   Truncate to integer
-
-The result is whatever Python's int() function returns.  Do not confuse this
-with the "INT" command, which solves for financial interest rates.
-Consider using floor or ceil instead.""")
+int   ( x -- int )
+Truncate to integer.  The result is whatever Python's int() function returns.
+Do not confuse this with the INT command, which solves for financial interest
+rates.  Consider using floor or ceil instead.""")
 def w_int(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is rpn.type.Integer:
@@ -3310,9 +3411,9 @@ def w_int(name):
 
 
 @defword(name='J', print_x=rpn.globl.PX_CONFIG, doc="""\
-Index of DO outer DO loop  ( -- x )
-
-Return the index of the DO loop enclosing the current one""")
+J   ( -- x )
+Index of DO outer DO loop.  Return the index of the DO loop enclosing
+the current one.""")
 def w_J(name):
     (_J, _) = rpn.globl.lookup_variable('_I', 2)
     if _J is None:
@@ -3323,7 +3424,8 @@ def w_J(name):
 
 
 @defword(name='jd->$', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-Convert julian day number to ISO date string  ( julian -- ) [ -- "YYYY-MM-DD" ]
+jd->$   ( julian -- ) [ -- "YYYY-MM-DD" ]
+Convert julian day number to ISO date string.
 
 EXAMPLE:
 2369915 jd->$  ==>  "1776-07-04" """)
@@ -3343,7 +3445,8 @@ def w_jd_to_dollar(name):
 
 
 @defword(name='jd->d', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Convert julian day number to date  ( julian -- MM.DDYYYY )
+jd->d   ( julian -- MM.DDYYYY )
+Convert julian day number to date.
 
 EXAMPLE:
 2369915 jd->d  ==>  7.041776""")
@@ -3365,8 +3468,7 @@ def w_jd_to_d(name):
 
 if rpn.globl.have_module('scipy'):
     @defword(name='Jv', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Jv  ( order x -- J_v(x) )
-
+Jv   ( order x -- J_v(x) )
 Bessel function of the first kind of real order and complex argument.
 Implemented via scipy.special.jv(order, x)""")
     def Jv(name):
@@ -3393,8 +3495,8 @@ Implemented via scipy.special.jv(order, x)""")
 
 
 @defword(name='inv', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Inverse  ( x -- 1/x )
-X cannot be zero.""")
+inv   ( x -- 1/x )
+Inverse.  X cannot be zero.""")
 def w_inv(name):
     x = rpn.globl.param_stack.pop()
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex] \
@@ -3432,11 +3534,12 @@ def w_inv(name):
 
 
 @defword(name='key', print_x=rpn.globl.PX_IO, doc="""\
-ASCII code of single keystroke  ( -- key )
-key will block until input is provided.  Keystroke is not echoed.
+key   ( -- key )
+ASCII code of single keystroke.  key will block until input is provided.
+Keystroke is not echoed.
 
-qv ?key""")
-def w_key(name):                        # pylint: disable=unused-argument
+See also: ?key""")
+def w_key(name):                # pylint: disable=unused-argument
     try:
         k = _Getch()()
     except termios.error as e:
@@ -3447,7 +3550,7 @@ def w_key(name):                        # pylint: disable=unused-argument
 
 
 @defword(name='label>', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-label>  ( x -- x' )  [ -- label ]
+label>   ( x -- x' )  [ -- label ]
 Separate a label from the stack element.""")
 def w_label_from(name):
     x = rpn.globl.param_stack.top()
@@ -3458,7 +3561,8 @@ def w_label_from(name):
 
 
 @defword(name='label?', args=1, print_x=rpn.globl.PX_PREDICATE, doc="""\
-Test if X has a label  ( x -- bool )""")
+label?   ( x -- bool )
+Test if X has a label.""")
 def w_label_query(name):
     x = rpn.globl.param_stack.pop()
     rc = x.has_label_p()
@@ -3467,7 +3571,8 @@ def w_label_query(name):
 
 
 @defword(name='lcm', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Least common multiple ( y x -- lcm )
+lcm   ( y x -- lcm )
+Least common multiple.
 
 DEFINITION:
               x * y
@@ -3496,15 +3601,16 @@ def w_lcm(name):
 
 
 @defword(name='leave', print_x=rpn.globl.PX_CONTROL, doc="""\
-Exit a DO or BEGIN loop immediately.""")
+leave   ( -- )
+Exit a do or begin loop immediately.""")
 def w_leave(name):
     throw(X_LEAVE)
 
 
 @defword(name='lg', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Logarithm [base 2]  ( x -- lg )
-X cannot be zero.
-Use "ln" for the natural logarithm, and "log" for the common logarithm.""")
+lg   ( x -- lg )
+Logarithm [base 2].  X cannot be zero.  Use ln for the natural logarithm,
+and log for the common logarithm.""")
 def w_lg(name):
     x = rpn.globl.param_stack.pop()
     if     type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex] \
@@ -3532,9 +3638,9 @@ def w_lg(name):
 
 
 @defword(name='ln', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Natural logarithm [base e]  ( x -- ln )
-X cannot be zero.
-Use "log" for the common (base 10) logarithm.""")
+ln   ( x -- ln )
+Natural logarithm [base e].  X cannot be zero.  Use log for the common
+(base 10) logarithm.""")
 def w_ln(name):
     x = rpn.globl.param_stack.pop()
     if     type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex] \
@@ -3558,7 +3664,8 @@ def w_ln(name):
 
 
 @defword(name='lnp1', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Calculate ln(1+X) accurately  ( x -- ln(1+x) )""")
+lnp1   ( x -- ln(1+x) )
+Calculate ln(1+X) accurately.""")
 def w_ln_1_plus_x(name):
     x = rpn.globl.param_stack.pop()
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
@@ -3578,8 +3685,9 @@ def w_ln_1_plus_x(name):
 
 
 @defword(name='load', str_args=1, print_x=rpn.globl.PX_CONTROL, doc="""\
-Load file specified on string stack  [ file -- ]""")
-def w_load(name):                       # pylint: disable=unused-argument
+load   [ file -- ]
+Load file specified on string stack.""")
+def w_load(name):               # pylint: disable=unused-argument
     filename = rpn.globl.string_stack.pop().value
     try:
         rpn.app.load_file(filename)
@@ -3588,9 +3696,9 @@ def w_load(name):                       # pylint: disable=unused-argument
 
 
 @defword(name='log', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Common logarithm [base 10]  ( x -- log )
-X cannot be zero.
-Use "ln" for the natural (base e) logarithm.""")
+log   ( x -- log )
+Common logarithm [base 10].  X cannot be zero.  Use ln for the natural
+(base e) logarithm.""")
 def w_log(name):
     x = rpn.globl.param_stack.pop()
     if     type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex] \
@@ -3618,21 +3726,22 @@ def w_log(name):
 
 
 @defword(name='loop', print_x=rpn.globl.PX_CONTROL, doc="""\
+loop   ( limit initial -- )
 Execute a definite loop.
-<limit> <initial> DO ... LOOP
+<limit> <initial> do ... loop
+The iteration counter is available via I.  leave will exit the loop early.
 
-The iteration counter is available via I.  LEAVE will exit the loop early.
+EXAMPLE: 10 0 do I . loop
+=> 0 1 2 3 4 5 6 7 8 9
 
-Example: 10 0 do I . loop
-prints 0 1 2 3 4 5 6 7 8 9
-
-qv DO, I, LEAVE, +LOOP""")
-def w_loop(name):                       # pylint: disable=unused-argument
+See also: do, I, leave, +loop""")
+def w_loop(name):               # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 @defword(name='max', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Smaller of X or Y  ( y x -- max )""")
+max   ( y x -- max )
+Larger of X or Y.""")
 def w_max(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -3648,7 +3757,8 @@ def w_max(name):
 
 
 @defword(name='mean', print_x=rpn.globl.PX_COMPUTE, doc="""\
-Print the arithmetic mean of the statistics data""")
+mean   ( -- mean )
+Return the arithmetic mean of the statistics data.""")
 def w_mean(name):
     if len(rpn.globl.stat_data) == 0:
         throw(X_BAD_DATA, name, "No statistics data")
@@ -3662,7 +3772,8 @@ def w_mean(name):
 
 
 @defword(name='median', print_x=rpn.globl.PX_COMPUTE, doc="""\
-Print the median of the statistics data""")
+median   ( -- median )
+Return the median of the statistics data.""")
 def w_median(name):
     if len(rpn.globl.stat_data) == 0:
         throw(X_BAD_DATA, name, "No statistics data")
@@ -3676,7 +3787,8 @@ def w_median(name):
 
 
 @defword(name='min', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Smaller of X or Y  ( y x -- min )""")
+min   ( y x -- min )
+Smaller of X or Y.""")
 def w_min(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -3692,7 +3804,8 @@ def w_min(name):
 
 
 @defword(name='N', print_x=rpn.globl.PX_COMPUTE, doc="""\
-Calculate Number of payments (N)
+N   ( -- n )
+Calculate Number of payments (N).
 
 DEFINITION:
     log((FV*i)/(PV*i))
@@ -3718,14 +3831,13 @@ def w_N(name):
 
 
 @defword(name='not', args=1, print_x=rpn.globl.PX_PREDICATE, doc="""\
-Logical not  ( flag -- !flag )
-
-Invert a flag - return TRUE (1) if x is zero, otherwise FALSE (0).
-NOT is intended for boolean manipulations and is only defined on truth
-integers (0,1).  0= is meant to compare a number to zero, and works for
+not   ( flag -- !flag )
+Logical not.  Invert a flag: return TRUE (1) if x is zero, otherwise FALSE (0).
+not is intended for boolean manipulations and is only defined on truth
+integers (0,1).  0 = is meant to compare a number to zero, and works for
 all number types.
 
-NOTE: This is not a bitwise not - use BITNOT for that.""")
+NOTE: This is not a bitwise not - use bitnot for that.""")
 def w_lognot(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -3736,24 +3848,27 @@ def w_lognot(name):
 
 
 @defword(name='of', print_x=rpn.globl.PX_CONTROL, doc="""\
+of   ( x -- )
 Execute a sequence of words based on stack value.  Once a match is
-executed, no other clauses are considered.  OTHERWISE is optional.
-<n> and OF labels must be integers.
+executed, no other clauses are considered.  otherwise is optional.
+<n> and of labels must be integers.
 
-<n> CASE
-  <x> OF ... ENDOF
-  <y> OF ... ENDOF
-  <z> OF ... ENDOF
-  [ OTHERWISE ... ]
-ENDCASE
+<n> case
+  <x> of ... endof
+  <y> of ... endof
+  <z> of ... endof
+  [ otherwise ... ]
+endcase
 
-qv CASE, ENDCASE, ENDOF, OTHERWISE""")
-def w_of(name):                         # pylint: disable=unused-argument
+See also: case, endcase, endof, otherwise""")
+def w_of(name):                 # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 @defword(name='or', args=2, print_x=rpn.globl.PX_PREDICATE, doc="""\
-Logical OR  ( flag flag -- flag )
+or   ( flag flag -- flag )
+Logical OR.
+
 NOTE: This is not a bitwise OR - use BITOR for that.""")
 def w_logor(name):
     x = rpn.globl.param_stack.pop()
@@ -3767,26 +3882,27 @@ def w_logor(name):
 
 
 @defword(name='otherwise', print_x=rpn.globl.PX_CONTROL, doc="""\
+otherwise   ( -- )
 Execute a sequence of words based on stack value.  Once a match is
-executed, no other clauses are considered.  OTHERWISE is optional.
-<n> and OF labels must be integers.
+executed, no other clauses are considered.  otherwise is optional.
+<n> and of labels must be integers.
 
-<n> CASE
-  <x> OF ... ENDOF
-  <y> OF ... ENDOF
-  <z> OF ... ENDOF
-  [ OTHERWISE ... ]
-ENDCASE
+<n> case
+  <x> of ... endof
+  <y> of ... endof
+  <z> of ... endof
+  [ otherwise ... ]
+endcase
 
-qv CASE, ENDCASE, ENDOF, OF""")
-def w_otherwise(name):                  # pylint: disable=unused-argument
+See also: case, endcase, endof, of""")
+def w_otherwise(name):          # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 @defword(name='over', args=2, print_x=rpn.globl.PX_CONFIG, doc="""\
-Duplicate second stack element  ( y x -- y x y )
-Equivalent to 2 PICK""")
-def w_over(name):                       # pylint: disable=unused-argument
+over   ( y x -- y x y )
+Duplicate second stack element.  Equivalent to 2 PICK.""")
+def w_over(name):               # pylint: disable=unused-argument
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
     rpn.globl.param_stack.push(y)
@@ -3795,11 +3911,10 @@ def w_over(name):                       # pylint: disable=unused-argument
 
 
 @defword(name='p->r', print_x=rpn.globl.PX_COMPUTE, doc="""\
-Convert polar coordinates to rectangular.
-The parameter(s) can be either two reals, or one complex.
-
-Real:      ( theta r   -- y x   )
-Complex:   ( (r,theta) -- (x,y) )
+p->r   ( theta r   -- y x   ) for Real
+p->r   ( (r,theta) -- (x,y) ) for Complex
+Convert polar coordinates to rectangular.  The parameter(s) can be either
+two reals, or one complex.
 
 DEFINITION:
 x = r * cos(theta)
@@ -3835,8 +3950,8 @@ def w_p_to_r(name):
 
 
 @defword(name='perm', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Permutations  ( n r -- nPr )
-Choose from N objects R at a time, with regard to ordering.
+perm   ( n r -- nPr )
+Permutations.  Choose from N objects R at a time, with regard to ordering.
 
 DEFINITION:
         n!
@@ -3867,21 +3982,23 @@ def w_perm(name):
 
 
 @defword(name='PI', print_x=rpn.globl.PX_COMPUTE, doc="""\
-Constant: Pi  ( -- 3.14159... )
+PI   ( -- 3.14159... )
 
 DEFINITION:
 PI == TAU/2
 
 Consider using TAU instead of PI to simplify your equations.""")
-def w_PI(name):                         # pylint: disable=unused-argument
+def w_PI(name):                 # pylint: disable=unused-argument
     result = rpn.type.Float(rpn.globl.PI)
     result.label = "PI"
     rpn.globl.param_stack.push(result)
 
 
 @defword(name='pick', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-Pick an element from the stack  ( x -- )
-1 PICK ==> DUP, 2 PICK ==> OVER""")
+pick   ( x -- x' )
+Pick an element from the stack.
+1 pick is equivalent to dup.
+2 pick is equivalent to over.""")
 def w_pick(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -3899,9 +4016,9 @@ def w_pick(name):
 
 
 @defword(name='plot', args=2, str_args=1, print_x=rpn.globl.PX_IO, doc="""\
-Simple ASCII function plot ( xlow xhigh -- ) [ FN -- ]
-FN is the (string) name of a function which must implement ( x -- y ).
-Y-axis is autoscaled.
+plot   ( xlow xhigh -- ) [ FN -- ]
+Simple ASCII function plot.  FN is the (string) name of a function which
+implements ( x -- y ).  Y-axis is autoscaled.
 
 EXAMPLE:
   rad  80 !COLS  24 !ROWS
@@ -3952,7 +4069,8 @@ def w_plot(name):
 
 
 @defword(name='PMT', print_x=rpn.globl.PX_COMPUTE, doc="""\
-Calculate PayMenT amount (PMT)
+PMT   ( -- pmt )
+Calculate PayMenT amount (PMT).
 
 DEFINITION:
        (         PV + FV     )    -ip
@@ -3980,8 +4098,7 @@ def w_PMT(name):
 
 
 @defword(name='price', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Price   ( markup purch_cost -- price )
-
+price   ( markup purch_cost -- price )
 Compute selling price given purchase cost and percent markup.
 
 NOTE: If you are given the markup based on cost and the selling price of
@@ -3995,7 +4112,7 @@ Price = ----------
             markup
         1 - ------
              100""")
-def w_price(name):                      # pylint: disable=unused-argument
+def w_price(name):              # pylint: disable=unused-argument
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
     if    type(x) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float] \
@@ -4013,7 +4130,8 @@ def w_price(name):                      # pylint: disable=unused-argument
 
 
 @defword(name='PV', print_x=rpn.globl.PX_COMPUTE, doc="""\
-Calculate Present Value (PV)
+PV   ( -- pv )
+Calculate Present Value (PV).
 
 DEFINITION:
       ( PMT * k      )       1         PMT * k
@@ -4040,9 +4158,8 @@ def w_PV(name):
 
 if rpn.globl.have_module('scipy'):
     @defword(name='quad', args=2, str_args=1, print_x=rpn.globl.PX_COMPUTE, doc=r"""\
-Numerical integration  ( lower upper -- err.est integral )
-Name of function must be on string stack.
-
+quad   ( lower upper -- err.est integral )  [ FN -- ]
+Numerical integration.  Name of function must be on string stack.
 Implemented via scipy.integrate.quad()
 
 EXAMPLE: Integrate a bessel function jv(2.5, x) along the interval [0,4.5]:
@@ -4083,8 +4200,9 @@ EXAMPLE: Integrate a bessel function jv(2.5, x) along the interval [0,4.5]:
 
 
 @defword(name='r->d', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Convert radians to degrees ( rad -- deg )
-(This will actually convert any angle measure to degrees, not just radians.)""")
+r->d   ( rad -- deg )
+Convert radians to degrees.  This will actually convert any angle measure
+to degrees, not just radians.""")
 def w_r_to_d(name):
     x = rpn.globl.param_stack.pop()
     if type(x) not in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
@@ -4103,11 +4221,10 @@ def w_r_to_d(name):
 
 
 @defword(name='r->p', print_x=rpn.globl.PX_COMPUTE, doc="""\
-Convert rectangular coordinates to polar.
-The parameter(s) can be either two reals, or one complex.
-
-Real:      ( y x   -- theta r   )
-Complex:   ( (x,y) -- (r,theta) )
+r->p   ( y x   -- theta r   ) for Real
+r->p   ( (x,y) -- (r,theta) ) for Complex
+Convert rectangular coordinates to polar.  The parameter(s) can be either
+two reals, or one complex.
 
 DEFINITION:
 r     = hypot(x, y) == sqrt(x^2 + y^2)
@@ -4147,15 +4264,17 @@ def w_r_to_p(name):
 
 
 @defword(name='r.s', print_x=rpn.globl.PX_IO, doc="""\
-Display return stack""")
-def w_r_dot_s(name):                    # pylint: disable=unused-argument
+r.x   ( -- )
+Display return stack.""")
+def w_r_dot_s(name):            # pylint: disable=unused-argument
     for (i, item) in rpn.globl.return_stack.items_bottom_to_top():
         # Prefix with "r" to prevent confusion with .s
         rpn.globl.lnwriteln("r{}: {}".format(i, item))
 
 
 @defword(name='r>', print_x=rpn.globl.PX_CONFIG, doc="""\
-Pop return stack onto parameter stack  ( -- x )""")
+r>   ( -- x )
+Pop return stack onto parameter stack.""")
 def w_r_from(name):
     if rpn.globl.return_stack.empty():
         throw(X_RSTACK_UNDERFLOW, name)
@@ -4163,7 +4282,8 @@ def w_r_from(name):
 
 
 @defword(name='r@', print_x=rpn.globl.PX_CONFIG, doc="""\
-Copy top of return stack  ( -- x )""")
+r@   ( -- x )
+Copy top of return stack.""")
 def w_r_fetch(name):
     if rpn.globl.return_stack.empty():
         throw(X_RSTACK_UNDERFLOW, name)
@@ -4171,29 +4291,30 @@ def w_r_fetch(name):
 
 
 @defword(name='rad', print_x=rpn.globl.PX_CONFIG, doc="""\
-Set angular mode to radians""")
-def w_rad(name):                        # pylint: disable=unused-argument
+rad   ( -- )
+Set angular mode to radians.""")
+def w_rad(name):                # pylint: disable=unused-argument
     rpn.flag.set_flag(rpn.flag.F_RAD)
     rpn.flag.clear_flag(rpn.flag.F_GRAD)
 
 
 @defword(name='rand', print_x=rpn.globl.PX_COMPUTE, doc="""\
-Random number  ( -- r )
-r is a float in range: 0 <= r < 1
+rand   ( -- r )
+Random number.  r is a float in range: 0 <= r < 1.
 
-qv RANDINT""")
-def w_rand(name):                       # pylint: disable=unused-argument
+See also: randint""")
+def w_rand(name):               # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Float(random.random()))
 
 
 @defword(name='randint', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Random integer between 1 and n  ( n -- r )
-r is an integer in range: 1 <= r <= n
+randint   ( n -- r )
+Random integer between 1 and n.  r is an integer in range: 1 <= r <= n.
 
 EXAMPLE:
 : threeD6  3 0 do 6 randint loop + + ;
 
-qv RAND""")
+See also: rand""")
 def w_randint(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -4209,7 +4330,8 @@ def w_randint(name):
 
 
 @defword(name='rcl', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Recall value of register X  ( reg -- val )""")
+rcl   ( reg -- val )
+Recall value of register X.""")
 def w_rcl(name):
     (reg_size, _) = rpn.globl.lookup_variable("SIZE")
 
@@ -4225,13 +4347,15 @@ def w_rcl(name):
 
 
 @defword(name='rclI', print_x=rpn.globl.PX_COMPUTE, doc="""\
-Recall value of register I  ( -- val )""")
-def w_rclI(name):                       # pylint: disable=unused-argument
+rclI   ( -- val )
+Recall value of register I.""")
+def w_rclI(name):               # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.globl.register['I'])
 
 
 @defword(name='rct->sph', args=3, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Convert rectangular coordinates to spherical  ( z y x -- phi theta r )
+rct->sph   ( z y x -- phi theta r )
+Convert rectangular coordinates to spherical.
 
 DEFINITION:
 phi   = atan(y/x)      == atan2(y, x)
@@ -4278,12 +4402,14 @@ def w_rct_to_sph(name):
 
 
 @defword(name='rdepth', print_x=rpn.globl.PX_COMPUTE, doc="""\
-Current number of elements on return stack  ( -- n )""")
-def w_rdepth(name):                     # pylint: disable=unused-argument
+rdepth   ( -- n )
+Current number of elements on return stack.""")
+def w_rdepth(name):             # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.globl.return_stack.size()))
 
 
 @defword(name='rdrop', print_x=rpn.globl.PX_CONFIG, doc="""\
+rdrop   ( -- )
 Drop the top item from the return stack.""")
 def w_rdrop(name):
     if rpn.globl.return_stack.empty():
@@ -4292,32 +4418,36 @@ def w_rdrop(name):
 
 
 @defword(name='recurse', print_x=rpn.globl.PX_CONTROL, doc="""\
+recurse
 Recurse into current word.  Only valid in a colon definition.""")
-def w_recurse(name):                    # pylint: disable=unused-argument
+def w_recurse(name):            # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 @defword(name='repeat', print_x=rpn.globl.PX_CONTROL, doc="""\
+repeat   ( flag -- )
 Execute an indefinite loop while a condition is satisfied.
-BEGIN ... <flag> WHILE ... REPEAT
+begin ... <flag> while ... repeat
 
-LEAVE will exit the loop early.  Note that the effect of the test in
-BEGIN...WHILE is opposite that in BEGIN...UNTIL.  The loop repeats
+leave will exit the loop early.  Note that the effect of the test in
+begin...while is opposite that in begin...until: the loop repeats
 while something is true, rather than until it becomes true.
 
-qv BEGIN, AGAIN, LEAVE, UNTIL, WHILE""")
-def w_repeat(name):                     # pylint: disable=unused-argument
+See also: begin, again, leave, until, while""")
+def w_repeat(name):             # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 @defword(name='resize', print_x=rpn.globl.PX_CONFIG, doc="""\
+resize   ( -- )
 Reset ROWS and COLS to actual values.""")
-def w_resize(name):                       # pylint: disable=unused-argument
+def w_resize(name):             # pylint: disable=unused-argument
     rpn.globl.update_screen_size()
 
 
 @defword(name='rms', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Root Mean Square  ( v -- rms )
+rms   ( v -- rms )
+Root mean square.
 
 DEFINITION:
             2    2    2          2
@@ -4352,12 +4482,13 @@ def w_rms(name):
 
 
 @defword(name='rnd', args=2, print_x=rpn.globl.PX_CONFIG, doc="""\
-Round N to PLACES number of decimal places  ( n places -- rounded )
+rnd   ( n places -- rounded )
+Round N to PLACES number of decimal places.
 
 NOTE: This is implemented using Python's round() function.  The behavior
 of rnd can be surprising: for example, "2.675 2 rnd" gives 2.67 instead
-of the expected 2.68.  This is not a bug: it's a result of the fact that
-most decimal fractions can't be represented exactly as a float.""")
+of the expected 2.68.  This is not a bug: it is a result of the fact that
+most decimal fractions cannot be represented exactly as a float.""")
 def w_rnd(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -4383,8 +4514,10 @@ def w_rnd(name):
 
 
 @defword(name='roll', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-Roll stack elements  ( x -- )
-2 ROLL ==> SWAP, 3 ROLL ==> ROT""")
+roll   ( ... x -- ... )
+Roll stack elements.
+2 roll is equivalent to swap.
+3 roll is equivalent to rot.""")
 def w_roll(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -4401,9 +4534,10 @@ def w_roll(name):
 
 
 @defword(name='rot', args=3, print_x=rpn.globl.PX_CONFIG, doc="""\
-Rotate third stack element to the top, rolling others up  ( z y x -- y x z )
-Equivalent to 3 ROLL""")
-def w_rot(name):                        # pylint: disable=unused-argument
+rot   ( z y x -- y x z )
+Rotate third stack element to the top, rolling others up.
+Equivalent to 3 roll.""")
+def w_rot(name):                # pylint: disable=unused-argument
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
     z = rpn.globl.param_stack.pop()
@@ -4413,7 +4547,8 @@ def w_rot(name):                        # pylint: disable=unused-argument
 
 
 @defword(name='S+', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-Add an element to the statistics list""")
+S+   ( n -- )
+Add an element to the statistics list.""")
 def w_s_plus(name):
     x = rpn.globl.param_stack.pop()
     if type(x) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
@@ -4425,9 +4560,9 @@ def w_s_plus(name):
 
 
 @defword(name='sci', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-Set scientific display  ( n -- )
-
-N specifies the number of digits after the decimal point.""")
+sci   ( n -- )
+Set scientific display.  N specifies the number of digits after
+the decimal point.""")
 def w_sci(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -4445,15 +4580,17 @@ def w_sci(name):
 
 
 @defword(name='scopes', hidden=True, print_x=rpn.globl.PX_IO, doc="""\
+scopes   ( -- )
 Print information on all available scopes.""")
-def w_scopes(name):                     # pylint: disable=unused-argument
+def w_scopes(name):             # pylint: disable=unused-argument
     for (i, item) in rpn.globl.scope_stack.items_bottom_to_top():
         rpn.globl.lnwriteln("{} Scope {}:".format(i, item.name))
         rpn.globl.lnwriteln("Variables: {}".format([str(x) for x in item.variables().values()]))
         rpn.globl.lnwriteln("Words: {}".format([str(x) for x in item.words().values()]))
 
 @defword(name='sf', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-Set flag  ( f -- )""")
+sf   ( f -- )
+Set flag.""")
 def w_sf(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -4470,8 +4607,9 @@ def w_sf(name):
 
 
 @defword(name='shdebug', print_x=rpn.globl.PX_IO, doc="""\
-Show active debug levels""")
-def w_showdebug(name):                  # pylint: disable=unused-argument
+shdebug   ( -- )
+Show active debug levels.""")
+def w_showdebug(name):          # pylint: disable=unused-argument
     rpn.globl.lnwriteln("Debugging is {}".format("enabled" if rpn.flag.flag_set_p(rpn.flag.F_DEBUG_ENABLED) else "disabled"))
 
     dbgs = dict()
@@ -4485,7 +4623,8 @@ def w_showdebug(name):                  # pylint: disable=unused-argument
 
 
 @defword(name='shdebug!', print_x=rpn.globl.PX_IO, doc="""\
-Show all debug levels""")
+shdebug   ( -- )
+Show all debug levels.""")
 def w_showdebug_bang(name):     # pylint: disable=unused-argument
     rpn.globl.lnwriteln("Debugging is {}".format("enabled" if rpn.flag.flag_set_p(rpn.flag.F_DEBUG_ENABLED) else "disabled"))
 
@@ -4499,14 +4638,16 @@ def w_showdebug_bang(name):     # pylint: disable=unused-argument
 
 
 @defword(name='shdisp', print_x=rpn.globl.PX_CONFIG, doc="""\
-Show current display setting""")
-def w_shdisp(name):           # pylint: disable=unused-argument
+shdisp   ( -- )
+Show current display setting.""")
+def w_shdisp(name):             # pylint: disable=unused-argument
     rpn.globl.writeln(rpn.globl.disp_stack.top())
 
 
 @defword(name='shfin', print_x=rpn.globl.PX_IO, doc="""\
-Show financial variables""")
-def w_shfin(name):                      # pylint: disable=unused-argument
+shfin   ( -- )
+Show financial variables.""")
+def w_shfin(name):              # pylint: disable=unused-argument
     rpn.globl.lnwrite()
     rpn.globl.writeln("N:   {}".format(rpn.globl.gfmt(rpn.tvm.N  .obj.value) if rpn.tvm.N  .defined() else "[Not set]"))
     rpn.globl.writeln("INT: {}".format(rpn.globl.gfmt(rpn.tvm.INT.obj.value) if rpn.tvm.INT.defined() else "[Not set]"))
@@ -4539,8 +4680,9 @@ def w_shfin(name):                      # pylint: disable=unused-argument
 
 
 @defword(name='shflag', print_x=rpn.globl.PX_IO, doc="""\
-Show status of all flags ( -- )""")
-def w_shflag(name):                     # pylint: disable=unused-argument
+shflag   ( -- )
+Show status of all flags.""")
+def w_shflag(name):             # pylint: disable=unused-argument
     flags = []
     for f in range(rpn.flag.MAX):
         flags.append("%02d:%s" % (f, "YES" if rpn.flag.flag_set_p(f) else "no "))
@@ -4549,14 +4691,16 @@ def w_shflag(name):                     # pylint: disable=unused-argument
 
 
 @defword(name='show', print_x=rpn.globl.PX_IO, doc="""\
+show   ( -- )
 Show the definition of the following word.""")
-def w_show(name):                       # pylint: disable=unused-argument
+def w_show(name):               # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 @defword(name='shreg', print_x=rpn.globl.PX_IO, doc="""\
-Show status of all registers  ( -- )""")
-def w_shreg(name):                      # pylint: disable=unused-argument
+shreg   ( -- )
+Show status of all registers.""")
+def w_shreg(name):              # pylint: disable=unused-argument
     (reg_size, _) = rpn.globl.lookup_variable("SIZE")
     regs = []
     regs.append("I=%s" % rpn.globl.gfmt(rpn.globl.register['I']))
@@ -4567,8 +4711,9 @@ def w_shreg(name):                      # pylint: disable=unused-argument
 
 
 @defword(name='shstat', print_x=rpn.globl.PX_IO, doc="""\
-Print the statistics list""")
-def w_shstat(name):                     # pylint: disable=unused-argument
+shstat   ( -- )
+Print the statistics list.""")
+def w_shstat(name):             # pylint: disable=unused-argument
     if len(rpn.globl.stat_data) == 0:
         rpn.globl.writeln("No statistics data")
     else:
@@ -4576,9 +4721,10 @@ def w_shstat(name):                     # pylint: disable=unused-argument
 
 
 @defword(name='shunit', print_x=rpn.globl.PX_IO, doc="""\
-List all units  ( -- )
+shunit   ( -- )
+List all units.
 
-qv USHOW""")
+See also: ushow""")
 def w_shunit(name):
     units = dict()
     for u in rpn.unit.units.values():
@@ -4593,7 +4739,8 @@ def w_shunit(name):
 
 
 @defword(name='shunit!', print_x=rpn.globl.PX_IO, doc="""\
-List all units with more details  ( -- )""")
+shunit!   ( -- )
+List all units with more details.""")
 def w_shunit_bang(name):
     units = dict()
     for u in rpn.unit.units.values():
@@ -4616,8 +4763,8 @@ def w_shunit_bang(name):
 
 
 @defword(name='sign', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Signum  ( n -- sign )
-Returns -1, 0, or 1.""")
+sign   ( n -- sign )
+Signum function.  Returns -1, 0, or 1.""")
 def w_sign(name):
     x = rpn.globl.param_stack.pop()
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
@@ -4635,7 +4782,8 @@ def w_sign(name):
 
 
 @defword(name='sin', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Sine  ( angle -- sine )""")
+sin   ( angle -- sine )
+Sine.""")
 def w_sin(name):
     x = rpn.globl.param_stack.pop()
     if type(x) not in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex]:
@@ -4662,7 +4810,8 @@ def w_sin(name):
 
 
 @defword(name='sinc', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Sine cardinal (sampling function)  ( x -- sinc )
+sinc   ( x -- sinc )
+Sine cardinal, aka sampling function.
 
 DEFINITION:
            sin x
@@ -4693,7 +4842,8 @@ def w_sinc(name):
 
 
 @defword(name='sinh', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Hyperbolic sine  ( angle -- sine_h )
+sinh   ( angle -- sine_h )
+Hyperbolic sine.
 
 DEFINITION:
           e^x - e^(-x)
@@ -4712,8 +4862,8 @@ def w_sinh(name):
 
 
 @defword(name='sleep', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-Sleep for N seconds  ( n -- )
-N may be fractional.""")
+sleep   ( n -- )
+Sleep for N seconds.  N may be fractional.""")
 def w_sleep(name):
     x = rpn.globl.param_stack.pop()
     if type(x) not in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
@@ -4724,7 +4874,8 @@ def w_sleep(name):
 
 
 @defword(name='sph->rct', args=3, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Convert spherical coordinates to rectangular  ( phi theta r -- z y x )
+sph->rct   ( phi theta r -- z y x )
+Convert spherical coordinates to rectangular.
 
 DEFINITION:
 x = r * sin(theta) * cos(phi)
@@ -4761,7 +4912,8 @@ def w_sph_to_rct(name):
 
 
 @defword(name='sq', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Square  ( x -- x^2 )""")
+sq   ( x -- x^2 )
+Square.""")
 def w_sq(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is rpn.type.Integer:
@@ -4783,8 +4935,8 @@ def w_sq(name):
 
 
 @defword(name='sqrt', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Square root  ( x -- sqrt(x) )
-Negative X returns a complex number""")
+sqrt   ( x -- sqrt[x] )
+Square root.  Negative X returns a complex number.""")
 def w_sqrt(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is rpn.type.Integer and x.zerop():
@@ -4813,10 +4965,9 @@ def w_sqrt(name):
 
 
 @defword(name='std', print_x=rpn.globl.rpn.globl.PX_CONFIG, doc="""\
-std  ( -- )
-
+std   ( -- )
 Set display mode to standard.""")
-def w_std(name):                        # pylint: disable=unused-argument
+def w_std(name):                # pylint: disable=unused-argument
     rpn.globl.disp_stack.top().style = "std"
     rpn.flag.set_flag(rpn.flag.F_DISP_FIX)
     rpn.flag.set_flag(rpn.flag.F_DISP_ENG)
@@ -4825,7 +4976,8 @@ def w_std(name):                        # pylint: disable=unused-argument
 
 
 @defword(name='stdev', print_x=rpn.globl.PX_COMPUTE, doc="""\
-Print the sample standard deviation of the statistics data""")
+stdev   ( -- st.dev )
+Return the sample standard deviation of the statistics data.""")
 def w_stdev(name):
     if len(rpn.globl.stat_data) < 2:
         throw(X_BAD_DATA, name, "Insufficient statistics data (2 required)")
@@ -4839,7 +4991,8 @@ def w_stdev(name):
 
 
 @defword(name='sto', args=2, print_x=rpn.globl.PX_CONFIG, doc="""\
-Store value Y into register X  ( y reg -- )""")
+sto   ( y reg -- )
+Store value Y into register X.""")
 def w_sto(name):
     (reg_size, _) = rpn.globl.lookup_variable("SIZE")
 
@@ -4861,8 +5014,9 @@ def w_sto(name):
 
 
 @defword(name='stoI', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-Store X value into register I  ( x -- )""")
-def w_stoI(name):                       # pylint: disable=unused-argument
+stoI   ( x -- )
+Store X value into register I.""")
+def w_stoI(name):               # pylint: disable=unused-argument
     x = rpn.globl.param_stack.pop()
     if type(x) in [rpn.type.Float, rpn.type.Complex]:
         rpn.globl.register['I'] = x
@@ -4871,9 +5025,10 @@ def w_stoI(name):                       # pylint: disable=unused-argument
 
 
 @defword(name='swap', args=2, print_x=rpn.globl.PX_CONFIG, doc="""\
-Exchange top two stack elements  ( y x -- x y )
-Equivalent to 2 ROLL""")
-def w_swap(name):                       # pylint: disable=unused-argument
+swap   ( y x -- x y )
+Exchange top two stack elements.
+Equivalent to 2 roll.""")
+def w_swap(name):               # pylint: disable=unused-argument
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
     rpn.globl.param_stack.push(x)
@@ -4881,58 +5036,67 @@ def w_swap(name):                       # pylint: disable=unused-argument
 
 
 @defword(name='T_COMPLEX', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Type number for Complex""")
+T_COMPLEX   ( -- 3 )
+Type number for Complex.""")
 def w_T_COMPLEX(name):          # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.type.T_COMPLEX))
 
 
 @defword(name='T_FLOAT', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Type number for Float""")
+T_FLOAT   ( -- 2 )
+Type number for Float.""")
 def w_T_FLOAT(name):            # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.type.T_FLOAT))
 
 
 @defword(name='T_INTEGER', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Type number for Integer""")
+T_INTEGER   ( -- 0 )
+Type number for Integer.""")
 def w_T_INTEGER(name):          # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.type.T_INTEGER))
 
 
 @defword(name='T_LIST', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Type number for List""")
+T_LIST   ( -- 7 )
+Type number for List.""")
 def w_T_LIST(name):             # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.type.T_LIST))
 
 
 @defword(name='T_MATRIX', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Type number for Matrix""")
+T_MATRIX   ( -- 5 )
+Type number for Matrix.""")
 def w_T_MATRIX(name):           # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.type.T_MATRIX))
 
 
 @defword(name='T_RATIONAL', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Type number for Rational""")
+T_RATIONAL   ( -- 1 )
+Type number for Rational.""")
 def w_T_RATIONAL(name):         # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.type.T_RATIONAL))
 
 
 @defword(name='T_STRING', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Type number for String""")
+T_STRING   ( -- 6 )
+Type number for String.""")
 def w_T_STRING(name):           # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.type.T_STRING))
 
 
 @defword(name='T_VECTOR', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Type number for Vector""")
+T_VECTOR   ( -- 4 )
+Type number for Vector.""")
 def w_T_VECTOR(name):           # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.type.T_VECTOR))
 
 
 @defword(name='tan', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Tangent  ( angle -- tangent )
+tan   ( angle -- tangent )
+Tangent.
 
 NOTE:
-Angle must not be 90 degrees (TAU/4 radians)""")
+Angle must not be 90 degrees (TAU/4 radians).""")
 def w_tan(name):
     x = rpn.globl.param_stack.pop()
     if type(x) not in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex]:
@@ -4969,7 +5133,8 @@ def w_tan(name):
 
 
 @defword(name='tanh', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Hyperbolic tangent  ( angle -- tangent_h )
+tanh   ( angle -- tangent_h )
+Hyperbolic tangent.
 
 DEFINITION:
 tanh(x) = sinh(x) / cosh(x)""")
@@ -4986,11 +5151,11 @@ def w_tanh(name):
 
 
 @defword(name='TAU', print_x=rpn.globl.PX_COMPUTE, doc="""\
-Constant: Tau ( -- 6.28318... )
+TAU   ( -- 6.28318... )
 
 DEFINITION:
 Number of radians in a circle.""")
-def w_TAU(name):                        # pylint: disable=unused-argument
+def w_TAU(name):                # pylint: disable=unused-argument
     result = rpn.type.Float(rpn.globl.TAU)
     result.uexpr = rpn.globl.uexpr["r"]
     result.label = "TAU"
@@ -4998,7 +5163,8 @@ def w_TAU(name):                        # pylint: disable=unused-argument
 
 
 @defword(name='tf', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-Toggle flag  ( f -- )""")
+tf   ( f -- )
+Toggle flag.""")
 def w_tf(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -5015,18 +5181,20 @@ def w_tf(name):
 
 
 @defword(name='then', args=1, print_x=rpn.globl.PX_CONTROL, doc="""\
+then   ( flag -- )
 Execute a conditional test.
-<flag> IF ... [ ELSE ... ] THEN
+<flag> if ... [ else ... ] then
 
-qv ELSE, IF""")
-def w_then(name):                       # pylint: disable=unused-argument
+See also: else, if""")
+def w_then(name):               # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 @defword(name='throw', args=1, print_x=rpn.globl.PX_CONTROL, doc="""\
-Throw an exception  ( n -- )
+throw   ( n -- )
+Throw an exception.
 
-qv CATCH""")
+See also: catch""")
 def w_throw(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -5043,8 +5211,9 @@ def w_throw(name):
 
 
 @defword(name='time', print_x=rpn.globl.PX_COMPUTE, doc="""\
-Current time  ( -- HH.MMSS )""")
-def w_time(name):                       # pylint: disable=unused-argument
+time   ( -- HH.MMSS )
+Current time.""")
+def w_time(name):               # pylint: disable=unused-argument
     t = datetime.datetime.now().strftime("%H.%M%S")
     result = rpn.type.Float(t)
     result.label = "HH.MMSS (Current)"
@@ -5052,8 +5221,9 @@ def w_time(name):                       # pylint: disable=unused-argument
 
 
 @defword(name='time!', print_x=rpn.globl.PX_COMPUTE, doc="""\
-High precision clock time  ( -- HH.MMSSssss )""")
-def w_time_bang(name):                  # pylint: disable=unused-argument
+time!   ( -- HH.MMSSssss )
+High precision clock time.""")
+def w_time_bang(name):          # pylint: disable=unused-argument
     t = datetime.datetime.now().strftime("%H.%M%S%f")
     result = rpn.type.Float(t)
     result.label = "HH.MMSSssss (Current)"
@@ -5061,7 +5231,8 @@ def w_time_bang(name):                  # pylint: disable=unused-argument
 
 
 @defword(name='timeinfo', args=1, hidden=True, print_x=rpn.globl.PX_IO, doc="""\
-Show time_info() for Float  ( x -- )""")
+timeinfo   ( x -- )
+Show time_info() for Float.""")
 def w_timeinfo(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Float:
@@ -5071,8 +5242,9 @@ def w_timeinfo(name):
 
 
 @defword(name='trace', print_x=rpn.globl.PX_CONFIG, doc="""\
-Toggle tracing state""")
-def w_trace(name):                      # pylint: disable=unused-argument
+trace   ( -- )
+Toggle tracing state.""")
+def w_trace(name):              # pylint: disable=unused-argument
     if dbg("trace"):
         rpn.debug.set_debug_level("trace", 0)
         rpn.globl.lnwriteln("trace: Tracing is now DISABLED")
@@ -5083,7 +5255,8 @@ def w_trace(name):                      # pylint: disable=unused-argument
 
 
 @defword(name='trn', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Transpose a matrix  ( mat -- mat_T )""")
+trn   ( mat -- mat_T )
+Transpose a matrix.""")
 def w_trn(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is rpn.type.Vector:
@@ -5099,9 +5272,10 @@ def w_trn(name):
 
 
 @defword(name='type', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Return a code for the type of the value in X  ( x -- x code )
-Unlike most other words, type preserves the top of stack,
-assuming that you'll still want to work on the value later.
+type   ( x -- x code )
+Return a code for the type of the value in X.  Unlike most other words,
+type preserves the top of stack, assuming that you will still want to
+operate on the value later.
 
 __0000 - Integer  = 0
 __0001 - Rational = 1
@@ -5125,7 +5299,8 @@ def w_type(name):               # pylint: disable=unused-argument
 
 
 @defword(name='ubase', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Convert a unit-object into base (SI) units  ( x -- x' )""")
+ubase   ( x -- x' )
+Convert a unit-object into base (SI) units.""")
 def w_ubase(name):
     x = rpn.globl.param_stack.pop()
     if not x.has_uexpr_p():
@@ -5139,7 +5314,8 @@ def w_ubase(name):
 
 
 @defword(name='udim', args=1, print_x=rpn.globl.PX_IO, hidden=True, doc="""\
-Print unit dimension vector""")
+udim   ( x -- x )
+Print unit dimension vector.""")
 def w_udim(name):
     x = rpn.globl.param_stack.top()
     if not x.has_uexpr_p():
@@ -5150,7 +5326,8 @@ def w_udim(name):
 # FIXME - Not done
 # XXX Double check example and general algorthm in HP48 manual
 @defword(name='ufact', args=1, str_args=1, print_x=rpn.globl.PX_COMPUTE, hidden=True, doc="""\
-Factor out one unit from another  ( x -- x' )  [ units -- ]
+ufact   ( x -- x' )  [ unit -- ]
+Factor out one unit from another.
 
 EXAMPLE:
 1_J "N" ufact  =>  1_m""")
@@ -5176,14 +5353,15 @@ def w_ufact(name):
 
 
 @defword(name='undef', print_x=rpn.globl.PX_CONFIG, doc="""\
+undef   ( -- )
 Undefine a variable, removing it from the current scope.
-UNDEF <var>""")
-def w_undef(name):                      # pylint: disable=unused-argument
+undef <var>""")
+def w_undef(name):              # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 @defword(name='unit>', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-unit>  ( x -- x' )  [ -- ustr ]
+unit>   ( x -- x' )  [ -- ustr ]
 Separate a unit expression from the stack into its value and unit string.""")
 def w_unit_from(name):
     x = rpn.globl.param_stack.top()
@@ -5195,7 +5373,8 @@ def w_unit_from(name):
 
 
 @defword(name='unit?', args=1, print_x=rpn.globl.PX_PREDICATE, doc="""\
-Test if X has a unit expression  ( x -- bool )""")
+unit?   ( x -- bool )
+Test if X has a unit expression.""")
 def w_unit_query(name):
     x = rpn.globl.param_stack.pop()
     rc = x.has_uexpr_p()
@@ -5204,21 +5383,23 @@ def w_unit_query(name):
 
 
 @defword(name='until', print_x=rpn.globl.PX_CONTROL, doc="""\
+until   ( bool -- )
 Execute an indefinite loop until a condition is satisfied.
-BEGIN ... <flag> UNTIL
+begin ... <flag> until
 
-LEAVE will exit the loop early.  Note that the effect of the test in
-BEGIN...WHILE is opposite that in BEGIN...UNTIL.  The loop repeats
+leave will exit the loop early.  Note that the effect of the test in
+begin...while is opposite that in begin...until: the loop repeats
 while something is true, rather than until it becomes true.
 
-qv AGAIN, BEGIN, LEAVE, REPEAT, WHILE""")
-def w_until(name):                      # pylint: disable=unused-argument
+See also: again, begin, leave, repeat, while""")
+def w_until(name):              # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 if rpn.globl.have_module('numpy'):
     @defword(name='v>', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-Decompose a vector into stack elements""")
+v>   ( v -- ... )
+Decompose a vector into stack elements.""")
     def v_from(name):
         x = rpn.globl.param_stack.pop()
         if type(x) is not rpn.type.Vector:
@@ -5229,7 +5410,8 @@ Decompose a vector into stack elements""")
 
 
 @defword(name='var', print_x=rpn.globl.PX_COMPUTE, doc="""\
-Print the sample variance of the statistics data""")
+var   ( -- var )
+Return the sample variance of the statistics data.""")
 def w_var(name):
     if len(rpn.globl.stat_data) < 2:
         throw(X_BAD_DATA, name, "Insufficient statistics data (2 required)")
@@ -5241,15 +5423,17 @@ def w_var(name):
 
 
 @defword(name='variable', print_x=rpn.globl.PX_CONFIG, doc="""\
+variable   ( -- )
 Declare a variable.  Initial state is undefined.
-VARIABLE <var>""")
-def w_variable(name):                   # pylint: disable=unused-argument
+variable <var>""")
+def w_variable(name):           # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 @defword(name='vars', print_x=rpn.globl.PX_IO, doc="""\
-List variables and their values""")
-def w_vars(name):                       # pylint: disable=unused-argument
+vars   ( -- )
+List variables and their values.""")
+def w_vars(name):               # pylint: disable=unused-argument
     for (_, scope) in rpn.globl.scope_stack.items_top_to_bottom():
         if rpn.globl.scope_stack.size() > 1:
             rpn.globl.lnwriteln("Scope {}:".format(scope.name))
@@ -5272,11 +5456,11 @@ def w_vars(name):                       # pylint: disable=unused-argument
 
 
 @defword(name='vlist', print_x=rpn.globl.PX_IO, doc="""\
-Print the list of defined words.
-Only words in the root scope are shown.
+vlist   ( -- )
+Print the list of defined words.  Only words in the root scope are shown.
 
-qv WORDS""")
-def w_vlist(name):                      # pylint: disable=unused-argument
+See also: words""")
+def w_vlist(name):            # pylint: disable=unused-argument
     # This is nice, but it shows hidden words:
     # rpn.globl.list_in_columns(sorted([x for x in root_scope.words()],
     #                           key=str.casefold), rpn.globl.scr_cols.obj.value - 1)
@@ -5293,37 +5477,41 @@ def w_vlist(name):                      # pylint: disable=unused-argument
 
 
 @defword(name='while', print_x=rpn.globl.PX_CONTROL, doc="""\
+while   ( bool -- )
 Execute an indefinite loop while a condition is satisfied.
-BEGIN ... <flag> WHILE ... REPEAT
+begin ... <flag> while ... repeat
 
-LEAVE will exit the loop early.  Note that the effect of the test in
-BEGIN...WHILE is opposite that in BEGIN...UNTIL.  The loop repeats
+leave will exit the loop early.  Note that the effect of the test in
+begin...while is opposite that in begin...until: the loop repeats
 while something is true, rather than until it becomes true.
 
-qv AGAIN, BEGIN, LEAVE, REPEAT, UNTIL""")
-def w_while(name):                      # pylint: disable=unused-argument
+See also: again, begin, leave, repeat, until""")
+def w_while(name):              # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
 @defword(name='words', print_x=rpn.globl.PX_IO, doc="""\
+word   ( -- )
 Print the list of user-defined words.
 
-qv VLIST""")
-def w_words(name):                      # pylint: disable=unused-argument
+See also: vlist""")
+def w_words(name):              # pylint: disable=unused-argument
     rpn.globl.list_in_columns(sorted([x[0] for x in rpn.globl.root_scope.unprotected_words()],
                                      key=str.casefold), rpn.globl.scr_cols.obj.value - 1)
 
 
 @defword(name='x<>I', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-x<>I  ( x -- I )  Exchange X with register I""")
-def w_x_exchange_I(name):               # pylint: disable=unused-argument
+x<>I   ( x -- I )
+Exchange X with register I.""")
+def w_x_exchange_I(name):       # pylint: disable=unused-argument
     x = rpn.globl.param_stack.pop()
     rpn.globl.param_stack.push(rpn.globl.register['I'])
     rpn.globl.register['I'] = x
 
 
 @defword(name='x<>i', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-x<>i  ( x -- (i) )  Exchange X with register referenced by I""")
+x<>i   ( x -- (i) )
+Exchange X with register referenced by I.""")
 def w_x_exchange_indirect_i(name):
     (reg_size, _) = rpn.globl.lookup_variable("SIZE")
 
@@ -5341,364 +5529,366 @@ def w_x_exchange_indirect_i(name):
 
 @defword(name='X_ABORT', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 ABORT""")
-def w_X_ABORT(name):                    # pylint: disable=unused-argument
+def w_X_ABORT(name):            # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_ABORT))
 
 @defword(name='X_ABORT_QUOTE', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 ABORT" """)
-def w_X_ABORT_QUOTE(name):              # pylint: disable=unused-argument
+def w_X_ABORT_QUOTE(name):      # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_ABORT_QUOTE))
 
 @defword(name='X_STACK_OVERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Stack overflow""")
-def w_X_STACK_OVERFLOW(name):           # pylint: disable=unused-argument
+def w_X_STACK_OVERFLOW(name):   # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_STACK_OVERFLOW))
 
 @defword(name='X_STACK_UNDERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Stack underflow""")
-def w_X_STACK_UNDERFLOW(name):          # pylint: disable=unused-argument
+def w_X_STACK_UNDERFLOW(name):  # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_STACK_UNDERFLOW))
 
 @defword(name='X_RSTACK_OVERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Return stack overflow""")
-def w_X_RSTACK_OVERFLOW(name):          # pylint: disable=unused-argument
+def w_X_RSTACK_OVERFLOW(name):  # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_RSTACK_OVERFLOW))
 
 @defword(name='X_RSTACK_UNDERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Return stack underflow""")
-def w_X_RSTACK_UNDERFLOW(name):         # pylint: disable=unused-argument
+def w_X_RSTACK_UNDERFLOW(name): # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_RSTACK_UNDERFLOW))
 
 @defword(name='X_DO_NESTING', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 DO-loops nested too deeply during execution""")
-def w_X_DO_NESTING(name):               # pylint: disable=unused-argument
+def w_X_DO_NESTING(name):       # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_DO_NESTING))
 
 @defword(name='X_DICT_OVERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Dictionary overflow""")
-def w_X_DICT_OVERFLOW(name):            # pylint: disable=unused-argument
+def w_X_DICT_OVERFLOW(name):    # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_DICT_OVERFLOW))
 
 @defword(name='X_INVALID_MEMORY', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Invalid memory address""")
-def w_X_INVALID_MEMORY(name):           # pylint: disable=unused-argument
+def w_X_INVALID_MEMORY(name):   # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_INVALID_MEMORY))
 
 @defword(name='X_DIVISION_BY_ZERO', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Division by zero""")
-def w_X_DIVISION_BY_ZERO(name):         # pylint: disable=unused-argument
+def w_X_DIVISION_BY_ZERO(name): # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_DIVISION_BY_ZERO))
 
 @defword(name='X_RESULT_OO_RANGE', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Result out of range""")
-def w_X_RESULT_OO_RANGE(name):          # pylint: disable=unused-argument
+def w_X_RESULT_OO_RANGE(name):  # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_RESULT_OO_RANGE))
 
 @defword(name='X_ARG_TYPE_MISMATCH', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Argument type mismatch""")
-def w_X_ARG_TYPE_MISMATCH(name):        # pylint: disable=unused-argument
+def w_X_ARG_TYPE_MISMATCH(name): # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_ARG_TYPE_MISMATCH))
 
 @defword(name='X_UNDEFINED_WORD', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Undefined word""")
-def w_X_UNDEFINED_WORD(name):           # pylint: disable=unused-argument
+def w_X_UNDEFINED_WORD(name):   # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_UNDEFINED_WORD))
 
 @defword(name='X_COMPILE_ONLY', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Interpreting a compile-only word""")
-def w_X_COMPILE_ONLY(name):             # pylint: disable=unused-argument
+def w_X_COMPILE_ONLY(name):     # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_COMPILE_ONLY))
 
 @defword(name='X_INVALID_FORGET', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Invalid FORGET
 (Do not use, prefer X_PROTECTED)""")
-def w_X_INVALID_FORGET(name):           # pylint: disable=unused-argument
+def w_X_INVALID_FORGET(name):   # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_INVALID_FORGET))
 
 @defword(name='X_ZERO_LEN_STR', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Attempt to use a zero-length string as a name""")
-def w_X_ZERO_LEN_STR(name):             # pylint: disable=unused-argument
+def w_X_ZERO_LEN_STR(name):     # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_ZERO_LEN_STR))
 
 @defword(name='X_PIC_STRING_OVERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Pictured numeric output string overflow""")
-def w_X_PIC_STRING_OVERFLOW(name):      # pylint: disable=unused-argument
+def w_X_PIC_STRING_OVERFLOW(name): # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_PIC_STRING_OVERFLOW))
 
 @defword(name='X_STRING_OVERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Parsed string overflow""")
-def w_X_STRING_OVERFLOW(name):          # pylint: disable=unused-argument
+def w_X_STRING_OVERFLOW(name):  # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_STRING_OVERFLOW))
 
 @defword(name='X_NAME_TOO_LONG', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Definition name too long""")
-def w_X_NAME_TOO_LONG(name):            # pylint: disable=unused-argument
+def w_X_NAME_TOO_LONG(name):    # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_NAME_TOO_LONG))
 
 @defword(name='X_READ_ONLY', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Write to a read-only location""")
-def w_X_READ_ONLY(name):                # pylint: disable=unused-argument
+def w_X_READ_ONLY(name):        # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_READ_ONLY))
 
 @defword(name='X_UNSUPPORTED', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Unsupported operation""")
-def w_X_UNSUPPORTED(name):              # pylint: disable=unused-argument
+def w_X_UNSUPPORTED(name):      # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_UNSUPPORTED))
 
 @defword(name='X_CTL_STRUCTURE', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Control structure mismatch""")
-def w_X_CTL_STRUCTURE(name):            # pylint: disable=unused-argument
+def w_X_CTL_STRUCTURE(name):    # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_CTL_STRUCTURE))
 
 @defword(name='X_ALIGNMENT', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Address alignment exception""")
-def w_X_ALIGNMENT(name):                # pylint: disable=unused-argument
+def w_X_ALIGNMENT(name):        # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_ALIGNMENT))
 
 @defword(name='X_INVALID_ARG', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Invalid argument""")
-def w_X_INVALID_ARG(name):              # pylint: disable=unused-argument
+def w_X_INVALID_ARG(name):      # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_INVALID_ARG))
 
 @defword(name='X_RSTACK_IMBALANCE', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Return stack imbalance""")
-def w_X_RSTACK_IMBALANCE(name):         # pylint: disable=unused-argument
+def w_X_RSTACK_IMBALANCE(name): # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_RSTACK_IMBALANCE))
 
 @defword(name='X_LOOP_PARAMS', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Loop parameters unavailable""")
-def w_X_LOOP_PARAMS(name):              # pylint: disable=unused-argument
+def w_X_LOOP_PARAMS(name):      # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_LOOP_PARAMS))
 
 @defword(name='X_INVALID_RECURSION', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Invalid recursion""")
-def w_X_INVALID_RECURSION(name):        # pylint: disable=unused-argument
+def w_X_INVALID_RECURSION(name): # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_INVALID_RECURSION))
 
 @defword(name='X_INTERRUPT', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 User interrupt""")
-def w_X_INTERRUPT(name):                # pylint: disable=unused-argument
+def w_X_INTERRUPT(name):        # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_INTERRUPT))
 
 @defword(name='X_NESTING', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Compiler nesting""")
-def w_X_NESTING(name):                  # pylint: disable=unused-argument
+def w_X_NESTING(name):          # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_NESTING))
 
 @defword(name='X_OBSOLETE', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Obsolescent feature""")
-def w_X_OBSOLETE(name):                 # pylint: disable=unused-argument
+def w_X_OBSOLETE(name):         # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_OBSOLETE))
 
 @defword(name='X_BODY', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 >BODY used on a non-CREATEd definition""")
-def w_X_BODY(name):                     # pylint: disable=unused-argument
+def w_X_BODY(name):             # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_BODY))
 
 @defword(name='X_INVALID_NAME', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Invalid name argument""")
-def w_X_INVALID_NAME(name):             # pylint: disable=unused-argument
+def w_X_INVALID_NAME(name):     # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_INVALID_NAME))
 
 @defword(name='X_BLK_READ', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Block read exception""")
-def w_X_BLK_READ(name):                 # pylint: disable=unused-argument
+def w_X_BLK_READ(name):         # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_BLK_READ))
 
 @defword(name='X_BLK_WRITE', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Block write exception""")
-def w_X_BLK_WRITE(name):                # pylint: disable=unused-argument
+def w_X_BLK_WRITE(name):        # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_BLK_WRITE))
 
 @defword(name='X_INVALID_BLK_NUM', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Invalid block number""")
-def w_X_INVALID_BLK_NUM(name):          # pylint: disable=unused-argument
+def w_X_INVALID_BLK_NUM(name):  # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_INVALID_BLK_NUM))
 
 @defword(name='X_INVALID_FILE_POS', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Invalid file position""")
-def w_X_INVALID_FILE_POS(name):         # pylint: disable=unused-argument
+def w_X_INVALID_FILE_POS(name): # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_INVALID_FILE_POS))
 
 @defword(name='X_FILE_IO', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 File I/O exception""")
-def w_X_FILE_IO(name):                  # pylint: disable=unused-argument
+def w_X_FILE_IO(name):          # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_FILE_IO))
 
 @defword(name='X_NON_EXISTENT_FILE', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Non-existent file""")
-def w_X_NON_EXISTENT_FILE(name):        # pylint: disable=unused-argument
+def w_X_NON_EXISTENT_FILE(name): # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_NON_EXISTENT_FILE))
 
 @defword(name='X_EOF', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Unexpected end of file""")
-def w_X_EOF(name):                      # pylint: disable=unused-argument
+def w_X_EOF(name):              # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_EOF))
 
 @defword(name='X_INVALID_BASE', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Invalid BASE for floating point conversion""")
-def w_X_INVALID_BASE(name):             # pylint: disable=unused-argument
+def w_X_INVALID_BASE(name):     # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_INVALID_BASE))
 
 @defword(name='X_PRECISION_LOSS', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Loss of precision""")
-def w_X_PRECISION_LOSS(name):           # pylint: disable=unused-argument
+def w_X_PRECISION_LOSS(name):   # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_PRECISION_LOSS))
 
 @defword(name='X_FP_DIVISION_BY_ZERO', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Floating-point divide by zero""")
-def w_X_FP_DIVISION_BY_ZERO(name):      # pylint: disable=unused-argument
+def w_X_FP_DIVISION_BY_ZERO(name): # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_FP_DIVISION_BY_ZERO))
 
 @defword(name='X_FP_RESULT_OO_RANGE', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Floating-point result out of range""")
-def w_X_FP_RESULT_OO_RANGE(name):       # pylint: disable=unused-argument
+def w_X_FP_RESULT_OO_RANGE(name): # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_FP_RESULT_OO_RANGE))
 
 @defword(name='X_FP_STACK_OVERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Floating-point stack overflow""")
-def w_X_FP_STACK_OVERFLOW(name):        # pylint: disable=unused-argument
+def w_X_FP_STACK_OVERFLOW(name): # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_FP_STACK_OVERFLOW))
 
 @defword(name='X_FP_STACK_UNDERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Floating-point stack underflow""")
-def w_X_FP_STACK_UNDERFLOW(name):       # pylint: disable=unused-argument
+def w_X_FP_STACK_UNDERFLOW(name): # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_FP_STACK_UNDERFLOW))
 
 @defword(name='X_FP_INVALID_ARG', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Floating-point invalid argument""")
-def w_X_FP_INVALID_ARG(name):           # pylint: disable=unused-argument
+def w_X_FP_INVALID_ARG(name):   # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_FP_INVALID_ARG))
 
 @defword(name='X_COMP_WORD_DEL', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Compilation word list deleted""")
-def w_X_COMP_WORD_DEL(name):            # pylint: disable=unused-argument
+def w_X_COMP_WORD_DEL(name):    # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_COMP_WORD_DEL))
 
 @defword(name='X_INVALID_POSTPONE', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Invalid POSTPONE""")
-def w_X_INVALID_POSTPONE(name):         # pylint: disable=unused-argument
+def w_X_INVALID_POSTPONE(name): # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_INVALID_POSTPONE))
 
 @defword(name='X_SO_OVERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Search-order overflow""")
-def w_X_SO_OVERFLOW(name):              # pylint: disable=unused-argument
+def w_X_SO_OVERFLOW(name):      # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_SO_OVERFLOW))
 
 @defword(name='X_SO_UNDERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Search-order underflow""")
-def w_X_SO_UNDERFLOW(name):             # pylint: disable=unused-argument
+def w_X_SO_UNDERFLOW(name):     # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_SO_UNDERFLOW))
 
 @defword(name='X_COMP_WORD_CHG', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Compilatin word list changed""")
-def w_X_COMP_WORD_CHG(name):            # pylint: disable=unused-argument
+def w_X_COMP_WORD_CHG(name):    # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_COMP_WORD_CHG))
 
 @defword(name='X_CTL_STACK_OVERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Control-flow stack overflow""")
-def w_X_CTL_STACK_OVERFLOW(name):       # pylint: disable=unused-argument
+def w_X_CTL_STACK_OVERFLOW(name): # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_CTL_STACK_OVERFLOW))
 
 @defword(name='X_XSTACK_OVERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Exception stack overflow""")
-def w_X_XSTACK_OVERFLOW(name):          # pylint: disable=unused-argument
+def w_X_XSTACK_OVERFLOW(name):  # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_XSTACK_OVERFLOW))
 
 @defword(name='X_FP_UNDERFLOW', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Floating-point underflow""")
-def w_X_FP_UNDERFLOW(name):             # pylint: disable=unused-argument
+def w_X_FP_UNDERFLOW(name):     # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_FP_UNDERFLOW))
 
 @defword(name='X_FP_FAULT', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Floating-point unidentified fault""")
-def w_X_FP_FAULT(name):                 # pylint: disable=unused-argument
+def w_X_FP_FAULT(name):         # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_FP_FAULT))
 
 @defword(name='X_QUIT', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 QUIT""")
-def w_X_QUIT(name):                     # pylint: disable=unused-argument
+def w_X_QUIT(name):             # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_QUIT))
 
 @defword(name='X_CHAR_IO', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Exception in sending or receiving a character""")
-def w_X_CHAR_IO(name):                  # pylint: disable=unused-argument
+def w_X_CHAR_IO(name):          # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_CHAR_IO))
 
 @defword(name='X_IF_THEN', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 [IF], [ELSE], or [THEN] exception""")
-def w_X_IF_THEN(name):                  # pylint: disable=unused-argument
+def w_X_IF_THEN(name):          # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_IF_THEN))
 
 @defword(name='X_LEAVE', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 LEAVE""")
-def w_X_LEAVE(name):                    # pylint: disable=unused-argument
+def w_X_LEAVE(name):            # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_LEAVE))
 
 @defword(name='X_EXIT', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 EXIT""")
-def w_X_EXIT(name):                     # pylint: disable=unused-argument
+def w_X_EXIT(name):             # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_EXIT))
 
 @defword(name='X_FP_NAN', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Floating-point Not a Number""")
-def w_X_FP_NAN(name):                   # pylint: disable=unused-argument
+def w_X_FP_NAN(name):           # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_FP_NAN))
 
 @defword(name='X_INSUFF_PARAMS', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Insufficient parameters""")
-def w_X_INSUFF_PARAMS(name):            # pylint: disable=unused-argument
+def w_X_INSUFF_PARAMS(name):    # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_INSUFF_PARAMS))
 
 @defword(name='X_INSUFF_STR_PARAMS', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Insufficient string parameters""")
-def w_X_INSUFF_STR_PARAMS(name):        # pylint: disable=unused-argument
+def w_X_INSUFF_STR_PARAMS(name): # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_INSUFF_STR_PARAMS))
 
 @defword(name='X_CONFORMABILITY', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Comformability error""")
-def w_X_CONFORMABILITY(name):           # pylint: disable=unused-argument
+def w_X_CONFORMABILITY(name):   # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_CONFORMABILITY))
 
 @defword(name='X_BAD_DATA', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Bad data""")
-def w_X_BAD_DATA(name):                 # pylint: disable=unused-argument
+def w_X_BAD_DATA(name):         # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_BAD_DATA))
 
 @defword(name='X_SYNTAX', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Syntax error""")
-def w_X_SYNTAX(name):                   # pylint: disable=unused-argument
+def w_X_SYNTAX(name):           # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_SYNTAX))
 
 @defword(name='X_NO_SOLUTION', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 No solution""")
-def w_X_NO_SOLUTION(name):              # pylint: disable=unused-argument
+def w_X_NO_SOLUTION(name):      # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_NO_SOLUTION))
 
 @defword(name='X_UNDEFINED_VARIABLE', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Undefined variable""")
-def w_X_UNDEFINED_VARIABLE(name):       # pylint: disable=unused-argument
+def w_X_UNDEFINED_VARIABLE(name): # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_UNDEFINED_VARIABLE))
 
 @defword(name='X_PROTECTED', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Protected""")
-def w_X_PROTECTED(name):                # pylint: disable=unused-argument
+def w_X_PROTECTED(name):        # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_PROTECTED))
 
 @defword(name='X_INVALID_UNIT', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Invalid unit""")
-def w_X_INVALID_UNIT(name):             # pylint: disable=unused-argument
+def w_X_INVALID_UNIT(name):     # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_INVALID_UNIT))
 
 @defword(name='X_INCONSISTENT_UNITS', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Inconsistent units""")
-def w_X_INCONSISTENT_UNITS(name):       # pylint: disable=unused-argument
+def w_X_INCONSISTENT_UNITS(name): # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(X_INCONSISTENT_UNITS))
 
 
 @defword(name='xor', args=2, print_x=rpn.globl.PX_PREDICATE, doc="""\
-Logical XOR "exclusive OR"  ( flag flag -- flag )
-NOTE: This is not a bitwise XOR - use BITXOR for that.""")
+xor   ( flag flag -- flag )
+Logical XOR (exclusive OR).
+
+NOTE: This is not a bitwise XOR - use bitxor for that.""")
 def w_logxor(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
@@ -5711,7 +5901,8 @@ def w_logxor(name):
 
 
 @defword(name='zer', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-zer  ( v -- m )  Create a zero vector or matrix""")
+zer   ( v -- m )
+Create a zero vector or matrix.""")
 def w_zer(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Vector:
@@ -5927,10 +6118,10 @@ def plot_helper(func, x_low, x_high):
 # Helper routines for KEY
 class _Getch_windows:
     def __init__(self):
-        import msvcrt                   # pylint: disable=import-error,import-outside-toplevel,unused-import
+        import msvcrt # pylint: disable=import-error,import-outside-toplevel,unused-import
 
     def __call__(self):
-        import msvcrt                   # pylint: disable=import-error,import-outside-toplevel
+        import msvcrt # pylint: disable=import-error,import-outside-toplevel
         return msvcrt.getch()
 
 class _Getch_unix:
