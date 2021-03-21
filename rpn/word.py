@@ -1398,7 +1398,7 @@ def w_acos(name):
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Float(rpn.globl.convert_radians_to_mode(r))
-        result.label = rpn.globl.angle_mode_label()
+        result.uexpr = rpn.globl.uexpr[rpn.globl.angle_mode_letter()]
     elif type(x) is rpn.type.Complex:
         try:
             r = cmath.acos(x.value)
@@ -1499,7 +1499,7 @@ def w_asin(name):
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Float(rpn.globl.convert_radians_to_mode(r))
-        result.label = rpn.globl.angle_mode_label()
+        result.uexpr = rpn.globl.uexpr[rpn.globl.angle_mode_letter()]
     elif type(x) is rpn.type.Complex:
         try:
             r = cmath.asin(x.value)
@@ -1554,7 +1554,7 @@ def w_atan(name):
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Float(rpn.globl.convert_radians_to_mode(r))
-        result.label = rpn.globl.angle_mode_label()
+        result.uexpr = rpn.globl.uexpr[rpn.globl.angle_mode_letter()]
     elif type(x) is rpn.type.Complex:
         try:
             r = cmath.atan(x.value)
@@ -1581,7 +1581,7 @@ def w_atan2(name):
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Float(rpn.globl.convert_radians_to_mode(r))
-        result.label = rpn.globl.angle_mode_label()
+        result.uexpr = rpn.globl.uexpr[rpn.globl.angle_mode_letter()]
     elif type(x) is rpn.type.Complex:
         # Python cmath doesn't have atan2, so fake it
         if x.zerop():
@@ -2081,6 +2081,7 @@ def w_d_to_jd(name):
     rpn.globl.param_stack.push(result)
 
 
+# XXX
 @defword(name='d->r', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Convert degrees to radians ( deg -- rad )""")
 def w_d_to_r(name):
@@ -2206,7 +2207,7 @@ WARNING:
 Do not confuse this with \"deg\" (which sets the angular mode to degrees).""")
 def w_DEG(name):                        # pylint: disable=unused-argument
     result = rpn.type.Float(rpn.globl.DEG_PER_RAD)
-    result.uexpr = rpn.unit.try_parsing("deg/r")
+    result.uexpr = rpn.globl.uexpr["deg/r"]
     rpn.globl.param_stack.push(result)
 
 
@@ -2214,7 +2215,7 @@ def w_DEG(name):                        # pylint: disable=unused-argument
 Set angular mode to degrees.
 
 WARNING:
-Do not confuse this with \"DEG\" (which is the number of degress per radian).""")
+Do not confuse this with \"DEG\" (which is the number of degrees per radian).""")
 def w_deg(name):                        # pylint: disable=unused-argument
     rpn.flag.clear_flag(rpn.flag.F_RAD)
     rpn.flag.clear_flag(rpn.flag.F_GRAD)
@@ -4074,6 +4075,7 @@ EXAMPLE: Integrate a bessel function jv(2.5, x) along the interval [0,4.5]:
         rpn.globl.param_stack.push(res_obj)
 
 
+# XXX
 @defword(name='r->d', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
 Convert radians to degrees ( rad -- deg )""")
 def w_r_to_d(name):
@@ -4116,7 +4118,8 @@ def w_r_to_p(name):
 
         theta = math.atan2(y.value, x.value)
         theta_obj = rpn.type.Float(rpn.globl.convert_radians_to_mode(theta))
-        theta_obj.label = "theta_" + rpn.globl.angle_mode_label()
+        theta_obj.uexpr = rpn.globl.uexpr[rpn.globl.angle_mode_letter()]
+        theta_obj.label = "theta"
 
         r = math.hypot(y.value, x.value)
         r_obj = rpn.type.Float(r)
@@ -4247,11 +4250,13 @@ def w_rct_to_sph(name):
 
     theta     = math.acos(zval / r)
     theta_obj = rpn.type.Float(rpn.globl.convert_radians_to_mode(theta))
-    theta_obj.label = "theta_" + rpn.globl.angle_mode_label()
+    theta_obj.uexpr = rpn.globl.uexpr[rpn.globl.angle_mode_letter()]
+    theta_obj.label = "theta"
 
     phi     = math.atan2(yval, xval)
     phi_obj = rpn.type.Float(rpn.globl.convert_radians_to_mode(phi))
-    phi_obj.label = "phi_" + rpn.globl.angle_mode_label()
+    phi_obj.uexpr = rpn.globl.uexpr[rpn.globl.angle_mode_letter()]
+    phi_obj.label = "phi"
 
     rpn.globl.param_stack.push(phi_obj)
     rpn.globl.param_stack.push(theta_obj)
@@ -4973,7 +4978,7 @@ DEFINITION:
 Number of radians in a circle.""")
 def w_TAU(name):                        # pylint: disable=unused-argument
     result = rpn.type.Float(rpn.globl.TAU)
-    result.uexpr = rpn.unit.try_parsing("r")
+    result.uexpr = rpn.globl.uexpr["r"]
     result.label = "TAU"
     rpn.globl.param_stack.push(result)
 

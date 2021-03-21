@@ -988,6 +988,11 @@ degR (Degrees Rankine)		0.555555555556 K
 '''
     ]
 
+    rpn.globl.uexpr["d"]     = try_parsing("degree")
+    rpn.globl.uexpr["deg/r"] = try_parsing("degree/radian")
+    rpn.globl.uexpr["g"]     = try_parsing("gradian")
+    rpn.globl.uexpr["r"]     = try_parsing("radian")
+
 
 
 

@@ -61,17 +61,19 @@ colon_stack  = rpn.util.Stack("Colon stack")
 
 root_scope = rpn.util.Scope("ROOT")
 
-register                = dict()
-stat_data = []
-go_interactive = None
+register          = dict()
+stat_data         = []
+go_interactive    = None
 default_protected = True
-got_interrupt = False
-lexer = None
-scr_cols = None
-scr_rows = None
-sharpout = None
-sigint_detected = False
-rpn_parser = None
+got_interrupt     = False
+lexer             = None
+scr_cols          = None
+scr_rows          = None
+sharpout          = None
+sigint_detected   = False
+rpn_parser        = None
+uexpr             = dict()
+
 
 DATE_RE                 = re.compile(r'^(\d{1,2})\.(\d{2})(\d{4})$') # MM.DDYYYY
 INTEGER_RE              = re.compile(r'^\d+$')
@@ -118,16 +120,6 @@ def angle_mode_letter():
     if rpn.flag.flag_set_p(rpn.flag.F_GRAD):
         return "g"
     return "d"
-
-
-def angle_mode_label():
-    if rpn.flag.flag_set_p(rpn.flag.F_RAD) and rpn.flag.flag_set_p(rpn.flag.F_GRAD):
-        raise FatalErr("angle_mode_label: Bad angle mode: RAD and GRAD both set")
-    if rpn.flag.flag_set_p(rpn.flag.F_RAD):
-        return "Rad"
-    if rpn.flag.flag_set_p(rpn.flag.F_GRAD):
-        return "Grad"
-    return "Deg"
 
 
 def bool_to_int(condition):
