@@ -76,7 +76,8 @@ except ImportError:
 # except ModuleNotFoundError:
 #     pass
 
-from   rpn.debug import dbg, typename, whoami
+from   rpn.debug     import dbg, typename, whoami
+from   rpn.exception import *
 import rpn.exe
 import rpn.globl
 import rpn.unit
@@ -229,7 +230,7 @@ class Float(Stackable):
             try:
                 (val, ustr) = s.split("_")
             except ValueError:
-                throw(X_INVALID_UNIT, "Integer#from_string", s)
+                throw(X_INVALID_UNIT, "Float#from_string", s)
 
             ue = rpn.unit.try_parsing(ustr)
             if ue is None:

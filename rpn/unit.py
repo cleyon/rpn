@@ -890,7 +890,7 @@ def define_units():
         Unit('gramforce',     units="g*force",     abbrev="gf"),
         Unit('kilogramforce', units="kg*force",    abbrev="kgf"),
         Unit("poundforce",    units="pound*force", abbrev="lbf"),
-        Unit("poundal",       units="lb*foot/s^2", abbrev="Pdl", syn=["poundals"]),
+        Unit("poundal",       units="lb*foot/s^2", abbrev="pdl", syn=["poundals"]),
         Unit("kilopoundforce", units="poundforce", exp=3, abbrev="kip"),
 
         ## Other British weight
@@ -924,8 +924,9 @@ def define_units():
         Unit("atmosphere", abbrev="atm", factor=101325, units="pascals"),
 
         # Frequency
-        Unit("hertz",    abbrev="Hz",  units="s^-1"),                              # Frequency
+        Unit("hertz",    abbrev="Hz",  units="s^-1"),
         Unit("becquerel",abbrev="Bq",  units="s^-1"),
+        Unit("rpm",                    units="min^-1"),
         Unit("curie",    abbrev="Ci",  factor=3.7, exp=10, units="becquerel", syn=["curies"]),
 
         # Luminous flux
@@ -965,11 +966,11 @@ def define_units():
 
         # Magnetic flux
         Unit("weber",    abbrev="Wb",  units="kg*m^2/A*s^2", syn=["webers"]),
-        Unit("maxwell",  exp=-8,       units="weber", syn=["maxwells"]),
+        Unit("maxwell",  exp=-8,       units="weber", syn=["maxwells"]), # Mx?
 
         # Magnetic induction (field)
         Unit("tesla",    abbrev="T",   units="kg/A*s^2"),
-        Unit("gauss",    exp=-4,       units="tesla"),
+        Unit("gauss",    exp=-4,       units="tesla"), # G?
 
         # Others
         Unit("farad",    abbrev="F",   units="s^4*A^2/kg*m^2", syn=["farads"]),    # Capacitance
