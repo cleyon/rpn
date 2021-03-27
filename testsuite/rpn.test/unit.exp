@@ -1,0 +1,5 @@
+set test unit_addition_1
+send "1_ft 3_in + .\n"
+expect {
+    -re "15.0_in.*$prompt"    { pass "$test" }
+}

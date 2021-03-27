@@ -1,0 +1,54 @@
+if ![info exists prompt] then {
+    set prompt [format {\[d0]}]
+    #puts "prompt is >$prompt<"
+}
+
+#
+# rpn_version -- extract and print the version number of rpn
+#
+proc rpn_version {} {
+    global RPN
+    global prompt
+    set tmp [exec echo "ver" | $RPN]
+    regexp "$prompt *(\[^\n\]*)\n.*" $tmp tmp version
+    #clone_output "[which $RPN] version $version\n"
+    clone_output "$version\n"
+}
+
+#
+# rpn_load -- loads the program
+#
+proc rpn_load { arg } {
+    #
+}
+
+#
+# rpn_exit -- quit and cleanup
+#
+proc rpn_exit {} {
+    send "quit\n"
+}
+
+#
+# rpn_start -- start rpn running
+#
+proc rpn_start {} {
+    global RPN
+    global prompt
+    global spawn_id
+    global verbose
+
+    set RPN "/Users/cleyon/bin-n.dola.lan/rpn"
+
+    if { $verbose > 1 } {
+        send_user "starting $RPN\n"
+    }
+    spawn $RPN
+    expect {
+        -re "No such file.*" { perror "Can't start $RPN"; exit 1 }
+        "$prompt" { }
+        timeout { perror "Failed to spawn $RPN (timeout)"; exit 1 }
+    }
+}
+
+rpn_start

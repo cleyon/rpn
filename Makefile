@@ -20,10 +20,13 @@ unused_import=W0614
 #PYLINT_IGNORE=$(line_too_long),$(bad_whitespace),$(missing_function_docstring),$(invalid_name),$(missing_class_docstring),$(unidiomatic_typecheck),$(fixme),$(unused_import)
 PYLINT_IGNORE=$(line_too_long),$(bad_whitespace),$(missing_function_docstring),$(invalid_name),$(missing_class_docstring),$(unidiomatic_typecheck),$(too_many_boolean_expressions),$(too_many_statements),$(too_many_branches),$(too_many_return_statements),$(too_many_locals),$(too_few_public_methods),$(too_many_instance_attributes),$(fixme),$(unused_import)
 
+DEJAGNU_GLOBAL_CONFIG=/dev/null
+
 all:
 	@echo "make: Please specify a target: clean, lint, lintall, tags"
 
 clean:
+	@rm -f rpn.{log,sum}
 	@-find . -type d -name __pycache__ -exec rm -rf {} \;  >/dev/null 2>&1
 	@-find . -type f -name lextab.py   -exec rm -f  {} \;  >/dev/null 2>&1
 	@-find . -type f -name parsetab.py -exec rm -f  {} \;  >/dev/null 2>&1
@@ -37,3 +40,6 @@ lintall:
 
 tags:
 	etags $(SRCS)
+
+check:
+	DEJAGNU=$(DEJAGNU_GLOBAL_CONFIG) runtest --tool rpn --srcdir ./testsuite

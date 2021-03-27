@@ -140,3 +140,6 @@ parsetab.py
 scratch/
 TAGS
 .nfs*
+
+# Dejagnu summary file
+*.sum

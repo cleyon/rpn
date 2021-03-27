@@ -1,0 +1,42 @@
+set timeout 3
+#
+# expectations that clean up in case of error. Note that `$test' is
+# a purely local variable.
+#
+# The first of these is used to match any bad responses, and resynchronise
+# things by finding a prompt. The second is a timeout error, and shouldn't
+# ever be triggered.
+#
+expect_after {
+    -re "\[^\n\r\]*$prompt" {
+        fail "$test (bad match)"
+        if { $verbose > 0 } {
+            regexp ".*\r\n(\[^\r\n\]+)(\[\r\n\])+$prompt" \
+                $expect_out(buffer) "" output
+            send_user "\tUnmatched output: \"$output\"\n"
+        }
+    }
+    timeout {
+        fail "$test (timeout)"
+    }
+}
+#
+# Here are the tests
+#
+set test "version"
+send "ver\r"
+expect {
+    -re "RPN version .*$prompt" { pass "version" }
+}
+
+set test add1
+send "3 4 + .\n"
+expect {
+    -re "7.*$prompt"    { pass "$test" }
+}
+
+set test multiply1
+send "3 4 * .\n"
+expect {
+    -re "12.*$prompt"   { pass "$test" }
+}
