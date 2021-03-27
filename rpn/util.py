@@ -67,6 +67,12 @@ class DisplayConfig:
 
     @prec.setter
     def prec(self, new_prec):
+        if new_prec is None:
+            self._prec = new_prec
+            for bit in range(4):
+                rpn.flag.clear_flag(39 - bit)
+            return
+
         if new_prec < 0 or new_prec >= rpn.globl.PRECISION_MAX:
             raise FatalErr("{}: Invalid display precision '{}' (0..{} expected)".format(whoami(), new_prec, rpn.globl.PRECISION_MAX - 1))
         self._prec = new_prec

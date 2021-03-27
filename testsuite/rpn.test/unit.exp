@@ -3,3 +3,274 @@ send "1_ft 3_in + .\n"
 expect {
     -re "15.0_in.*$prompt"    { pass "$test" }
 }
+
+set test unit_convert_1
+send "453.59237_g \"lb\" convert .\n"
+expect {
+    -re "1.0_lb.*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_2
+send "1_slug*W^2/N^3 \"m\" convert .\n"
+expect {
+    -re "14.593902937206362_m.*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_3
+send "1_min \"s\" convert .\n"
+expect {
+    -re "60.0_s.*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_4
+send "2_knot \"m/s\" convert .\n"
+expect {
+    -re "1.028888888888889_m/s.*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_5
+send "2_knot \"ft/h\" convert .\n"
+expect {
+    -re "12152.230971128609_ft/h.*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_6
+send "2_yr \"s\" convert .\n"
+expect {
+    -re "63113851.9494_s.*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_7
+send "25.4_mm \"in\" convert .\n"
+expect {
+    -re "1.0_in.*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_8
+send ">disp 3 eng 66_Glyr \"lyr\" convert . disp>\n"
+expect {
+    -ex "66.0e+09_lyr"    { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_9
+send "6_cu \"qt\" convert .\n"
+expect {
+    -re "1.5_qt.*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_10
+send "6_cu \"l\" convert .\n"
+expect {
+    -re "1.419529419_l.*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_11
+send "1_Btu/h \"W\" convert .\n"
+expect {
+    -re "0.2930710701722222_W.*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_12
+send "1_Btu \"J\" convert .\n"
+expect {
+    -re "1055.05585262_J.*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_13
+send "1_Btu/(lb*h) \"W/kg\" convert .\n"
+expect {
+    -re "0.6461111111111111_W/kg.*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_14
+send "1_kW/kg \"Btu/(lb*h)\" convert .\n"
+expect {
+    -ex "1547.7214101461739_Btu/(lb*h)"    { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_15
+send "1000_W/kg \"Btu/(lb*h)\" convert .\n"
+expect {
+    -ex "1547.7214101461739_Btu/(lb*h)"    { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_16
+send "1_km \"m\" convert .\n"
+expect {
+    -re "1000.0_m.*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_17
+send "1_m \"km\" convert .\n"
+expect {
+    -re "0.001_km.*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_18
+send "5280_ft \"km\" convert .\n"
+expect {
+    -re "1.609344_km.*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_19
+send ".01_m^2 \"cm^2\" convert .\n"
+expect {
+    -ex "100.0_cm^2"    { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_20
+send "1_km \"m\" convert .\n"
+expect {
+    -re "1000.0_m.*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_21
+send "10000_m \"km\" convert .\n"
+expect {
+    -re "10.0_km.*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_22
+send "10000_g \"kg\" convert .\n"
+expect {
+    -re "10.0_kg.*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_23
+send "254_cm \"in\" convert .\n"
+expect {
+    -re "100.0_in.*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_24
+send "1_oz \"kg\" convert .\n"
+expect {
+    -re "0.028349523125_kg.*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_25
+send "252_oz*in \"kg*cm\" convert .\n"
+expect {
+    -ex "18.1459628_kg*cm"    { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_26
+send "1_Btu/(lb*h) \"kW/kg\" convert .\n"
+expect {
+    -re "0.0006461111111111111_kW/kg.*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_27
+send "1_lbf*ft \"N*m\" convert .\n"
+expect {
+    -ex "1.355818_N*m"    { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_28
+send "1_cSt \"m^2/s\" convert .\n"
+expect {
+    -ex "1e-6_m^2/s"    { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_29
+send "1_cSt \"m^2/h\" convert .\n"
+expect {
+    -ex "0.0036_m^2/h"    { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_30
+send "1_1/(m^2*s^3) \"1/(in^2*h^3)\" convert .\n"
+expect {
+    -ex "30100584.96_1/(in^2*h^3)"    { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_31
+send "1_kg*m \"lb*ft\" convert .\n"
+expect {
+    -ex "7.23301385121_lb*ft"    { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_32
+send "1_kg*m/yr^2 \"lb*ft/yr^2\" convert .\n"
+expect {
+    -ex "7.23301385121_lb*ft/yr^2"    { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_33
+send "5_1/(s^2) \"1/min^2\" convert .\n"
+expect {
+    -ex "18000.0_1/min^2"    { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_34
+send "1_m/s^2 \"m/min^2\" convert .\n"
+expect {
+    -ex "3600.0_m/min^2"    { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_35
+send "1_kg*m/s^2 \"lb*ft/s^2\" convert .\n"
+expect {
+    -ex "7.23301385121_lb*ft/s^2"    { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_36
+send "1_kg*m/(s*s) \"lb*ft/s^2\" convert .\n"
+expect {
+    -ex "7.233013851209894_lb*ft/s^2"    { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_37
+send "1_m/s^2 \"in/s^2\" convert .\n"
+expect {
+    -ex "39.3700787402_in/s^2"    { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_38
+send "1_m/s \"ft/s\" convert .\n"
+expect {
+    -re "3.2808398950131235_ft/s.*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_39
+send "1_eV \"kcal\" convert .\n"
+# Old SI standards - on HP48
+expect {
+    -re "3.8267331470335335e-23_kcal.*$prompt"    { pass "$test" }
+}
+
+# set test unit_convert_40
+# send "1_eV \"kcal\" convert .\n"
+# # New SI 2019 standard
+# expect {
+#     -re "3.8292940583e-23_kcal.*$prompt"    { pass "$test" }
+# # want         3.8267331470335335e-23_kcal
+# }
+
+set test unit_convert_41
+send "1_m \"cm\" convert .\n"
+expect {
+    -re "100.0_cm.*$prompt"    { pass "$test" }
+}
+
+set test unit_convert_42
+send "100_cm \"m\" convert .\n"
+expect {
+    -re "1.0_m.*$prompt"    { pass "$test" }
+}

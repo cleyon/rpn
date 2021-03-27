@@ -290,8 +290,7 @@ def w_dollar_ushow(name):
         cat = rpn.unit.Category.lookup_by_dim(ue.dim())
         if cat is not None:
             rpn.globl.writeln("It is a measure of {}".format(cat.measure))
-        else:
-            rpn.globl.writeln("It has dimensions = {}".format(ue.dim()))
+        rpn.globl.writeln("It has dimensions = {}".format(ue.dim()))
         return
 
     # See if it's a valid combination of units
@@ -303,8 +302,7 @@ def w_dollar_ushow(name):
         cat = rpn.unit.Category.lookup_by_dim(ue.dim())
         if cat is not None:
             rpn.globl.writeln("It is a measure of {}".format(cat.measure))
-        else:
-            rpn.globl.writeln("It has dimensions = {}".format(ue.dim()))
+        rpn.globl.writeln("It has dimensions = {}".format(ue.dim()))
         return
 
     # Not valid
@@ -1996,8 +1994,17 @@ def w_convert(name):
         throw(X_INVALID_ARG, name, "Not a unit")
 
     dbg("unit", 2, "{}: orig X={}".format(name, repr(x)))
-    new_ustr = rpn.globl.string_stack.pop().value
-    new_x = x.uexpr_convert(new_ustr, name)
+    s = rpn.globl.string_stack.pop()
+    new_ustr = s.value
+    try:
+        new_x = x.uexpr_convert(new_ustr, name)
+    except RuntimeErr as e:
+        if e.code == X_INVALID_UNIT:
+            rpn.globl.param_stack.push(x)
+            rpn.globl.string_stack.push(s)
+            throw(X_INVALID_UNIT, name, new_ustr)
+        else:
+            raise
     dbg("unit", 2, "{}: new X={}".format(name, repr(new_x)))
     rpn.globl.param_stack.push(new_x)
 

@@ -23,7 +23,7 @@ t_RPAREN   = r'\)'
 t_SLASH    = r'/'
 
 def t_UNIT(t):
-    r'[a-zA-Z$1]+'
+    r'[a-zA-Z$1Å]+'
     return t
 
 def t_error(t):
@@ -285,6 +285,8 @@ class UNull:
     def raise_to_power(self, p):
         return self
     def invert(self):
+        return self
+    def ubase(self):
         return self
 
 class UQuot:
@@ -965,8 +967,8 @@ def define_units():
         Unit("amperehour", factor=3600, units="coulomb", syn=["amperehours", "amphour", "amphours"]),
 
         # Magnetic flux
-        Unit("weber",    abbrev="Wb",  units="kg*m^2/A*s^2", syn=["webers"]),
-        Unit("maxwell",  exp=-8,       units="weber", syn=["maxwells"]), # Mx?
+        Unit("weber",    abbrev="Wb",         units="kg*m^2/A*s^2", syn=["webers"]),
+        Unit("maxwell",  abbrev="Mx", exp=-8, units="weber",        syn=["maxwells"]),
 
         # Magnetic induction (field)
         Unit("tesla",    abbrev="T",   units="kg/A*s^2"),
