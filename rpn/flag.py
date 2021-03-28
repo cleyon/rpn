@@ -13,6 +13,7 @@ from rpn.exception import *
 
 F_TVM_CONTINUOUS     =   8 # Set: Continuous compounding Clear: Discrete compounding
 F_TVM_BEGIN_MODE     =   9 # Set: Begin (annuity due)    Clear: End (ordinary annuity)
+F_SHOW_PROMPT        =  18 # Set: Show command prompt    Clear: do not show prompt
 F_SHOW_X             =  19 # Set: Show X at prompt       Clear: do not show X
 F_DEBUG_ENABLED      =  20
 F_PRINTER_ENABLED    =  21

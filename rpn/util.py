@@ -941,7 +941,8 @@ def frexp10(x):
 
 
 def prompt_string():
-    if not rpn.globl.go_interactive:
+    if not rpn.globl.interactive or \
+       not rpn.flag.flag_set_p(rpn.flag.F_SHOW_PROMPT):
         return ""
 
     s = "[{}{}".format(rpn.globl.angle_mode_letter(), rpn.globl.param_stack.size())

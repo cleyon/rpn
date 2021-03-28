@@ -63,7 +63,7 @@ root_scope = rpn.util.Scope("ROOT")
 
 register          = dict()
 stat_data         = []
-go_interactive    = None
+interactive       = None
 default_protected = True
 got_interrupt     = False
 lexer             = None

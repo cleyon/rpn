@@ -2714,6 +2714,13 @@ def w_F_RAD(name):              # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.flag.F_RAD))
 
 
+@defword(name='F_SHOW_PROMPT', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
+F_SHOW_PROMPT   ( -- 18 )
+Flag number for Show Prompt.""")
+def w_F_SHOW_PROMPT(name):           # pylint: disable=unused-argument
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.flag.F_SHOW_PROMPT))
+
+
 @defword(name='F_SHOW_X', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 F_SHOW_X   ( -- 19 )
 Flag number for Show X.""")

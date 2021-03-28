@@ -42,7 +42,6 @@ import rpn.word
 
 
 disable_all_extensions = False
-force_interactive = False
 load_init_file = True
 want_debug = False
 
@@ -62,7 +61,6 @@ Usage: rpn [-d] [-f FILE] [-i] [-l FILE] [-q] cmds...
 
 def initialize(rpndir, argv):
     # Set up low level stuff, stacks, variables
-    rpn.globl.go_interactive = True
     sys.setrecursionlimit(2000) # default is 10002
     random.seed()
     rpn.globl.push_scope(rpn.globl.root_scope, "Root scope")
@@ -79,6 +77,7 @@ def initialize(rpndir, argv):
 
     # Set initial conditions
     rpn.globl.eval_string("clreg clflag clfin")
+    rpn.flag.set_flag(rpn.flag.F_SHOW_PROMPT)
 
     # Define built-in secondary (protected) words
     if not disable_all_extensions:
@@ -112,13 +111,16 @@ def initialize(rpndir, argv):
 
     # rpn.globl.lnwriteln("--------------------------------")
     if len(argv) > 0:
-        global force_interactive        # pylint: disable=global-statement
-        if not force_interactive:
-            rpn.globl.go_interactive = False
         s = " ".join(argv)
         rpn.globl.eval_string(s)
+        if rpn.globl.interactive is None:
+            rpn.globl.interactive = False
+    else:
+        # No command args, so maybe go interactive
+        if rpn.globl.interactive is None:
+            rpn.globl.interactive = True
 
-    return rpn.globl.go_interactive
+    return rpn.globl.interactive
 
 
 def define_variables():
@@ -198,16 +200,14 @@ def parse_args(argv):
         elif opt == "-D":
             rpn.flag.set_flag(rpn.flag.F_DEBUG_ENABLED) # Debug immediately, useful for built-in words
         elif opt == "-f":
+            if rpn.globl.interactive is None:
+                rpn.globl.interactive = False
             try:
                 load_file(arg)
             except RuntimeErr as err_f_opt:
                 rpn.globl.lnwriteln(str(err_f_opt))
-                sys.exit(1)
-            else:
-                sys.exit(0)
         elif opt == "-i":
-            global force_interactive    # pylint: disable=global-statement
-            force_interactive = True
+            rpn.globl.interactive = True
         elif opt == "-l":
             try:
                 load_file(arg)
