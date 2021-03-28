@@ -1,0 +1,156 @@
+set test tvm_N
+send "F_SHOW_PROMPT cf
+      clfin
+         1.45        !INT
+         0           !PMT
+      -217.644910137 !PV
+       234           !FV
+        12  CPF
+      >disp 7 fix
+      N .
+      disp>
+      F_SHOW_PROMPT sf\n"
+expect {
+    -ex "60.0000000 \ N" { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}
+
+
+set test tvm_INT
+send "F_SHOW_PROMPT cf
+      clfin
+       20       !N
+        3       !PMT
+      -80       !PV
+      100       !FV
+      INT .
+      F_SHOW_PROMPT sf\n"
+expect {
+    -ex "4.5432970406767303 \ INT" { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}
+
+
+set test tvm_PV
+send "F_SHOW_PROMPT cf
+      clfin
+      25       12 * !N
+      4        12 / !INT
+      500e3         !PV
+      -2000         !PMT
+      0             !FV
+      1 CPF
+      PV .
+      F_SHOW_PROMPT sf\n"
+expect {
+    -ex "378904.96594965487 \ PV" { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}
+
+
+set test tvm_PMT
+send "F_SHOW_PROMPT cf
+      clfin
+      25       12 * !N
+      4        12 / !INT
+      500e3         !PV
+      0             !FV
+      1 CPF
+      PMT .
+      F_SHOW_PROMPT sf\n"
+expect {
+    -ex "-2639.1842014888507 \ PMT" { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}
+
+
+set test tvm_FV
+send "F_SHOW_PROMPT cf
+      clfin
+      12   !N
+      12   !INT
+      -800 !PV
+      0    !PMT
+      12 CPF
+      >disp  4 fix
+      FV .
+      disp>
+      F_SHOW_PROMPT sf\n"
+expect {
+    -ex "901.4600 \ FV" { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}
+
+
+set test tvm_simple_interest
+send "F_SHOW_PROMPT cf
+      clfin
+      1    !N
+      -800 !PV
+      896  !FV
+      0    !PMT
+      >disp  7 fix
+      INT .
+      disp>
+      F_SHOW_PROMPT sf\n"
+expect {
+    -ex "12.0000000 \ INT" { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}
+
+
+# http://www.voidware.com/tvm.htm
+# An accountant is paid $0.01 per second every day and night for a
+# year.  The money is deposited directly into her bank account which
+# pays 10% interest compounded every second.  What is the correct bank
+# balance after one year?
+#       result = 331667.006690776891780341908435
+set test tvm_extreme_15c
+send "F_SHOW_PROMPT cf
+      clfin
+      365 24 * 60 * 60 *  !N
+      10 @N /             !INT
+      0                   !PV
+      -0.01               !PMT
+      FV .
+      F_SHOW_PROMPT sf\n"
+expect {
+    -ex "331667.0066907769 \ FV" { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}
+
+
+set test tvm_ex_4_conventional_mortgage
+send "F_SHOW_PROMPT cf
+      clfin
+      13.25    !INT
+      100e3    !PV
+      -1125.75 !PMT
+      0        !FV
+      12 CPF
+      >disp  2 fix
+      N .
+      disp>
+      F_SHOW_PROMPT sf\n"
+expect {
+    -ex "360.10 \ N" { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}
+
+
+set test tvm_ex_13_mortgage_with_points
+send "F_SHOW_PROMPT cf
+      clfin
+        360    !N
+      72750    !PV
+       -844.33 !PMT
+          0    !FV
+      12 CPF
+      >disp  2 fix
+      INT .
+      disp>
+      F_SHOW_PROMPT sf\n"
+expect {
+    -ex "13.69 \ INT" { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}

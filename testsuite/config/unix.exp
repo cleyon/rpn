@@ -38,7 +38,7 @@ proc rpn_start {} {
     global spawn_id
     global verbose
 
-    set RPN "/Users/cleyon/bin-n.dola.lan/rpn"
+    set RPN "rpn"
 
     if { $verbose > 1 } {
         send_user "starting $RPN\n"
