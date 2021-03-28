@@ -84,7 +84,7 @@
     -800        !PV
     896         !FV
     0           !PMT
-    INT  2 rnd  "INT" label
+    INT  2 rnd  "INT" >label
     ."INT=" dup .
     @result  announce_result
   ;
@@ -99,7 +99,7 @@
     12 !INT
     -800 !PV
     0 !PMT
-    FV          2 rnd  "FV" label
+    FV          2 rnd  "FV" >label
 
     ."FV=" dup .
     @result  announce_result

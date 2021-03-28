@@ -6,7 +6,8 @@
 #############################################################################
 '''
 
-#from   rpn.debug import dbg, typename, whoami
+import rpn.globl
+from   rpn.debug import dbg, typename, whoami
 from rpn.exception import *
 
 
@@ -33,12 +34,16 @@ def clear_flag(flag):
     global flags_vec                    # pylint: disable=global-statement
     if flag < 0 or flag >= MAX:
         raise FatalErr("{}: Flag {} out of range".format(rpn.debug.whoami(), flag))
+    if flag == F_DEBUG_ENABLED:
+        rpn.debug.debug_enabled = False
     flags_vec &= ~(1<<flag)
 
 def set_flag(flag):
     global flags_vec                    # pylint: disable=global-statement
     if flag < 0 or flag >= MAX:
         raise FatalErr("{}: Flag {} out of range".format(rpn.debug.whoami(), flag))
+    if flag == F_DEBUG_ENABLED:
+        rpn.debug.debug_enabled = True
     flags_vec |= (1<<flag)
 
 def toggle_flag(flag):

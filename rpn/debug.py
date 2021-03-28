@@ -10,8 +10,8 @@ import inspect
 import sys
 import traceback
 
-import rpn.flag
 
+debug_enabled = False
 
 debug_levels = {
     "#in"                       : 0,
@@ -74,7 +74,7 @@ just change "dbg(res,1,xxx)" to "dbg(res,-1,xxx)".'''
         traceback.print_stack(file=sys.stderr)
         sys.exit(1)             # Harsh!
 
-    if not rpn.flag.flag_set_p(rpn.flag.F_DEBUG_ENABLED) or level == 0:
+    if not debug_enabled or level == 0:
         return False
     flag = debug_levels[resource] >= level
     if flag and text is not None:
