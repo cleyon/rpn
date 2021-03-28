@@ -19,14 +19,15 @@ F_DEBUG_ENABLED      =  20
 F_PRINTER_ENABLED    =  21
 F_DECIMAL_POINT      =  28 # Set: 123,456.123  (US)      Clear: 123.456,123  (Europe)
 F_DIGIT_GROUPING     =  29 # Set: 1,234,567.01           Clear: 1234567.01
+# ------------------------
+FENCE                =  30 # Flags >= FENCE cannot set set by the user
+F_DISP_RESERVED      =  39 # Reserved for future display options
 F_DISP_FIX           =  40 # 40 & 41 Set: STD
 F_DISP_ENG           =  41 # 40 & 41 Clear: SCI
 F_GRAD               =  42
 F_RAD                =  43
 F_PRINTER_EXISTS     =  55
-
-FENCE              =  30 # Flags >= FLAG_FENCE cannot set set by the user
-MAX                =  56
+MAX                  =  56 # Flags >= MAX do not exist
 
 flags_vec = 0
 
@@ -46,6 +47,18 @@ def set_flag(flag):
     if flag == F_DEBUG_ENABLED:
         rpn.debug.debug_enabled = True
     flags_vec |= (1<<flag)
+
+def to_flag(flag, new):
+    if flag < 0 or flag >= MAX:
+        raise FatalErr("{}: Flag {} out of range".format(rpn.debug.whoami(), flag))
+    if new is None:
+        raise FatalErr("{}: Flag {} cannot take value None".format(whoami(), flag))
+    if new is True or int(new) > 0:
+        set_flag(flag)
+    elif new is False or int(new) == 0:
+        clear_flag(flag)
+    else:
+        raise FatalErr("{}: Could not set flag {} to value {}".format(whoami(), flag, new))
 
 def toggle_flag(flag):
     if flag < 0 or flag >= MAX:
