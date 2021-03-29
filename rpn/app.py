@@ -48,18 +48,22 @@ want_debug = False
 
 def usage():
     print("""\
-Usage: rpn [-d] [-f FILE] [-i] [-l FILE] [-q] cmds...
+Usage: rpn [-d] [-f FILE] [-i] [-l FILE] [-q] [-V] cmds...
 
 -d        Enable debugging
 -f FILE   Load FILE and exit
 -i        Force interactive mode
 -l FILE   Load FILE and continue
 -q        Do not load init file (~/.rpnrc)
--Q        Disable all extensions (implies -q)""")
+-Q        Disable all extensions (implies -q)
+-V        Display version information""")
     sys.exit(64)                # EX_USAGE
 
 
 def initialize(rpndir, argv):
+    global disable_all_extensions # pylint: disable=global-statement
+    global load_init_file         # pylint: disable=global-statement
+
     # Set up low level stuff, stacks, variables
     sys.setrecursionlimit(2000) # default is 10002
     random.seed()
@@ -101,7 +105,6 @@ def initialize(rpndir, argv):
     argv = parse_args(argv)
 
     # Hopefully load the user's init file
-    global load_init_file               # pylint: disable=global-statement
     if load_init_file:
         init_file = os.path.expanduser("~/.rpnrc")
         if os.path.isfile(init_file):
@@ -187,15 +190,18 @@ def define_variables():
 
 
 def parse_args(argv):
+    global want_debug             # pylint: disable=global-statement
+    global load_init_file         # pylint: disable=global-statement
+    global disable_all_extensions # pylint: disable=global-statement
+
     try:
-        opts, argv = getopt.getopt(argv, "dDf:il:qQ")
+        opts, argv = getopt.getopt(argv, "dDf:il:qQV")
     except getopt.GetoptError as e:
         print(str(e))           # OK
         usage()
 
     for opt, arg in opts:
         if opt == "-d":         # Sets debug only when main_loop is ready
-            global want_debug           # pylint: disable=global-statement
             want_debug = True
         elif opt == "-D":
             rpn.flag.set_flag(rpn.flag.F_DEBUG_ENABLED) # Debug immediately, useful for built-in words
@@ -214,12 +220,14 @@ def parse_args(argv):
             except RuntimeErr as err_l_opt:
                 rpn.globl.lnwriteln(str(err_l_opt))
         elif opt == "-q":
-            global load_init_file       # pylint: disable=global-statement
             load_init_file = False
         elif opt == "-Q":
-            global disable_all_extensions # pylint: disable=global-statement
             load_init_file = False
             disable_all_extensions = True
+        elif opt == "-V":
+            rpn.globl.show_version_info()
+            if rpn.globl.interactive is None:
+                rpn.globl.interactive = False
         else:
             print("Unhandled option {}".format(opt)) # OK
             sys.exit(1)
@@ -245,6 +253,9 @@ def load_file(filename):
 
 
 def main_loop():
+    global want_debug             # pylint: disable=global-statement
+    global disable_all_extensions # pylint: disable=global-statement
+
     rpn.flag.clear_flag(rpn.flag.F_SHOW_X) # Reset, because some argv may have set it to True
 
     # Non-existence of ~/.rpnrc is indicator of novice mode
@@ -262,7 +273,6 @@ def main_loop():
         else:
             rpn.word.w_dot_s('.s')
 
-    global want_debug                   # pylint: disable=global-statement
     if want_debug:
         rpn.flag.set_flag(rpn.flag.F_DEBUG_ENABLED)
     while True:

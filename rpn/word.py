@@ -1199,30 +1199,9 @@ Create a 3-vector from the stack.""")
 ?[topic]
 Display information on a variety of topics.""")
 def w_info(name):               # pylint: disable=unused-argument
-    rpn.globl.writeln("rpn version: {}".format(rpn.globl.RPN_VERSION))
-
-    rpn.globl.write("NumPy:       ")
-    if rpn.globl.have_module('numpy'):
-        rpn.globl.writeln("{}".format(np.__version__))
-    else:
-        rpn.globl.writeln("[not found]")
-
-    rpn.globl.write("SciPy:       ")
-    if rpn.globl.have_module('scipy'):
-        rpn.globl.writeln("{}".format(scipy.__version__))
-    else:
-        rpn.globl.writeln("[not found]")
-
-    rpn.globl.write("Matplotlib:  ")
-    if rpn.globl.have_module('matplotlib'):
-        rpn.globl.writeln("{}".format(matplotlib.__version__))
-    else:
-        rpn.globl.writeln("[not found]")
-
     print("""\
-
-rpn is a general-purpose calculator and programming language based loosely
-on Forth and Hewlett-Packard calculators.
+rpn is a general-purpose calculator and programming language
+based loosely on Forth and Hewlett-Packard calculators.
 
 The following topics provide additional information:
     ?datatypes
@@ -1244,9 +1223,9 @@ parameter stack.  Examples are also shown.
                  [0 1 0 0]
                  [0 0 1 0]
                  [0 0 0 1]]
+- String        "This is a sample string"
 
-Additionally, a String datatype is defined, which are placed on a separate
-string stack.  "This is a sample string" """)
+Strings are placed on a separate string stack.""")
 
 
 @defword(name='?dup', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
@@ -4022,8 +4001,11 @@ def w_pick(name):
     if x.value == 0:
         return
     if x.value < 0 or x.value > rpn.globl.param_stack.size():
+        msg = "Stack index out of range"
+        if not rpn.globl.param_stack.empty():
+            msg += " (1..{} expected)".format(rpn.globl.param_stack.size())
         rpn.globl.param_stack.push(x)
-        throw(X_INVALID_MEMORY, name, "Stack index out of range (1..{} expected)".format(rpn.globl.param_stack.size()-1))
+        throw(X_INVALID_MEMORY, name, msg)
 
     result = rpn.globl.param_stack.pick(x.value)
     rpn.globl.param_stack.push(result)
@@ -4541,8 +4523,11 @@ def w_roll(name):
     if x.value == 0:
         return
     if x.value < 0 or x.value > rpn.globl.param_stack.size():
+        msg = "Stack index out of range"
+        if not rpn.globl.param_stack.empty():
+            msg += " (1..{} expected)".format(rpn.globl.param_stack.size())
         rpn.globl.param_stack.push(x)
-        throw(X_INVALID_MEMORY, name, "Stack index out of range (1..{} expected)".format(rpn.globl.param_stack.size()-1))
+        throw(X_INVALID_MEMORY, name, msg)
 
     rpn.globl.param_stack.roll(x.value)
 
@@ -5467,6 +5452,13 @@ def w_vars(name):               # pylint: disable=unused-argument
         for key in sorted(my_vars, key=str.casefold):
             sorted_vars.append(my_vars[key])
         rpn.globl.list_in_columns(sorted_vars, rpn.globl.scr_cols.obj.value - 1)
+
+
+@defword(name='ver!', print_x=rpn.globl.PX_IO, hidden=True, doc="""\
+ver!   ( -- )
+Print version information for rpn and Python modules""")
+def w_ver_bang(name):           # pylint: disable=unused-argument
+    rpn.globl.show_version_info()
 
 
 @defword(name='vlist', print_x=rpn.globl.PX_IO, doc="""\

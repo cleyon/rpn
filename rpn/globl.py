@@ -20,18 +20,19 @@ try:
 except ImportError:
     pass
 
-# # Check if SciPy is available
-# try:
-#     import scipy.integrate              # pylint: disable=import-error
-#     import scipy.optimize               # pylint: disable=import-error
-# except ModuleNotFoundError:
-#     pass
+# Check if SciPy is available
+try:
+    import scipy.integrate              # pylint: disable=import-error
+    import scipy.optimize               # pylint: disable=import-error
+except ModuleNotFoundError:
+    pass
 
-# # Check if Matplotlib is available
-# try:
-#     import matplotlib                   # pylint: disable=import-error
-# except ModuleNotFoundError:
-#     pass
+# Check if Matplotlib is available
+try:
+    import matplotlib                   # pylint: disable=import-error
+except ModuleNotFoundError:
+    pass
+
 
 from   rpn.debug     import dbg, whoami
 from   rpn.exception import *
@@ -424,6 +425,28 @@ def to_rpn_class(n):
     if t in [complex, np.complex128]:
         return rpn.type.Complex.from_complex(n)
     raise FatalErr("{}: Cannot handle type {}".format(whoami(), t))
+
+
+def show_version_info():
+    rpn.globl.writeln("rpn version: {}".format(rpn.globl.RPN_VERSION))
+
+    rpn.globl.write("NumPy:       ")
+    if rpn.globl.have_module('numpy'):
+        rpn.globl.writeln("{}".format(np.__version__))
+    else:
+        rpn.globl.writeln("[not found]")
+
+    rpn.globl.write("SciPy:       ")
+    if rpn.globl.have_module('scipy'):
+        rpn.globl.writeln("{}".format(scipy.__version__))
+    else:
+        rpn.globl.writeln("[not found]")
+
+    rpn.globl.write("Matplotlib:  ")
+    if rpn.globl.have_module('matplotlib'):
+        rpn.globl.writeln("{}".format(matplotlib.__version__))
+    else:
+        rpn.globl.writeln("[not found]")
 
 
 def write(s=""):

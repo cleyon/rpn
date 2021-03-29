@@ -21,7 +21,7 @@ Sum all numbers on the stack."
 
 : ver           doc:"ver   ( -- )
 Show RPN version."
-  "RPN version " @$VER $.  ;
+  "rpn version: " @$VER $.  ;
 
 
 \ : END_TERTIARY_WORDS----------------------------- doc:" " ;
