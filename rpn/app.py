@@ -53,7 +53,7 @@ Usage: rpn [-d] [-f FILE] [-i] [-l FILE] [-q] cmds...
 -d        Enable debugging
 -f FILE   Load FILE and exit
 -i        Force interactive mode
--l FILE   Load FILE
+-l FILE   Load FILE and continue
 -q        Do not load init file (~/.rpnrc)
 -Q        Disable all extensions (implies -q)""")
     sys.exit(64)                # EX_USAGE
@@ -228,15 +228,19 @@ def parse_args(argv):
 
 
 def load_file(filename):
-    if not os.path.isfile(filename):
-        throw(X_NON_EXISTENT_FILE, "load", filename)
+    fn = filename
+    if not os.path.isfile(fn):
+        fn += ".rpn"
+        if not os.path.isfile(fn):
+            throw(X_NON_EXISTENT_FILE, "load", filename)
+
     try:
-        with open(filename, "r") as file:
+        with open(fn, "r") as file:
             contents = file.read()
     except PermissionError as e:
-        throw(X_FILE_IO, "load", "Cannot open file '{}'".format(filename))
+        throw(X_FILE_IO, "load", "Cannot open file '{}'".format(fn))
     else:
-        dbg("load_file", 3, "load_file({})='{}'".format(filename, contents))
+        dbg("load_file", 3, "load_file({})='{}'".format(fn, contents))
         rpn.globl.eval_string(contents)
 
 
