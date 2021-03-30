@@ -178,7 +178,8 @@ $cat   [ s2 s1 -- s2s1 ]
 Concatentate two strings.
 
 EXAMPLE:
-"foo" "bar" $cat "baz" $cat  =>  "foobarbaz" """)
+    "foo" "bar" $cat "baz" $cat
+"foobarbaz" """)
 def w_dollar_cat(name):         # pylint: disable=unused-argument
     s1 = rpn.globl.string_stack.pop()
     s2 = rpn.globl.string_stack.pop()
@@ -571,8 +572,8 @@ Execute a definite loop.
 The iteration counter is available via I.  LEAVE will exit the loop early.
 
 EXAMPLE:
-10 0 do I . 2 +loop
-prints 0 2 4 6 8
+    10 0 do I . 2 +loop
+0 2 4 6 8
 
 See also: do, I, leave, loop""")
 def w_plusloop(name):           # pylint: disable=unused-argument
@@ -1247,14 +1248,15 @@ to the stack.  ASCII code of keystroke will also be returned on success.
 Keystroke WILL echo.  This works only on Unix/Linux.
 
 EXAMPLE:
-: test?key
-  doc:"Display dots until a key is pressed  ( -- key )"
-  begin  ?key case
-    -1 of cr ."I/O error" cr leave endof
-     0 of ."." 0.02 sleep endof
-     1 of cr ."Key: " .all leave endof
-    otherwise cr ."Found garbage on stack" cr .s leave
-  endcase again  ;
+    : test?key
+      doc:"Display dots until a key is pressed  ( -- key )"
+      begin  ?key case
+        -1 of cr ."I/O error" cr leave endof
+         0 of ."." 0.02 sleep endof
+         1 of cr ."Key: " .all leave endof
+        otherwise cr ."Found garbage on stack" cr .s leave
+      endcase again
+    ;
 
 See also: key""")
 def w_query_key(name):     # pylint: disable=unused-argument
@@ -2252,13 +2254,11 @@ def w_ddays(name):
 
 @defword(name='DEG', print_x=rpn.globl.PX_COMPUTE, doc="""\
 DEG   ( -- 57.29577... )
-Degrees per radian.
+Degrees per radian.  Do not confuse this with deg, which sets
+the angular mode to degrees.
 
 DEFINITION:
-DEG == 360/TAU == 180/PI
-
-WARNING:
-Do not confuse this with deg, which sets the angular mode to degrees.""")
+DEG == 360/TAU == 180/PI""")
 def w_DEG(name):                # pylint: disable=unused-argument
     result = rpn.type.Float(rpn.globl.DEG_PER_RAD)
     result.uexpr = rpn.globl.uexpr["deg/r"]
@@ -2267,10 +2267,8 @@ def w_DEG(name):                # pylint: disable=unused-argument
 
 @defword(name='deg', print_x=rpn.globl.PX_CONFIG, doc="""\
 deg   ( -- )
-Set angular mode to degrees.
-
-WARNING:
-Do not confuse this with DEG, which is the number of degrees per radian.""")
+Set angular mode to degrees.  Do not confuse this with DEG,
+which is the number of degrees per radian.""")
 def w_deg(name):                # pylint: disable=unused-argument
     rpn.flag.clear_flag(rpn.flag.F_RAD)
     rpn.flag.clear_flag(rpn.flag.F_GRAD)
@@ -2335,8 +2333,8 @@ Execute a definite loop.
 The iteration counter is available via I.  leave will exit the loop early.
 
 EXAMPLE:
-10 0 do I . loop
-=> 0 1 2 3 4 5 6 7 8 9
+    10 0 do I . loop
+0 1 2 3 4 5 6 7 8 9
 
 See also: I, leave, loop, +loop""")
 def w_do(name):                 # pylint: disable=unused-argument
@@ -2874,7 +2872,8 @@ def w_fmod(name):
 @defword(name='hide', print_x=rpn.globl.PX_CONFIG, doc="""\
 hide   ( -- )
 Make the following word hidden.  Only user-defined words can be hidden.
-NOTE: there is no way to "unhide" a word!""")
+
+WARNING: there is no way to "unhide" a word!""")
 def w_hide(name):               # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
@@ -3421,7 +3420,8 @@ jd->$   ( julian -- ) [ -- "YYYY-MM-DD" ]
 Convert julian day number to ISO date string.
 
 EXAMPLE:
-2369915 jd->$  ==>  "1776-07-04" """)
+    2369915 jd->$
+"1776-07-04" """)
 def w_jd_to_dollar(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -3442,7 +3442,8 @@ jd->d   ( julian -- MM.DDYYYY )
 Convert julian day number to date.
 
 EXAMPLE:
-2369915 jd->d  ==>  7.041776""")
+    2369915 jd->d
+7.041776""")
 def w_jd_to_d(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -3724,8 +3725,9 @@ Execute a definite loop.
 <limit> <initial> do ... loop
 The iteration counter is available via I.  leave will exit the loop early.
 
-EXAMPLE: 10 0 do I . loop
-=> 0 1 2 3 4 5 6 7 8 9
+EXAMPLE:
+    10 0 do I . loop
+0 1 2 3 4 5 6 7 8 9
 
 See also: do, I, leave, +loop""")
 def w_loop(name):               # pylint: disable=unused-argument
@@ -4017,9 +4019,8 @@ Simple ASCII function plot.  FN is the (string) name of a function which
 implements ( x -- y ).  Y-axis is autoscaled.
 
 EXAMPLE:
-  rad  80 !COLS  24 !ROWS
-  TAU chs TAU "sin"  plot
-
+    rad  80 !COLS  24 !ROWS
+    TAU chs TAU "sin"  plot
       1.000 |------------------------------------*---------------------|
             |     ****                   :     ** *                    |
             |    *    *                  :    *    *                   |
@@ -4097,9 +4098,9 @@ def w_PMT(name):
 price   ( markup purch_cost -- price )
 Compute selling price given purchase cost and percent markup.
 
-NOTE: If you are given the markup based on cost and the selling price of
-an item, and want to compute the original purchase cost, simply change
-the sign of the markup percentage.
+If you are given the markup based on cost and the selling price of an
+item, and want to compute the original purchase cost, simply change the
+sign of the markup percentage.
 
 DEFINITION:
 
@@ -4159,9 +4160,8 @@ Numerical integration.  Name of function must be on string stack.
 Implemented via scipy.integrate.quad()
 
 EXAMPLE: Integrate a bessel function jv(2.5, x) along the interval [0,4.5]:
-
-: J2.5  2.5 swap Jv ;
-0 4.5 "J2.5" quad .s  =>
+    : J2.5  2.5 swap Jv ;
+    0 4.5 "J2.5" quad .s
 1: 7.866317216380692e-09 \ error
 0: 1.1178179380783249 \ quad""")
     def quad(name):
@@ -4308,7 +4308,7 @@ randint   ( n -- r )
 Random integer between 1 and n.  r is an integer in range: 1 <= r <= n.
 
 EXAMPLE:
-: threeD6  3 0 do 6 randint loop + + ;
+    : threeD6  3 0 do 6 randint loop + +  ;
 
 See also: rand""")
 def w_randint(name):
@@ -4343,10 +4343,28 @@ def w_rcl(name):
 
 
 @defword(name='rclI', print_x=rpn.globl.PX_COMPUTE, doc="""\
-rclI   ( -- val )
-Recall value of register I.""")
+rclI   ( -- reg[I] )
+Recall value of register I.  Do not confuse this with rcli, which recalls
+the contents of the register referenced by I.""")
 def w_rclI(name):               # pylint: disable=unused-argument
     rpn.globl.param_stack.push(rpn.globl.register['I'])
+
+
+@defword(name='rcli', print_x=rpn.globl.PX_CONFIG, doc="""\
+rcli   ( -- reg[(i)] )
+Recall contents of the register referenced by I.  Do not confuse this with
+rclI, which recalls the value of register I directly.""")
+def w_rcli(name):
+    (reg_size, _) = rpn.globl.lookup_variable("SIZE")
+
+    I = rpn.globl.register['I']
+    if type(I) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
+        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(I)))
+    Ival = int(I.value)
+    if Ival < 0 or Ival >= reg_size.obj.value:
+        throw(X_INVALID_MEMORY, name, "Register {} out of range (0..{} expected)".format(Ival, reg_size.obj.value - 1))
+
+    rpn.globl.param_stack.push(rpn.globl.register[Ival])
 
 
 @defword(name='rct->sph', args=3, print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -4621,7 +4639,7 @@ def w_showdebug(name):          # pylint: disable=unused-argument
     rpn.globl.list_in_columns(sorted_dbgs, rpn.globl.scr_cols.obj.value - 1)
 
 
-@defword(name='shdebug!', print_x=rpn.globl.PX_IO, doc="""\
+@defword(name='shdebug!', print_x=rpn.globl.PX_IO, hidden=True, doc="""\
 shdebug   ( -- )
 Show all debug levels.""")
 def w_showdebug_bang(name):     # pylint: disable=unused-argument
@@ -4972,13 +4990,35 @@ def w_sto(name):
 
 @defword(name='stoI', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
 stoI   ( x -- )
-Store X value into register I.""")
+Store X into register I.  Do not confuse this with stoi, which
+stores X into the register referenced by I.""")
 def w_stoI(name):               # pylint: disable=unused-argument
     x = rpn.globl.param_stack.pop()
     if type(x) in [rpn.type.Float, rpn.type.Complex]:
         rpn.globl.register['I'] = x
     else:
         rpn.globl.register['I'] = rpn.type.Float(x.value)
+
+
+@defword(name='stoi', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
+stoi   ( x -- )
+Store X into the register referenced by I.  Do not confuse this with
+stoI, which stores X directly into the I register.""")
+def w_stoi(name):
+    (reg_size, _) = rpn.globl.lookup_variable("SIZE")
+
+    I = rpn.globl.register['I']
+    if type(I) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
+        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(I)))
+    Ival = int(I.value)
+    if Ival < 0 or Ival >= reg_size.obj.value:
+        throw(X_INVALID_MEMORY, name, "Register {} out of range (0..{} expected)".format(Ival, reg_size.obj.value - 1))
+
+    x = rpn.globl.param_stack.pop()
+    if type(x) in [rpn.type.Float, rpn.type.Complex]:
+        rpn.globl.register[Ival] = x
+    else:
+        rpn.globl.register[Ival] = rpn.type.Float(x.value)
 
 
 @defword(name='swap', args=2, print_x=rpn.globl.PX_CONFIG, doc="""\
@@ -5052,7 +5092,7 @@ def w_T_VECTOR(name):           # pylint: disable=unused-argument
 tan   ( angle -- tangent )
 Tangent.
 
-NOTE:
+WARNING:
 Angle must not be 90 degrees (TAU/4 radians).""")
 def w_tan(name):
     x = rpn.globl.param_stack.pop()
@@ -5287,7 +5327,8 @@ ufact   ( x -- x' )  [ unit -- ]
 Factor out one unit from another.
 
 EXAMPLE:
-1_J "N" ufact  =>  1_m""")
+    1_J "N" ufact
+1_m""")
 def w_ufact(name):
     x = rpn.globl.param_stack.pop()
     if not x.has_uexpr_p():
@@ -5524,16 +5565,21 @@ def w_words(name):              # pylint: disable=unused-argument
 
 @defword(name='x<>I', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
 x<>I   ( x -- I )
-Exchange X with register I.""")
+Exchange X with the value of register I.  Do not confuse this with x<>i,
+which exchanges X with the contents of the register referenced by I.""")
 def w_x_exchange_I(name):       # pylint: disable=unused-argument
     x = rpn.globl.param_stack.pop()
     rpn.globl.param_stack.push(rpn.globl.register['I'])
-    rpn.globl.register['I'] = x
+    if type(x) in [rpn.type.Float, rpn.type.Complex]:
+        rpn.globl.register['I'] = x
+    else:
+        rpn.globl.register['I'] = rpn.type.Float(x.value)
 
 
 @defword(name='x<>i', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
 x<>i   ( x -- (i) )
-Exchange X with register referenced by I.""")
+Exchange X with contents of the register referenced by I.
+Do not confuse this with x<>I, which exchanges X with I directly.""")
 def w_x_exchange_indirect_i(name):
     (reg_size, _) = rpn.globl.lookup_variable("SIZE")
 
@@ -5546,7 +5592,10 @@ def w_x_exchange_indirect_i(name):
 
     x = rpn.globl.param_stack.pop()
     rpn.globl.param_stack.push(rpn.globl.register[Ival])
-    rpn.globl.register[Ival] = x
+    if type(x) in [rpn.type.Float, rpn.type.Complex]:
+        rpn.globl.register[Ival] = x
+    else:
+        rpn.globl.register[Ival] = rpn.type.Float(x.value)
 
 
 @defword(name='X_ABORT', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\

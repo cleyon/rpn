@@ -185,6 +185,8 @@ def define_variables():
                      noshadow=True,
                      pre_hooks=[pre_validate_size_arg],
                      post_hooks=[post_clear_newly_unveiled_registers])
+    rpn.globl.defvar('Sreg', rpn.type.Integer(11),
+                     pre_hooks=[pre_validate_Sreg_arg])
     rpn.globl.defvar('VER', rpn.type.Float(rpn.globl.RPN_VERSION),
                      readonly=True, noshadow=True)
 
@@ -549,12 +551,23 @@ def pre_require_non_negative(identifier, _cur, new):
     if new.value < 0:
         throw(X_INVALID_ARG, "!{}".format(identifier), "Must be non-negative")
 
+def pre_validate_Sreg_arg(identifier, _cur, new):
+    if type(new) is not rpn.type.Integer:
+        throw(X_ARG_TYPE_MISMATCH, "!{}".format(identifier), "({})".format(typename(new)))
+    new_Sreg = new.value
+    (reg_size, _) = rpn.globl.lookup_variable("SIZE")
+    if new_Sreg < 0 or new_Sreg > reg_size.obj.value - 6:
+        throw(X_INVALID_ARG, "!{}".format(identifier), "Sreg {} out of range (0..{} expected); check SIZE".format(new_Sreg, reg_size.obj.value - 6))
+
 def pre_validate_size_arg(identifier, _cur, new):
     if type(new) is not rpn.type.Integer:
         throw(X_ARG_TYPE_MISMATCH, "!{}".format(identifier), "({})".format(typename(new)))
     new_size = new.value
     if new_size < rpn.globl.REG_SIZE_MIN or new_size > rpn.globl.REG_SIZE_MAX:
         throw(X_INVALID_ARG, "!{}".format(identifier), "Size {} out of range ({}..{} expected)".format(new_size, rpn.globl.REG_SIZE_MIN, rpn.globl.REG_SIZE_MAX))
+    (reg_Sreg, _) = rpn.globl.lookup_variable("Sreg")
+    if new_size < reg_Sreg.obj.value + 6:
+        throw(X_INVALID_ARG, "!{}".format(identifier), "Size {} too small for Sreg ({})".format(new_size, reg_Sreg.obj.value))
 
 def post_clear_newly_unveiled_registers(_identifier, old, cur):
     old_size = old.value

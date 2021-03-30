@@ -139,12 +139,12 @@ Show unit expression."
 \ #
 \ #############################################################################
 : f->c doc:"f->c   ( f -- c )
-Convert degrees fahrenheit to degrees celcius."
+Convert degrees fahrenheit to degrees celsius."
   | in:f |
   @f 32 - 5 * 9 / ;
 
 : c->f doc:"c->f   ( c -- f )
-Convert degrees celcius to degrees fahrenheit."
+Convert degrees celsius to degrees fahrenheit."
   | in:c |
   @c 9 * 5 / 32 + ;
 
