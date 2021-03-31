@@ -1,6 +1,6 @@
 \ : BEGIN_SECONDARY_WORDS----------------------------- doc:" " ;
 
-\ Secondary words are protected by default and must have doc strings
+\ Secondary words are protected by default and must have doc strings.
 \ N.B. 'F_SHOW_X cf' means "Do not print X automatically"
 
 
@@ -41,6 +41,99 @@ ASCII code for a space character."
 
 \ #############################################################################
 \ #
+\ #     S T A C K   F U N C T I O N S
+\ #
+\ #############################################################################
+: dup           doc:"dup   ( x -- x x )
+Duplicate top stack element.  Equivalent to 1 pick.
+
+See also: ?dup"
+  depth 1 < if  "(1 required)" X_INSUFF_PARAMS $throw then
+  1 pick
+  F_SHOW_X cf ;
+
+: over          doc:"over   ( y x -- y x y )
+Duplicate second stack element.  Equivalent to 2 pick."
+  depth 2 < if  "(2 required)" X_INSUFF_PARAMS $throw then
+  2 pick
+  F_SHOW_X cf ;
+
+: swap          doc:"swap   ( y x -- x y )
+Exchange top two stack elements.  Equivalent to 2 roll."
+  depth 2 < if  "(2 required)" X_INSUFF_PARAMS $throw then
+  2 roll
+  F_SHOW_X cf ;
+
+: rot           doc:"rot   ( z y x -- y x z )
+Rotate third stack element to the top, rolling others up.
+Equivalent to 3 roll.
+
+See also: -rot"
+  depth 3 < if  "(3 required)" X_INSUFF_PARAMS $throw then
+  3 roll
+  F_SHOW_X cf ;
+
+: -rot          doc:"-rot   ( z y x -- x z y )
+Rotate back.  Rotate top stack element back to third spot, pulling others down.
+Equivalent to rot rot."
+  depth 3 < if  "(3 required)" X_INSUFF_PARAMS $throw then
+  rot rot
+  F_SHOW_X cf ;
+
+: nip           doc:"nip   ( y x -- x )
+Drop second stack element.  Equivalent to swap drop.
+J.V. Noble calls this PLUCK."
+  depth 2 < if  "(2 required)" X_INSUFF_PARAMS $throw then
+  swap drop
+  F_SHOW_X cf ;
+
+: tuck          doc:"tuck   ( y x -- x y x )
+Duplicate top stack element into third position.  Equivalent to swap over.
+J.V. Noble calls this UNDER."
+  depth 2 < if  "(2 required)" X_INSUFF_PARAMS $throw then
+  swap over
+  F_SHOW_X cf ;
+
+
+\ #############################################################################
+\ #
+\ #     D E B U G G I N G
+\ #
+\ #############################################################################
+: debug         doc:"debug   ( -- )
+Toggle debugging state."
+  F_DEBUG_ENABLED dup tf
+  fs? if ."Debugging enabled"
+  else   ."Debugging disabled" then
+  cr ;
+
+: debug?        doc:"debug?   ( -- bool )
+Test if debugging is enabled."
+  F_DEBUG_ENABLED fs? ;
+
+: dbg.token     doc:"dbg.token   ( -- )
+Enable token debugging."
+  "token" 3 >debug
+  ."Token debugging enabled" cr
+  F_DEBUG_ENABLED sf
+;               hide dbg.token
+
+: trace         doc:"trace   ( -- )
+Toggle tracing state."
+  \ If we're not debugging at all, or trace level is 0, enable trace debugging
+  debug? not  "trace" debug> 0 =   or if
+    "trace" 1 >debug
+    ."Tracing enabled" cr
+    F_DEBUG_ENABLED sf
+  else
+    "trace" 0 >debug
+    ."Tracing disabled" cr
+  then
+;
+
+
+\ #############################################################################
+\ #
 \ #     I  /  O   F U N C T I O N S
 \ #
 \ #############################################################################
@@ -66,59 +159,29 @@ Display N space characters."
 
 \ #############################################################################
 \ #
-\ #     S T A C K   F U N C T I O N S
-\ #
-\ #############################################################################
-: -rot          doc:"-rot   ( z y x -- x z y )
-Rotate back.  Rotate top stack element back to third spot, pulling others down.
-Equivalent to rot rot."
-  depth 3 < if "(3 required)" X_INSUFF_PARAMS $throw then
-  rot rot
-  F_SHOW_X cf ;
-
-: nip           doc:"nip   ( y x -- x )
-Drop second stack element.  Equivalent to swap drop.
-J.V. Noble calls this PLUCK."
-  depth 2 < if  "(2 required)" X_INSUFF_PARAMS $throw then
-  swap drop
-  F_SHOW_X cf ;
-
-: tuck          doc:"tuck   ( y x -- x y x )
-Duplicate top stack element into third position.
-Equivalent to swap over.
-J.V. Noble calls this UNDER."
-  depth 2 < if "(2 required)" X_INSUFF_PARAMS $throw then
-  swap over
-  F_SHOW_X cf ;
-
-
-\ #############################################################################
-\ #
 \ #     M O D E S  &  M I S C   F U N C T I O N S
 \ #
 \ #############################################################################
-: debug         doc:"debug   ( -- )
-Toggle debugging state."
-  F_DEBUG_ENABLED dup tf
-  fs? if ."Debugging is now ENABLED"
-  else   ."Debugging is now disabled" then
-  cr ;
-
-: debug?        doc:"debug?   ( -- bool )
-Test if debugging is enabled."
-  F_DEBUG_ENABLED fs? ;
+: beg           doc:"beg   ( -- )
+Set 'Begin' (annuity due) financial mode.  Do not confuse this with the
+begin command, which starts a loop."
+  F_TVM_BEGIN_MODE sf ;
 
 : deg?          doc:"deg?   ( -- bool )
 Test if angular mode is degrees."
   F_GRAD fc?  F_RAD fc?  and ;
 
-: rad?          doc:"rad?   ( -- bool )
-Test if angular mode is radians."
-  F_GRAD fc?  F_RAD fs?  and ;
+: end           doc:"end   ( -- )
+Set 'End' (ordinary annuity) financial mode."
+  F_TVM_BEGIN_MODE cf ;
 
 : grad?         doc:"grad?   ( -- bool )
 Test if angular mode is gradians."
   F_GRAD fs?  F_RAD fc?  and ;
+
+: rad?          doc:"rad?   ( -- bool )
+Test if angular mode is radians."
+  F_GRAD fc?  F_RAD fs?  and ;
 
 : mod           doc:"mod   ( y x -- remainder )
 Remainder."

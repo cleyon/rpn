@@ -660,7 +660,7 @@ class Hide(Executable):
 
     def __call__(self, name):
         dbg("trace", 1, "trace({})".format(repr(self)))
-        if self._word.protected:
+        if self._word.protected and not rpn.globl.default_protected:
             throw(X_PROTECTED, 'hide', "Cannot hide '{}'".format(self._word.name))
         self._word.hidden = True
 

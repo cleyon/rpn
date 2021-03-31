@@ -439,14 +439,17 @@ class Stack:
 
     def __init__(self, name, min_size=0, max_size=-1):
         self._name = name
+        self._stack = []
+        self._nitems = 0
         self._min_size = min_size
         self._max_size = max_size
-        self.clear()
 
     def name(self):
         return self._name
 
     def clear(self):
+        if self._min_size > 0:
+            throw(X_STACK_UNDERFLOW, whoami(), "{} has min size={}".format(self.name, self._min_size))
         self._stack = []
         self._nitems = 0
 
@@ -945,10 +948,11 @@ def prompt_string():
        not rpn.flag.flag_set_p(rpn.flag.F_SHOW_PROMPT):
         return ""
 
-    s = "[{}{}".format(rpn.globl.angle_mode_letter(), rpn.globl.param_stack.size())
+    s = "{" if rpn.debug.debug_enabled else "["
+    s += "{}{}".format(rpn.globl.angle_mode_letter(), rpn.globl.param_stack.size())
     if not rpn.globl.string_stack.empty():
         s += ",{}".format(rpn.globl.string_stack.size())
-    s += "] "
+    s += "} " if rpn.debug.debug_enabled else "] "
     if not rpn.globl.parse_stack.empty():
         qq = " ".join([p[1] for p in rpn.globl.parse_stack.items_bottom_to_top()])
         s += qq + " ... "
