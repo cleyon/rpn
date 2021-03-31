@@ -374,9 +374,9 @@ def pop_scope(why):
 
     dbg("scope", 2, "Pop  {} due to {}".format(repr(scope), why))
     #dbg("scope", 1, "Pop  {}".format(repr(scope)))
-    if scope == root_scope:
-        traceback.print_stack(file=sys.stderr)
-        raise FatalErr("Attempting to pop Root scope!")
+    # if scope == root_scope:
+    #     traceback.print_stack(file=sys.stderr)
+    #     raise FatalErr("Attempting to pop Root scope!")
 
 
 def push_scope(scope, why):

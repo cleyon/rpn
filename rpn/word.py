@@ -1098,8 +1098,8 @@ def w_to_c(name):
 
 
 @defword(name='>debug', args=1, str_args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
->debug   ( lev -- )  [ "facility" -- ]
-Set debug level.""")
+>debug   ( level -- )  [ "resource" -- ]
+Set debug level for resource.""")
 def w_to_debug(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -1644,14 +1644,6 @@ def w_atanh(name):
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
     rpn.globl.param_stack.push(result)
-
-
-@defword(name='beg', print_x=rpn.globl.PX_CONFIG, doc="""\
-beg   ( -- )
-Set "Begin" (annuity due) financial mode.  Do not confuse this with the
-"begin" command, which starts a loop.""")
-def w_beg(name):                # pylint: disable=unused-argument
-    rpn.flag.set_flag(rpn.flag.F_TVM_BEGIN_MODE)
 
 
 @defword(name='begin', print_x=rpn.globl.PX_CONTROL, doc="""\
@@ -2243,13 +2235,6 @@ def w_date_minus(name):
     rpn.globl.param_stack.push(result)
 
 
-@defword(name='dbg.token', hidden=True, print_x=rpn.globl.PX_CONFIG)
-def w_dbg_token(name):          # pylint: disable=unused-argument
-    rpn.flag.set_flag(rpn.flag.F_DEBUG_ENABLED)
-    rpn.globl.lnwriteln("Debugging is now ENABLED")
-    rpn.debug.set_debug_level("token", 3)
-
-
 @defword(name='ddays', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
 ddays   ( date1 date2 -- ddays )
 Number of days between two dates.  Usually the earlier date is in Y,
@@ -2279,6 +2264,17 @@ def w_ddays(name):
     result = rpn.type.Integer(xjulian - yjulian)
     result.label = "Delta days"
     rpn.globl.param_stack.push(rpn.type.Integer(xjulian - yjulian))
+
+
+@defword(name='debug>', str_args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
+debug>   ( -- lev )  [ "resource" -- ]
+Return debug level for resource.""")
+def w_debug_from(name):
+    resource = rpn.globl.string_stack.pop()
+    if not resource.value in rpn.debug.debug_levels:
+        rpn.globl.string_stack.push(resource)
+        throw(X_UNDEFINED_WORD, name, "Resource '{}' not recognized".format(resource.value))
+    rpn.globl.param_stack.push(rpn.type.Integer(rpn.debug.debug_levels[resource.value]))
 
 
 @defword(name='DEG', print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -2440,16 +2436,6 @@ def w_drop(name):               # pylint: disable=unused-argument
     rpn.globl.param_stack.pop()
 
 
-@defword(name='dup', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-dup   ( x -- x x )
-Duplicate top stack element.  Equivalent to 1 PICK.
-
-See also: ?dup""")
-def w_dup(name):                # pylint: disable=unused-argument
-    x = rpn.globl.param_stack.top()
-    rpn.globl.param_stack.push(x)
-
-
 @defword(name='E', print_x=rpn.globl.PX_COMPUTE, doc="""\
 E   ( -- 2.71828... )
 Base of natural logarithms.""")
@@ -2518,13 +2504,6 @@ def w_emit(name):
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
     rpn.globl.write(chr(x.value))
-
-
-@defword(name='end', print_x=rpn.globl.PX_CONFIG, doc="""\
-end   ( -- )
-Set "End" (ordinary annuity) financial mode.""")
-def w_end(name):                # pylint: disable=unused-argument
-    rpn.flag.clear_flag(rpn.flag.F_TVM_BEGIN_MODE)
 
 
 @defword(name='endcase', print_x=rpn.globl.PX_CONTROL, doc="""\
@@ -3923,17 +3902,6 @@ def w_otherwise(name):          # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
-@defword(name='over', args=2, print_x=rpn.globl.PX_CONFIG, doc="""\
-over   ( y x -- y x y )
-Duplicate second stack element.  Equivalent to 2 PICK.""")
-def w_over(name):               # pylint: disable=unused-argument
-    x = rpn.globl.param_stack.pop()
-    y = rpn.globl.param_stack.pop()
-    rpn.globl.param_stack.push(y)
-    rpn.globl.param_stack.push(x)
-    rpn.globl.param_stack.push(y)
-
-
 @defword(name='p->r', print_x=rpn.globl.PX_COMPUTE, doc="""\
 p->r   ( theta r   -- y x   ) for Real
 p->r   ( (r,theta) -- (x,y) ) for Complex
@@ -4579,19 +4547,6 @@ def w_roll(name):
     rpn.globl.param_stack.roll(x.value)
 
 
-@defword(name='rot', args=3, print_x=rpn.globl.PX_CONFIG, doc="""\
-rot   ( z y x -- y x z )
-Rotate third stack element to the top, rolling others up.
-Equivalent to 3 roll.""")
-def w_rot(name):                # pylint: disable=unused-argument
-    x = rpn.globl.param_stack.pop()
-    y = rpn.globl.param_stack.pop()
-    z = rpn.globl.param_stack.pop()
-    rpn.globl.param_stack.push(y)
-    rpn.globl.param_stack.push(x)
-    rpn.globl.param_stack.push(z)
-
-
 @defword(name='S+', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
 S+   ( n -- )
 Add an element to the statistics list.""")
@@ -5050,15 +5005,7 @@ def w_stoi(name):
         rpn.globl.register[Ival] = rpn.type.Float(x.value)
 
 
-@defword(name='swap', args=2, print_x=rpn.globl.PX_CONFIG, doc="""\
-swap   ( y x -- x y )
-Exchange top two stack elements.
-Equivalent to 2 roll.""")
-def w_swap(name):               # pylint: disable=unused-argument
-    x = rpn.globl.param_stack.pop()
-    y = rpn.globl.param_stack.pop()
-    rpn.globl.param_stack.push(x)
-    rpn.globl.param_stack.push(y)
+@defword(name='symeval', str_args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
 
 
 @defword(name='T_COMPLEX', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -5265,19 +5212,6 @@ def w_timeinfo(name):
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
     rpn.globl.writeln("timeinfo: {}".format(x.time_info()))
-
-
-@defword(name='trace', print_x=rpn.globl.PX_CONFIG, doc="""\
-trace   ( -- )
-Toggle tracing state.""")
-def w_trace(name):              # pylint: disable=unused-argument
-    if dbg("trace"):
-        rpn.debug.set_debug_level("trace", 0)
-        rpn.globl.lnwriteln("trace: Tracing is now DISABLED")
-    else:
-        rpn.flag.set_flag(rpn.flag.F_DEBUG_ENABLED)
-        rpn.debug.set_debug_level("trace", 1)
-        rpn.globl.lnwriteln("trace: Tracing is now ENABLED")
 
 
 @defword(name='trn', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\

@@ -285,7 +285,7 @@ def main_loop():
         except TopLevel:
             continue
         if error is True:
-            rpn.globl.lnwriteln("Parse error: Could not get next token")
+            rpn.globl.lnwriteln("main_loop: Parse error: Could not get next token")
         s = " ".join([t.value for t in tok_list])
         dbg("parse", 1, "s='{}'".format(s))
         rpn.globl.eval_string(s)
