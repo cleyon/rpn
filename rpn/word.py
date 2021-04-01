@@ -440,6 +440,8 @@ def w_star(name):
          type(y) in [rpn.type.Vector, rpn.type.Matrix]:
         try:
             r = np.dot(y.value, x.value)
+            print("r=", type(r), r)
+            print("r.dtype={}, r.shape={}, r.ndim={}".format(r.dtype, r.shape, r.ndim))
         except ValueError as e:
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
@@ -2065,6 +2067,33 @@ cr   ( -- )
 Print a newline.""")
 def w_cr(name):                 # pylint: disable=unused-argument
     rpn.globl.writeln()
+
+
+if rpn.globl.have_module('numpy'):
+    @defword(name='cross', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
+cross   ( vec_y vec_x -- vec )
+Vector dot product.""")
+    def cross_prod(name):
+        x = rpn.globl.param_stack.pop()
+        y = rpn.globl.param_stack.pop()
+        if type(x) is rpn.type.Vector and type(y) is rpn.type.Vector:
+            try:
+                r = np.cross(y.value, x.value)
+                print("r=", type(r), r)
+                print("r.dtype={}, r.shape={}, r.ndim={}".format(r.dtype, r.shape, r.ndim))
+            except ValueError as e:
+                rpn.globl.param_stack.push(y)
+                rpn.globl.param_stack.push(x)
+                throw(X_CONFORMABILITY, name, "Vectors are not conformable") # XXX is this message correct?
+
+            result = rpn.globl.to_rpn_class(r)
+            print("result=", type(result), result)
+        else:
+            rpn.globl.param_stack.push(y)
+            rpn.globl.param_stack.push(x)
+            throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+
+        rpn.globl.param_stack.push(rpn.type.Float(42))
 
 
 def w_sum3(y):
