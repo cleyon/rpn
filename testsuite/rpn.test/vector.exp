@@ -1,6 +1,27 @@
 set test cross_1
 send "\[3 -3 1] \[4 9 2] cross .\n"
 expect {
-    -ex "\[ -15 -2 39 ]" { exp_continue }
+    -ex "\[ -15 -2 39 ]\n" { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}
+
+set test cross_2
+send "\[2 3 4] \[5 6 7] cross .\n"
+expect {
+    -ex "\[ -3 6 -3 ]\n" { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}
+
+set test dot_1
+send "\[-6 8] \[5 12] dot .\n"
+expect {
+    -ex "66\n" { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}
+
+set test dot_2
+send "\[12 9] \[-12 16] dot .\n"
+expect {
+    -ex "0\n" { exp_continue }
     -re ".*$prompt"    { pass "$test" }
 }

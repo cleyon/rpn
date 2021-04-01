@@ -2174,7 +2174,7 @@ Current date.""")
 def w_date(name):               # pylint: disable=unused-argument
     d = datetime.date.today().strftime("%m.%d%Y")
     result = rpn.type.Float(d)
-    result.label = "MM.DDYYYY (Current)"
+    result.label = "MM.DDYYYY"
     rpn.globl.param_stack.push(result)
 
 
@@ -5196,17 +5196,17 @@ Current time.""")
 def w_time(name):               # pylint: disable=unused-argument
     t = datetime.datetime.now().strftime("%H.%M%S")
     result = rpn.type.Float(t)
-    result.label = "HH.MMSS (Current)"
+    result.label = "HH.MMSS"
     rpn.globl.param_stack.push(result)
 
 
 @defword(name='time!', print_x=rpn.globl.PX_COMPUTE, doc="""\
-time!   ( -- HH.MMSSssss )
+time!   ( -- HH.MMSS )
 High precision clock time.""")
 def w_time_bang(name):          # pylint: disable=unused-argument
     t = datetime.datetime.now().strftime("%H.%M%S%f")
     result = rpn.type.Float(t)
-    result.label = "HH.MMSSssss (Current)"
+    result.label = "HH.MMSS"
     rpn.globl.param_stack.push(result)
 
 

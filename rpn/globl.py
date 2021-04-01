@@ -52,13 +52,14 @@ PX_PREDICATE            = True  # Predicates.  (Was None, but I want to try seei
 REG_SIZE_MIN            =  17
 REG_SIZE_MAX            = 100   # R00..R99; further restricted by SIZE
 
+colon_stack  = rpn.util.Stack("Colon stack")
 disp_stack   = rpn.util.Stack("Display stack", 1)
 param_stack  = rpn.util.Stack("Parameter stack")
 parse_stack  = rpn.util.Stack("Parse stack")
+reg_stack    = rpn.util.Stack("Register stack", 1)
 return_stack = rpn.util.Stack("Return stack")
 scope_stack  = rpn.util.Stack("Scope stack", 1)
 string_stack = rpn.util.Stack("String stack")
-colon_stack  = rpn.util.Stack("Colon stack")
 
 root_scope = rpn.util.Scope("ROOT")
 
