@@ -1240,7 +1240,7 @@ def w_query_dup(name):
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
     if not x.zerop():
-        rpn.word.w_dup('dup')
+        rpn.globl.eval_string("dup")
 
 
 @defword(name='?key', print_x=rpn.globl.PX_IO, doc="""\
@@ -2625,11 +2625,19 @@ def w_erfc(name):
 
 
 @defword(name='eval', str_args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-eval   [ cmd --- ]
-Evaluate string on top of string stack as a command sequence.""")
+eval   [ s --- ]
+Evaluate top element of string stack.
+If s is a String created with "xxxx", evaluate it as a string of commands.
+If x is a Symbol created with 'word', evaluate it as a closure invoking word.""")
 def w_eval(name):               # pylint: disable=unused-argument
-    s = rpn.globl.string_stack.pop().value
-    rpn.globl.eval_string(s)
+    s = rpn.globl.string_stack.pop()
+    if type(s) is rpn.type.String:
+        rpn.globl.eval_string(s.value)
+    elif type(s) is rpn.type.Symbol:
+        s.eval()
+    else:
+        rpn.globl.string_stack.push(s)
+        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(s)))
 
 
 @defword(name='exit', print_x=rpn.globl.PX_CONTROL, doc="""\
@@ -4585,9 +4593,9 @@ scopes   ( -- )
 Print information on all available scopes.""")
 def w_scopes(name):             # pylint: disable=unused-argument
     for (i, item) in rpn.globl.scope_stack.items_bottom_to_top():
-        rpn.globl.lnwriteln("{} Scope {}:".format(i, item.name))
-        rpn.globl.lnwriteln("Variables: {}".format([str(x) for x in item.variables().values()]))
-        rpn.globl.lnwriteln("Words: {}".format([str(x) for x in item.words().values()]))
+        rpn.globl.lnwrite("{} Scope \"{}\": ".format(i, item.name))
+        rpn.globl.writeln("Vars={}".format([str(x) for x in item.variables().values()]))
+        #rpn.globl.lnwriteln("Words: {}".format([str(x) for x in item.words().values()]))
 
 @defword(name='sf', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
 sf   ( f -- )
@@ -5005,9 +5013,6 @@ def w_stoi(name):
         rpn.globl.register[Ival] = rpn.type.Float(x.value)
 
 
-@defword(name='symeval', str_args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-
-
 @defword(name='T_COMPLEX', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 T_COMPLEX   ( -- 3 )
 Type number for Complex.""")
@@ -5245,7 +5250,10 @@ __0100 - Vector   = 4
 __0101 - Matrix   = 5
 __0110 - String   = 6
 __0111 - List     = 7  (not implemented)
-__1___ - [Reserved]
+__1000 - Symbol   = 8
+__1001 - [Reserved]
+__101_ - [Reserved]
+__11__ - [Reserved]
 _1____ - Has Unit  (type + 16)
 1_____ - Has Label (type + 32)""")
 def w_type(name):               # pylint: disable=unused-argument

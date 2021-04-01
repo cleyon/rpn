@@ -43,6 +43,7 @@
 #############################################################################
 '''
 
+import copy
 from   fractions import Fraction
 import datetime
 
@@ -53,7 +54,8 @@ T_COMPLEX   = 3
 T_VECTOR    = 4
 T_MATRIX    = 5
 T_STRING    = 6
-T_LIST      = 7                  # Not implemented yet
+T_LIST      = 7         # Not implemented yet
+T_SYMBOL    = 8
 T_HAS_UNIT  = 1 << 4
 T_HAS_LABEL = 1 << 5
 
@@ -463,7 +465,7 @@ class Rational(Stackable):
 #
 #       - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #
-#       String is included here, although it's the only non Stackable class.
+#       String is included here, even though it's a non Stackable class.
 #
 #############################################################################
 class String(rpn.exe.Executable):
@@ -498,6 +500,61 @@ class String(rpn.exe.Executable):
 
     def __repr__(self):
         return 'String["{}"]'.format(self.value)
+
+
+#############################################################################
+#
+#       S Y M B O L
+#
+#       - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#
+#       Symbol is included here, even though it's a non Stackable class.
+#
+#############################################################################
+class Symbol(rpn.exe.Executable):
+    def __init__(self, name, word):
+        self.name  = "Symbol"
+        self._type = T_SYMBOL
+        self._name = name
+        self._word = word
+        self._scope_stack = None
+        self.value = name
+
+    # @classmethod
+    # def from_string(cls, s):
+    #     return cls("{}".format(s))
+
+    def typ(self):
+        return self._type
+
+    def __call__(self, name):
+        dbg("trace", 1, "trace({})".format(repr(self)))
+        dbg(whoami(), 3, "{}: (parse_time) orig scope stack\n{}".format(whoami(), repr(rpn.globl.scope_stack)))
+        copy_scope_stack = copy.deepcopy(rpn.globl.scope_stack)
+        dbg(whoami(), 3, "{}: (parse_time) copy scope stack\n{}".format(whoami(), repr(copy_scope_stack)))
+        self._scope_stack = copy_scope_stack
+        rpn.globl.string_stack.push(self)
+
+    def eval(self):
+        dbg("trace", 1, "trace({})".format(repr(self)))
+        dbg(whoami(), 1, "{}: name={}, word={}".format(whoami(), self._name, self._word))
+        if self._scope_stack is None:
+            raise FatalErr("{}: Symbol {} has no scope stack".format(whoami(), str(self)))
+
+        try:
+            old_scope_stack = rpn.globl.scope_stack
+            dbg(whoami(), 3, "{}: (eval time) old scope stack\n{}".format(whoami(), repr(old_scope_stack)))
+            rpn.globl.scope_stack = self._scope_stack
+            dbg(whoami(), 3, "{}: (eval time) new scope stack\n{}".format(whoami(), repr(rpn.globl.scope_stack)))
+            self._word.__call__(self._name)
+        finally:
+            rpn.globl.scope_stack = old_scope_stack
+
+    def __str__(self):
+        return "'{}'".format(str(self._name))
+
+    def __repr__(self):
+        return "Symbol['{}']".format(self._name)
 
 
 #############################################################################

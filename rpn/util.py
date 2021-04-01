@@ -261,7 +261,14 @@ class Scope:
         return s
 
     def __repr__(self):
-        return "Scope['{}'={}]".format(self.name, hex(id(self)))
+        s = "Scope['{}'={}".format(self.name, hex(id(self)))
+        if len(self.variables()) > 0:
+            s += ", Vars={}".format([str(x) for x in self.variables().values()])
+        else:
+            s += ", Vars=[]"
+        s += "]"
+        return s
+
 
     ################################################################
     #

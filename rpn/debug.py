@@ -21,6 +21,8 @@ debug_levels = {
     "Scope#define_variable"     : 0,
     "Sequence#__call__"         : 0,
     "Sequence#__init__"         : 0,
+    "Symbol#__call__"           : 0,
+    "Symbol#eval"               : 0,
     "Word#__init__"             : 0,
     "ascii"                     : 0,
     "catch"                     : 0,
