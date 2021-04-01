@@ -1,0 +1,6 @@
+set test cross_1
+send "\[3 -3 1] \[4 9 2] cross .\n"
+expect {
+    -ex "\[ -15 -2 39 ]" { exp_continue }
+    -re ".*$prompt"    { pass "$test" }
+}

@@ -5,6 +5,8 @@
 : $d    $drop ;         hide d
 : pi    PI    ;         hide pi
 : s     swap  ;         hide s
+: xroot inv ^ ;
+
 
 \ Example of word definition
 : dice

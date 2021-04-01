@@ -773,7 +773,7 @@ def p_variable(p):
 def p_vector(p):
     '''vector : OPEN_BRACKET number_list CLOSE_BRACKET'''
     if rpn.globl.have_module('numpy'):
-        p[0] = rpn.type.Vector(p[2])
+        p[0] = rpn.type.Vector.from_rpn_List(p[2])
     else:
         raise ParseErr("Vectors require 'numpy' library")
 

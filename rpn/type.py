@@ -382,6 +382,7 @@ class Matrix(Stackable):
         self.value = np.array(vecs)
         #print("val",repr(self.value))
 
+    # XXX --- change this to from_ndarray() soon
     @classmethod
     def from_numpy(cls, x):
         obj = cls(rpn.util.List())
@@ -568,23 +569,28 @@ class Symbol(rpn.exe.Executable):
 #
 #############################################################################
 class Vector(Stackable):
-    def __init__(self, vals):
+    def __init__(self):
         if not rpn.globl.have_module('numpy'):
             throw(X_UNSUPPORTED, "", "Vectors require 'numpy' library")
         super().__init__()
         self.name = "Vector"
         self._type = T_VECTOR
         self._uexpr = None
-        if type(vals) is not rpn.util.List:
-            raise FatalErr("{}: {} is not a List".format(whoami(), repr(vals)))
-        self.value = np.array([elem.value for elem in vals.listval()])
+        self._value = None
 
     @classmethod
-    def from_numpy(cls, x):
-        #print("rpn.type.Vector.from_numpy: x={}, type={}".format(x, type(x)))
-        obj = cls(rpn.util.List())
-        # print("from_numpy: {}".format(repr(obj)))
+    def from_ndarray(cls, x):
+        if x.ndim != 1:
+            throw(X_INVALID_ARG, whoami(), "ndim is {}, expected 1".format(x.ndim))
+        obj = cls()
         obj.value = x
+        return obj
+
+    @classmethod
+    def from_rpn_List(cls, x):
+        dbg(whoami(), 1, "{}: x={}".format(whoami(), x))
+        obj = cls()
+        obj.value = np.array([elem.value for elem in x.listval()])
         return obj
 
     @property
@@ -602,7 +608,12 @@ class Vector(Stackable):
         return False
 
     def size(self):
-        return self.value.size
+        if type(self.value) is np.ndarray:
+            shape = self.value.shape
+            return shape[0]
+        elif type(self.value) is rpn.util.List:
+            #print("{}: size={}".format(whoami(), len(self.value)))
+            return len(self.value)
 
     def instfmt(self):
         if self.size() == 0:

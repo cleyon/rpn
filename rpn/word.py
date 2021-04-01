@@ -533,7 +533,7 @@ def w_plus(name):
     elif    type(x) is rpn.type.Vector and type(y) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex] \
          or type(y) is rpn.type.Vector and type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex]:
         r = np.add(y.value, x.value)
-        result = rpn.type.Vector.from_numpy(r)
+        result = rpn.type.Vector.from_ndarray(r)
     elif type(x) is rpn.type.Vector and type(y) is rpn.type.Vector:
         if x.size() != y.size():
             rpn.globl.param_stack.push(y)
@@ -542,7 +542,7 @@ def w_plus(name):
         r = np.add(y.value, x.value)
         # print(type(r))
         # print(r)
-        result = rpn.type.Vector.from_numpy(r)
+        result = rpn.type.Vector.from_ndarray(r)
     elif    type(x) is rpn.type.Matrix and type(y) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex] \
          or type(y) is rpn.type.Matrix and type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex]:
         r = np.add(y.value, x.value)
@@ -1110,10 +1110,12 @@ def w_to_debug(name):
         rpn.globl.param_stack.push(x)
         throw(X_INVALID_ARG, name, "Level {} out of range (0..9 expected)".format(level))
     resource = rpn.globl.string_stack.pop()
-    if not resource.value in rpn.debug.debug_levels:
-        rpn.globl.param_stack.push(x)
-        rpn.globl.string_stack.push(resource)
-        throw(X_UNDEFINED_WORD, name, "Resource '{}' not recognized".format(resource.value))
+    # I really want to crash on an unrecognized resource,
+    # so let set_debug_level() do that...
+    # if not resource.value in rpn.debug.debug_levels:
+    #     rpn.globl.param_stack.push(x)
+    #     rpn.globl.string_stack.push(resource)
+    #     throw(X_UNDEFINED_WORD, name, "Resource '{}' not recognized".format(resource.value))
     rpn.debug.set_debug_level(resource.value, level)
 
 
@@ -1171,7 +1173,7 @@ Create a 2-vector from the stack.""")
         l = rpn.util.List()
         l.append(y)
         l.append(x)
-        v = rpn.type.Vector(l)
+        v = rpn.type.Vector.from_rpn_List(l)
         rpn.globl.param_stack.push(v)
 
 
@@ -1194,7 +1196,7 @@ Create a 3-vector from the stack.""")
         l.append(z)
         l.append(y)
         l.append(x)
-        v = rpn.type.Vector(l)
+        v = rpn.type.Vector.from_rpn_List(l)
         rpn.globl.param_stack.push(v)
 
 
@@ -2071,21 +2073,21 @@ Vector dot product.""")
         if type(x) is rpn.type.Vector and type(y) is rpn.type.Vector:
             try:
                 r = np.cross(y.value, x.value)
-                print("r=", type(r), r)
-                print("r.dtype={}, r.shape={}, r.ndim={}".format(r.dtype, r.shape, r.ndim))
+                dbg(name, 3, "r={}, type(r)={}, r.dtype={}, r.shape={}, r.ndim={}" \
+                                 .format(r, type(r), r.dtype, r.shape, r.ndim))
             except ValueError as e:
                 rpn.globl.param_stack.push(y)
                 rpn.globl.param_stack.push(x)
                 throw(X_CONFORMABILITY, name, "Vectors are not conformable") # XXX is this message correct?
 
             result = rpn.globl.to_rpn_class(r)
-            print("result=", type(result), result)
+            dbg(name, 2, "result={}, type(result)={}".format(result, type(result)))
         else:
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
             throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
 
-        rpn.globl.param_stack.push(rpn.type.Float(42))
+        rpn.globl.param_stack.push(result)
 
 
 def w_sum3(y):
@@ -2321,7 +2323,7 @@ def w_dim(name):
     elif type(x) is rpn.type.Complex:
         result = rpn.type.Integer(2)
     elif type(x) is rpn.type.Vector:
-        result = rpn.type.Vector(rpn.util.List(rpn.type.Integer(x.size())))
+        result = rpn.type.Vector.from_rpn_List(rpn.util.List(rpn.type.Integer(x.size())))
     elif type(x) is rpn.type.Matrix:
         # Pretty ugly.  Need a better method to append items.  Ugh,
         # things get added at the beginning of the list, so we have to
@@ -2329,7 +2331,7 @@ def w_dim(name):
         # [ rows cols ].
         l = rpn.util.List(rpn.type.Integer(x.ncols()))
         l2 = rpn.util.List(rpn.type.Integer(x.nrows()), l)
-        result = rpn.type.Vector(l2) # [ rows cols ]
+        result = rpn.type.Vector.from_rpn_List(l2) # [ rows cols ]
     else:
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
@@ -5958,7 +5960,7 @@ def w_zer(name):
         if size <= 0:
             rpn.globl.param_stack.push(x)
             throw(X_INVALID_ARG, name, "Dimension must be positive")
-        z = rpn.type.Vector.from_numpy(np.zeros(size))
+        z = rpn.type.Vector.from_ndarray(np.zeros(size))
         rpn.globl.param_stack.push(z)
     elif xs == 2:
         rows = int(x.value.item(0))
