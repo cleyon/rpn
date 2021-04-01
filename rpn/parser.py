@@ -10,7 +10,7 @@ import re
 import sys
 
 from   rpn.debug import dbg, whoami
-from   rpn.exception import *
+from   rpn.exception import *   # pylint: disable=wildcard-import
 import rpn.exe
 import rpn.globl
 import rpn.util

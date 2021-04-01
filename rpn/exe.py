@@ -16,7 +16,7 @@ except ModuleNotFoundError:
     sys.exit(1)
 
 from   rpn.debug     import dbg, whoami, typename
-from   rpn.exception import *
+from   rpn.exception import *   # pylint: disable=wildcard-import
 import rpn.globl
 
 

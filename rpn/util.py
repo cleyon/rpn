@@ -9,10 +9,10 @@
 import collections
 import math
 import queue
-import readline                         # pylint: disable=unused-import
+import readline                 # pylint: disable=unused-import
 
 from   rpn.debug     import dbg, typename, whoami
-from   rpn.exception import *
+from   rpn.exception import *   # pylint: disable=wildcard-import
 import rpn.flag
 import rpn.globl
 import rpn.type

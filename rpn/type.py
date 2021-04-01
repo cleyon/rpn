@@ -47,18 +47,6 @@ import copy
 from   fractions import Fraction
 import datetime
 
-T_INTEGER   = 0
-T_RATIONAL  = 1
-T_FLOAT     = 2
-T_COMPLEX   = 3
-T_VECTOR    = 4
-T_MATRIX    = 5
-T_STRING    = 6
-T_LIST      = 7         # Not implemented yet
-T_SYMBOL    = 8
-T_HAS_UNIT  = 1 << 4
-T_HAS_LABEL = 1 << 5
-
 # Check if NumPy is available
 try:
     import numpy as np
@@ -79,14 +67,28 @@ except ImportError:
 #     pass
 
 from   rpn.debug     import dbg, typename, whoami
-from   rpn.exception import *
+from   rpn.exception import *   # pylint: disable=wildcard-import
 import rpn.exe
 import rpn.globl
 import rpn.unit
 
 
+T_INTEGER   = 0
+T_RATIONAL  = 1
+T_FLOAT     = 2
+T_COMPLEX   = 3
+T_VECTOR    = 4
+T_MATRIX    = 5
+T_STRING    = 6
+T_LIST      = 7         # Not implemented yet
+T_SYMBOL    = 8
+T_HAS_UNIT  = 1 << 4
+T_HAS_LABEL = 1 << 5
+
+
 class Stackable(rpn.exe.Executable):
     def __init__(self):
+        self.name   = None
         self._value = None
         self._label = None
         self._type  = None
@@ -152,6 +154,9 @@ class Stackable(rpn.exe.Executable):
         base_ustr = str(self.uexpr.ubase())
         new_obj = self.uexpr_convert(base_ustr, name)
         return new_obj
+
+    def instfmt(self):          # pylint: disable=no-self-use
+        raise FatalErr("{}: Subclass responsibility".format(whoami()))
 
     def __str__(self):
         s = self.instfmt()
@@ -238,8 +243,8 @@ class Float(Stackable):
             if ue is None:
                 throw(X_INVALID_UNIT, "Float#from_string", ustr)
             return cls(val, ue)
-        else:
-            return cls(s, None)
+
+        return cls(s, None)
 
     @property
     def value(self):
@@ -327,8 +332,8 @@ class Integer(Stackable):
             if ue is None:
                 throw(X_INVALID_UNIT, "Integer#from_string", ustr)
             return cls(val, ue)
-        else:
-            return cls(s, None)
+
+        return cls(s, None)
 
     @property
     def value(self):
