@@ -546,7 +546,7 @@ the right thing with empty stack (uses zero)."""
                 # The variable remains undefined
             else:
                 throw(X_UNDEFINED_VARIABLE, str(self), self.identifier())
-        elif self._modifier is None and type(var.obj) is rpn.type.String:
+        elif self._modifier is None and type(var.obj) in [rpn.type.String, rpn.type.Symbol]:
             rpn.globl.string_stack.push(var.obj)
         elif self._modifier is not None and self._modifier == '$':
             if rpn.globl.string_stack.empty():
@@ -826,7 +826,7 @@ The TOS is consumed as normal."""
         if not stringp and self._modifier is not None:
             rpn.globl.param_stack.push(cur_obj)
             rpn.flag.copy_flag(rpn.flag.F_SHOW_X, 54)
-            rpn.word.w_swap('swap')
+            rpn.globl.eval_string("swap")
             if self._modifier == '+':
                 rpn.word.w_plus('+')
             elif self._modifier == '-':

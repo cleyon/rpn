@@ -86,6 +86,7 @@ tokens = [
     'RATIONAL',
     'SEMICOLON',
     'STRING',
+    'SYMBOL',
     'VBAR',
     'WS',
 ] + list(reserved_words.values())
@@ -99,6 +100,11 @@ def t_STRING(t):
     #r'"([^"\\]*(\\.[^"\\]*)*)"' # Nice, but doesn't work with multi-line strings
     #r'"(?:[^"\\]++|\\.)*+"'     # This causes a stack overflow
     t.type = 'STRING'
+    return t
+
+def t_SYMBOL(t):
+    r"'([^']|\n)*'"
+    t.type = 'SYMBOL'
     return t
 
 def t_RATIONAL(t):
@@ -441,6 +447,7 @@ def p_executable(p):
                   | show
                   | store_var
                   | string
+                  | symbol
                   | undef
                   | variable
                   | vector
@@ -702,6 +709,18 @@ def p_string(p):
     if len(s) < 2 or s[0] != '"' or s[-1] != '"':
         raise FatalErr("{}: Malformed string: '{}'".format(whoami(), s))
     p[0] = rpn.type.String(s[1:-1])
+
+def p_symbol(p):
+    '''symbol : SYMBOL'''
+    s = p[1]
+    if len(s) < 2 or s[0] != "'" or s[-1] != "'":
+        raise FatalErr("{}: Malformed symbol: '{}'".format(whoami(), s))
+    name = s[1:-1]
+    (word, _) = rpn.globl.lookup_word(name)
+    if word is None:
+        rpn.globl.lnwriteln("{}: Word '{}' not found".format(whoami(), name))
+        raise SyntaxError
+    p[0] = rpn.type.Symbol(name, word)
 
 def p_undef(p):
     '''undef : UNDEF IDENTIFIER'''

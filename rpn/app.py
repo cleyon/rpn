@@ -269,9 +269,7 @@ def main_loop():
 
     if not rpn.globl.param_stack.empty():
         if rpn.globl.param_stack.size() == 1:
-            rpn.word.w_dup('dup')
-            rpn.word.w_dot('dot')
-            rpn.word.w_cr('cr')
+            rpn.globl.eval_string("dup . cr")
         else:
             rpn.word.w_dot_s('.s')
 
