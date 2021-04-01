@@ -10,6 +10,7 @@
 
 import math
 from   rpn.debug import dbg, whoami
+from   rpn.exception import *   # pylint: disable=wildcard-import
 import rpn.flag
 
 N   = None

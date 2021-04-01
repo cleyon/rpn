@@ -14,12 +14,12 @@ from   fractions import Fraction
 import functools
 import math
 import os
-import readline                         # pylint: disable=unused-import
+import readline                 # pylint: disable=unused-import
 import random
 import statistics
 import subprocess
 import sys
-import tempfile         # edit
+import tempfile                 # edit
 import termios
 import time
 import tty
@@ -27,24 +27,24 @@ import tty
 
 # Check if NumPy is available
 try:
-    import numpy as np                  # pylint: disable=import-error
+    import numpy as np          # pylint: disable=import-error
 except ImportError:
     pass
 
 # Check if SciPy is available
 try:
-    import scipy.integrate              # pylint: disable=import-error
-    import scipy.optimize               # pylint: disable=import-error
+    import scipy.integrate      # pylint: disable=import-error
+    import scipy.optimize       # pylint: disable=import-error
 except ModuleNotFoundError:
     pass
 
-# Check if Matplotlib is available
-try:
-    import matplotlib                   # pylint: disable=import-error
-except ModuleNotFoundError:
-    pass
+# # Check if Matplotlib is available
+# try:
+#     import matplotlib           # pylint: disable=import-error
+# except ModuleNotFoundError:
+#     pass
 
-from   rpn.exception import *
+from   rpn.exception import *   # pylint: disable=wildcard-import
 from   rpn.debug import dbg, typename
 import rpn.flag
 import rpn.globl
@@ -101,7 +101,7 @@ def w_number_in(name):
         try:
             x = input()
             dbg(name, 1, "#in: '{}'".format(x))
-        except EOFError as e:
+        except EOFError:
             throw(X_EOF, name)
         finally:
             rpn.globl.sharpout.obj = rpn.type.Integer(0)
@@ -141,7 +141,7 @@ def w_dollar_in(name):
         try:
             x = input()
             dbg(name, 1, "$in: '{}'".format(x))
-        except EOFError as e:
+        except EOFError:
             throw(X_EOF, name)
         finally:
             rpn.globl.sharpout.obj = rpn.type.Integer(0)
@@ -275,8 +275,8 @@ def w_dollar_ushow(name):
         if ue.unit.base_p:
             rpn.globl.writeln('SI units: "{}" is a base unit'.format(unit.name))
         else:
-            defn = "{}".format(unit._factor)
-            e = unit._orig_exp
+            defn = "{}".format(unit.factor())
+            e = unit.orig_exp
             if e is not None and e != 0:
                 defn += " * 10^{}".format(e)
             defn += " {}".format(unit.deriv)
@@ -442,7 +442,7 @@ def w_star(name):
             r = np.dot(y.value, x.value)
             print("r=", type(r), r)
             print("r.dtype={}, r.shape={}, r.ndim={}".format(r.dtype, r.shape, r.ndim))
-        except ValueError as e:
+        except ValueError:
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
             throw(X_CONFORMABILITY, name)
@@ -1330,7 +1330,7 @@ def w_caret(name):
 
     try:
         r = pow(y.value, x.value)
-    except OverflowError as e:
+    except OverflowError:
         rpn.globl.param_stack.push(x)
         throw(X_FP_RESULT_OO_RANGE, name)
 
@@ -1412,7 +1412,7 @@ def w_acos(name):
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         try:
             r = math.acos(float(x.value))
-        except ValueError as e:
+        except ValueError:
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Float(rpn.globl.convert_radians_to_mode(r))
@@ -1420,7 +1420,7 @@ def w_acos(name):
     elif type(x) is rpn.type.Complex:
         try:
             r = cmath.acos(x.value)
-        except ValueError as e:
+        except ValueError:
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Complex.from_complex(r)
@@ -1441,14 +1441,14 @@ def w_acosh(name):
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         try:
             r = math.acosh(float(x.value))
-        except ValueError as e:
+        except ValueError:
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Float(r)
     elif type(x) is rpn.type.Complex:
         try:
             r = cmath.acosh(x.value)
-        except ValueError as e:
+        except ValueError:
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Complex.from_complex(r)
@@ -1515,7 +1515,7 @@ def w_asin(name):
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         try:
             r = math.asin(float(x.value))
-        except ValueError as e:
+        except ValueError:
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Float(rpn.globl.convert_radians_to_mode(r))
@@ -1523,7 +1523,7 @@ def w_asin(name):
     elif type(x) is rpn.type.Complex:
         try:
             r = cmath.asin(x.value)
-        except ValueError as e:
+        except ValueError:
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Complex.from_complex(r)
@@ -1544,14 +1544,14 @@ def w_asinh(name):
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         try:
             r = math.asinh(float(x.value))
-        except ValueError as e:
+        except ValueError:
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Float(r)
     elif type(x) is rpn.type.Complex:
         try:
             r = cmath.asinh(x.value)
-        except ValueError as e:
+        except ValueError:
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Complex.from_complex(r)
@@ -1570,7 +1570,7 @@ def w_atan(name):
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         try:
             r = math.atan(float(x.value))
-        except ValueError as e:
+        except ValueError:
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Float(rpn.globl.convert_radians_to_mode(r))
@@ -1578,7 +1578,7 @@ def w_atan(name):
     elif type(x) is rpn.type.Complex:
         try:
             r = cmath.atan(x.value)
-        except ValueError as e:
+        except ValueError:
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Complex.from_complex(r)
@@ -1597,7 +1597,7 @@ def w_atan2(name):
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         try:
             r = math.atan2(float(y.value), float(x.value))
-        except ValueError as e:
+        except ValueError:
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
@@ -1629,14 +1629,14 @@ def w_atanh(name):
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         try:
             r = math.atanh(float(x.value))
-        except ValueError as e:
+        except ValueError:
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Float(r)
     elif type(x) is rpn.type.Complex:
         try:
             r = cmath.atanh(x.value)
-        except ValueError as e:
+        except ValueError:
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Complex.from_complex(r)
@@ -2376,7 +2376,7 @@ Vector dot product.""")
         if type(x) is rpn.type.Vector and type(y) is rpn.type.Vector:
             try:
                 r = y.value.dot(x.value)
-            except ValueError as e:
+            except ValueError:
                 rpn.globl.param_stack.push(y)
                 rpn.globl.param_stack.push(x)
                 throw(X_CONFORMABILITY, name, "Vectors are not same size")
@@ -2579,7 +2579,7 @@ def w_erf(name):
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         try:
             r = math.erf(float(x.value))
-        except ValueError as e:
+        except ValueError:
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Float(r)
@@ -2607,7 +2607,7 @@ def w_erfc(name):
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         try:
             r = math.erfc(float(x.value))
-        except ValueError as e:
+        except ValueError:
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Float(r)
@@ -2643,7 +2643,7 @@ def w_eval(name):               # pylint: disable=unused-argument
 @defword(name='exit', print_x=rpn.globl.PX_CONTROL, doc="""\
 exit   ( -- )
 Terminate execution of current word.""")
-def w_exit(name):
+def w_exit(name):               # pylint: disable=unused-argument
     throw(X_EXIT)
 
 
@@ -2655,14 +2655,14 @@ def w_exp(name):
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         try:
             r = math.exp(float(x.value))
-        except OverflowError as e:
+        except OverflowError:
             rpn.globl.param_stack.push(x)
             throw(X_FP_RESULT_OO_RANGE, name)
         result = rpn.type.Float(r)
     elif type(x) is rpn.type.Complex:
         try:
             r = cmath.exp(complex(x.value))
-        except OverflowError as e:
+        except OverflowError:
             rpn.globl.param_stack.push(x)
             throw(X_FP_RESULT_OO_RANGE, name)
         result = rpn.type.Complex.from_complex(r)
@@ -3052,7 +3052,7 @@ def w_gamma(name):
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         try:
             r = math.gamma(float(x.value))
-        except ValueError as e:
+        except ValueError:
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name, "X cannot be a non-positive integer")
         if type(x) is rpn.type.Integer:
@@ -3529,7 +3529,7 @@ def w_inv(name):
     elif type(x) is rpn.type.Matrix:
         try:
             r = np.linalg.inv(x.value)
-        except np.linalg.LinAlgError as e:
+        except np.linalg.LinAlgError:
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name, "Singular matrix has no inverse")
         result = rpn.type.Matrix.from_numpy(r)
@@ -3573,7 +3573,7 @@ def w_label_from(name):
 @defword(name='label?', args=1, print_x=rpn.globl.PX_PREDICATE, doc="""\
 label?   ( x -- bool )
 Test if X has a label.""")
-def w_label_query(name):
+def w_label_query(name):        # pylint: disable=unused-argument
     x = rpn.globl.param_stack.pop()
     rc = x.has_label_p()
     result = rpn.type.Integer(rc)
@@ -3613,7 +3613,7 @@ def w_lcm(name):
 @defword(name='leave', print_x=rpn.globl.PX_CONTROL, doc="""\
 leave   ( -- )
 Exit a do or begin loop immediately.""")
-def w_leave(name):
+def w_leave(name):              # pylint: disable=unused-argument
     throw(X_LEAVE)
 
 
@@ -5095,14 +5095,14 @@ def w_tan(name):
             angle = rpn.globl.convert_mode_to_radians(x.value)
         try:
             r = math.tan(angle)
-        except ValueError as e:
+        except ValueError:
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Float(r)
     elif type(x) is rpn.type.Complex:
         try:
             r = cmath.tan(x.value)
-        except ValueError as e:
+        except ValueError:
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Complex.from_complex(r)
@@ -5312,13 +5312,14 @@ def w_ufact(name):
     if ue is None:
         rpn.globl.param_stack.push(x)
         rpn.globl.string_stack.push(ustr)
-        throw(X_INVALID_UNIT, name, new_ustr)
+        throw(X_INVALID_UNIT, name, ustr.value)
 
     print("{}: X ={}".format(name, repr(x.uexpr)))
     print("{}: ue={}".format(name, repr(ue)))
     new_ue = rpn.unit.UExpr()
-    foo = [ adim - bdim  for adim, bdim in zip(x.uexpr.dim(), ue.dim()) ]
-    print("{}: foo={}".format(name, repr(new_ue)))
+    print("{}: new_ue={}".format(name, repr(new_ue)))
+    new_dim = [ adim - bdim  for adim, bdim in zip(x.uexpr.dim(), ue.dim()) ]
+    print("{}: new_dim={}".format(name, repr(new_dim)))
 
 
 @defword(name='undef', print_x=rpn.globl.PX_CONFIG, doc="""\
@@ -5344,7 +5345,7 @@ def w_unit_from(name):
 @defword(name='unit?', args=1, print_x=rpn.globl.PX_PREDICATE, doc="""\
 unit?   ( x -- bool )
 Test if X has a unit expression.""")
-def w_unit_query(name):
+def w_unit_query(name):         # pylint: disable=unused-argument
     x = rpn.globl.param_stack.pop()
     rc = x.has_uexpr_p()
     result = rpn.type.Integer(rc)
@@ -5356,13 +5357,13 @@ units   ( -- )
 List all units.
 
 See also: ushow""")
-def w_units(name):
+def w_units(name):              # pylint: disable=unused-argument
     units = dict()
     for u in rpn.unit.units.values():
         if u.hidden:
             continue
-        id = u.abbrev if u.abbrev is not None else u.name
-        units[id] = id
+        ident = u.abbrev if u.abbrev is not None else u.name
+        units[ident] = ident
     sorted_units = []
     for key in sorted(units, key=str.casefold):
         sorted_units.append(units[key])
@@ -5372,11 +5373,11 @@ def w_units(name):
 @defword(name='units!', print_x=rpn.globl.PX_IO, doc="""\
 units!   ( -- )
 List all units with more details.""")
-def w_units_bang(name):
+def w_units_bang(name):         # pylint: disable=unused-argument
     units = dict()
     for u in rpn.unit.units.values():
         cat = rpn.unit.Category.lookup_by_dim(u.dim())
-        id = str(u)
+        ident = str(u)
         if u.abbrev is not None:
             s = u.abbrev + " ({}".format(u.name)
             if cat is not None:
@@ -5386,7 +5387,7 @@ def w_units_bang(name):
             s = u.name
             if cat is not None:
                 s += " ({})".format(cat.measure)
-        units[id] = s
+        units[ident] = s
     sorted_units = []
     for key in sorted(units, key=str.casefold):
         sorted_units.append(units[key])

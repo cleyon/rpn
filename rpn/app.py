@@ -13,25 +13,25 @@ import signal
 import sys
 
 try:
-    import numpy as np                  # pylint: disable=import-error
+    import numpy as np          # pylint: disable=import-error
 except ImportError:
     pass
 
 # Check if SciPy is available
 try:
-    import scipy.integrate              # pylint: disable=import-error
-    import scipy.optimize               # pylint: disable=import-error
+    import scipy.integrate      # pylint: disable=import-error
+    import scipy.optimize       # pylint: disable=import-error
 except ModuleNotFoundError:
     pass
 
 # # Check if Matplotlib is available
 # try:
-#     import matplotlib                   # pylint: disable=import-error
+#     import matplotlib           # pylint: disable=import-error
 # except ModuleNotFoundError:
 #     pass
 
 from   rpn.debug     import dbg, typename
-from   rpn.exception import *
+from   rpn.exception import *   # pylint: disable=wildcard-import
 import rpn.flag
 import rpn.globl
 import rpn.tvm
@@ -247,7 +247,7 @@ def load_file(filename):
     try:
         with open(fn, "r") as file:
             contents = file.read()
-    except PermissionError as e:
+    except PermissionError:
         throw(X_FILE_IO, "load", "Cannot open file '{}'".format(fn))
     else:
         dbg("load_file", 3, "load_file({})='{}'".format(fn, contents))

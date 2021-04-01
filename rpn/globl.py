@@ -16,26 +16,26 @@ import traceback
 
 # Check if NumPy is available
 try:
-    import numpy as np                  # pylint: disable=import-error
+    import numpy as np          # pylint: disable=import-error
 except ImportError:
     pass
 
 # Check if SciPy is available
 try:
-    import scipy.integrate              # pylint: disable=import-error
-    import scipy.optimize               # pylint: disable=import-error
+    import scipy.integrate      # pylint: disable=import-error
+    import scipy.optimize       # pylint: disable=import-error
 except ModuleNotFoundError:
     pass
 
 # Check if Matplotlib is available
 try:
-    import matplotlib                   # pylint: disable=import-error
+    import matplotlib           # pylint: disable=import-error
 except ModuleNotFoundError:
     pass
 
 
 from   rpn.debug     import dbg, whoami
-from   rpn.exception import *
+from   rpn.exception import *   # pylint: disable=wildcard-import
 import rpn.flag
 import rpn.parser
 import rpn.util
@@ -215,10 +215,9 @@ def execute(executable):
             rpn.globl.lnwriteln(throw_code_text[X_INTERRUPT])
             rpn.globl.sigint_detected = False
             raise
-        elif err_execute.code == X_EXIT:
+        if err_execute.code == X_EXIT:
             return
-        else:
-            raise
+        raise
 
 # I should really just use __format__() correctly
 def gfmt(x):
@@ -369,8 +368,7 @@ def pop_scope(why):
         if e.code == X_STACK_UNDERFLOW:
             traceback.print_stack(file=sys.stderr)
             raise FatalErr("Attempting to pop Root scope!") from e
-        else:
-            raise
+        raise
 
     dbg("scope", 2, "Pop  {} due to {}".format(repr(scope), why))
     #dbg("scope", 1, "Pop  {}".format(repr(scope)))

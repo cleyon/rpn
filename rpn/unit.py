@@ -1,10 +1,10 @@
-import re
+'''RPN Units'''
 
 import ply.lex  as lex
 import ply.yacc as yacc
 
 from   rpn.debug     import dbg, whoami
-from   rpn.exception import *
+from   rpn.exception import *   # pylint: disable=wildcard-import
 import rpn.globl
 
 
@@ -70,10 +70,9 @@ it's simply a CompositeUnit "m/s^2".'''
         my_cats = list(filter(lambda c: list(c.dim()) == dimension, category.values()))
         if len(my_cats) == 0:
             return None
-        elif len(my_cats) == 1:
+        if len(my_cats) == 1:
             return my_cats[0]
-        else:
-            raise FatalErr("{}: More than one category matched dimension {}".format(whoami(), dimension))
+        raise FatalErr("{}: More than one category matched dimension {}".format(whoami(), dimension))
 
 def defcategory(measure_name, dimension):
     cat = Category(measure_name, dimension)
@@ -171,7 +170,7 @@ There are attributes for unit and prefix, but these are not necessary for
 use in the general case -- they are only populated by specific searches,
 and are often None.'''
     def __init__(self):
-        self._dim = category["Null"].dim()
+        self.dim(category["Null"].dim())
         self._exp = 0
         self._base_factor = None
         self.ustr = ""
@@ -198,6 +197,8 @@ and are often None.'''
                 continue
             unit_dim = [ item for sbl in [ [0]*x, [1], [0]*(dim_size-1-x) ]
                            for item in sbl ]
+            # pylint reports "W0640: Cell variable unit_dim defined in loop (cell-var-from-loop)"
+            # on the following line:
             unit_match_list = list(filter(lambda unit: unit.dim() == unit_dim and \
                                                        unit.base_p, units.values()))
             if len(unit_match_list) == 0 or len(unit_match_list) > 1:
@@ -224,12 +225,14 @@ and are often None.'''
             s += "/" + "*".join(denom)
         ue = try_parsing(s)
         if ue is None:
-            raise FatalErr("UExpr#ubase: Could not parse base unit string '{}'".format(s, repr(self)))
+            raise FatalErr("{}: Could not parse base unit string '{}'".format(whoami(), s))
 
         dbg("unit", 1, "{}: Returning {}".format(whoami(), ue))
         return ue
 
-    def dim(self):
+    def dim(self, new_dim=None):
+        if new_dim is not None:
+            self._dim = new_dim
         return self._dim
 
     # XXX - This should be calculated once (on demand) then cached
@@ -240,10 +243,14 @@ and are often None.'''
             dr.pop()
         return dr
 
-    def exp(self):
+    def exp(self, new_exp=None):
+        if new_exp is not None:
+            self._exp = new_exp
         return self._exp
 
-    def base_factor(self):
+    def base_factor(self, new_base_factor=None):
+        if new_base_factor is not None:
+            self._base_factor = new_base_factor
         return self._base_factor
 
     def raise_to_power(self, p):
@@ -276,13 +283,13 @@ class UNull:
         return "1"
     def __repr__(self):
         return "UNull[]"
-    def dim(self):
+    def dim(self):              # pylint: disable=no-self-use
         return category["Null"].dim()
-    def exp(self):
+    def exp(self):              # pylint: disable=no-self-use
         return 0
-    def base_factor(self):
+    def base_factor(self):      # pylint: disable=no-self-use
         return 1
-    def raise_to_power(self, p):
+    def raise_to_power(self, _):
         return self
     def invert(self):
         return self
@@ -293,18 +300,17 @@ class UQuot:
     def __new__(cls, numer, denom):
         if isinstance(denom, UNull):
             return numer
-        elif isinstance(denom, UQuot):
+        if isinstance(denom, UQuot):
             return UProd(numer, denom.invert())
-        elif isinstance(numer, UQuot):
+        if isinstance(numer, UQuot):
             numer.denom = UProd(numer.denom, denom)
             return numer
-        elif numer == denom:
+        if numer == denom:
             return None
-        else:
-            obj = object.__new__(cls)
-            obj.numer = numer
-            obj.denom = denom
-            return obj
+        obj = object.__new__(cls)
+        obj.numer = numer
+        obj.denom = denom
+        return obj
     def __str__(self):
         return str(self.numer) + "/" + str(self.denom)
     def dim(self):
@@ -323,31 +329,29 @@ class UQuot:
     def invert(self):
         if isinstance(self.numer, UNull):
             return self.denom
-        else:
-            return UQuot(self.denom, self.numer)
+        return UQuot(self.denom, self.numer)
 
 class UProd:
     def __new__(cls, lhs, rhs):
         if isinstance(lhs, UNull):
             return rhs
-        elif isinstance(rhs, UNull):
+        if isinstance(rhs, UNull):
             return lhs
-        elif isinstance(lhs, UQuot) and isinstance(rhs, UExpr):
+        if isinstance(lhs, UQuot) and isinstance(rhs, UExpr):
             lhs.numer = UProd(lhs.numer, rhs)
             return lhs
-        elif isinstance(lhs, UExpr) and isinstance(rhs, UQuot):
+        if isinstance(lhs, UExpr) and isinstance(rhs, UQuot):
             rhs.numer = UProd(lhs, rhs.numer)
             return rhs
-        elif isinstance(lhs, UQuot) and isinstance(rhs, UQuot):
+        if isinstance(lhs, UQuot) and isinstance(rhs, UQuot):
             return UQuot(UProd(lhs.numer, rhs.numer),
                          UProd(lhs.denom, rhs.denom))
-        elif lhs == rhs:
+        if lhs == rhs:
             return UPow(lhs, 2)
-        else:
-            obj = object.__new__(cls)
-            obj.lhs = lhs
-            obj.rhs = rhs
-            return obj
+        obj = object.__new__(cls)
+        obj.lhs = lhs
+        obj.rhs = rhs
+        return obj
     def __str__(self):
         return str(self.lhs) + "*" + str(self.rhs)
     def __repr__(self):
@@ -370,30 +374,30 @@ class UPow:
     def __new__(cls, mantissa, power):
         if int(power) == 0:
             return UNull()
-        elif int(power) == 1:
+        if int(power) == 1:
             return mantissa
-        elif isinstance(mantissa, UPow):
+        if isinstance(mantissa, UPow):
             mantissa.power *= int(power)
             return mantissa
-        elif isinstance(mantissa, UExpr) or isinstance(mantissa, Category):
+        if isinstance(mantissa, (UExpr, Category)):
             obj = object.__new__(cls)
             obj.mantissa = mantissa
             obj.power = int(power)
             return obj
-        elif isinstance(mantissa, UQuot):
+        if isinstance(mantissa, UQuot):
             return UQuot(UPow(mantissa.numer, power), UPow(mantissa.denom, power))
-        elif isinstance(mantissa, UProd):
+        if isinstance(mantissa, UProd):
             return UProd(UPow(mantissa.lhs, power), UPow(mantissa.rhs, power))
-        elif isinstance(mantissa, UParen):
+        if isinstance(mantissa, UParen):
             return UParen(UPow(mantissa.inner, power))
-        elif isinstance(mantissa, UNull):
+        if isinstance(mantissa, UNull):
             return UNull()
-        else:
-            print("UPow fell through -- should not happen")
-            obj = object.__new__(cls)
-            obj.mantissa = UParen(mantissa)
-            obj.power = int(power)
-            return obj
+
+        print("UPow fell through -- should not happen")
+        obj = object.__new__(cls)
+        obj.mantissa = UParen(mantissa)
+        obj.power = int(power)
+        return obj
     def __str__(self):
         return str(self.mantissa) + "^" + str(self.power)
     def __repr__(self):
@@ -413,12 +417,11 @@ class UPow:
 
 class UParen:
     def __new__(cls, inner):
-        if isinstance(inner, UExpr) or isinstance(inner, UNull):
+        if isinstance(inner, (UExpr, UNull)):
             return inner
-        else:
-            obj = object.__new__(cls)
-            obj.inner = inner
-            return obj
+        obj = object.__new__(cls)
+        obj.inner = inner
+        return obj
     def __str__(self):
         return "(" + str(self.inner) + ")"
     def __repr__(self):
@@ -462,9 +465,9 @@ expecting 'hours', but this returns hectoradians.'''
     for u in units.values():
         if u.name == text:
             ue = UExpr()
-            ue._dim = u.dim()
-            ue._exp = u.exp()
-            ue._base_factor = u.u_base_factor()
+            ue.dim(u.dim())
+            ue.exp(u.exp())
+            ue.base_factor(u.base_factor())
             ue.unit = u
             return ue
 
@@ -476,9 +479,9 @@ expecting 'hours', but this returns hectoradians.'''
                     continue
                 if text[:len(p[i])] == p[i] and text[len(p[i]):] == u.name:
                     ue = UExpr()
-                    ue._dim = u.dim()
-                    ue._exp = u.exp() + p[2]
-                    ue._base_factor = u.u_base_factor()
+                    ue.dim(u.dim())
+                    ue.exp(u.exp() + p[2])
+                    ue.base_factor(u.base_factor())
                     ue.unit = u
                     ue.prefix = p
                     return ue
@@ -489,9 +492,9 @@ expecting 'hours', but this returns hectoradians.'''
             continue
         if u.abbrev == text:
             ue = UExpr()
-            ue._dim = u.dim()
-            ue._exp = u.exp()
-            ue._base_factor = u.u_base_factor()
+            ue.dim(u.dim())
+            ue.exp(u.exp())
+            ue.base_factor(u.base_factor())
             ue.unit = u
             return ue
 
@@ -505,9 +508,9 @@ expecting 'hours', but this returns hectoradians.'''
                 continue
             if text[:len(p[1])] == p[1] and text[len(p[1]):] == u.abbrev:
                 ue = UExpr()
-                ue._dim = u.dim()
-                ue._exp = u.exp() + p[2]
-                ue._base_factor = u.u_base_factor()
+                ue.dim(u.dim())
+                ue.exp(u.exp() + p[2])
+                ue.base_factor(u.base_factor())
                 ue.unit = u
                 ue.prefix = p
                 return ue
@@ -518,9 +521,9 @@ expecting 'hours', but this returns hectoradians.'''
             continue
         if text in u.syn:
             ue = UExpr()
-            ue._dim = u.dim()
-            ue._exp = u.exp()
-            ue._base_factor = u.u_base_factor()
+            ue.dim(u.dim())
+            ue.exp(u.exp())
+            ue.base_factor(u.base_factor())
             ue.unit = u
             return ue
 
@@ -535,9 +538,9 @@ expecting 'hours', but this returns hectoradians.'''
                         continue
                     if text[:len(p[i])] == p[i] and text[len(p[i]):] == syn:
                         ue = UExpr()
-                        ue._dim = u.dim()
-                        ue._exp = u.exp() + p[2]
-                        ue._base_factor = u.u_base_factor()
+                        ue.dim(u.dim())
+                        ue.exp(u.exp() + p[2])
+                        ue.base_factor(u.base_factor())
                         ue.unit = u
                         ue.prefix = p
                         return ue
@@ -661,7 +664,7 @@ class Unit:
         self.base_p = False
         self.deriv = None
         self._dim = None
-        self._orig_exp = None
+        self.orig_exp = None
         self._exp = None
         self._factor = 1
         self.hidden = False
@@ -681,7 +684,7 @@ class Unit:
             del kwargs["category"]
 
         if "exp" in kwargs:
-            self._orig_exp = kwargs["exp"]
+            self.orig_exp = kwargs["exp"]
             self._exp = kwargs["exp"]
             del kwargs["exp"]
 
@@ -734,11 +737,13 @@ class Unit:
         # Store in the unit dictionary
         units[name] = self
 
-    def u_base_factor(self):
+    def factor(self):
+        return self._factor
+
+    def base_factor(self):
         if self.base_p:
-            return self._factor
-        else:
-            return self._factor * self.deriv.base_factor()
+            return self.factor()
+        return self.factor() * self.deriv.base_factor()
 
     def dim(self):
         return self._dim
@@ -746,12 +751,9 @@ class Unit:
     def exp(self):
         return self._exp
 
-    def base_factor(self):
-        return self._base_factor
-
     def __repr__(self):
         return "Unit[{},base_factor={},factor={},exp={},dim={}]" \
-            .format(self.name, self.u_base_factor(), self._factor, self.exp(), self.dim())
+            .format(self.name, self.base_factor(), self.factor(), self.exp(), self.dim())
 
     def __str__(self):
         return self.abbrev if self.abbrev is not None else self.name
@@ -772,9 +774,9 @@ def define_units():
     # '50 10_m /  =>  5_1/m'.  This also allows the user to enter a unit object
     # like '50_1' which has a UExpr of no dimensions.  Not sure if that's useful
     # or if it should be disallowed....
-    null_unit = Unit("1", category="Null", hidden=True)
+    null_unit = Unit("1", category="Null", hidden=True) # pylint: disable=unused-variable
 
-    base_units = [
+    base_units = [              # pylint: disable=unused-variable
         Unit("ampere",    category="Current",            abbrev="A",   syn=["amperes", "amp", "amps"]),
         Unit("candela",   category="Luminous intensity", abbrev="cd",  syn=["candelas"]),
         Unit("dollar",    category="Money",              abbrev="$",   syn=["USD"]),
@@ -793,7 +795,7 @@ def define_units():
     #       D E R I V E D   U N I T S
     #
     #############################################################################
-    derived_units = [
+    derived_units = [           # pylint: disable=unused-variable
         # Length
         Unit("inch",    factor=   2.54, units="cm",     abbrev="in", syn=["inches", "ins"]),
         Unit("point",   factor= 1/72,   units="inch",                syn=["points"], hidden=True),
