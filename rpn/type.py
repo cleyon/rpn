@@ -358,36 +358,31 @@ class Integer(Stackable):
 #
 #############################################################################
 class Matrix(Stackable):
-    def __init__(self, vals):
+    def __init__(self):
         if not rpn.globl.have_module('numpy'):
             throw(X_UNSUPPORTED, "", "Matrices require 'numpy' library")
         super().__init__()
         self.name = "Matrix"
         self._type = T_MATRIX
-        #rpn.globl.lnwriteln("{}: vals={}".format(whoami(), repr(vals)))
-        self._nrows = len(vals)
-        cols = -1
-        vecs = []
-        for x in vals.items():
-            #rpn.globl.lnwriteln("x={}".format(repr(x)))
-            vecs.append(x.value)
-            if cols == -1:
-                cols = x.size()
-            else:
-                if x.size() != cols:
-                    throw(X_SYNTAX, "", "Matrix columns not consistent")
-        self._ncols = cols
-        #rpn.globl.lnwriteln("{} rows x {} columns".format(self.nrows(), self.ncols()))
-        #print("vecs", vecs)
-        self.value = np.array(vecs)
-        #print("val",repr(self.value))
+        self._uexpr = None
+        self._value = None
+        self._nrows = None
+        self._ncols = None
 
-    # XXX --- change this to from_ndarray() soon
     @classmethod
-    def from_numpy(cls, x):
-        obj = cls(rpn.util.List())
+    def from_ndarray(cls, x):
+        if x.ndim != 2:
+            throw(X_INVALID_ARG, "Matrix.from_ndarray", "ndim is {}, expected 2".format(x.ndim))
+        obj = cls()
         obj._nrows, obj._ncols = x.shape
         obj.value = x
+        return obj
+
+    @classmethod
+    def from_rpn_List(cls, x):
+        dbg(whoami(), 1, "{}: x={}".format(whoami(), x))
+        obj = cls()
+        obj.value = np.array([elem.value for elem in x.listval()])
         return obj
 
     @property
@@ -581,7 +576,7 @@ class Vector(Stackable):
     @classmethod
     def from_ndarray(cls, x):
         if x.ndim != 1:
-            throw(X_INVALID_ARG, whoami(), "ndim is {}, expected 1".format(x.ndim))
+            throw(X_INVALID_ARG, "Vector.from_ndarray", "ndim is {}, expected 1".format(x.ndim))
         obj = cls()
         obj.value = x
         return obj

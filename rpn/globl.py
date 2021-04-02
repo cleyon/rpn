@@ -63,7 +63,7 @@ string_stack = rpn.util.Stack("String stack")
 
 root_scope = rpn.util.Scope("ROOT")
 
-register          = dict()
+# register          = dict()
 stat_data         = []
 interactive       = None
 default_protected = True
@@ -188,6 +188,8 @@ def eval_string(s):
                 lnwriteln("eval_string: " + str(e))
             else:
                 lnwriteln(str(e))
+            # Don't print X if we caught a runtime error
+            rpn.flag.clear_flag(rpn.flag.F_SHOW_X)
     else:
         if result is not None:
             dbg("eval_string", 1, "result={}".format(result))
@@ -416,7 +418,9 @@ def to_python_class(n):
 def to_rpn_class(n):
     t = type(n)
     dbg(whoami(), 1, "{}: n={}, type={}".format(whoami(), n, t))
-    if t in [int, np.int64]:
+    if t is int:
+        return rpn.type.Integer(n)
+    if t is np.int64 and n.ndim == 0:
         return rpn.type.Integer(n)
     if t in [float, np.float64]:
         return rpn.type.Float(n)
@@ -427,7 +431,9 @@ def to_rpn_class(n):
     if t is np.ndarray:
         if n.ndim == 1:
             return rpn.type.Vector.from_ndarray(n)
-        raise FatalErr("{}: Found ndarray but ndim={} not 1".format(whoami(), n.dim))
+        if n.ndim == 2:
+            return rpn.type.Matrix.from_ndarray(n)
+        raise FatalErr("{}: Found ndarray but ndim={} not in [1,2]".format(whoami(), n.dim))
     raise FatalErr("{}: Cannot handle type {}".format(whoami(), t))
 
 

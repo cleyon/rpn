@@ -2,7 +2,8 @@
 
 \ rfib is purely stack-based
 : rfib
-  doc:"Return Nth Fibonacci number  ( n -- fib )
+  doc:"rfib   ( n -- fib )
+Return Nth Fibonacci number.
 
 DEFINITION:
 fib(n) = fib(n-1) + fib(n-2)"
@@ -14,9 +15,25 @@ fib(n) = fib(n-1) + fib(n-2)"
 ;
 
 
+\ Interesting to compare to this approximation:
+: fib_approx
+  doc:"fix_approx   ( n -- ~fib )
+Approximate the n'th Fibonacci number."
+
+  | in:n
+    sqrt5 sq5plus sq5minus |
+  5 sqrt !sqrt5
+  1 @sqrt5 + 2 / !sq5plus
+  1 @sqrt5 - 2 / !sq5minus
+  @sq5plus @n ^  @sq5minus @n ^  -
+  @sqrt5 /
+;
+
+
 \ rfact uses an inout: local variable
 : rfact
-  doc:"Factorial  ( x -- x! )
+  doc:"rfact   ( x -- x! )
+Factorial, recursive.
 
 DEFINITION:
 x! = x * (x-1) * (x-2) ... * 2 * 1"
@@ -31,8 +48,8 @@ x! = x * (x-1) * (x-2) ... * 2 * 1"
 
 \ Don't call this with arguments greater than 2 (maybe 3)
 : ack
-  doc:"Ackermann's function  ( y x -- ack )
-Neither argument may be negative.
+  doc:"ack   ( y x -- ack )
+Ackermann's function.  Neither argument may be negative.
 
 DEFINITION:
             { y+1                       if x==0
