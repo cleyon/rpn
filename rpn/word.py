@@ -546,7 +546,7 @@ def w_plus(name):
     elif    type(x) is rpn.type.Matrix and type(y) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex] \
          or type(y) is rpn.type.Matrix and type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex]:
         r = np.add(y.value, x.value)
-        result = rpn.type.Matrix.from_numpy(r)
+        result = rpn.type.Matrix.from_ndarray(r)
     elif type(x) is rpn.type.Matrix and type(y) is rpn.type.Matrix:
         if x.nrows() != y.nrows() or x.ncols() != y.ncols():
             rpn.globl.param_stack.push(y)
@@ -555,7 +555,7 @@ def w_plus(name):
         r = np.add(y.value, x.value)
         # print(type(r))
         # print(r)
-        result = rpn.type.Matrix.from_numpy(r)
+        result = rpn.type.Matrix.from_ndarray(r)
     else:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
@@ -1961,13 +1961,6 @@ def w_clrst(name):              # pylint: disable=unused-argument
     rpn.globl.return_stack.clear()
 
 
-@defword(name='clstat', print_x=rpn.globl.PX_CONFIG, doc="""\
-clstat   ( -- )
-Clear the statistics array.""")
-def w_clstat(name):             # pylint: disable=unused-argument
-    rpn.globl.stat_data = []
-
-
 @defword(name='clst', print_x=rpn.globl.PX_CONFIG, doc="""\
 clst   ( -- )
 Clear the stack.  Do not confuse this with the clrst command,
@@ -1977,6 +1970,17 @@ DEFINITION:
 : clst  depth 0 do drop loop ;""")
 def w_clst(name):               # pylint: disable=unused-argument
     rpn.globl.param_stack.clear()
+
+
+@defword(name='clstat', print_x=rpn.globl.PX_CONFIG, doc="""\
+clstat   ( -- )
+Clear the statistics data.""")
+def w_clstat(name):             # pylint: disable=unused-argument
+    rpn.globl.stat_data = []
+    (sreg_var, _) = rpn.globl.lookup_variable("SREG")
+    sreg = sreg_var.obj.value
+    for i in range(6):
+        rpn.globl.reg_stack.top().register[sreg + i] = rpn.type.Float(0.0)
 
 
 @defword(name='clvar', print_x=rpn.globl.PX_CONFIG, doc="""\
@@ -2516,6 +2520,22 @@ drop   ( x -- )
 Remove top stack element.""")
 def w_drop(name):               # pylint: disable=unused-argument
     rpn.globl.param_stack.pop()
+
+
+@defword(name='dsp', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
+dsp   ( x -- )
+Set display precision to X, without changing display style.""")
+def w_dsp(name):
+    x = rpn.globl.param_stack.pop()
+    if type(x) is not rpn.type.Integer:
+        rpn.globl.param_stack.push(x)
+        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+
+    if x.value < 0 or x.value >= rpn.globl.PRECISION_MAX:
+        rpn.globl.param_stack.push(x)
+        throw(X_INVALID_ARG, name, "Precision '{}' out of range (0..{} expected)".format(x.value, rpn.globl.PRECISION_MAX - 1))
+
+    rpn.globl.disp_stack.top().prec = x.value
 
 
 @defword(name='E', print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -3632,7 +3652,7 @@ def w_inv(name):
         except np.linalg.LinAlgError:
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name, "Singular matrix has no inverse")
-        result = rpn.type.Matrix.from_numpy(r)
+        result = rpn.type.Matrix.from_ndarray(r)
     else:
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
@@ -5361,7 +5381,7 @@ def w_trn(name):
     if type(x) is not rpn.type.Matrix:
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
-    t = rpn.type.Matrix.from_numpy(np.matrix.transpose(x.value))
+    t = rpn.type.Matrix.from_ndarray(x.value.T) # np.matrix.transpose(x.value))
     rpn.globl.param_stack.push(t)
 
 
@@ -6115,7 +6135,7 @@ def w_zer(name):
         if rows <= 0 or cols <= 0:
             rpn.globl.param_stack.push(x)
             throw(X_INVALID_ARG, name, "Dimensions must be positive")
-        z = rpn.type.Matrix.from_numpy(np.zeros((rows, cols)))
+        z = rpn.type.Matrix.from_ndarray(np.zeros((rows, cols)))
         rpn.globl.param_stack.push(z)
     else:
         rpn.globl.param_stack.push(x)
