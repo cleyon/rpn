@@ -1950,7 +1950,7 @@ def w_clreg(name):              # pylint: disable=unused-argument
     rpn.globl.reg_stack.top().register = dict()
     for i in range(rpn.globl.REG_SIZE_MAX):
         rpn.globl.reg_stack.top().register[i] = rpn.type.Float(0.0)
-    rpn.globl.reg_stack.top().register['I'] = rpn.type.Float(0.0)
+    rpn.globl.reg_stack.top().register['I'] = rpn.type.Integer(0)
 
 
 @defword(name='clrst', print_x=rpn.globl.PX_CONFIG, doc="""\
@@ -1977,6 +1977,36 @@ DEFINITION:
 : clst  depth 0 do drop loop ;""")
 def w_clst(name):               # pylint: disable=unused-argument
     rpn.globl.param_stack.clear()
+
+
+@defword(name='clvar', print_x=rpn.globl.PX_CONFIG, doc="""\
+clvar   ( -- )
+Clear (delete) user variables in the current scope only.
+
+See also: who""")
+def w_clvar(name):              # pylint: disable=unused-argument
+    scope = rpn.globl.scope_stack.top()
+    my_vars = dict()
+    for v in scope.variables().copy():
+        var = scope.variable(v)
+        if var.hidden or var.protected:
+            continue
+
+        ident = var.name
+        cur_obj = var.obj
+        new_obj = None
+        for pre_hook_func in var.pre_hooks():
+            try:
+                pre_hook_func(ident, cur_obj, new_obj)
+            except RuntimeErr as err_pre_hook_undef:
+                rpn.globl.lnwriteln(str(err_pre_hook_undef))
+                break
+        else:
+            old_obj = cur_obj
+            rpn.globl.scope_stack.top().delete_variable(ident)
+            cur_obj = None
+            for post_hook_func in var.post_hooks():
+                post_hook_func(ident, old_obj, cur_obj)
 
 
 @defword(name='comb', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -4416,19 +4446,19 @@ def w_randint(name):
 
 
 @defword(name='rcl', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-rcl   ( reg -- val )
+rcl   ( x_reg -- reg[x] )
 Recall value of register X.""")
 def w_rcl(name):
-    (reg_size, _) = rpn.globl.lookup_variable("SIZE")
-
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
     reg = x.value
-    if reg < 0 or reg >= reg_size.obj.value:
+    (valid, size) = rpn.globl.register_valid_p(reg)
+    if not valid:
         rpn.globl.param_stack.push(x)
-        throw(X_INVALID_MEMORY, name, "Register {} out of range (0..{} expected)".format(reg, reg_size.obj.value - 1))
+        throw(X_INVALID_MEMORY, name, "Register {} out of range (0..{} expected)".format(reg, size-1))
+
     rpn.globl.param_stack.push(rpn.globl.reg_stack.top().register[reg])
 
 
@@ -4447,12 +4477,10 @@ rclI, which recalls the value of register I directly.""")
 def w_rcli(name):
     (reg_size, _) = rpn.globl.lookup_variable("SIZE")
 
-    I = rpn.globl.reg_stack.top().register['I']
-    if type(I) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(I)))
-    Ival = int(I.value)
-    if Ival < 0 or Ival >= reg_size.obj.value:
-        throw(X_INVALID_MEMORY, name, "Register {} out of range (0..{} expected)".format(Ival, reg_size.obj.value - 1))
+    Ival = rpn.globl.reg_stack.top().register['I'].value
+    (valid, size) = rpn.globl.register_valid_p(Ival)
+    if not valid:
+        throw(X_INVALID_MEMORY, name, "Register I={} out of range (0..{} expected)".format(Ival, reg_size.obj.value - 1))
 
     rpn.globl.param_stack.push(rpn.globl.reg_stack.top().register[Ival])
 
@@ -5068,11 +5096,9 @@ def w_stdev(name):
 
 
 @defword(name='sto', args=2, print_x=rpn.globl.PX_CONFIG, doc="""\
-sto   ( y reg -- )
+sto   ( y_val x_reg -- )
 Store value Y into register X.""")
 def w_sto(name):
-    (reg_size, _) = rpn.globl.lookup_variable("SIZE")
-
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
@@ -5080,14 +5106,13 @@ def w_sto(name):
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
     reg = x.value
-    if reg < 0 or reg >= reg_size.obj.value:
+    (valid, size) = rpn.globl.register_valid_p(reg)
+    if not valid:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_INVALID_MEMORY, name, "Register {} out of range (0..{} expected)".format(reg, reg_size.obj.value - 1))
-    if type(y) in [rpn.type.Float, rpn.type.Complex]:
-        rpn.globl.reg_stack.top().register[reg] = y
-    else:
-        rpn.globl.reg_stack.top().register[reg] = rpn.type.Float(y.value)
+        throw(X_INVALID_MEMORY, name, "Register {} out of range (0..{} expected)".format(reg, size-1))
+
+    rpn.globl.reg_stack.top().register[reg] = y
 
 
 @defword(name='stoI', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
@@ -5096,10 +5121,13 @@ Store X into register I.  Do not confuse this with stoi, which
 stores X into the register referenced by I.""")
 def w_stoI(name):               # pylint: disable=unused-argument
     x = rpn.globl.param_stack.pop()
-    if type(x) in [rpn.type.Float, rpn.type.Complex]:
+    if type(x) is rpn.type.Integer:
         rpn.globl.reg_stack.top().register['I'] = x
+    elif type(x) in [rpn.type.Float, rpn.type.Rational]:
+        rpn.globl.reg_stack.top().register['I'] = rpn.type.Integer(int(x.value))
     else:
-        rpn.globl.reg_stack.top().register['I'] = rpn.type.Float(x.value)
+        rpn.globl.param_stack.push(x)
+        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(I)))
 
 
 @defword(name='stoi', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
@@ -5107,20 +5135,11 @@ stoi   ( x -- )
 Store X into the register referenced by I.  Do not confuse this with
 stoI, which stores X directly into the I register.""")
 def w_stoi(name):
-    (reg_size, _) = rpn.globl.lookup_variable("SIZE")
-
-    I = rpn.globl.reg_stack.top().register['I']
-    if type(I) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(I)))
-    Ival = int(I.value)
-    if Ival < 0 or Ival >= reg_size.obj.value:
-        throw(X_INVALID_MEMORY, name, "Register {} out of range (0..{} expected)".format(Ival, reg_size.obj.value - 1))
-
-    x = rpn.globl.param_stack.pop()
-    if type(x) in [rpn.type.Float, rpn.type.Complex]:
-        rpn.globl.reg_stack.top().register[Ival] = x
-    else:
-        rpn.globl.reg_stack.top().register[Ival] = rpn.type.Float(x.value)
+    Ival = rpn.globl.reg_stack.top().register['I'].value
+    (valid, size) = rpn.globl.register_valid_p(Ival)
+    if not valid:
+        throw(X_INVALID_MEMORY, name, "Register I={} out of range (0..{} expected)".format(Ival, size-1))
+    rpn.globl.reg_stack.top().register[Ival] = rpn.globl.param_stack.pop()
 
 
 @defword(name='T_COMPLEX', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -5669,38 +5688,35 @@ def w_words(name):              # pylint: disable=unused-argument
 
 
 @defword(name='x<>I', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-x<>I   ( x -- I )
+x<>I   ( x -- reg[I] )
 Exchange X with the value of register I.  Do not confuse this with x<>i,
 which exchanges X with the contents of the register referenced by I.""")
 def w_x_exchange_I(name):       # pylint: disable=unused-argument
     x = rpn.globl.param_stack.pop()
-    rpn.globl.param_stack.push(rpn.globl.reg_stack.top().register['I'])
-    if type(x) in [rpn.type.Float, rpn.type.Complex]:
+    if type(x) is rpn.type.Integer:
+        rpn.globl.param_stack.push(rpn.globl.reg_stack.top().register['I'])
         rpn.globl.reg_stack.top().register['I'] = x
+    elif type(x) in [rpn.type.Float, rpn.type.Rational]:
+        rpn.globl.param_stack.push(rpn.globl.reg_stack.top().register['I'])
+        rpn.globl.reg_stack.top().register['I'] = rpn.type.Integer(int(x.value))
     else:
-        rpn.globl.reg_stack.top().register['I'] = rpn.type.Float(x.value)
+        rpn.globl.param_stack.push(x)
+        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(I)))
 
 
 @defword(name='x<>i', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
-x<>i   ( x -- (i) )
+x<>i   ( x -- reg[(i)] )
 Exchange X with contents of the register referenced by I.
 Do not confuse this with x<>I, which exchanges X with I directly.""")
 def w_x_exchange_indirect_i(name):
-    (reg_size, _) = rpn.globl.lookup_variable("SIZE")
-
-    I = rpn.globl.reg_stack.top().register['I']
-    if type(I) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(I)))
-    Ival = int(I.value)
-    if Ival < 0 or Ival >= reg_size.obj.value:
-        throw(X_INVALID_MEMORY, name, "Register {} out of range (0..{} expected)".format(Ival, reg_size.obj.value - 1))
+    Ival = rpn.globl.reg_stack.top().register['I'].value
+    (valid, size) = rpn.globl.register_valid_p(Ival)
+    if not valid:
+        throw(X_INVALID_MEMORY, name, "Register I={} out of range (0..{} expected)".format(Ival, size-1))
 
     x = rpn.globl.param_stack.pop()
     rpn.globl.param_stack.push(rpn.globl.reg_stack.top().register[Ival])
-    if type(x) in [rpn.type.Float, rpn.type.Complex]:
-        rpn.globl.reg_stack.top().register[Ival] = x
-    else:
-        rpn.globl.reg_stack.top().register[Ival] = rpn.type.Float(x.value)
+    rpn.globl.reg_stack.top().register[Ival] = x
 
 
 @defword(name='X_ABORT', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\

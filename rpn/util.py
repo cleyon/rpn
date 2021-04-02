@@ -143,6 +143,9 @@ class DisplayConfig:
         if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex]:
             return x.instfmt()
 
+        if type(x) is rpn.type.Vector:
+            return "{}".format(x.value)
+
         raise FatalErr("{}: Cannot handle type '{}' for object {}".format(whoami(), typename(x), x))
 
 

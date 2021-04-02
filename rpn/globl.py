@@ -385,6 +385,16 @@ def push_scope(scope, why):
     rpn.globl.scope_stack.push(scope)
 
 
+def register_valid_p(reg):
+    if not isinstance(reg, int):
+        raise FatalErr("{}: Attempting to validate non-integer register {}".format(whoami(), reg))
+    (sizevar, _) = rpn.globl.lookup_variable("SIZE")
+    size = sizevar.obj.value
+    if reg >= 0 and reg < size:
+        return (True, size)
+    return (False, size)
+
+
 def update_screen_size():
     tty_rows = 0
     tty_columns = 0

@@ -70,7 +70,7 @@ def initialize(rpndir, argv):
     rpn.globl.push_scope(rpn.globl.root_scope, "Root scope")
     rpn.globl.disp_stack.push(rpn.util.DisplayConfig())
     reg_set = rpn.util.RegisterSet()
-    reg_set.size = 20
+    reg_set.size = 17           # R00..R16
     reg_set.sreg = 11
     rpn.globl.reg_stack.push(reg_set)
     rpn.word.w_std('std')
