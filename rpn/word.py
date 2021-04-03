@@ -648,7 +648,7 @@ def w_dot_quote(name):          # pylint: disable=unused-argument
 
 
 if rpn.globl.have_module('numpy'):
-    @defword(name='.*', args=2, print_x=rpn.globl.PX_COMPUTE, hidden=True, doc="""\
+    @defword(name='.*', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
 .*   ( y x -- y.*x )
 Element-wise multiplication.""")
     def w_dot_star(name):
@@ -673,7 +673,7 @@ Element-wise multiplication.""")
 
 
 if rpn.globl.have_module('numpy'):
-    @defword(name='.+', args=2, print_x=rpn.globl.PX_COMPUTE, hidden=True, doc="""\
+    @defword(name='.+', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
 .+   ( y x -- y.+x )
 Element-wise addition.""")
     def w_dot_plus(name):
@@ -698,7 +698,7 @@ Element-wise addition.""")
 
 
 if rpn.globl.have_module('numpy'):
-    @defword(name='.-', args=2, print_x=rpn.globl.PX_COMPUTE, hidden=True, doc="""\
+    @defword(name='.-', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
 .-   ( y x -- y.-x )
 Element-wise subtraction.""")
     def w_dot_minus(name):
@@ -723,7 +723,7 @@ Element-wise subtraction.""")
 
 
 if rpn.globl.have_module('numpy'):
-    @defword(name='./', args=2, print_x=rpn.globl.PX_COMPUTE, hidden=True, doc="""\
+    @defword(name='./', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
 ./   ( y x -- y./x )
 Element-wise division.""")
     def w_dot_slash(name):
@@ -748,7 +748,7 @@ Element-wise division.""")
 
 
 if rpn.globl.have_module('numpy'):
-    @defword(name='.^', args=2, print_x=rpn.globl.PX_COMPUTE, hidden=True, doc="""\
+    @defword(name='.^', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
 .^   ( y x -- y.^x )
 Element-wise exponentiation.""")
     def w_dot_caret(name):
