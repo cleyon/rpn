@@ -159,7 +159,22 @@ class Stackable(rpn.exe.Executable):
         raise FatalErr("{}: Subclass responsibility".format(whoami()))
 
     def scalar_p(self):         # pylint: disable=no-self-use
-        raise FatalErr("{}: Subclass responsibility".format(whoami()))
+        return type(self) in [rpn.type.Integer, rpn.type.Rational,
+                              rpn.type.Float, rpn.type.Complex]
+
+    def same_composite_type_p(self, other):
+        return type(self)   in [rpn.type.Vector, rpn.type.Matrix] and \
+               type(other)  in [rpn.type.Vector, rpn.type.Matrix] and \
+               type(self) is type(other)
+
+    def same_shape_p(self, other):
+        if not self.same_composite_type_p(other):
+            return False
+        if type(self) is rpn.type.Vector:
+            return self.size() == other.size()
+        if type(self) is rpn.type.Matrix:
+            return self.nrows() == other.nrows() and \
+                   self.ncols() == other.ncols()
 
     def __str__(self):
         s = self.instfmt()
@@ -213,9 +228,6 @@ class Complex(Stackable):
     def imag(self):
         return self.value.imag
 
-    def scalar_p(self):
-        return True
-
     def zerop(self):
         return self.real() == 0.0 and self.imag() == 0.0
 
@@ -261,9 +273,6 @@ class Float(Stackable):
         if type(new_value) is not float:
             throw(X_ARG_TYPE_MISMATCH, 'Float#value()', "({})".format(typename(new_value)))
         self._value = new_value
-
-    def scalar_p(self):
-        return True
 
     def zerop(self):
         return self.value == 0.0
@@ -354,9 +363,6 @@ class Integer(Stackable):
             throw(X_ARG_TYPE_MISMATCH, 'Integer#value()', "({})".format(typename(new_value)))
         self._value = new_value
 
-    def scalar_p(self):
-        return True
-
     def zerop(self):
         return self.value == 0
 
@@ -406,9 +412,6 @@ class Matrix(Stackable):
         # if type(new_value) is not rpn.type.Matrix: # FIXME
         #     throw(X_ARG_TYPE_MISMATCH, 'Matrix#value()', "({})".format(typename(new_value)))
         self._value = new_value
-
-    def scalar_p(self):
-        return False
 
     def has_uexpr_p(self):
         return False
@@ -466,9 +469,6 @@ class Rational(Stackable):
 
     def set_num_denom(self, num, denom):
         self.value = Fraction(int(num), int(denom))
-
-    def scalar_p(self):
-        return True
 
     def zerop(self):
         return self.numerator() == 0
@@ -616,9 +616,6 @@ class Vector(Stackable):
         # if type(new_value) is not rpn.type.Vector: # FIXME
         #     throw(X_ARG_TYPE_MISMATCH, 'Vector#value()', "({})".format(typename(new_value)))
         self._value = new_value
-
-    def scalar_p(self):
-        return False
 
     def has_uexpr_p(self):
         return False

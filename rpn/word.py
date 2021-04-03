@@ -647,39 +647,130 @@ def w_dot_quote(name):          # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
-@defword(name='.*', args=2, print_x=rpn.globl.PX_COMPUTE, hidden=True, doc="""\
+if rpn.globl.have_module('numpy'):
+    @defword(name='.*', args=2, print_x=rpn.globl.PX_COMPUTE, hidden=True, doc="""\
 .*   ( y x -- y.*x )
 Element-wise multiplication.""")
-def w_dot_star(name):
-    pass
+    def w_dot_star(name):
+        x = rpn.globl.param_stack.pop()
+        y = rpn.globl.param_stack.pop()
+
+        if not x.same_composite_type_p(y):
+            rpn.globl.param_stack.push(y)
+            rpn.globl.param_stack.push(x)
+            throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        if not x.same_shape_p(y):
+            rpn.globl.param_stack.push(y)
+            rpn.globl.param_stack.push(x)
+            throw(X_INVALID_ARG, name, "Y and X must have the same shapes")
+
+        r = np.multiply(y.value, x.value)
+        if type(x) is rpn.type.Vector:
+            result = rpn.type.Vector.from_ndarray(r)
+        else:
+            result = rpn.type.Matrix.from_ndarray(r)
+        rpn.globl.param_stack.push(result)
 
 
-@defword(name='.+', args=2, print_x=rpn.globl.PX_COMPUTE, hidden=True, doc="""\
+if rpn.globl.have_module('numpy'):
+    @defword(name='.+', args=2, print_x=rpn.globl.PX_COMPUTE, hidden=True, doc="""\
 .+   ( y x -- y.+x )
 Element-wise addition.""")
-def w_dot_plus(name):
-    pass
+    def w_dot_plus(name):
+        x = rpn.globl.param_stack.pop()
+        y = rpn.globl.param_stack.pop()
+
+        if not x.same_composite_type_p(y):
+            rpn.globl.param_stack.push(y)
+            rpn.globl.param_stack.push(x)
+            throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        if not x.same_shape_p(y):
+            rpn.globl.param_stack.push(y)
+            rpn.globl.param_stack.push(x)
+            throw(X_INVALID_ARG, name, "Y and X must have the same shapes")
+
+        r = np.add(y.value, x.value)
+        if type(x) is rpn.type.Vector:
+            result = rpn.type.Vector.from_ndarray(r)
+        else:
+            result = rpn.type.Matrix.from_ndarray(r)
+        rpn.globl.param_stack.push(result)
 
 
-@defword(name='.-', args=2, print_x=rpn.globl.PX_COMPUTE, hidden=True, doc="""\
+if rpn.globl.have_module('numpy'):
+    @defword(name='.-', args=2, print_x=rpn.globl.PX_COMPUTE, hidden=True, doc="""\
 .-   ( y x -- y.-x )
 Element-wise subtraction.""")
-def w_dot_minus(name):
-    pass
+    def w_dot_minus(name):
+        x = rpn.globl.param_stack.pop()
+        y = rpn.globl.param_stack.pop()
+
+        if not x.same_composite_type_p(y):
+            rpn.globl.param_stack.push(y)
+            rpn.globl.param_stack.push(x)
+            throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        if not x.same_shape_p(y):
+            rpn.globl.param_stack.push(y)
+            rpn.globl.param_stack.push(x)
+            throw(X_INVALID_ARG, name, "Y and X must have the same shapes")
+
+        r = np.subtract(y.value, x.value)
+        if type(x) is rpn.type.Vector:
+            result = rpn.type.Vector.from_ndarray(r)
+        else:
+            result = rpn.type.Matrix.from_ndarray(r)
+        rpn.globl.param_stack.push(result)
 
 
-@defword(name='./', args=2, print_x=rpn.globl.PX_COMPUTE, hidden=True, doc="""\
+if rpn.globl.have_module('numpy'):
+    @defword(name='./', args=2, print_x=rpn.globl.PX_COMPUTE, hidden=True, doc="""\
 ./   ( y x -- y./x )
 Element-wise division.""")
-def w_dot_slash(name):
-    pass
+    def w_dot_slash(name):
+        x = rpn.globl.param_stack.pop()
+        y = rpn.globl.param_stack.pop()
+
+        if not x.same_composite_type_p(y):
+            rpn.globl.param_stack.push(y)
+            rpn.globl.param_stack.push(x)
+            throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        if not x.same_shape_p(y):
+            rpn.globl.param_stack.push(y)
+            rpn.globl.param_stack.push(x)
+            throw(X_INVALID_ARG, name, "Y and X must have the same shapes")
+
+        r = np.divide(y.value, x.value)
+        if type(x) is rpn.type.Vector:
+            result = rpn.type.Vector.from_ndarray(r)
+        else:
+            result = rpn.type.Matrix.from_ndarray(r)
+        rpn.globl.param_stack.push(result)
 
 
-@defword(name='.^', args=2, print_x=rpn.globl.PX_COMPUTE, hidden=True, doc="""\
+if rpn.globl.have_module('numpy'):
+    @defword(name='.^', args=2, print_x=rpn.globl.PX_COMPUTE, hidden=True, doc="""\
 .^   ( y x -- y.^x )
 Element-wise exponentiation.""")
-def w_dot_caret(name):
-    pass
+    def w_dot_caret(name):
+        x = rpn.globl.param_stack.pop()
+        y = rpn.globl.param_stack.pop()
+
+        if not x.same_composite_type_p(y):
+            rpn.globl.param_stack.push(y)
+            rpn.globl.param_stack.push(x)
+            throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        if not x.same_shape_p(y):
+            rpn.globl.param_stack.push(y)
+            rpn.globl.param_stack.push(x)
+            throw(X_INVALID_ARG, name, "Y and X must have the same shapes")
+
+        # XXX Note that an integer type raised to a negative integer power will raise a ValueError.
+        r = np.power(y.value, x.value)
+        if type(x) is rpn.type.Vector:
+            result = rpn.type.Vector.from_ndarray(r)
+        else:
+            result = rpn.type.Matrix.from_ndarray(r)
+        rpn.globl.param_stack.push(result)
 
 
 @defword(name='.all', args=1, print_x=rpn.globl.PX_IO, doc="""\
@@ -1212,7 +1303,7 @@ if rpn.globl.have_module('numpy'):
     @defword(name='>v2', args=2, print_x=rpn.globl.PX_CONFIG, doc="""\
 >v2   ( y x -- v )
 Create a 2-vector from the stack.""")
-    def to_v_2(name):
+    def w_to_v_2(name):
         x = rpn.globl.param_stack.pop()
         y = rpn.globl.param_stack.pop()
         if    type(x) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float, rpn.type.Complex] \
@@ -1231,7 +1322,7 @@ if rpn.globl.have_module('numpy'):
     @defword(name='>v3', args=3, print_x=rpn.globl.PX_CONFIG, doc="""\
 >v3   ( z y x -- v )
 Create a 3-vector from the stack.""")
-    def to_v_3(name):
+    def w_to_v_3(name):
         x = rpn.globl.param_stack.pop()
         y = rpn.globl.param_stack.pop()
         z = rpn.globl.param_stack.pop()
@@ -2151,7 +2242,7 @@ if rpn.globl.have_module('numpy'):
     @defword(name='cross', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
 cross   ( vec_y vec_x -- vec )
 Vector dot product.""")
-    def cross_prod(name):
+    def w_cross(name):
         x = rpn.globl.param_stack.pop()
         y = rpn.globl.param_stack.pop()
         if type(x) is rpn.type.Vector and type(y) is rpn.type.Vector:
@@ -2456,7 +2547,7 @@ if rpn.globl.have_module('numpy'):
     @defword(name='dot', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
 dot   ( vec_y vec_x -- real )
 Vector dot product.""")
-    def dot_prod(name):
+    def w_dot_product(name):    # avoid conflict with w_dot ('.')
         x = rpn.globl.param_stack.pop()
         y = rpn.globl.param_stack.pop()
         if type(x) is rpn.type.Vector and type(y) is rpn.type.Vector:
@@ -3227,7 +3318,7 @@ if sys.version_info >= (3, 8):
     @defword(name='gmean', print_x=rpn.globl.PX_COMPUTE, doc="""\
 gmean   ( -- gmean )
 Calculate the geometric mean of the statistics data.""")
-    def gmean(name):
+    def w_gmean(name):
         if len(rpn.globl.stat_data) == 0:
             throw(X_BAD_DATA, name, "No statistics data")
         try:
@@ -3455,7 +3546,7 @@ if rpn.globl.have_module('numpy'):
     @defword(name='idn', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
 idn   ( n -- mat )
 Create an NxN identity matrix.""")
-    def idn(name):
+    def w_idn(name):
         x = rpn.globl.param_stack.pop()
         size = 0
         if type(x) is rpn.type.Integer:
@@ -3601,7 +3692,7 @@ if rpn.globl.have_module('scipy'):
 Jv   ( order x -- J_v(x) )
 Bessel function of the first kind of real order and complex argument.
 Implemented via scipy.special.jv(order, x)""")
-    def Jv(name):
+    def w_Jv(name):
         x = rpn.globl.param_stack.pop()
         y = rpn.globl.param_stack.pop()
         if    type(x) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float, rpn.type.Complex] \
@@ -4304,7 +4395,7 @@ EXAMPLE: Integrate a bessel function jv(2.5, x) along the interval [0,4.5]:
     0 4.5 "J2.5" quad .s
 1: 7.866317216380692e-09 \ error
 0: 1.1178179380783249 \ quad""")
-    def quad(name):
+    def w_quad(name):
         func_to_integrate = rpn.globl.string_stack.pop().value
         (word, _) = rpn.globl.lookup_word(func_to_integrate)
         if word is None:
@@ -5561,7 +5652,7 @@ if rpn.globl.have_module('numpy'):
     @defword(name='v>', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
 v>   ( v -- ... )
 Decompose a vector into stack elements.""")
-    def v_from(name):
+    def w_v_from(name):
         x = rpn.globl.param_stack.pop()
         if type(x) is not rpn.type.Vector:
             rpn.globl.param_stack.push(x)
@@ -5658,6 +5749,29 @@ def w_vlist_bang(name):       # pylint: disable=unused-argument
     for key in sorted(words, key=str.casefold):
         sorted_words.append(words[key])
     rpn.globl.list_in_columns(sorted_words, rpn.globl.scr_cols.obj.value - 1)
+
+
+if rpn.globl.have_module('numpy'):
+    @defword(name='vrange', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
+vrange   ( n -- vec )
+Create a range vector from 0 to n.
+
+EXAMPLE:
+    6 vrange
+[ 0 1 2 3 4 5 ]""")
+    def w_vrange(name):
+        x = rpn.globl.param_stack.pop()
+        if type(x) is not rpn.type.Integer:
+            rpn.globl.param_stack.push(x)
+            throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+
+        size = x.value
+        if size < 1 or size > rpn.globl.MATRIX_MAX:
+            rpn.globl.param_stack.push(x)
+            throw(X_INVALID_ARG, name, "X out of range (1..{} expected)".format(rpn.globl.MATRIX_MAX))
+
+        result = rpn.type.Vector.from_ndarray(np.arange(size, dtype=np.int64))
+        rpn.globl.param_stack.push(result)
 
 
 @defword(name='while', print_x=rpn.globl.PX_CONTROL, doc="""\
