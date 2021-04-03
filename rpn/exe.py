@@ -823,7 +823,7 @@ The TOS is consumed as normal."""
                 rpn.globl.lnwriteln(str(err_pre_hook_store))
                 return
 
-        if not stringp and self._modifier is not None:
+        if not stringp and self._modifier in ['+', '-', '*', '/']:
             rpn.globl.param_stack.push(cur_obj)
             rpn.flag.copy_flag(rpn.flag.F_SHOW_X, 54)
             rpn.globl.eval_string("swap")

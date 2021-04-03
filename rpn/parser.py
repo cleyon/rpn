@@ -629,10 +629,9 @@ def p_locals(p):
 
 def p_matrix(p):
     '''matrix : OPEN_BRACKET vector_list CLOSE_BRACKET'''
-    if rpn.globl.have_module('numpy'):
-        p[0] = rpn.type.Matrix(p[2])
-    else:
+    if not rpn.globl.have_module('numpy'):
         raise ParseErr("Matrices require 'numpy' library")
+    p[0] = rpn.type.Matrix.from_rpn_List(p[2])
 
 def p_number(p):
     '''number : real
@@ -688,7 +687,7 @@ def p_show(p):
 def p_store_var(p):
     '''store_var : EXCLAM IDENTIFIER'''
     ident = p[2]
-    if ident[0] in ['+', '-', '*', '/', '$']:
+    if ident[0] in ['+', '-', '*', '/', '?', '$']:
         modifier = ident[0]
         ident = ident[1:]
     else:
@@ -699,8 +698,14 @@ def p_store_var(p):
     dbg(whoami(), 1, "{}: Looking up {}".format(whoami(), ident))
     (vname, _) = rpn.globl.lookup_vname(ident)
     if vname is None:
-        rpn.globl.lnwriteln("!: Variable '{}' not found".format(ident))
-        raise SyntaxError
+        if modifier != '?':
+            rpn.globl.lnwriteln("!: Variable '{}' not found".format(ident))
+            raise SyntaxError
+        # Create variable on the fly
+        var = rpn.util.Variable(ident)
+        dbg(whoami(), 1, "{}: Creating variable {} at address {} in {}".format(whoami(), ident, hex(id(var)), repr(rpn.globl.scope_stack.top())))
+        rpn.globl.scope_stack.top().add_vname(rpn.util.VName(ident))
+        rpn.globl.scope_stack.top().define_variable(ident, var)
     p[0] = rpn.exe.StoreVar(ident, modifier)
 
 def p_string(p):
@@ -772,10 +777,9 @@ def p_variable(p):
 
 def p_vector(p):
     '''vector : OPEN_BRACKET number_list CLOSE_BRACKET'''
-    if rpn.globl.have_module('numpy'):
-        p[0] = rpn.type.Vector(p[2])
-    else:
+    if not rpn.globl.have_module('numpy'):
         raise ParseErr("Vectors require 'numpy' library")
+    p[0] = rpn.type.Vector.from_rpn_List(p[2])
 
 def p_vector_list(p):
     '''vector_list : vector

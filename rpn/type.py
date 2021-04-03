@@ -158,6 +158,9 @@ class Stackable(rpn.exe.Executable):
     def instfmt(self):          # pylint: disable=no-self-use
         raise FatalErr("{}: Subclass responsibility".format(whoami()))
 
+    def scalar_p(self):         # pylint: disable=no-self-use
+        raise FatalErr("{}: Subclass responsibility".format(whoami()))
+
     def __str__(self):
         s = self.instfmt()
         if self.has_uexpr_p():
@@ -210,6 +213,9 @@ class Complex(Stackable):
     def imag(self):
         return self.value.imag
 
+    def scalar_p(self):
+        return True
+
     def zerop(self):
         return self.real() == 0.0 and self.imag() == 0.0
 
@@ -255,6 +261,9 @@ class Float(Stackable):
         if type(new_value) is not float:
             throw(X_ARG_TYPE_MISMATCH, 'Float#value()', "({})".format(typename(new_value)))
         self._value = new_value
+
+    def scalar_p(self):
+        return True
 
     def zerop(self):
         return self.value == 0.0
@@ -345,6 +354,9 @@ class Integer(Stackable):
             throw(X_ARG_TYPE_MISMATCH, 'Integer#value()', "({})".format(typename(new_value)))
         self._value = new_value
 
+    def scalar_p(self):
+        return True
+
     def zerop(self):
         return self.value == 0
 
@@ -358,35 +370,31 @@ class Integer(Stackable):
 #
 #############################################################################
 class Matrix(Stackable):
-    def __init__(self, vals):
+    def __init__(self):
         if not rpn.globl.have_module('numpy'):
             throw(X_UNSUPPORTED, "", "Matrices require 'numpy' library")
         super().__init__()
         self.name = "Matrix"
         self._type = T_MATRIX
-        #rpn.globl.lnwriteln("{}: vals={}".format(whoami(), repr(vals)))
-        self._nrows = len(vals)
-        cols = -1
-        vecs = []
-        for x in vals.items():
-            #rpn.globl.lnwriteln("x={}".format(repr(x)))
-            vecs.append(x.value)
-            if cols == -1:
-                cols = x.size()
-            else:
-                if x.size() != cols:
-                    throw(X_SYNTAX, "", "Matrix columns not consistent")
-        self._ncols = cols
-        #rpn.globl.lnwriteln("{} rows x {} columns".format(self.nrows(), self.ncols()))
-        #print("vecs", vecs)
-        self.value = np.array(vecs)
-        #print("val",repr(self.value))
+        self._uexpr = None
+        self._value = None
+        self._nrows = None
+        self._ncols = None
 
     @classmethod
-    def from_numpy(cls, x):
-        obj = cls(rpn.util.List())
+    def from_ndarray(cls, x):
+        if x.ndim != 2:
+            throw(X_INVALID_ARG, "Matrix.from_ndarray", "ndim is {}, expected 2".format(x.ndim))
+        obj = cls()
         obj._nrows, obj._ncols = x.shape
         obj.value = x
+        return obj
+
+    @classmethod
+    def from_rpn_List(cls, x):
+        dbg(whoami(), 1, "{}: x={}".format(whoami(), x))
+        obj = cls()
+        obj.value = np.array([elem.value for elem in x.listval()])
         return obj
 
     @property
@@ -398,6 +406,9 @@ class Matrix(Stackable):
         # if type(new_value) is not rpn.type.Matrix: # FIXME
         #     throw(X_ARG_TYPE_MISMATCH, 'Matrix#value()', "({})".format(typename(new_value)))
         self._value = new_value
+
+    def scalar_p(self):
+        return False
 
     def has_uexpr_p(self):
         return False
@@ -455,6 +466,9 @@ class Rational(Stackable):
 
     def set_num_denom(self, num, denom):
         self.value = Fraction(int(num), int(denom))
+
+    def scalar_p(self):
+        return True
 
     def zerop(self):
         return self.numerator() == 0
@@ -568,23 +582,28 @@ class Symbol(rpn.exe.Executable):
 #
 #############################################################################
 class Vector(Stackable):
-    def __init__(self, vals):
+    def __init__(self):
         if not rpn.globl.have_module('numpy'):
             throw(X_UNSUPPORTED, "", "Vectors require 'numpy' library")
         super().__init__()
         self.name = "Vector"
         self._type = T_VECTOR
         self._uexpr = None
-        if type(vals) is not rpn.util.List:
-            raise FatalErr("{}: {} is not a List".format(whoami(), repr(vals)))
-        self.value = np.array([elem.value for elem in vals.listval()])
+        self._value = None
 
     @classmethod
-    def from_numpy(cls, x):
-        #print("rpn.type.Vector.from_numpy: x={}, type={}".format(x, type(x)))
-        obj = cls(rpn.util.List())
-        # print("from_numpy: {}".format(repr(obj)))
+    def from_ndarray(cls, x):
+        if x.ndim != 1:
+            throw(X_INVALID_ARG, "Vector.from_ndarray", "ndim is {}, expected 1".format(x.ndim))
+        obj = cls()
         obj.value = x
+        return obj
+
+    @classmethod
+    def from_rpn_List(cls, x):
+        dbg(whoami(), 1, "{}: x={}".format(whoami(), x))
+        obj = cls()
+        obj.value = np.array([elem.value for elem in x.listval()])
         return obj
 
     @property
@@ -598,11 +617,19 @@ class Vector(Stackable):
         #     throw(X_ARG_TYPE_MISMATCH, 'Vector#value()', "({})".format(typename(new_value)))
         self._value = new_value
 
+    def scalar_p(self):
+        return False
+
     def has_uexpr_p(self):
         return False
 
     def size(self):
-        return self.value.size
+        if type(self.value) is np.ndarray:
+            shape = self.value.shape
+            return shape[0]
+        elif type(self.value) is rpn.util.List:
+            #print("{}: size={}".format(whoami(), len(self.value)))
+            return len(self.value)
 
     def instfmt(self):
         if self.size() == 0:

@@ -143,6 +143,9 @@ class DisplayConfig:
         if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex]:
             return x.instfmt()
 
+        if type(x) is rpn.type.Vector:
+            return "{}".format(x.value)
+
         raise FatalErr("{}: Cannot handle type '{}' for object {}".format(whoami(), typename(x), x))
 
 
@@ -236,6 +239,18 @@ class Queue:
 
     def push(self, item):       # rare
         self._q.append(item)
+
+
+#############################################################################
+#
+#       R E G I S T E R   S E T
+#
+#############################################################################
+class RegisterSet:
+    def __init__(self):
+        self.register = dict()
+        self.size     = 0
+        self.sreg     = 0
 
 
 #############################################################################

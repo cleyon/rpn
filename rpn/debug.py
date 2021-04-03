@@ -26,6 +26,7 @@ debug_levels = {
     "Word#__init__"             : 0,
     "ascii"                     : 0,
     "catch"                     : 0,
+    "cross"                     : 0,
    #"d0"                        : -1,
    #"d1"                        : 1,
    #"d2"                        : 2,
@@ -39,6 +40,7 @@ debug_levels = {
     "defvar"                    : 0,
     "eval_string"               : 0,
     "execute"                   : 0,
+    "from_rpn_List"             : 0,    # Vector
     "from_string"               : 0,
     "have_module"               : 0,
     "hide"                      : 0,
@@ -59,6 +61,7 @@ debug_levels = {
     "prompt"                    : 0,
     "scope"                     : 0,
     "show"                      : 0,
+    "to_rpn_class"              : 0,
     "token"                     : 0,
     "trace"                     : 0,
     "tvm"                       : 0,

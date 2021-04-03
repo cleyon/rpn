@@ -52,17 +52,18 @@ PX_PREDICATE            = True  # Predicates.  (Was None, but I want to try seei
 REG_SIZE_MIN            =  17
 REG_SIZE_MAX            = 100   # R00..R99; further restricted by SIZE
 
+colon_stack  = rpn.util.Stack("Colon stack")
 disp_stack   = rpn.util.Stack("Display stack", 1)
 param_stack  = rpn.util.Stack("Parameter stack")
 parse_stack  = rpn.util.Stack("Parse stack")
+reg_stack    = rpn.util.Stack("Register stack", 1)
 return_stack = rpn.util.Stack("Return stack")
 scope_stack  = rpn.util.Stack("Scope stack", 1)
 string_stack = rpn.util.Stack("String stack")
-colon_stack  = rpn.util.Stack("Colon stack")
 
 root_scope = rpn.util.Scope("ROOT")
 
-register          = dict()
+# register          = dict()
 stat_data         = []
 interactive       = None
 default_protected = True
@@ -187,6 +188,8 @@ def eval_string(s):
                 lnwriteln("eval_string: " + str(e))
             else:
                 lnwriteln(str(e))
+            # Don't print X if we caught a runtime error
+            rpn.flag.clear_flag(rpn.flag.F_SHOW_X)
     else:
         if result is not None:
             dbg("eval_string", 1, "result={}".format(result))
@@ -382,6 +385,16 @@ def push_scope(scope, why):
     rpn.globl.scope_stack.push(scope)
 
 
+def register_valid_p(reg):
+    if not isinstance(reg, int):
+        raise FatalErr("{}: Attempting to validate non-integer register {}".format(whoami(), reg))
+    (sizevar, _) = rpn.globl.lookup_variable("SIZE")
+    size = sizevar.obj.value
+    if reg >= 0 and reg < size:
+        return (True, size)
+    return (False, size)
+
+
 def update_screen_size():
     tty_rows = 0
     tty_columns = 0
@@ -414,7 +427,10 @@ def to_python_class(n):
 
 def to_rpn_class(n):
     t = type(n)
-    if t in [int, np.int64]:
+    dbg(whoami(), 1, "{}: n={}, type={}".format(whoami(), n, t))
+    if t is int:
+        return rpn.type.Integer(n)
+    if t is np.int64 and n.ndim == 0:
         return rpn.type.Integer(n)
     if t in [float, np.float64]:
         return rpn.type.Float(n)
@@ -422,6 +438,12 @@ def to_rpn_class(n):
         return rpn.type.Rational.from_Fraction(n)
     if t in [complex, np.complex128]:
         return rpn.type.Complex.from_complex(n)
+    if t is np.ndarray:
+        if n.ndim == 1:
+            return rpn.type.Vector.from_ndarray(n)
+        if n.ndim == 2:
+            return rpn.type.Matrix.from_ndarray(n)
+        raise FatalErr("{}: Found ndarray but ndim={} not in [1,2]".format(whoami(), n.dim))
     raise FatalErr("{}: Cannot handle type {}".format(whoami(), t))
 
 
