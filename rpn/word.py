@@ -5707,6 +5707,28 @@ def w_words(name):              # pylint: disable=unused-argument
                                      key=str.casefold), rpn.globl.scr_cols.obj.value - 1)
 
 
+@defword(name='x<>f', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
+x<>f   ( x -- flags )
+Exchange the low-order 8 bits in X with the flags 0..7.""")
+def w_x_exchange_f(name):
+    x = rpn.globl.param_stack.pop()
+    if type(x) is not rpn.type.Integer:
+        rpn.globl.param_stack.push(x)
+        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(I)))
+    xval = x.value
+    if xval < 0 or xval > 255:
+        rpn.globl.param_stack.push(x)
+        throw(X_FP_INVALID_ARG, name, "X out of range (0..255 expected")
+
+    flagval = 0
+    for flag in range(8):
+        if rpn.flag.flag_set_p(flag):
+            flagval |= (1<<flag)
+    rpn.globl.param_stack.push(rpn.type.Integer(flagval))
+    for flag in range(8):
+        rpn.flag.to_flag(flag, xval & 1<<flag)
+
+
 @defword(name='x<>I', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
 x<>I   ( x -- reg[I] )
 Exchange X with the value of register I.  Do not confuse this with x<>i,
