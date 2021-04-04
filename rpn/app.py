@@ -186,9 +186,10 @@ def define_variables():
         rpn.globl.defvar('SCIPY_VER', rpn.type.String(scipy.__version__),
                          readonly=True)
     rpn.globl.defvar('SIZE', rpn.type.Integer(rpn.globl.reg_stack.top().size),
-                     noshadow=True,
-                     pre_hooks=[pre_validate_size_arg],
-                     post_hooks=[post_clear_newly_unveiled_registers])
+                     noshadow=True, readonly=True,
+                     # pre_hooks=[pre_validate_size_arg],
+                     # post_hooks=[post_clear_newly_unveiled_registers]
+                    )
     rpn.globl.defvar('SREG', rpn.type.Integer(rpn.globl.reg_stack.top().sreg),
                      pre_hooks=[pre_validate_sreg_arg])
     rpn.globl.defvar('VER', rpn.type.Float(rpn.globl.RPN_VERSION),
@@ -557,29 +558,29 @@ def pre_validate_sreg_arg(identifier, _cur, new):
     if type(new) is not rpn.type.Integer:
         throw(X_ARG_TYPE_MISMATCH, "!{}".format(identifier), "({})".format(typename(new)))
     new_sreg = new.value
-    (reg_size, _) = rpn.globl.lookup_variable("SIZE")
-    if new_sreg < 0 or new_sreg > reg_size.obj.value - 6:
-        throw(X_INVALID_ARG, "!{}".format(identifier), "SREG {} out of range (0..{} expected); check SIZE".format(new_sreg, reg_size.obj.value - 6))
+    (size_var, _) = rpn.globl.lookup_variable("SIZE")
+    if new_sreg < 0 or new_sreg > size_var.obj.value - 6:
+        throw(X_INVALID_ARG, "!{}".format(identifier), "SREG {} out of range (0..{} expected); check SIZE".format(new_sreg, size_var.obj.value - 6))
 
-def pre_validate_size_arg(identifier, _cur, new):
-    if type(new) is not rpn.type.Integer:
-        throw(X_ARG_TYPE_MISMATCH, "!{}".format(identifier), "({})".format(typename(new)))
-    new_size = new.value
-    if new_size < rpn.globl.REG_SIZE_MIN or new_size > rpn.globl.REG_SIZE_MAX:
-        throw(X_INVALID_ARG, "!{}".format(identifier), "Size {} out of range ({}..{} expected)".format(new_size, rpn.globl.REG_SIZE_MIN, rpn.globl.REG_SIZE_MAX))
-    (reg_sreg, _) = rpn.globl.lookup_variable("SREG")
-    if new_size < reg_sreg.obj.value + 6:
-        throw(X_INVALID_ARG, "!{}".format(identifier), "SIZE {} too small for SREG ({})".format(new_size, reg_sreg.obj.value))
+# def pre_validate_size_arg(identifier, _cur, new):
+#     if type(new) is not rpn.type.Integer:
+#         throw(X_ARG_TYPE_MISMATCH, "!{}".format(identifier), "({})".format(typename(new)))
+#     new_size = new.value
+#     if new_size < rpn.globl.SIZE_MIN or new_size > rpn.globl.SIZE_MAX:
+#         throw(X_INVALID_ARG, "!{}".format(identifier), "Size {} out of range ({}..{} expected)".format(new_size, rpn.globl.SIZE_MIN, rpn.globl.SIZE_MAX))
+#     (sreg_var, _) = rpn.globl.lookup_variable("SREG")
+#     if new_size < sreg_var.obj.value + 6:
+#         throw(X_INVALID_ARG, "!{}".format(identifier), "SIZE {} too small for SREG ({})".format(new_size, sreg_var.obj.value))
 
-def post_clear_newly_unveiled_registers(_identifier, old, cur):
-    old_size = old.value
-    cur_size = cur.value
-    # If we're increasing the number of registers, zero out the newly
-    # available ones.  It is not really necessary to do this when
-    # decreasing, because those registers will no longer be accessible.
-    if cur_size > old_size:
-        for r in range(cur_size - old_size):
-            rpn.globl.reg_stack.top().register[old_size + r] = rpn.type.Float(0.0)
+# def post_clear_newly_unveiled_registers(_identifier, old, cur):
+#     old_size = old.value
+#     cur_size = cur.value
+#     # If we're increasing the number of registers, zero out the newly
+#     # available ones.  It is not really necessary to do this when
+#     # decreasing, because those registers will no longer be accessible.
+#     if cur_size > old_size:
+#         for r in range(cur_size - old_size):
+#             rpn.globl.reg_stack.top().register[old_size + r] = rpn.type.Float(0.0)
 
 def post_label_with_identifier(identifier, _old, cur):
     cur.label = identifier

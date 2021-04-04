@@ -41,49 +41,45 @@ import rpn.parser
 import rpn.util
 
 
-RPN_VERSION     = 15.8
+RPN_VERSION  = 15.8
 
-PX_COMPUTE              = True  # Arithmetic/Computed functions print their results
-PX_CONFIG               = None  # Stack manip, flags, modes, register, conversions, etc
-PX_CONTROL              = None  # Control structures (IF/THEN, DO/LOOP) have no effect
-PX_IO                   = False # I/O (.", .s, etc) disable printing
-PX_PREDICATE            = True  # Predicates.  (Was None, but I want to try seeing the values)
+DATE_RE       = re.compile(r'^(\d{1,2})\.(\d{2})(\d{4})$') # MM.DDYYYY
+INTEGER_RE    = re.compile(r'^\d+$')
+JULIAN_OFFSET = 1721424 # date.toordinal() returns 1 for 0001-01-01, so compensate
+MATRIX_MAX    = 999
+PRECISION_MAX = 16
+PX_COMPUTE    = True  # Arithmetic/Computed functions print their results
+PX_CONFIG     = None  # Stack manip, flags, modes, register, conversions, etc
+PX_CONTROL    = None  # Control structures (IF/THEN, DO/LOOP) have no effect
+PX_IO         = False # I/O (.", .s, etc) disable printing
+PX_PREDICATE  = True  # Predicates.  (Was None, but I want to try seeing the values)
+RATIONAL_RE   = re.compile(r'^(\d+)::(\d+)(_([a-zA-Z]+))?$')              # ddd::ddd
+SIZE_MIN      = 17
+SIZE_MAX      = 320   # R00..R319; further restricted by SIZE
+TIME_RE       = re.compile(r'^[-+]?(\d+)\.(\d{,2})(\d*)$') # HH.MMSSsss
 
-REG_SIZE_MIN            =  17
-REG_SIZE_MAX            = 100   # R00..R99; further restricted by SIZE
-
-colon_stack  = rpn.util.Stack("Colon stack")
-disp_stack   = rpn.util.Stack("Display stack", 1)
-param_stack  = rpn.util.Stack("Parameter stack")
-parse_stack  = rpn.util.Stack("Parse stack")
-reg_stack    = rpn.util.Stack("Register stack", 1)
-return_stack = rpn.util.Stack("Return stack")
-scope_stack  = rpn.util.Stack("Scope stack", 1)
-string_stack = rpn.util.Stack("String stack")
-
-root_scope = rpn.util.Scope("ROOT")
-
-# register          = dict()
-stat_data         = []
-interactive       = None
+colon_stack       = rpn.util.Stack("Colon stack")
 default_protected = True
+disp_stack        = rpn.util.Stack("Display stack", 1)
 got_interrupt     = False
+interactive       = None
 lexer             = None
+param_stack       = rpn.util.Stack("Parameter stack")
+parse_stack       = rpn.util.Stack("Parse stack")
+reg_stack         = rpn.util.Stack("Register stack", 1)
+return_stack      = rpn.util.Stack("Return stack")
+root_scope        = rpn.util.Scope("ROOT")
+rpn_parser        = None
+scope_stack       = rpn.util.Stack("Scope stack", 1)
 scr_cols          = None
 scr_rows          = None
 sharpout          = None
 sigint_detected   = False
-rpn_parser        = None
+stat_data         = []
+string_stack      = rpn.util.Stack("String stack")
 uexpr             = dict()
 
 
-DATE_RE                 = re.compile(r'^(\d{1,2})\.(\d{2})(\d{4})$') # MM.DDYYYY
-INTEGER_RE              = re.compile(r'^\d+$')
-JULIAN_OFFSET           = 1721424 # date.toordinal() returns 1 for 0001-01-01, so compensate
-PRECISION_MAX           =  16
-MATRIX_MAX              = 999
-RATIONAL_RE             = re.compile(r'^(\d+)::(\d+)(_([a-zA-Z]+))?$')              # ddd::ddd
-TIME_RE                 = re.compile(r'^[-+]?(\d+)\.(\d{,2})(\d*)$') # HH.MMSSsss
 
 # DEG_PER_RAD  = 360 / TAU
 # E            = Base of natural logarithms = exp(1.0)

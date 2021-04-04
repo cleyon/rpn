@@ -1275,12 +1275,12 @@ def w_to_r(name):               # pylint: disable=unused-argument
 >reg   ( -- )
 Push current register set.""")
 def w_to_reg(name):            # pylint: disable=unused-argument
-    (reg_size_var, _) = rpn.globl.lookup_variable("SIZE")
+    (size_var, _) = rpn.globl.lookup_variable("SIZE")
     (sreg_var, _) = rpn.globl.lookup_variable("SREG")
     reg = rpn.util.RegisterSet()
     reg.register = rpn.globl.reg_stack.top().register.copy()
-    reg.size     = reg_size_var.obj.value
-    print("settings reg.size to {}".format(reg_size_var.obj.value))
+    reg.size     = size_var.obj.value
+    print("settings reg.size to {}".format(size_var.obj.value))
     reg.sreg     = sreg_var.obj.value
     rpn.globl.reg_stack.push(reg)
     print("Pushing reg set {}".format(reg))
@@ -1969,9 +1969,9 @@ def w_cf(name):
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
     flag = x.value
-    if flag < 0 or flag >= rpn.flag.MAX:
+    if flag < rpn.flag.FLAG_MIN or flag >= rpn.flag.FLAG_MAX:
         rpn.globl.param_stack.push(x)
-        throw(X_INVALID_MEMORY, name, "Flag {} out of range (0..{} expected)".format(flag, rpn.flag.MAX - 1))
+        throw(X_INVALID_MEMORY, name, "Flag {} out of range ({}..{} expected)".format(flag, rpn.flag.FLAG_MIN, rpn.flag.FLAG_MAX - 1))
     if flag >= rpn.flag.FENCE:
         rpn.globl.param_stack.push(x)
         throw(X_READ_ONLY, name, "Flag {} cannot be modified".format(flag))
@@ -2039,7 +2039,7 @@ clreg   ( -- )
 Clear all registers.""")
 def w_clreg(name):              # pylint: disable=unused-argument
     rpn.globl.reg_stack.top().register = dict()
-    for i in range(rpn.globl.REG_SIZE_MAX):
+    for i in range(rpn.globl.SIZE_MAX):
         rpn.globl.reg_stack.top().register[i] = rpn.type.Float(0.0)
     rpn.globl.reg_stack.top().register['I'] = rpn.type.Integer(0)
 
@@ -2968,9 +2968,9 @@ def w_fc_query(name):
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
 
     flag = x.value
-    if flag < 0 or flag >= rpn.flag.MAX:
+    if flag < rpn.flag.FLAG_MIN or flag >= rpn.flag.FLAG_MAX:
         rpn.globl.param_stack.push(x)
-        throw(X_INVALID_MEMORY, name, "Flag {} out of range (0..{} expected)".format(flag, rpn.flag.MAX - 1))
+        throw(X_INVALID_MEMORY, name, "Flag {} out of range ({}..{} expected)".format(flag, rpn.flag.FLAG_MIN, rpn.flag.FLAG_MAX - 1))
     result = rpn.type.Integer(rpn.globl.bool_to_int(not rpn.flag.flag_set_p(flag)))
     rpn.globl.param_stack.push(result)
 
@@ -2985,9 +2985,9 @@ def w_fc_query_clear(name):
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
 
     flag = x.value
-    if flag < 0 or flag >= rpn.flag.MAX:
+    if flag < rpn.flag.FLAG_MIN or flag >= rpn.flag.FLAG_MAX:
         rpn.globl.param_stack.push(x)
-        throw(X_INVALID_MEMORY, name, "Flag {} out of range (0..{} expected)".format(flag, rpn.flag.MAX - 1))
+        throw(X_INVALID_MEMORY, name, "Flag {} out of range ({}..{} expected)".format(flag, rpn.flag.FLAG_MIN, rpn.flag.FLAG_MAX - 1))
     result = rpn.type.Integer(rpn.globl.bool_to_int(not rpn.flag.flag_set_p(flag)))
     rpn.globl.param_stack.push(result)
     if flag < rpn.flag.FENCE:
@@ -3004,9 +3004,9 @@ def w_fc_query_set(name):
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
 
     flag = x.value
-    if flag < 0 or flag >= rpn.flag.MAX:
+    if flag < rpn.flag.FLAG_MIN or flag >= rpn.flag.FLAG_MAX:
         rpn.globl.param_stack.push(x)
-        throw(X_INVALID_MEMORY, name, "Flag {} out of range (0..{} expected)".format(flag, rpn.flag.MAX - 1))
+        throw(X_INVALID_MEMORY, name, "Flag {} out of range ({}..{} expected)".format(flag, rpn.flag.FLAG_MIN, rpn.flag.FLAG_MAX - 1))
     result = rpn.type.Integer(rpn.globl.bool_to_int(not rpn.flag.flag_set_p(flag)))
     rpn.globl.param_stack.push(result)
     if flag < rpn.flag.FENCE:
@@ -3130,9 +3130,9 @@ def w_fs_query(name):
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
 
     flag = x.value
-    if flag < 0 or flag >= rpn.flag.MAX:
+    if flag < rpn.flag.FLAG_MIN or flag >= rpn.flag.FLAG_MAX:
         rpn.globl.param_stack.push(x)
-        throw(X_INVALID_MEMORY, name, "Flag {} out of range (0..{} expected)".format(flag, rpn.flag.MAX - 1))
+        throw(X_INVALID_MEMORY, name, "Flag {} out of range ({}..{} expected)".format(flag, rpn.flag.FLAG_MIN, rpn.flag.FLAG_MAX - 1))
     result = rpn.type.Integer(rpn.globl.bool_to_int(rpn.flag.flag_set_p(flag)))
     rpn.globl.param_stack.push(result)
 
@@ -3147,9 +3147,9 @@ def w_fs_query_clear(name):
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
 
     flag = x.value
-    if flag < 0 or flag >= rpn.flag.MAX:
+    if flag < rpn.flag.FLAG_MIN or flag >= rpn.flag.FLAG_MAX:
         rpn.globl.param_stack.push(x)
-        throw(X_INVALID_MEMORY, name, "Flag {} out of range (0..{} expected)".format(flag, rpn.flag.MAX - 1))
+        throw(X_INVALID_MEMORY, name, "Flag {} out of range ({}..{} expected)".format(flag, rpn.flag.FLAG_MIN, rpn.flag.FLAG_MAX - 1))
     result = rpn.type.Integer(rpn.globl.bool_to_int(rpn.flag.flag_set_p(flag)))
     rpn.globl.param_stack.push(result)
     if flag < rpn.flag.FENCE:
@@ -3166,9 +3166,9 @@ def w_fs_query_set(name):
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
 
     flag = x.value
-    if flag < 0 or flag >= rpn.flag.MAX:
+    if flag < rpn.flag.FLAG_MIN or flag >= rpn.flag.FLAG_MAX:
         rpn.globl.param_stack.push(x)
-        throw(X_INVALID_MEMORY, name, "Flag {} out of range (0..{} expected)".format(flag, rpn.flag.MAX - 1))
+        throw(X_INVALID_MEMORY, name, "Flag {} out of range ({}..{} expected)".format(flag, rpn.flag.FLAG_MIN, rpn.flag.MAX - 1))
     result = rpn.type.Integer(rpn.globl.bool_to_int(rpn.flag.flag_set_p(flag)))
     rpn.globl.param_stack.push(result)
     if flag < rpn.flag.FENCE:
@@ -4586,12 +4586,12 @@ rcli   ( -- reg[(i)] )
 Recall contents of the register referenced by I.  Do not confuse this with
 rclI, which recalls the value of register I directly.""")
 def w_rcli(name):
-    (reg_size, _) = rpn.globl.lookup_variable("SIZE")
+    (size_var, _) = rpn.globl.lookup_variable("SIZE")
 
     Ival = rpn.globl.reg_stack.top().register['I'].value
     (valid, size) = rpn.globl.register_valid_p(Ival)
     if not valid:
-        throw(X_INVALID_MEMORY, name, "Register I={} out of range (0..{} expected)".format(Ival, reg_size.obj.value - 1))
+        throw(X_INVALID_MEMORY, name, "Register I={} out of range (0..{} expected)".format(Ival, size_var.obj.value - 1))
 
     rpn.globl.param_stack.push(rpn.globl.reg_stack.top().register[Ival])
 
@@ -4671,9 +4671,9 @@ def w_recurse(name):            # pylint: disable=unused-argument
 reg>   ( -- )
 Pop current register set.""")
 def w_reg_from(name):          # pylint: disable=unused-argument
-    (reg_size_var, _) = rpn.globl.lookup_variable("SIZE")
+    (size_var, _) = rpn.globl.lookup_variable("SIZE")
     (sreg_var, _) = rpn.globl.lookup_variable("SREG")
-    old_reg_size = reg_size_var.obj.value
+    old_size = size_var.obj.value
     try:
         rpn.globl.reg_stack.pop()
     except RuntimeErr as e:
@@ -4682,13 +4682,13 @@ def w_reg_from(name):          # pylint: disable=unused-argument
         else:
             raise
     print("reg_stack.top now {}".format(rpn.globl.reg_stack.top()))
-    new_reg_size = rpn.globl.reg_stack.top().size
-    print("new_reg_size={}".format(new_reg_size))
+    new_size = rpn.globl.reg_stack.top().size
+    print("new_size={}".format(new_size))
     new_sreg     = rpn.globl.reg_stack.top().sreg
-    if new_reg_size > old_reg_size:
-        for r in range(new_reg_size - old_reg_size):
-            rpn.globl.reg_stack.top().register[old_reg_size + r] = rpn.type.Float(0.0)
-    reg_size_var.obj = rpn.type.Integer(new_reg_size)
+    if new_size > old_size:
+        for r in range(new_size - old_size):
+            rpn.globl.reg_stack.top().register[old_size + r] = rpn.type.Float(0.0)
+    size_var.obj = rpn.type.Integer(new_size)
     sreg_var.obj = rpn.type.Integer(new_sreg)
 
 
@@ -4855,9 +4855,9 @@ def w_sf(name):
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
     flag = x.value
-    if flag < 0 or flag >= rpn.flag.MAX:
+    if flag < rpn.flag.FLAG_MIN or flag >= rpn.flag.FLAG_MAX:
         rpn.globl.param_stack.push(x)
-        throw(X_INVALID_MEMORY, name, "Flag {} out of range (0..{} expected)".format(flag, rpn.flag.MAX - 1))
+        throw(X_INVALID_MEMORY, name, "Flag {} out of range ({}..{} expected)".format(flag, rpn.flag.FLAG_MIN, rpn.flag.FLAG_MAX - 1))
     if flag >= rpn.flag.FENCE:
         rpn.globl.param_stack.push(x)
         throw(X_READ_ONLY, name, "Flag {} cannot be modified".format(flag))
@@ -4942,7 +4942,7 @@ shflag   ( -- )
 Show status of all flags.""")
 def w_shflag(name):             # pylint: disable=unused-argument
     flags = []
-    for f in range(rpn.flag.MAX):
+    for f in range(rpn.flag.FLAG_MAX):
         flags.append("%02d:%s" % (f, "YES" if rpn.flag.flag_set_p(f) else "no "))
 
     rpn.globl.list_in_columns(flags, rpn.globl.scr_cols.obj.value - 1)
@@ -4959,10 +4959,10 @@ def w_show(name):               # pylint: disable=unused-argument
 shreg   ( -- )
 Show status of all registers.""")
 def w_shreg(name):              # pylint: disable=unused-argument
-    (reg_size, _) = rpn.globl.lookup_variable("SIZE")
+    (size_var, _) = rpn.globl.lookup_variable("SIZE")
     regs = []
     regs.append("I=%s" % rpn.globl.gfmt(rpn.globl.reg_stack.top().register['I']))
-    for r in range(reg_size.obj.value):
+    for r in range(size_var.obj.value):
         regs.append("R%02d=%s" % (r, rpn.globl.gfmt(rpn.globl.reg_stack.top().register[r])))
 
     rpn.globl.list_in_columns(regs, rpn.globl.scr_cols.obj.value - 1)
@@ -5075,6 +5075,30 @@ def w_sinh(name):
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
     rpn.globl.param_stack.push(result)
+
+
+@defword(name='size', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
+size   ( n -- )
+Set SIZE.""")
+def w_size(name):
+    x = rpn.globl.param_stack.pop()
+    if type(x) is not rpn.type.Integer:
+        rpn.globl.param_stack.push(x)
+        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+    new_size = x.value
+    if new_size < rpn.globl.SIZE_MIN or new_size > rpn.globl.SIZE_MAX:
+        rpn.globl.param_stack.push(x)
+        throw(X_INVALID_ARG, name, "Size {} out of range ({}..{} expected)".format(new_size, rpn.globl.SIZE_MIN, rpn.globl.SIZE_MAX))
+    (sreg_var, _) = rpn.globl.lookup_variable("SREG")
+    if new_size < sreg_var.obj.value + 6:
+        throw(X_INVALID_ARG, name, "Size {} too small for SREG ({})".format(new_size, sreg_var.obj.value))
+
+    (size_var, _) = rpn.globl.lookup_variable("SIZE")
+    old_size = size_var.obj.value
+    if new_size > old_size:
+        for r in range(new_size - old_size):
+            rpn.globl.reg_stack.top().register[old_size + r] = rpn.type.Float(0.0)
+    size_var.obj = x
 
 
 @defword(name='sleep', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
@@ -5389,9 +5413,9 @@ def w_tf(name):
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
     flag = x.value
-    if flag < 0 or flag >= rpn.flag.MAX:
+    if flag < rpn.flag.FLAG_MIN or flag >= rpn.flag.FLAG_MAX:
         rpn.globl.param_stack.push(x)
-        throw(X_INVALID_MEMORY, name, "Flag {} out of range (0..{} expected)".format(flag, rpn.flag.MAX - 1))
+        throw(X_INVALID_MEMORY, name, "Flag {} out of range ({}..{} expected)".format(flag, rpn.flag.FLAG_MIN, rpn.flag.FLAG_MAX - 1))
     if flag >= rpn.flag.FENCE:
         rpn.globl.param_stack.push(x)
         throw(X_READ_ONLY, name, "Flag {} cannot be modified".format(flag))
