@@ -40,6 +40,7 @@ debug_levels = {
     "defvar"                    : 0,
     "eval_string"               : 0,
     "execute"                   : 0,
+    "from_python_list"          : 0,    # Vector
     "from_rpn_List"             : 0,    # Vector
     "from_string"               : 0,
     "have_module"               : 0,

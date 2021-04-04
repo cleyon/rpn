@@ -85,6 +85,7 @@ def initialize(rpndir, argv):
 
     # Set initial conditions
     rpn.globl.eval_string("clreg clflag clfin")
+    rpn.flag.set_flag(rpn.flag.F_EQUAL_ISCLOSE)
     rpn.flag.set_flag(rpn.flag.F_SHOW_PROMPT)
 
     # Define built-in secondary (protected) words

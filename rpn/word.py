@@ -1972,7 +1972,7 @@ def w_cf(name):
     if flag < rpn.flag.FLAG_MIN or flag >= rpn.flag.FLAG_MAX:
         rpn.globl.param_stack.push(x)
         throw(X_INVALID_MEMORY, name, "Flag {} out of range ({}..{} expected)".format(flag, rpn.flag.FLAG_MIN, rpn.flag.FLAG_MAX - 1))
-    if flag >= rpn.flag.FENCE:
+    if flag >= rpn.flag.FLAG_FENCE:
         rpn.globl.param_stack.push(x)
         throw(X_READ_ONLY, name, "Flag {} cannot be modified".format(flag))
     rpn.flag.clear_flag(flag)
@@ -2030,7 +2030,7 @@ def w_clfin(name):              # pylint: disable=unused-argument
 clflag   ( -- )
 Clear all flags.""")
 def w_clflag(name):             # pylint: disable=unused-argument
-    for i in range(rpn.flag.FENCE):
+    for i in range(rpn.flag.FLAG_FENCE):
         rpn.flag.clear_flag(i)
 
 
@@ -2663,21 +2663,6 @@ def w_edit(name):               # pylint: disable=unused-argument
     print(edited_message.decode("utf-8"))
 
 
-@defword(name='expm1', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-expm1   ( x -- (e^x)-1 )
-Calculate (e^X)-1 accurately.""")
-def w_e_x_minus_1(name):
-    x = rpn.globl.param_stack.pop()
-    if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
-        result = rpn.type.Float(math.expm1(x.value))
-    elif type(x) is rpn.type.Complex:
-        result = rpn.type.Complex.from_complex(cmath.exp(x.value) - 1.0)
-    else:
-        rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
-    rpn.globl.param_stack.push(result)
-
-
 @defword(name='else', args=1, print_x=rpn.globl.PX_CONTROL, doc="""\
 else   ( -- )
 Execute other branch of conditional test.
@@ -2874,6 +2859,21 @@ def w_exp(name):
     rpn.globl.param_stack.push(result)
 
 
+@defword(name='exp-1', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
+exp-1   ( x -- (e^x)-1 )
+Calculate (e^X)-1 accurately.""")
+def w_exp_minus_1(name):
+    x = rpn.globl.param_stack.pop()
+    if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
+        result = rpn.type.Float(math.expm1(x.value))
+    elif type(x) is rpn.type.Complex:
+        result = rpn.type.Complex.from_complex(cmath.exp(x.value) - 1.0)
+    else:
+        rpn.globl.param_stack.push(x)
+        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+    rpn.globl.param_stack.push(result)
+
+
 @defword(name='F_DEBUG_ENABLED', hidden=True, print_x=rpn.globl.PX_COMPUTE, doc="""\
 F_DEBUG_ENABLED   ( -- 20 )
 Flag number for Debug enabled.""")
@@ -2990,7 +2990,7 @@ def w_fc_query_clear(name):
         throw(X_INVALID_MEMORY, name, "Flag {} out of range ({}..{} expected)".format(flag, rpn.flag.FLAG_MIN, rpn.flag.FLAG_MAX - 1))
     result = rpn.type.Integer(rpn.globl.bool_to_int(not rpn.flag.flag_set_p(flag)))
     rpn.globl.param_stack.push(result)
-    if flag < rpn.flag.FENCE:
+    if flag < rpn.flag.FLAG_FENCE:
         rpn.flag.clear_flag(flag)
 
 
@@ -3009,7 +3009,7 @@ def w_fc_query_set(name):
         throw(X_INVALID_MEMORY, name, "Flag {} out of range ({}..{} expected)".format(flag, rpn.flag.FLAG_MIN, rpn.flag.FLAG_MAX - 1))
     result = rpn.type.Integer(rpn.globl.bool_to_int(not rpn.flag.flag_set_p(flag)))
     rpn.globl.param_stack.push(result)
-    if flag < rpn.flag.FENCE:
+    if flag < rpn.flag.FLAG_FENCE:
         rpn.flag.set_flag(flag)
 
 
@@ -3152,7 +3152,7 @@ def w_fs_query_clear(name):
         throw(X_INVALID_MEMORY, name, "Flag {} out of range ({}..{} expected)".format(flag, rpn.flag.FLAG_MIN, rpn.flag.FLAG_MAX - 1))
     result = rpn.type.Integer(rpn.globl.bool_to_int(rpn.flag.flag_set_p(flag)))
     rpn.globl.param_stack.push(result)
-    if flag < rpn.flag.FENCE:
+    if flag < rpn.flag.FLAG_FENCE:
         rpn.flag.clear_flag(flag)
 
 
@@ -3171,7 +3171,7 @@ def w_fs_query_set(name):
         throw(X_INVALID_MEMORY, name, "Flag {} out of range ({}..{} expected)".format(flag, rpn.flag.FLAG_MIN, rpn.flag.MAX - 1))
     result = rpn.type.Integer(rpn.globl.bool_to_int(rpn.flag.flag_set_p(flag)))
     rpn.globl.param_stack.push(result)
-    if flag < rpn.flag.FENCE:
+    if flag < rpn.flag.FLAG_FENCE:
         rpn.flag.set_flag(flag)
 
 
@@ -3629,6 +3629,45 @@ def w_int(name):
     rpn.globl.param_stack.push(result)
 
 
+@defword(name='inv', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
+inv   ( x -- 1/x )
+Inverse.  X cannot be zero.""")
+def w_inv(name):
+    x = rpn.globl.param_stack.pop()
+    if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex] \
+       and x.zerop():
+        rpn.globl.param_stack.push(x)
+        throw(X_FP_DIVISION_BY_ZERO, name, "X cannot be zero")
+
+    if type(x) is rpn.type.Integer:
+        result = rpn.type.Float(1.0 / float(x.value))
+    elif type(x) is rpn.type.Rational:
+        result = rpn.type.Rational(x.denominator(), x.numerator())
+    elif type(x) is rpn.type.Float:
+        result = rpn.type.Float(1.0 / x.value)
+    elif type(x) is rpn.type.Complex:
+        r = complex(1, 0) / x.value
+        result = rpn.type.Complex.from_complex(r)
+    elif type(x) is rpn.type.Vector:
+        rpn.globl.param_stack.push(x)
+        throw(X_ARG_TYPE_MISMATCH, name, "Vectors are not invertible")
+    elif type(x) is rpn.type.Matrix:
+        try:
+            r = np.linalg.inv(x.value)
+        except np.linalg.LinAlgError:
+            rpn.globl.param_stack.push(x)
+            throw(X_FP_INVALID_ARG, name, "Singular matrix has no inverse")
+        result = rpn.type.Matrix.from_ndarray(r)
+    else:
+        rpn.globl.param_stack.push(x)
+        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+
+    if x.has_uexpr_p():
+        result.uexpr = x.uexpr.invert()
+
+    rpn.globl.param_stack.push(result)
+
+
 @defword(name='J', print_x=rpn.globl.PX_CONFIG, doc="""\
 J   ( -- x )
 Index of DO outer DO loop.  Return the index of the DO loop enclosing
@@ -3713,45 +3752,6 @@ Implemented via scipy.special.jv(order, x)""")
         else:
             result = rpn.type.Float(r)
         rpn.globl.param_stack.push(result)
-
-
-@defword(name='inv', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-inv   ( x -- 1/x )
-Inverse.  X cannot be zero.""")
-def w_inv(name):
-    x = rpn.globl.param_stack.pop()
-    if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex] \
-       and x.zerop():
-        rpn.globl.param_stack.push(x)
-        throw(X_FP_DIVISION_BY_ZERO, name, "X cannot be zero")
-
-    if type(x) is rpn.type.Integer:
-        result = rpn.type.Float(1.0 / float(x.value))
-    elif type(x) is rpn.type.Rational:
-        result = rpn.type.Rational(x.denominator(), x.numerator())
-    elif type(x) is rpn.type.Float:
-        result = rpn.type.Float(1.0 / x.value)
-    elif type(x) is rpn.type.Complex:
-        r = complex(1, 0) / x.value
-        result = rpn.type.Complex.from_complex(r)
-    elif type(x) is rpn.type.Vector:
-        rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "Vectors are not invertible")
-    elif type(x) is rpn.type.Matrix:
-        try:
-            r = np.linalg.inv(x.value)
-        except np.linalg.LinAlgError:
-            rpn.globl.param_stack.push(x)
-            throw(X_FP_INVALID_ARG, name, "Singular matrix has no inverse")
-        result = rpn.type.Matrix.from_ndarray(r)
-    else:
-        rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
-
-    if x.has_uexpr_p():
-        result.uexpr = x.uexpr.invert()
-
-    rpn.globl.param_stack.push(result)
 
 
 @defword(name='key', print_x=rpn.globl.PX_IO, doc="""\
@@ -3884,8 +3884,8 @@ def w_ln(name):
     rpn.globl.param_stack.push(result)
 
 
-@defword(name='lnp1', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-lnp1   ( x -- ln(1+x) )
+@defword(name='ln+1', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
+ln+1   ( x -- ln(1+x) )
 Calculate ln(1+X) accurately.""")
 def w_ln_1_plus_x(name):
     x = rpn.globl.param_stack.pop()
@@ -4357,6 +4357,21 @@ def w_prime_query(name):
     rpn.globl.param_stack.push(rpn.type.Integer(rpn.globl.bool_to_int(prime_helper(n))))
 
 
+@defword(name='pstdev', print_x=rpn.globl.PX_COMPUTE, doc="""\
+pstdev   ( -- pop_stdev )
+Return the population standard deviation of the statistics data.""")
+def w_stdev(name):
+    if len(rpn.globl.stat_data) < 2:
+        throw(X_BAD_DATA, name, "Insufficient statistics data (2 required)")
+    try:
+        s = statistics.pstdev(rpn.globl.stat_data)
+    except statistics.StatisticsError as e:
+        throw(X_BAD_DATA, name, "{}".format(str(e)))
+    result = rpn.type.Float(s)
+    result.label = "pstdev"
+    rpn.globl.param_stack.push(result)
+
+
 @defword(name='PV', print_x=rpn.globl.PX_COMPUTE, doc="""\
 PV   ( -- pv )
 Calculate Present Value (PV).
@@ -4381,6 +4396,21 @@ def w_PV(name):
     result = rpn.type.Float(pv)
     result.label = "PV"
     rpn.tvm.PV.obj = result
+    rpn.globl.param_stack.push(result)
+
+
+@defword(name='pvar', print_x=rpn.globl.PX_COMPUTE, doc="""\
+pvar   ( -- pop_var )
+Return the population variance of the statistics data.""")
+def w_pvar(name):
+    if len(rpn.globl.stat_data) < 2:
+        throw(X_BAD_DATA, name, "Insufficient statistics data (2 required)")
+    try:
+        v = statistics.pvariance(rpn.globl.stat_data)
+    except statistics.StatisticsError as e:
+        throw(X_BAD_DATA, name, "{}".format(str(e)))
+    result = rpn.type.Float(v)
+    result.label == "pvar"
     rpn.globl.param_stack.push(result)
 
 
@@ -4424,6 +4454,28 @@ EXAMPLE: Integrate a bessel function jv(2.5, x) along the interval [0,4.5]:
         res_obj = rpn.type.Float(res)
         res_obj.label = "quad"
         rpn.globl.param_stack.push(res_obj)
+
+
+@defword(name='quantile', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
+quantile   ( n -- [quantiles] )
+Divide statistics data into n continuous intervals with equal probability.
+Returns a vector of n-1 cut points separating the intervals.
+Set n to 4 for quartiles, 10 for deciles.""")
+def w_quant(name):
+    x = rpn.globl.param_stack.pop()
+    if type(x) is not rpn.type.Integer:
+        rpn.globl.param_stack.push(x)
+        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+    n = x.value
+    if len(rpn.globl.stat_data) <= n:
+        throw(X_BAD_DATA, name, "Insufficient statistics data ({} required)".format(n+1))
+    try:
+        quantiles = statistics.quantiles(rpn.globl.stat_data, n=n)
+    except statistics.StatisticsError as e:
+        throw(X_BAD_DATA, name, "{}".format(str(e)))
+    result = rpn.type.Vector.from_python_list(quantiles)
+    result.label == "quantile"
+    rpn.globl.param_stack.push(result)
 
 
 @defword(name='r->d', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -4858,7 +4910,7 @@ def w_sf(name):
     if flag < rpn.flag.FLAG_MIN or flag >= rpn.flag.FLAG_MAX:
         rpn.globl.param_stack.push(x)
         throw(X_INVALID_MEMORY, name, "Flag {} out of range ({}..{} expected)".format(flag, rpn.flag.FLAG_MIN, rpn.flag.FLAG_MAX - 1))
-    if flag >= rpn.flag.FENCE:
+    if flag >= rpn.flag.FLAG_FENCE:
         rpn.globl.param_stack.push(x)
         throw(X_READ_ONLY, name, "Flag {} cannot be modified".format(flag))
     rpn.flag.set_flag(flag)
@@ -5101,6 +5153,27 @@ def w_size(name):
     size_var.obj = x
 
 
+@defword(name='skew', print_x=rpn.globl.PX_COMPUTE, doc="""\
+Compute skewness in statistical data.""")
+def w_skew(name):
+    n = len(rpn.globl.stat_data)
+    if n < 2:
+        throw(X_BAD_DATA, name, "Insufficient statistics data (2 required)")
+    try:
+        mean = statistics.mean(rpn.globl.stat_data)
+    except statistics.StatisticsError as e:
+        throw(X_BAD_DATA, name, "{} (mean)".format(str(e)))
+    try:
+        std = statistics.stdev(rpn.globl.stat_data)
+    except statistics.StatisticsError as e:
+        throw(X_BAD_DATA, name, "{} (std)".format(str(e)))
+
+    skew = sum((item - mean)**3 for item in rpn.globl.stat_data) * n / ((n-1) * (n-2) * std**3)
+    result = rpn.type.Float(skew)
+    result.label = "skew"
+    rpn.globl.param_stack.push(result)
+
+
 @defword(name='sleep', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
 sleep   ( n -- )
 Sleep for N seconds.  N may be fractional.""")
@@ -5204,6 +5277,18 @@ def w_sqrt(name):
     rpn.globl.param_stack.push(result)
 
 
+@defword(name='srand', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
+srand   ( n -- )
+Seed random number generator with integer N.""")
+def w_srand(name):
+    x = rpn.globl.param_stack.pop()
+    if type(x) is not rpn.type.Integer:
+        rpn.globl.param_stack.push(x)
+        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+
+    random.seed(x.value)
+
+
 @defword(name='std', print_x=rpn.globl.rpn.globl.PX_CONFIG, doc="""\
 std   ( -- )
 Set display mode to standard.""")
@@ -5216,7 +5301,7 @@ def w_std(name):                # pylint: disable=unused-argument
 
 
 @defword(name='stdev', print_x=rpn.globl.PX_COMPUTE, doc="""\
-stdev   ( -- st.dev )
+stdev   ( -- samp_stdev )
 Return the sample standard deviation of the statistics data.""")
 def w_stdev(name):
     if len(rpn.globl.stat_data) < 2:
@@ -5416,7 +5501,7 @@ def w_tf(name):
     if flag < rpn.flag.FLAG_MIN or flag >= rpn.flag.FLAG_MAX:
         rpn.globl.param_stack.push(x)
         throw(X_INVALID_MEMORY, name, "Flag {} out of range ({}..{} expected)".format(flag, rpn.flag.FLAG_MIN, rpn.flag.FLAG_MAX - 1))
-    if flag >= rpn.flag.FENCE:
+    if flag >= rpn.flag.FLAG_FENCE:
         rpn.globl.param_stack.push(x)
         throw(X_READ_ONLY, name, "Flag {} cannot be modified".format(flag))
     rpn.flag.toggle_flag(flag)
@@ -5686,7 +5771,7 @@ Decompose a vector into stack elements.""")
 
 
 @defword(name='var', print_x=rpn.globl.PX_COMPUTE, doc="""\
-var   ( -- var )
+var   ( -- samp_var )
 Return the sample variance of the statistics data.""")
 def w_var(name):
     if len(rpn.globl.stat_data) < 2:
@@ -5695,7 +5780,9 @@ def w_var(name):
         v = statistics.variance(rpn.globl.stat_data)
     except statistics.StatisticsError as e:
         throw(X_BAD_DATA, name, "{}".format(str(e)))
-    rpn.globl.param_stack.push(rpn.type.Float(v))
+    result = rpn.type.Float(v)
+    result.label = "var"
+    rpn.globl.param_stack.push(result)
 
 
 @defword(name='variable', print_x=rpn.globl.PX_CONFIG, doc="""\
@@ -6370,33 +6457,37 @@ def equal_helper(x, y):
 | Matrix   |          |         |          |         |        |        |
 |----------+----------+---------+----------+---------+--------+--------|
 | ^Y    X> | Integer  | Float   | Rational | Complex | Vector | Matrix |"""
-    flag = None
+    equal = None
     if type(x) is rpn.type.Integer and type(y) is rpn.type.Integer:
-        flag = y.value == x.value
+        equal = y.value == x.value
     elif type(x) is rpn.type.Float and type(y) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational] \
       or type(y) is rpn.type.Float and type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
-        # Beware floating point equality lossage!
-        # Should use a relative comparison here...
-        flag = float(y.value) == float(x.value)
+        if rpn.flag.flag_set_p(rpn.flag.F_EQUAL_ISCLOSE):
+            equal = math.isclose(float(y.value), float(x.value))
+        else:
+            equal = float(y.value) == float(x.value)
     elif type(x) is rpn.type.Rational and type(y) in [rpn.type.Integer, rpn.type.Rational] \
       or type(y) is rpn.type.Rational and type(x) in [rpn.type.Integer, rpn.type.Rational]:
-        flag = Fraction(y.value) == Fraction(x.value)
+        equal = Fraction(y.value) == Fraction(x.value)
     elif type(x) is rpn.type.Complex and type(y) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex] \
       or type(y) is rpn.type.Complex and type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex]:
-        flag = complex(y.value) == complex(x.value)
+        if rpn.flag.flag_set_p(rpn.flag.F_EQUAL_ISCLOSE):
+            equal = cmath.isclose(complex(y.value), complex(x.value))
+        else:
+            equal = complex(y.value) == complex(x.value)
     elif type(x) is rpn.type.Vector and type(y) is rpn.type.Vector:
         if x.size() != y.size():
-            flag = False
+            equal = False
         else:
             r = functools.reduce(lambda i, j: i and j,
                                  map(lambda m, k: m == k, x.value, y.value), True)
-            flag = bool(r) # True if r else False
+            equal = bool(r) # True if r else False
     elif type(x) is rpn.type.Matrix and type(y) is rpn.type.Matrix:
-        flag = np.array_equal(x.value, y.value)
+        equal = np.array_equal(x.value, y.value)
 
-    if flag is None:
+    if equal is None:
         return -1
-    return rpn.globl.bool_to_int(flag)
+    return rpn.globl.bool_to_int(equal)
 
 
 @memoize

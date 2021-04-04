@@ -14,6 +14,7 @@ from   rpn.exception import *     # pylint: disable=wildcard-import
 FLAG_MIN             =   0
 F_TVM_CONTINUOUS     =   8 # Set: Continuous compounding Clear: Discrete compounding
 F_TVM_BEGIN_MODE     =   9 # Set: Begin (annuity due)    Clear: End (ordinary annuity)
+F_EQUAL_ISCLOSE      =  17 # Set: = uses isclose()       Clear: = means hard equality
 F_SHOW_PROMPT        =  18 # Set: Show command prompt    Clear: do not show prompt
 F_SHOW_X             =  19 # Set: Show X at prompt       Clear: do not show X
 F_DEBUG_ENABLED      =  20
@@ -21,7 +22,7 @@ F_PRINTER_ENABLED    =  21
 F_DECIMAL_POINT      =  28 # Set: 123,456.123  (US)      Clear: 123.456,123  (Europe)
 F_DIGIT_GROUPING     =  29 # Set: 1,234,567.01           Clear: 1234567.01
 # ------------------------
-FENCE                =  30 # Flags >= FENCE cannot set set by the user
+FLAG_FENCE           =  30 # Flags >= FLAG_FENCE cannot be changed by the user
 F_DISP_RESERVED      =  39 # Reserved for future display options
 F_DISP_FIX           =  40 # 40 & 41 Set: STD
 F_DISP_ENG           =  41 # 40 & 41 Clear: SCI

@@ -600,6 +600,13 @@ class Vector(Stackable):
         return obj
 
     @classmethod
+    def from_python_list(cls, x):
+        dbg(whoami(), 1, "{}: x={}".format(whoami(), x))
+        obj = cls()
+        obj.value = np.array(x)
+        return obj
+
+    @classmethod
     def from_rpn_List(cls, x):
         dbg(whoami(), 1, "{}: x={}".format(whoami(), x))
         obj = cls()
