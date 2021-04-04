@@ -228,9 +228,6 @@ class Complex(Stackable):
     def imag(self):
         return self.value.imag
 
-    def scalar_p(self):
-        return True
-
     def zerop(self):
         return self.real() == 0.0 and self.imag() == 0.0
 
@@ -276,9 +273,6 @@ class Float(Stackable):
         if type(new_value) is not float:
             throw(X_ARG_TYPE_MISMATCH, 'Float#value()', "({})".format(typename(new_value)))
         self._value = new_value
-
-    def scalar_p(self):
-        return True
 
     def zerop(self):
         return self.value == 0.0
@@ -369,9 +363,6 @@ class Integer(Stackable):
             throw(X_ARG_TYPE_MISMATCH, 'Integer#value()', "({})".format(typename(new_value)))
         self._value = new_value
 
-    def scalar_p(self):
-        return True
-
     def zerop(self):
         return self.value == 0
 
@@ -421,9 +412,6 @@ class Matrix(Stackable):
         # if type(new_value) is not rpn.type.Matrix: # FIXME
         #     throw(X_ARG_TYPE_MISMATCH, 'Matrix#value()', "({})".format(typename(new_value)))
         self._value = new_value
-
-    def scalar_p(self):
-        return False
 
     def has_uexpr_p(self):
         return False
@@ -481,9 +469,6 @@ class Rational(Stackable):
 
     def set_num_denom(self, num, denom):
         self.value = Fraction(int(num), int(denom))
-
-    def scalar_p(self):
-        return True
 
     def zerop(self):
         return self.numerator() == 0
@@ -631,9 +616,6 @@ class Vector(Stackable):
         # if type(new_value) is not rpn.type.Vector: # FIXME
         #     throw(X_ARG_TYPE_MISMATCH, 'Vector#value()', "({})".format(typename(new_value)))
         self._value = new_value
-
-    def scalar_p(self):
-        return False
 
     def has_uexpr_p(self):
         return False
