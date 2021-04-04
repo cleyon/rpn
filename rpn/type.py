@@ -159,7 +159,22 @@ class Stackable(rpn.exe.Executable):
         raise FatalErr("{}: Subclass responsibility".format(whoami()))
 
     def scalar_p(self):         # pylint: disable=no-self-use
-        raise FatalErr("{}: Subclass responsibility".format(whoami()))
+        return type(self) in [rpn.type.Integer, rpn.type.Rational,
+                              rpn.type.Float, rpn.type.Complex]
+
+    def same_composite_type_p(self, other):
+        return type(self)   in [rpn.type.Vector, rpn.type.Matrix] and \
+               type(other)  in [rpn.type.Vector, rpn.type.Matrix] and \
+               type(self) is type(other)
+
+    def same_shape_p(self, other):
+        if not self.same_composite_type_p(other):
+            return False
+        if type(self) is rpn.type.Vector:
+            return self.size() == other.size()
+        if type(self) is rpn.type.Matrix:
+            return self.nrows() == other.nrows() and \
+                   self.ncols() == other.ncols()
 
     def __str__(self):
         s = self.instfmt()

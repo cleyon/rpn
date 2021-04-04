@@ -11,6 +11,7 @@ from   rpn.debug     import whoami
 from   rpn.exception import *     # pylint: disable=wildcard-import
 
 
+FLAG_MIN             =   0
 F_TVM_CONTINUOUS     =   8 # Set: Continuous compounding Clear: Discrete compounding
 F_TVM_BEGIN_MODE     =   9 # Set: Begin (annuity due)    Clear: End (ordinary annuity)
 F_SHOW_PROMPT        =  18 # Set: Show command prompt    Clear: do not show prompt
@@ -27,14 +28,14 @@ F_DISP_ENG           =  41 # 40 & 41 Clear: SCI
 F_GRAD               =  42
 F_RAD                =  43
 F_PRINTER_EXISTS     =  55
-MAX                  =  56 # Flags >= MAX do not exist
+FLAG_MAX             =  56 # Flags >= FLAG_MAX do not exist
 
 flags_vec = 0
 
 
 def clear_flag(flag):
     global flags_vec                    # pylint: disable=global-statement
-    if flag < 0 or flag >= MAX:
+    if flag < FLAG_MIN or flag >= FLAG_MAX:
         raise FatalErr("{}: Flag {} out of range".format(whoami(), flag))
     if flag == F_DEBUG_ENABLED:
         rpn.debug.debug_enabled = False
@@ -42,14 +43,14 @@ def clear_flag(flag):
 
 def set_flag(flag):
     global flags_vec                    # pylint: disable=global-statement
-    if flag < 0 or flag >= MAX:
+    if flag < FLAG_MIN or flag >= FLAG_MAX:
         raise FatalErr("{}: Flag {} out of range".format(whoami(), flag))
     if flag == F_DEBUG_ENABLED:
         rpn.debug.debug_enabled = True
     flags_vec |= (1<<flag)
 
 def to_flag(flag, new):
-    if flag < 0 or flag >= MAX:
+    if flag < FLAG_MIN or flag >= FLAG_MAX:
         raise FatalErr("{}: Flag {} out of range".format(whoami(), flag))
     if new is None:
         raise FatalErr("{}: Flag {} cannot take value None".format(whoami(), flag))
@@ -61,7 +62,7 @@ def to_flag(flag, new):
         raise FatalErr("{}: Could not set flag {} to value {}".format(whoami(), flag, new))
 
 def toggle_flag(flag):
-    if flag < 0 or flag >= MAX:
+    if flag < FLAG_MIN or flag >= FLAG_MAX:
         raise FatalErr("{}: Flag {} out of range".format(whoami(), flag))
     if flag_set_p(flag):
         clear_flag(flag)
@@ -69,9 +70,9 @@ def toggle_flag(flag):
         set_flag(flag)
 
 def copy_flag(src_flag, dst_flag):
-    if src_flag < 0 or src_flag >= MAX:
+    if src_flag < FLAG_MIN or src_flag >= FLAG_MAX:
         raise FatalErr("{}: Flag {} out of range".format(whoami(), src_flag))
-    if dst_flag < 0 or dst_flag >= MAX:
+    if dst_flag < FLAG_MIN or dst_flag >= FLAG_MAX:
         raise FatalErr("{}: Flag {} out of range".format(whoami(), dst_flag))
     if flag_set_p(src_flag):
         set_flag(dst_flag)
@@ -79,11 +80,11 @@ def copy_flag(src_flag, dst_flag):
         clear_flag(dst_flag)
 
 def flag_int_value(flag):
-    if flag < 0 or flag >= MAX:
+    if flag < FLAG_MIN or flag >= FLAG_MAX:
         raise FatalErr("{}: Flag {} out of range".format(whoami(), flag))
     return rpn.globl.bool_to_int(flag_set_p(flag))
 
 def flag_set_p(flag):
-    if flag < 0 or flag >= MAX:
+    if flag < FLAG_MIN or flag >= FLAG_MAX:
         raise FatalErr("{}: Flag {} out of range".format(whoami(), flag))
     return bool(flags_vec & 1<<flag != 0)

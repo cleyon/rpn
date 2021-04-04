@@ -471,7 +471,7 @@ class Stack:
 
     def clear(self):
         if self._min_size > 0:
-            throw(X_STACK_UNDERFLOW, whoami(), "{} has min size={}".format(self.name, self._min_size))
+            throw(X_STACK_UNDERFLOW, whoami(), "{} has min size={}".format(self.name(), self._min_size))
         self._stack = []
         self._nitems = 0
 
@@ -489,9 +489,9 @@ class Stack:
 
     def pop(self):
         if self.empty():
-            raise FatalErr("{}: Empty stack".format(whoami()))
+            raise FatalErr("{}: {}: Empty stack".format(whoami(), self.name()))
         if self.size() == self._min_size:
-            throw(X_STACK_UNDERFLOW, whoami(), "{} has min size={}".format(self.name, self._min_size))
+            throw(X_STACK_UNDERFLOW, whoami(), "{} has min size={}".format(self.name(), self._min_size))
         self._nitems -= 1
         return self._stack.pop()
 
@@ -499,13 +499,13 @@ class Stack:
         '''n will be 1-based, so handle appropriately.'''
 
         if n < 1 or n > self.size():
-            raise FatalErr("{}: Bad index".format(whoami()))
+            raise FatalErr("{}: {}: Bad index".format(whoami(), self.name()))
         return self._stack[self.size() - n]
 
     def roll(self, n):
         '''n will be 1-based, so handle appropriately.'''
         if n < 1 or n > self.size():
-            raise FatalErr("{}: Bad index".format(whoami()))
+            raise FatalErr("{}: {}: Bad index".format(whoami(), self.name()))
         # Prevent stack underflow in unlucky situations.  Temporarily
         # increase the stack minimum size, because we're just going to
         # push an item back again to restore the situation.
@@ -517,7 +517,7 @@ class Stack:
 
     def top(self):
         if self.empty():
-            raise FatalErr("{}: Empty stack".format(whoami()))
+            raise FatalErr("{}: {}: Empty stack".format(whoami(), self.name()))
         return self._stack[self.size() - 1]
 
     def items_bottom_to_top(self):
