@@ -766,7 +766,7 @@ class Show(Executable):
 
     def __call__(self, name):
         dbg("trace", 1, "trace({})".format(repr(self)))
-        rpn.globl.writeln(self._word.as_definition())
+        rpn.globl.lnwriteln(self._word.as_definition())
 
     def __str__(self):
         return "show {}".format(self._word.name)

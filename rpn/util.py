@@ -204,6 +204,11 @@ class List:
     def __len__(self):
         return len(self.listval())
 
+    def as_definition(self):
+        s = " ".join([item.as_definition() for item in self.listval()])
+        dbg("show", 3, "{}: '{}'".format(whoami(), s))
+        return s
+
     def __str__(self):
         return " ".join([str(item) for item in self.listval()])
 
@@ -264,6 +269,17 @@ class Scope:
         self._words = {}
         self._variables = {}
         self._vnames = []
+
+    def as_definition(self):
+        s = ""
+        if len(self.vnames()) > 0:
+            s += "|" + " ".join([x.decorated() for x in self.vnames()]) + "|"
+            if len(self.words()) > 0:
+                s += " "
+        if len(self.words()) > 0:
+            s += " ".join([w.as_definition() for w in self.words().values()])
+        dbg("show", 3, "{}: {} is '{}'".format(whoami(), self.name, s))
+        return s
 
     def __str__(self):
         s = ""
@@ -432,6 +448,15 @@ class Sequence:
     def seq(self):
         return self._exe_list
 
+    def as_definition(self):
+        s = "{}{}{}".format(self.scope_template().as_definition(), #scope_str,
+                            " " if len(str(self.scope_template())) > 0 and \
+                                   len(self.seq()) > 0 \
+                            else "",
+                            str(self.seq()))
+        dbg("show", 3, "{}: '{}'".format(whoami(), s))
+        return s
+
     def __str__(self):
         scope_str = str(self.scope_template())
         # print("{}: scope_template={}".format(whoami(), repr(self.scope_template())))
@@ -439,8 +464,6 @@ class Sequence:
                             " " if len(scope_str) > 0 and len(self.seq()) > 0 else "",
                             str(self.seq()))
         return s
-        # return "Something"
-
 
     def __repr__(self):
         return "Sequence[{}, {}]".format(repr(self.scope_template()), repr(self.seq()))
@@ -936,13 +959,17 @@ class Word:
         self._smudge = new_smudge
 
     def as_definition(self):
+        s = None
         if typename(self._defn) == 'function':
-            return repr(self)
+            s = str(self)
         if type(self._defn) is rpn.util.Sequence:
-            return ": {} {}{} ;".format(self.name,
-                                        'doc:"{}"\n'.format(self.doc()) if self.doc() is not None and len(self.doc()) > 0 else "",
-                                        str(self._defn))
-        raise FatalErr("{}: Unhandled type {}".format(whoami(), type(self._defn)))
+            s = ": {} {}{} ;".format(self.name,
+                                     'doc:"{}"\n'.format(self.doc()) if self.doc() is not None and len(self.doc()) > 0 else "",
+                                     self._defn.as_definition())
+        if s is None:
+            raise FatalErr("{}: Unhandled type {}".format(whoami(), type(self._defn)))
+        dbg("show", 3, "{}: {} is '{}'".format(whoami(), self.name, s))
+        return s
 
     def __str__(self):
         return self.name

@@ -177,6 +177,11 @@ class Stackable(rpn.exe.Executable):
                    self.ncols() == other.ncols()
         raise FatalErr("{}: Fell through ({})".format(whoami(), self))
 
+    def as_definition(self):
+        s = str(self)
+        dbg("show", 3, "{}: '{}'".format(whoami(), s))
+        return s
+
     def __str__(self):
         s = self.instfmt()
         if self.has_uexpr_p():
