@@ -438,12 +438,16 @@ def w_star(name):
         result = rpn.type.Complex.from_complex(complex(y.value) * complex(x.value))
     elif type(x) in [rpn.type.Vector, rpn.type.Matrix] or \
          type(y) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(y)
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Vector/Matrix operation requires 'numpy' library")
         try:
-            r = np.matmul(y.value, x.value)
+            r = np.multiply(y.value, x.value)
         except ValueError:
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
-            throw(X_CONFORMABILITY, name)
+            throw(X_CONFORMABILITY, name, "Y={}, X={}".format(y,x))
         dbg(name, 3, "{}: r={}, type(r)={}, r.dtype={}, r.shape={}, r.ndim={}" \
                      .format(name, type(r), r, r.dtype, r.shape, r.ndim))
         result = rpn.globl.to_rpn_class(r)
@@ -530,32 +534,21 @@ def w_plus(name):
     elif    type(x) is rpn.type.Complex and type(y) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex] \
          or type(y) is rpn.type.Complex and type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex]:
         result = rpn.type.Complex.from_complex(complex(y.value) + complex(x.value))
-    elif    type(x) is rpn.type.Vector and type(y) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex] \
-         or type(y) is rpn.type.Vector and type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex]:
-        r = np.add(y.value, x.value)
-        result = rpn.type.Vector.from_ndarray(r)
-    elif type(x) is rpn.type.Vector and type(y) is rpn.type.Vector:
-        if x.size() != y.size():
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix] or \
+         type(y) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
-            throw(X_CONFORMABILITY, name, "Vectors are not same size")
-        r = np.add(y.value, x.value)
-        # print(type(r))
-        # print(r)
-        result = rpn.type.Vector.from_ndarray(r)
-    elif    type(x) is rpn.type.Matrix and type(y) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex] \
-         or type(y) is rpn.type.Matrix and type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex]:
-        r = np.add(y.value, x.value)
-        result = rpn.type.Matrix.from_ndarray(r)
-    elif type(x) is rpn.type.Matrix and type(y) is rpn.type.Matrix:
-        if x.nrows() != y.nrows() or x.ncols() != y.ncols():
+            throw(X_UNSUPPORTED, name, "Vector/Matrix operation requires 'numpy' library")
+        try:
+            r = np.add(y.value, x.value)
+        except ValueError:
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
-            throw(X_CONFORMABILITY, name, "Vectors are not same size")
-        r = np.add(y.value, x.value)
-        # print(type(r))
-        # print(r)
-        result = rpn.type.Matrix.from_ndarray(r)
+            throw(X_CONFORMABILITY, name, "Y={}, X={}".format(y,x))
+        dbg(name, 3, "{}: r={}, type(r)={}, r.dtype={}, r.shape={}, r.ndim={}" \
+                     .format(name, type(r), r, r.dtype, r.shape, r.ndim))
+        result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
@@ -614,6 +607,21 @@ def w_minus(name):
     elif    type(x) is rpn.type.Complex and type(y) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex] \
          or type(y) is rpn.type.Complex and type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex]:
         result = rpn.type.Complex.from_complex(complex(y.value) - complex(x.value))
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix] or \
+         type(y) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(y)
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Vector/Matrix operation requires 'numpy' library")
+        try:
+            r = np.subtract(y.value, x.value)
+        except ValueError:
+            rpn.globl.param_stack.push(y)
+            rpn.globl.param_stack.push(x)
+            throw(X_CONFORMABILITY, name, "Y={}, X={}".format(y,x))
+        dbg(name, 3, "{}: r={}, type(r)={}, r.dtype={}, r.shape={}, r.ndim={}" \
+                     .format(name, type(r), r, r.dtype, r.shape, r.ndim))
+        result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
@@ -665,10 +673,7 @@ Element-wise multiplication.""")
             throw(X_INVALID_ARG, name, "Y and X must have the same shapes")
 
         r = np.multiply(y.value, x.value)
-        if type(x) is rpn.type.Vector:
-            result = rpn.type.Vector.from_ndarray(r)
-        else:
-            result = rpn.type.Matrix.from_ndarray(r)
+        result = rpn.globl.to_rpn_class(r)
         rpn.globl.param_stack.push(result)
 
 
@@ -690,10 +695,7 @@ Element-wise addition.""")
             throw(X_INVALID_ARG, name, "Y and X must have the same shapes")
 
         r = np.add(y.value, x.value)
-        if type(x) is rpn.type.Vector:
-            result = rpn.type.Vector.from_ndarray(r)
-        else:
-            result = rpn.type.Matrix.from_ndarray(r)
+        result = rpn.globl.to_rpn_class(r)
         rpn.globl.param_stack.push(result)
 
 
@@ -715,10 +717,7 @@ Element-wise subtraction.""")
             throw(X_INVALID_ARG, name, "Y and X must have the same shapes")
 
         r = np.subtract(y.value, x.value)
-        if type(x) is rpn.type.Vector:
-            result = rpn.type.Vector.from_ndarray(r)
-        else:
-            result = rpn.type.Matrix.from_ndarray(r)
+        result = rpn.globl.to_rpn_class(r)
         rpn.globl.param_stack.push(result)
 
 
@@ -740,10 +739,7 @@ Element-wise division.""")
             throw(X_INVALID_ARG, name, "Y and X must have the same shapes")
 
         r = np.divide(y.value, x.value)
-        if type(x) is rpn.type.Vector:
-            result = rpn.type.Vector.from_ndarray(r)
-        else:
-            result = rpn.type.Matrix.from_ndarray(r)
+        result = rpn.globl.to_rpn_class(r)
         rpn.globl.param_stack.push(result)
 
 
@@ -766,10 +762,7 @@ Element-wise exponentiation.""")
 
         # XXX Note that an integer type raised to a negative integer power will raise a ValueError.
         r = np.power(y.value, x.value)
-        if type(x) is rpn.type.Vector:
-            result = rpn.type.Vector.from_ndarray(r)
-        else:
-            result = rpn.type.Matrix.from_ndarray(r)
+        result = rpn.globl.to_rpn_class(r)
         rpn.globl.param_stack.push(result)
 
 
@@ -934,6 +927,21 @@ def w_slash(name):
     elif    type(x) is rpn.type.Complex and type(y) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex] \
          or type(y) is rpn.type.Complex and type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex]:
         result = rpn.type.Complex.from_complex(complex(y.value) / complex(x.value))
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix] or \
+         type(y) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(y)
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Vector/Matrix operation requires 'numpy' library")
+        try:
+            r = np.divide(y.value, x.value)
+        except ValueError:
+            rpn.globl.param_stack.push(y)
+            rpn.globl.param_stack.push(x)
+            throw(X_CONFORMABILITY, name, "Y={}, X={}".format(y,x))
+        dbg(name, 3, "{}: r={}, type(r)={}, r.dtype={}, r.shape={}, r.ndim={}" \
+                     .format(name, type(r), r, r.dtype, r.shape, r.ndim))
+        result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
@@ -1089,14 +1097,20 @@ def w_not_equal(name):
             throw(X_CONFORMABILITY, name)
         cvt_x = x.ubase_convert(name)
         cvt_y = y.ubase_convert(name)
-        equal = equal_helper(cvt_x, cvt_y)
+        (equal, reason) = equal_helper(cvt_x, cvt_y)
     else:
-        equal = equal_helper(x, y)
+        (equal, reason) = equal_helper(x, y)
 
     if equal == -1:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        if reason == X_ARG_TYPE_MISMATCH:
+            throw(reason, name, "({} {})".format(typename(y), typename(x)))
+        elif reason == X_UNSUPPORTED:
+            throw(reason, name, "Matrix/Vector comparison requires 'numpy' library")
+        else:
+            throw(reason, name, "Comparison failed")
+
     rpn.globl.param_stack.push(rpn.type.Integer(0 if equal else 1))
 
 
@@ -1119,14 +1133,20 @@ def w_equal(name):
             throw(X_CONFORMABILITY, name)
         cvt_x = x.ubase_convert(name)
         cvt_y = y.ubase_convert(name)
-        equal = equal_helper(cvt_x, cvt_y)
+        (equal, reason) = equal_helper(cvt_x, cvt_y)
     else:
-        equal = equal_helper(x, y)
+        (equal, reason) = equal_helper(x, y)
 
     if equal == -1:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        if reason == X_ARG_TYPE_MISMATCH:
+            throw(reason, name, "({} {})".format(typename(y), typename(x)))
+        elif reason == X_UNSUPPORTED:
+            throw(reason, name, "Matrix/Vector comparison requires 'numpy' library")
+        else:
+            throw(reason, name, "Comparison failed")
+
     rpn.globl.param_stack.push(rpn.type.Integer(equal))
 
 
@@ -1567,6 +1587,12 @@ def w_acos(name):
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Complex.from_complex(r)
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.arccos(x.value)
+        result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
@@ -1595,6 +1621,12 @@ def w_acosh(name):
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Complex.from_complex(r)
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.arccosh(x.value)
+        result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
@@ -1670,6 +1702,12 @@ def w_asin(name):
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Complex.from_complex(r)
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.arcsin(x.value)
+        result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
@@ -1698,6 +1736,12 @@ def w_asinh(name):
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Complex.from_complex(r)
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.arcsinh(x.value)
+        result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
@@ -1725,6 +1769,12 @@ def w_atan(name):
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Complex.from_complex(r)
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.arctan(x.value)
+        result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
@@ -1737,7 +1787,8 @@ Inverse tangent of y/x.""")
 def w_atan2(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
-    if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
+    if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational] and \
+       type(y) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         try:
             r = math.atan2(float(y.value), float(x.value))
         except ValueError:
@@ -1746,7 +1797,8 @@ def w_atan2(name):
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Float(rpn.globl.convert_radians_to_mode(r))
         result.uexpr = rpn.globl.uexpr[rpn.globl.angle_mode_letter()]
-    elif type(x) is rpn.type.Complex:
+    elif type(x) is rpn.type.Complex or \
+         type(y) is rpn.type.Complex:
         # Python cmath doesn't have atan2, so fake it
         if x.zerop():
             rpn.globl.param_stack.push(y)
@@ -1754,6 +1806,13 @@ def w_atan2(name):
             throw(X_FP_INVALID_ARG, name)
         r = cmath.atan(y / x)
         result = rpn.type.Complex.from_complex(r)
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix] or \
+         type(x) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.arctan2(y.value, x.value)
+        result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
@@ -1783,6 +1842,12 @@ def w_atanh(name):
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Complex.from_complex(r)
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.arctanh(x.value)
+        result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
@@ -1954,6 +2019,12 @@ def w_ceil(name):
         result = x
     elif type(x) in [rpn.type.Float, rpn.type.Rational]:
         result = rpn.type.Integer(math.ceil(x.value))
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.ceil(x.value)
+        result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
@@ -2003,6 +2074,12 @@ def w_chs(name):
         result = rpn.type.Rational.from_Fraction(Fraction(-1, 1) * x.value)
     elif type(x) is rpn.type.Complex:
         result = rpn.type.Complex(-1.0*x.real(), -1.0*x.imag())
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.negative(x.value)
+        result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
@@ -2128,6 +2205,8 @@ def w_comb(name):
     rpn.globl.param_stack.push(result)
 
 
+# TODO: conj
+
 @defword(name='constant', print_x=rpn.globl.PX_CONFIG, doc="""\
 constant   ( n -- )
 Declare a constant variable.
@@ -2163,13 +2242,10 @@ def w_convert(name):
 
 @defword(name='cos', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
 cos   ( angle -- cosine )
-Cosine.""")
+Cosine.  For composite types (Vector, Matrix), compute cosine of elements
+(always in Radians regardless of angular mode).""")
 def w_cos(name):
     x = rpn.globl.param_stack.pop()
-    if type(x) not in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex]:
-        rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
-
     unit_attached = False
     if x.has_uexpr_p() and x.uexpr.dim() != rpn.unit.category["Null"].dim():
         if x.uexpr.dim() != rpn.unit.category["Angle"].dim():
@@ -2185,6 +2261,15 @@ def w_cos(name):
             result = rpn.type.Float(math.cos(rpn.globl.convert_mode_to_radians(float(x.value))))
     elif type(x) is rpn.type.Complex:
         result = rpn.type.Complex.from_complex(cmath.cos(x.value))
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.cos(x.value)
+        result = rpn.globl.to_rpn_class(r)
+    else:
+        rpn.globl.param_stack.push(x)
+        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
 
     rpn.globl.param_stack.push(result)
 
@@ -2203,6 +2288,12 @@ def w_cosh(name):
         result = rpn.type.Float(math.cosh(float(x.value)))
     elif type(x) is rpn.type.Complex:
         result = rpn.type.Complex.from_complex(cmath.cosh(x.value))
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.cosh(x.value)
+        result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
@@ -2253,7 +2344,8 @@ Vector dot product.""")
             except ValueError as e:
                 rpn.globl.param_stack.push(y)
                 rpn.globl.param_stack.push(x)
-                throw(X_CONFORMABILITY, name, "Vectors are not conformable") # XXX is this message correct?
+                # XXX is this message correct?
+                throw(X_CONFORMABILITY, name, "Vectors are not conformable")
 
             result = rpn.globl.to_rpn_class(r)
             dbg(name, 2, "result={}, type(result)={}".format(result, type(result)))
@@ -2323,10 +2415,18 @@ def w_d_to_jd(name):
 
 @defword(name='d->r', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
 d->r   ( deg -- rad )
-Convert degrees to radians.  This will actually convert any angle measure
-to radians, not just degrees.""")
+Convert degrees to radians.""")
 def w_d_to_r(name):
     x = rpn.globl.param_stack.pop()
+    if type(x) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.radians(x.value)
+        result = rpn.globl.to_rpn_class(r)
+        rpn.globl.param_stack.push(result)
+        return
+
     if type(x) not in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
@@ -2672,6 +2772,12 @@ def w_e_x_minus_1(name):
         result = rpn.type.Float(math.expm1(x.value))
     elif type(x) is rpn.type.Complex:
         result = rpn.type.Complex.from_complex(cmath.exp(x.value) - 1.0)
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.expm1(x.value)
+        result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
@@ -2868,6 +2974,12 @@ def w_exp(name):
             rpn.globl.param_stack.push(x)
             throw(X_FP_RESULT_OO_RANGE, name)
         result = rpn.type.Complex.from_complex(r)
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.exp(x.value)
+        result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
@@ -3061,6 +3173,12 @@ def w_floor(name):
         result = x
     elif type(x) in [rpn.type.Float, rpn.type.Rational]:
         result = rpn.type.Integer(math.floor(x.value))
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.floor(x.value)
+        result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
@@ -3518,15 +3636,22 @@ hypot = sqrt(x^2 + y^2)""")
 def w_hypot(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
-    if    type(x) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float] \
+    if    type(x) in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float] \
        or type(y) in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
+        yval = float(y.value)
+        xval = float(x.value)
+        result = rpn.type.Float(math.hypot(xval, yval))
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.hypot(y.value, x.value)
+        result = rpn.globl.to_rpn_class(r)
+    else:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
-
-    yval = float(y.value)
-    xval = float(x.value)
-    rpn.globl.param_stack.push(rpn.type.Float(math.hypot(xval, yval)))
+    rpn.globl.param_stack.push(result)
 
 
 @defword(name='I', print_x=rpn.globl.PX_CONFIG, doc="""\
@@ -3566,7 +3691,6 @@ Create an NxN identity matrix.""")
         else:
             rpn.globl.param_stack.push(x)
             throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
-
 
         result = rpn.type.Matrix.from_ndarray(np.identity(size, dtype=np.int64))
         rpn.globl.param_stack.push(result)
@@ -3623,6 +3747,12 @@ def w_int(name):
         result = x
     elif type(x) in [rpn.type.Float, rpn.type.Rational]:
         result = rpn.type.Integer(int(x.value))
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.trunc(x.value)
+        result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
@@ -3738,6 +3868,9 @@ def w_inv(name):
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "Vectors are not invertible")
     elif type(x) is rpn.type.Matrix:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Matrix inversion requires 'numpy' library")
         try:
             r = np.linalg.inv(x.value)
         except np.linalg.LinAlgError:
@@ -3852,6 +3985,12 @@ def w_lg(name):
          or type(x) is rpn.type.Float    and x.value < 0.0 \
          or type(x) is rpn.type.Rational and x.value < 0:
         result = rpn.type.Complex.from_complex(cmath.log(complex(x.value), 2))
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.log2(x.value)
+        result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
@@ -3878,6 +4017,12 @@ def w_ln(name):
          or type(x) is rpn.type.Float    and x.value < 0.0 \
          or type(x) is rpn.type.Rational and x.value < 0:
         result = rpn.type.Complex.from_complex(cmath.log(complex(x.value)))
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.log(x.value)
+        result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
@@ -3899,6 +4044,12 @@ def w_ln_1_plus_x(name):
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name, "X cannot be (-1,0)")
         result = rpn.type.Complex.from_complex(cmath.log(x.value + complex(1,0)))
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.log1p(x.value)
+        result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
@@ -3940,6 +4091,12 @@ def w_log(name):
          or type(x) is rpn.type.Float    and x.value < 0.0 \
          or type(x) is rpn.type.Rational and x.value < 0:
         result = rpn.type.Complex.from_complex(cmath.log10(complex(x.value)))
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.log10(x.value)
+        result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
@@ -4428,10 +4585,18 @@ EXAMPLE: Integrate a bessel function jv(2.5, x) along the interval [0,4.5]:
 
 @defword(name='r->d', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
 r->d   ( rad -- deg )
-Convert radians to degrees.  This will actually convert any angle measure
-to degrees, not just radians.""")
+Convert radians to degrees.""")
 def w_r_to_d(name):
     x = rpn.globl.param_stack.pop()
+    if type(x) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.degrees(x.value)
+        result = rpn.globl.to_rpn_class(r)
+        rpn.globl.param_stack.push(result)
+        return
+
     if type(x) not in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
@@ -4761,23 +4926,33 @@ def w_rnd(name):
     x = rpn.globl.param_stack.pop()
     y = rpn.globl.param_stack.pop()
     if    type(x) is not rpn.type.Integer \
-       or type(y) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float, rpn.type.Complex]:
+       or type(y) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float,
+                          rpn.type.Complex, rpn.type.Vector, rpn.type.Matrix]:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
     places = x.value
-    if places < 0:
+    if places < 0 or places > rpn.globl.PRECISION_MAX:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_INVALID_ARG, name, "X (places) may not be negative")
+        throw(X_INVALID_ARG, name, "Places {} out of range ({}..{}) expected" \
+                                   .format(places, 0, rpn.globl.PRECISION_MAX))
 
     if type(y) in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
         r = round(float(y.value), places)
         result = rpn.type.Integer(r) if places == 0 else rpn.type.Float(r)
-    else:
+    elif type(y) is rpn.type.Complex:
         new_real = round(float(y.real()), places)
         new_imag = round(float(y.imag()), places)
         result = rpn.type.Complex(new_real, new_imag)
+    elif type(y) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(y)
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.around(y.value, places)
+        result = rpn.globl.to_rpn_class(r)
+
     rpn.globl.param_stack.push(result)
 
 
@@ -4999,13 +5174,10 @@ def w_sign(name):
 
 @defword(name='sin', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
 sin   ( angle -- sine )
-Sine.""")
+Sine.  For composite types (Vector, Matrix), compute sine of elements
+(always in Radians regardless of angular mode).""")
 def w_sin(name):
     x = rpn.globl.param_stack.pop()
-    if type(x) not in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex]:
-        rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
-
     unit_attached = False
     if x.has_uexpr_p() and x.uexpr.dim() != rpn.unit.category["Null"].dim():
         if x.uexpr.dim() != rpn.unit.category["Angle"].dim():
@@ -5021,10 +5193,20 @@ def w_sin(name):
             result = rpn.type.Float(math.sin(rpn.globl.convert_mode_to_radians(float(x.value))))
     elif type(x) is rpn.type.Complex:
         result = rpn.type.Complex.from_complex(cmath.sin(x.value))
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.sin(x.value)
+        result = rpn.globl.to_rpn_class(r)
+    else:
+        rpn.globl.param_stack.push(x)
+        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
 
     rpn.globl.param_stack.push(result)
 
 
+# XXX numpy has sinc, but it is the normalized sinc.  TBD
 @defword(name='sinc', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
 sinc   ( x -- sinc )
 Sine cardinal, aka sampling function.
@@ -5071,6 +5253,12 @@ def w_sinh(name):
         result = rpn.type.Float(math.sinh(float(x.value)))
     elif type(x) is rpn.type.Complex:
         result = rpn.type.Complex.from_complex(cmath.sinh(x.value))
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.sinh(x.value)
+        result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
@@ -5335,16 +5523,13 @@ def w_T_VECTOR(name):           # pylint: disable=unused-argument
 
 @defword(name='tan', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
 tan   ( angle -- tangent )
-Tangent.
+Tangent.  For composite types (Vector, Matrix), compute tangent of elements
+(always in Radians regardless of angular mode).
 
 WARNING:
 Angle must not be 90 degrees (TAU/4 radians).""")
 def w_tan(name):
     x = rpn.globl.param_stack.pop()
-    if type(x) not in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex]:
-        rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
-
     unit_attached = False
     if x.has_uexpr_p() and x.uexpr.dim() != rpn.unit.category["Null"].dim():
         if x.uexpr.dim() != rpn.unit.category["Angle"].dim():
@@ -5370,6 +5555,15 @@ def w_tan(name):
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name)
         result = rpn.type.Complex.from_complex(r)
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.tan(x.value)
+        result = rpn.globl.to_rpn_class(r)
+    else:
+        rpn.globl.param_stack.push(x)
+        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
 
     rpn.globl.param_stack.push(result)
 
@@ -5386,6 +5580,12 @@ def w_tanh(name):
         result = rpn.type.Float(math.tanh(x.value))
     elif type(x) is rpn.type.Complex:
         result = rpn.type.Complex.from_complex(cmath.tanh(x.value))
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.tanh(x.value)
+        result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
@@ -5483,21 +5683,22 @@ def w_timeinfo(name):
     rpn.globl.writeln("timeinfo: {}".format(x.time_info()))
 
 
-@defword(name='trn', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-trn   ( mat -- mat_T )
-Transpose a matrix.""")
-def w_trn(name):
-    x = rpn.globl.param_stack.pop()
-    if type(x) is rpn.type.Vector:
-        # Transposing a vector is allowed but has no effect.
-        # It does NOT "convert a 1-D array into a 2D column vector".
-        rpn.globl.param_stack.push(x)
-        return
-    if type(x) is not rpn.type.Matrix:
-        rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
-    t = rpn.type.Matrix.from_ndarray(x.value.T) # np.matrix.transpose(x.value))
-    rpn.globl.param_stack.push(t)
+if rpn.globl.have_module('numpy'):
+    @defword(name='trn', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
+    trn   ( mat -- mat_T )
+    Transpose a matrix.""")
+    def w_trn(name):
+        x = rpn.globl.param_stack.pop()
+        if type(x) is rpn.type.Vector:
+            # Transposing a vector is allowed but has no effect.
+            # It does NOT "convert a 1-D array into a 2D column vector".
+            rpn.globl.param_stack.push(x)
+            return
+        if type(x) is not rpn.type.Matrix:
+            rpn.globl.param_stack.push(x)
+            throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        result = rpn.type.Matrix.from_ndarray(x.value.T)
+        rpn.globl.param_stack.push(result)
 
 
 @defword(name='type', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -6272,34 +6473,35 @@ def w_logxor(name):
     rpn.globl.param_stack.push(rpn.type.Integer(bool(x.value) != bool(y.value)))
 
 
-@defword(name='zer', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-zer   ( v -- m )
-Create a zero vector or matrix.""")
-def w_zer(name):
-    x = rpn.globl.param_stack.pop()
-    if type(x) is not rpn.type.Vector:
-        rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
-    xs = x.size()
+if rpn.globl.have_module('numpy'):
+    @defword(name='zer', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
+    zer   ( v -- m )
+    Create a zero vector or matrix.""")
+    def w_zer(name):
+        x = rpn.globl.param_stack.pop()
+        if type(x) is not rpn.type.Vector:
+            rpn.globl.param_stack.push(x)
+            throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        xs = x.size()
 
-    if xs == 1:
-        size = int(x.value.item(0))
-        if size <= 0:
+        if xs == 1:
+            size = int(x.value.item(0))
+            if size <= 0:
+                rpn.globl.param_stack.push(x)
+                throw(X_INVALID_ARG, name, "Dimension must be positive")
+            result = rpn.type.Vector.from_ndarray(np.zeros(size))
+            rpn.globl.param_stack.push(result)
+        elif xs == 2:
+            rows = int(x.value.item(0))
+            cols = int(x.value.item(1))
+            if rows <= 0 or cols <= 0:
+                rpn.globl.param_stack.push(x)
+                throw(X_INVALID_ARG, name, "Dimensions must be positive")
+            result = rpn.type.Matrix.from_ndarray(np.zeros((rows, cols)))
+            rpn.globl.param_stack.push(result)
+        else:
             rpn.globl.param_stack.push(x)
-            throw(X_INVALID_ARG, name, "Dimension must be positive")
-        z = rpn.type.Vector.from_ndarray(np.zeros(size))
-        rpn.globl.param_stack.push(z)
-    elif xs == 2:
-        rows = int(x.value.item(0))
-        cols = int(x.value.item(1))
-        if rows <= 0 or cols <= 0:
-            rpn.globl.param_stack.push(x)
-            throw(X_INVALID_ARG, name, "Dimensions must be positive")
-        z = rpn.type.Matrix.from_ndarray(np.zeros((rows, cols)))
-        rpn.globl.param_stack.push(z)
-    else:
-        rpn.globl.param_stack.push(x)
-        throw(X_INVALID_ARG, name, "Dimension vector must have only 1 or 2 elements")
+            throw(X_INVALID_ARG, name, "Dimension vector must have only 1 or 2 elements")
 
 
 
@@ -6355,11 +6557,20 @@ def comb_helper(n, r):
 
 def equal_helper(x, y):
     """\
-# Parameters are Rpn objects, not values.  Units are NOT considered.
-# Return values:
+# Parameters are Rpn objects, not values.  Uexprs are *not* considered.
+# Returns a tuple of integers: (FLAG, REASON) where FLAG is:
 #    1 : Values are equal
 #    0 : Values are not equal
-#   -1 : Type error
+#   -1 : Failure/Type error
+#
+# When FLAG is -1, REASON is the X_ exception code for why the
+# comparison failed.  If FLAG is 1 or 0, REASON shall be zero.
+# Useful values for REASON are:
+#    X_ARG_TYPE_MISMATCH : type(x)/type(y) comparison not implemented
+#    X_UNSUPPORTED       : Numpy not available
+#
+# IMPORTANT: This routine must *not* throw() an exception because
+# callers are not generally prepared to catch them.
 
 |----------+----------+---------+----------+---------+--------+--------|
 | Integer  |   xxxx   |  xxx    |  xxxx    | xxxx    |        |        |
@@ -6369,7 +6580,9 @@ def equal_helper(x, y):
 | Vector   |          |         |          |         | xxxx   |        |
 | Matrix   |          |         |          |         |        |        |
 |----------+----------+---------+----------+---------+--------+--------|
-| ^Y    X> | Integer  | Float   | Rational | Complex | Vector | Matrix |"""
+| ^Y    X> | Integer  | Float   | Rational | Complex | Vector | Matrix |
+
+    """
     flag = None
     if type(x) is rpn.type.Integer and type(y) is rpn.type.Integer:
         flag = y.value == x.value
@@ -6392,11 +6605,13 @@ def equal_helper(x, y):
                                  map(lambda m, k: m == k, x.value, y.value), True)
             flag = bool(r) # True if r else False
     elif type(x) is rpn.type.Matrix and type(y) is rpn.type.Matrix:
+        if not rpn.globl.have_module('numpy'):
+            return (-1, X_UNSUPPORTED)
         flag = np.array_equal(x.value, y.value)
 
     if flag is None:
-        return -1
-    return rpn.globl.bool_to_int(flag)
+        return (-1, X_ARG_TYPE_MISMATCH)
+    return (rpn.globl.bool_to_int(flag), 0)
 
 
 @memoize

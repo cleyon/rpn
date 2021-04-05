@@ -16,6 +16,10 @@ debug_enabled = False
 debug_levels = {
     "#in"                       : 0,
     "$in"                       : 0,
+    "*"                         : 3,
+    "+"                         : 3,
+    "-"                         : 3,
+    "/"                         : 3,
     "DoLoop#__call__"           : 0,
     "List#__call__"             : 0,
     "Scope#define_variable"     : 0,
