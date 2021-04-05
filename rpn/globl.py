@@ -386,7 +386,7 @@ def register_valid_p(reg):
         raise FatalErr("{}: Attempting to validate non-integer register {}".format(whoami(), reg))
     (sizevar, _) = rpn.globl.lookup_variable("SIZE")
     size = sizevar.obj.value
-    if reg >= 0 and reg < size:
+    if 0 <= reg < size:
         return (True, size)
     return (False, size)
 

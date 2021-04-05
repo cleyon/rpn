@@ -175,6 +175,7 @@ class Stackable(rpn.exe.Executable):
         if type(self) is rpn.type.Matrix:
             return self.nrows() == other.nrows() and \
                    self.ncols() == other.ncols()
+        raise FatalErr("{}: Fell through ({})".format(whoami(), self))
 
     def __str__(self):
         s = self.instfmt()
@@ -631,9 +632,10 @@ class Vector(Stackable):
         if type(self.value) is np.ndarray:
             shape = self.value.shape
             return shape[0]
-        elif type(self.value) is rpn.util.List:
+        if type(self.value) is rpn.util.List:
             #print("{}: size={}".format(whoami(), len(self.value)))
             return len(self.value)
+        raise FatalErr("{}: Fell through ({})".format(whoami(), self))
 
     def instfmt(self):
         if self.size() == 0:

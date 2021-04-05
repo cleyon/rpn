@@ -70,9 +70,9 @@ class defword():
                     rpn.flag.clear_flag(rpn.flag.F_SHOW_X)
 
         if "name" not in self._kwargs:
-            raise FatalErr('Missing "name" attribute')
+            raise FatalErr('defword: Missing "name" attribute')
         if len(self._kwargs["name"]) == 0:
-            throw(X_ZERO_LEN_STR)
+            throw(X_ZERO_LEN_STR, "defword", 'Empty "name" attribute' )
         name = self._kwargs["name"]
         del self._kwargs["name"]
 
@@ -1504,7 +1504,7 @@ def w_caret(name):
     elif type(r) is complex:
         result = rpn.type.Complex.from_complex(r)
     else:
-        raise FatalErr("pow() returned a strange type '{}'".format(type(r)))
+        raise FatalErr("{}: pow() returned a strange type '{}'".format(name, type(r)))
 
     if x.has_uexpr_p():
         throw(X_INCONSISTENT_UNITS, name, "X cannot have unit expression")
@@ -2158,7 +2158,6 @@ Clear (delete) user variables in the current scope only.
 See also: who""")
 def w_clvar(name):              # pylint: disable=unused-argument
     scope = rpn.globl.scope_stack.top()
-    my_vars = dict()
     for v in scope.variables().copy():
         var = scope.variable(v)
         if var.hidden or var.protected:
@@ -2341,7 +2340,7 @@ Vector dot product.""")
                 r = np.cross(y.value, x.value)
                 dbg(name, 3, "r={}, type(r)={}, r.dtype={}, r.shape={}, r.ndim={}" \
                                  .format(r, type(r), r.dtype, r.shape, r.ndim))
-            except ValueError as e:
+            except ValueError:
                 rpn.globl.param_stack.push(y)
                 rpn.globl.param_stack.push(x)
                 # XXX is this message correct?
@@ -2355,43 +2354,6 @@ Vector dot product.""")
             throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
 
         rpn.globl.param_stack.push(result)
-
-
-def w_sum3(y):
-    return int(y * 365.25) - int(y / 100) + int(y / 400)
-
-def w_m306(m):
-    return int(m * 30.6001)
-
-@defword(name='d->hp', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-d->hp   ( MM.DDYYYY -- day# )
-Convert date to HP day number.  Day # 0 = October 15, 1582.""")
-def w_d_to_hp(name):
-    day0_julian = 2299160
-    x = rpn.globl.param_stack.pop()
-    if type(x) is not rpn.type.Float:
-        rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
-
-    (valid, dateobj, julian) = x.date_info()
-    if not valid:
-        rpn.globl.param_stack.push(x)
-        throw(X_INVALID_ARG, name, "{} is not a valid date".format(x.value))
-
-    if dateobj.month < 3:
-        m = dateobj.month + 13
-        y = dateobj.year - 1
-    else:
-        m = dateobj.month + 1
-        y = dateobj.year
-
-    daynum = sum3(y) + m306(m) + dateobj.day - 578164
-    if julian - daynum + day0_julian != 0:
-        rpn.globl.lnwriteln("d->hp: Result differs from Julian")
-
-    result = rpn.type.Integer(daynum)
-    result.label = "HP day"
-    rpn.globl.param_stack.push(result)
 
 
 @defword(name='d->jd', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -3286,7 +3248,7 @@ def w_fs_query_set(name):
     flag = x.value
     if flag < rpn.flag.FLAG_MIN or flag >= rpn.flag.FLAG_MAX:
         rpn.globl.param_stack.push(x)
-        throw(X_INVALID_MEMORY, name, "Flag {} out of range ({}..{} expected)".format(flag, rpn.flag.FLAG_MIN, rpn.flag.MAX - 1))
+        throw(X_INVALID_MEMORY, name, "Flag {} out of range ({}..{} expected)".format(flag, rpn.flag.FLAG_MIN, rpn.flag.FLAG_MAX - 1))
     result = rpn.type.Integer(rpn.globl.bool_to_int(rpn.flag.flag_set_p(flag)))
     rpn.globl.param_stack.push(result)
     if flag < rpn.flag.FLAG_FENCE:
@@ -3322,7 +3284,7 @@ def w_FV(name):
 
 
 if rpn.globl.have_module('scipy'):
-    @defword(name='fzero', args=1, str_args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
+    @defword(name='fzero', args=1, str_args=1, print_x=rpn.globl.PX_COMPUTE, doc=r"""\
 fzero   ( init.guess -- root )  [ func -- ]
 Solving for root.  Name of function must be on string stack.
 Implemented via scipy.optimize.fsolve()
@@ -3576,33 +3538,6 @@ def w_hms_minus(name):
     rpn.globl.param_stack.push(result)
 
 
-@defword(name='hp->d', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-hp->d   ( day# -- MM.DDYYYY )
-Convert HP day number to date.  Day # 0 = October 15, 1582.""")
-def w_hp_to_d(name):
-    x = rpn.globl.param_stack.pop()
-    if type(x) is not rpn.type.Integer:
-        rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
-
-    daynum = x.value
-    if daynum < 0 or daynum > datetime.date.max.toordinal():
-        rpn.globl.param_stack.push(x)
-        throw(X_INVALID_ARG, name, "{} is not a valid day number".format(x.value))
-
-    # dateobj = datetime.date.fromordinal(x.value - JULIAN_OFFSET)
-    # result = rpn.type.Float("%d.%02d%04d" % (dateobj.month, dateobj.day, dateobj.year))
-    d0 = daynum + 578164
-    y0 = int((d0 - 121.5) / 365.2425)
-    # m0 = int((d0 - sum3(y0)) / 30.6001)
-    # while m0 < 4:
-    #     y0 -= 1
-    #     m0 = int((d0 -
-    #
-    # result.label = "MM.DDYYYY"
-    # rpn.globl.param_stack.push(result)
-
-
 @defword(name='hr', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
 hr   ( HH.MMSS -- HH.nnn )
 Convert hours/minutes/seconds to decimal hours.""")
@@ -3663,7 +3598,7 @@ def w_I(name):
     if _I is None:
         throw(X_LOOP_PARAMS, name, "'I' not valid here, only in DO loops")
     if type(_I.obj) is not rpn.type.Integer:
-        raise FatalErr("I is not an rpn.type.Integer")
+        raise FatalErr("{}: _I.obj is not an Integer".format(name))
     rpn.globl.param_stack.push(_I.obj)
 
 
@@ -3810,7 +3745,7 @@ def w_J(name):
     if _J is None:
         throw(X_LOOP_PARAMS, name, "'J' not valid here, only in nested DO loops")
     if type(_J.obj) is not rpn.type.Integer:
-        raise FatalErr("J is not an rpn.type.Integer")
+        raise FatalErr("{}: _J.obj is not an Integer".format(name))
     rpn.globl.param_stack.push(_J.obj)
 
 
@@ -4517,7 +4452,7 @@ def w_prime_query(name):
 @defword(name='pstdev', print_x=rpn.globl.PX_COMPUTE, doc="""\
 pstdev   ( -- pop_stdev )
 Return the population standard deviation of the statistics data.""")
-def w_stdev(name):
+def w_pstdev(name):
     if len(rpn.globl.stat_data) < 2:
         throw(X_BAD_DATA, name, "Insufficient statistics data (2 required)")
     try:
@@ -4567,7 +4502,7 @@ def w_pvar(name):
     except statistics.StatisticsError as e:
         throw(X_BAD_DATA, name, "{}".format(str(e)))
     result = rpn.type.Float(v)
-    result.label == "pvar"
+    result.label = "pvar"
     rpn.globl.param_stack.push(result)
 
 
@@ -4631,7 +4566,7 @@ def w_quant(name):
     except statistics.StatisticsError as e:
         throw(X_BAD_DATA, name, "{}".format(str(e)))
     result = rpn.type.Vector.from_python_list(quantiles)
-    result.label == "quantile"
+    result.label = "quantile"
     rpn.globl.param_stack.push(result)
 
 
@@ -4803,12 +4738,10 @@ rcli   ( -- reg[(i)] )
 Recall contents of the register referenced by I.  Do not confuse this with
 rclI, which recalls the value of register I directly.""")
 def w_rcli(name):
-    (size_var, _) = rpn.globl.lookup_variable("SIZE")
-
     Ival = rpn.globl.reg_stack.top().register['I'].value
     (valid, size) = rpn.globl.register_valid_p(Ival)
     if not valid:
-        throw(X_INVALID_MEMORY, name, "Register I={} out of range (0..{} expected)".format(Ival, size_var.obj.value - 1))
+        throw(X_INVALID_MEMORY, name, "Register I={} out of range (0..{} expected)".format(Ival, size - 1))
 
     rpn.globl.param_stack.push(rpn.globl.reg_stack.top().register[Ival])
 
@@ -5535,7 +5468,7 @@ def w_stoI(name):               # pylint: disable=unused-argument
         rpn.globl.reg_stack.top().register['I'] = rpn.type.Integer(int(x.value))
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(I)))
+        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
 
 
 @defword(name='stoi', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
@@ -6140,7 +6073,7 @@ def w_x_exchange_f(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(I)))
+        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
     xval = x.value
     if xval < 0 or xval > 255:
         rpn.globl.param_stack.push(x)
@@ -6169,7 +6102,7 @@ def w_x_exchange_I(name):       # pylint: disable=unused-argument
         rpn.globl.reg_stack.top().register['I'] = rpn.type.Integer(int(x.value))
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(I)))
+        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
 
 
 @defword(name='x<>i', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
@@ -6608,14 +6541,14 @@ def memoize(f):
 
 def prime_helper(n):
     if n < 2:
-         return False;
+        return False
     if n % 2 == 0:
-         return n == 2  # return False
+        return n == 2  # return False
     k = 3
     while k*k <= n:
-         if n % k == 0:
-             return False
-         k += 2
+        if n % k == 0:
+            return False
+        k += 2
     return True
 
 
@@ -6670,7 +6603,7 @@ def equal_helper(x, y):
 | ^Y    X> | Integer  | Float   | Rational | Complex | Vector | Matrix |
 
     """
-    flag = None
+    equal = None
     if type(x) is rpn.type.Integer and type(y) is rpn.type.Integer:
         equal = y.value == x.value
     elif type(x) is rpn.type.Float and type(y) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational] \
@@ -6698,11 +6631,11 @@ def equal_helper(x, y):
     elif type(x) is rpn.type.Matrix and type(y) is rpn.type.Matrix:
         if not rpn.globl.have_module('numpy'):
             return (-1, X_UNSUPPORTED)
-        flag = np.array_equal(x.value, y.value)
+        equal = np.array_equal(x.value, y.value)
 
-    if flag is None:
+    if equal is None:
         return (-1, X_ARG_TYPE_MISMATCH)
-    return (rpn.globl.bool_to_int(flag), 0)
+    return (rpn.globl.bool_to_int(equal), 0)
 
 
 @memoize

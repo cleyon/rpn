@@ -197,8 +197,8 @@ and are often None.'''
                 continue
             unit_dim = [ item for sbl in [ [0]*x, [1], [0]*(dim_size-1-x) ]
                            for item in sbl ]
-            # pylint reports "W0640: Cell variable unit_dim defined in loop (cell-var-from-loop)"
-            # on the following line:
+            # Silence pylint "W0640: Cell variable unit_dim defined in loop (cell-var-from-loop)"
+            # pylint: disable=cell-var-from-loop
             unit_match_list = list(filter(lambda unit: unit.dim() == unit_dim and \
                                                        unit.base_p, units.values()))
             if len(unit_match_list) == 0 or len(unit_match_list) > 1:
