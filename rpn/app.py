@@ -111,7 +111,8 @@ def initialize(rpndir, argv):
 
     # Hopefully load the user's init file
     if load_init_file:
-        init_file = os.path.expanduser("~/.rpnrc")
+        rpnrc_env = os.environ.get("RPNRC")
+        init_file = rpnrc_env if rpnrc_env is not None else os.path.expanduser("~/.rpnrc")
         if os.path.isfile(init_file):
             (rpnrc, _) = rpn.globl.lookup_variable('RPNRC')
             rpnrc.obj = rpn.type.String(init_file)
@@ -177,6 +178,8 @@ def define_variables():
                                   pre_hooks=[pre_require_int_or_float],
                                   post_hooks=[post_label_with_identifier],
                                   doc="Present Value")
+    rpn.globl.defvar("PYTHON_VER", rpn.type.String(".".join(map(str, sys.version_info[0:3]))),
+                     readonly=True, noshadow=True)
     rpn.globl.scr_rows = rpn.globl.defvar('ROWS', rpn.type.Integer(0),
                                           pre_hooks=[pre_require_int, pre_require_positive])
     rpn.globl.defvar('RPNRC', rpn.type.String(""),

@@ -44,8 +44,10 @@
 '''
 
 import copy
-from   fractions import Fraction
 import datetime
+from   fractions import Fraction
+import numbers
+import traceback
 
 # Check if NumPy is available
 try:
@@ -132,11 +134,9 @@ class Stackable(rpn.exe.Executable):
         if not rpn.unit.units_conform(self.uexpr, ue):
             throw(X_CONFORMABILITY, name, '"{}", "{}"'.format(self.uexpr, ue))
         if type(self) in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
-            new_obj = rpn.type.Float()
-            new_obj.value = float(self.value)
+            new_obj = rpn.type.Float(float(self.value))
         elif type(self) is rpn.type.Complex:
-            new_obj = rpn.type.Complex()
-            new_obj.value = self.value
+            new_obj = rpn.type.Complex(self.value)
         else:
             throw(X_ARG_TYPE_MISMATCH, name, "{} does not support units".format(typename(self)))
 
@@ -207,7 +207,11 @@ class Stackable(rpn.exe.Executable):
 #
 #############################################################################
 class Complex(Stackable):
-    def __init__(self, real=0.0, imag=0.0):
+    def __init__(self, real, imag):
+        if not isinstance(real, numbers.Number) or \
+           not isinstance(imag, numbers.Number):
+            traceback.print_stack()
+            raise FatalErr("Complex values '{},{}' are not Number".format(type(real), type(imag)))
         super().__init__()
         self.name   = "Complex"
         self._type  = T_COMPLEX
@@ -248,15 +252,19 @@ class Complex(Stackable):
 #
 #############################################################################
 class Float(Stackable):
-    def __init__(self, val=0.0, uexpr=None):
+    def __init__(self, val, uexpr=None):
+        if not isinstance(val, (float, np.float64)):
+            traceback.print_stack()
+            raise FatalErr("Float value '{}' is not a float, it's a {}".format(val, type(val)))
         super().__init__()
         self.name   = "Float"
         self._type  = T_FLOAT
         self._value = float(val)
-        self._uexpr  = uexpr
+        self._uexpr = uexpr
 
     @classmethod
     def from_string(cls, s):
+        ue = None
         if "_" in s:
             try:
                 (val, ustr) = s.split("_")
@@ -266,9 +274,10 @@ class Float(Stackable):
             ue = rpn.unit.try_parsing(ustr)
             if ue is None:
                 throw(X_INVALID_UNIT, "Float#from_string", ustr)
-            return cls(val, ue)
+            s = val
 
-        return cls(s, None)
+        val = float(s)
+        return cls(val, ue)
 
     @property
     def value(self):
@@ -338,14 +347,18 @@ Failure:  (False, None, None, None, None)"""
 #############################################################################
 class Integer(Stackable):
     def __init__(self, val, uexpr=None):
+        if not isinstance(val, int):
+            traceback.print_stack()
+            raise FatalErr("Integer value '{}' is not an int, it's a {}".format(val, type(val)))
         super().__init__()
         self.name   = "Integer"
         self._type  = T_INTEGER
         self._value = int(val)
-        self._uexpr  = uexpr
+        self._uexpr = uexpr
 
     @classmethod
     def from_string(cls, s):
+        ue = None
         if "_" in s:
             try:
                 (val, ustr) = s.split("_")
@@ -355,9 +368,10 @@ class Integer(Stackable):
             ue = rpn.unit.try_parsing(ustr)
             if ue is None:
                 throw(X_INVALID_UNIT, "Integer#from_string", ustr)
-            return cls(val, ue)
+            s = val
 
-        return cls(s, None)
+        val = int(s, 0)
+        return cls(val, ue)
 
     @property
     def value(self):
@@ -438,11 +452,15 @@ class Matrix(Stackable):
 #
 #############################################################################
 class Rational(Stackable):
-    def __init__(self, num=0, denom=1, uexpr=None):
+    def __init__(self, num, denom, uexpr=None):
+        if type(num) is not int or type(denom) is not int:
+            traceback.print_stack()
+            raise FatalErr("Rational values '{}::{}' are not integer".format(type(num), type(denom)))
+
         super().__init__()
         self.name  = "Rational"
         self._type = T_RATIONAL
-        self.value = Fraction(int(num), int(denom))
+        self.value = Fraction(num, denom)
         self._uexpr = uexpr
 
     @classmethod

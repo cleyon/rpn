@@ -398,6 +398,8 @@ def update_screen_size():
         stty_size = subprocess.check_output(['stty', 'size']).decode().split()
         if len(stty_size) == 2:
             tty_rows, tty_columns = stty_size
+            tty_rows = int(tty_rows)
+            tty_columns = int(tty_columns)
 
     #rpn.globl.lnwriteln("{} x {}".format(tty_rows, tty_columns))
     if int(tty_columns) == 0:
@@ -427,9 +429,9 @@ def to_rpn_class(n):
     if t is int:
         return rpn.type.Integer(n)
     if t is np.int64 and n.ndim == 0:
-        return rpn.type.Integer(n)
+        return rpn.type.Integer(int(n))
     if t in [float, np.float64]:
-        return rpn.type.Float(n)
+        return rpn.type.Float(float(n))
     if t is Fraction:
         return rpn.type.Rational.from_Fraction(n)
     if t in [complex, np.complex128]:

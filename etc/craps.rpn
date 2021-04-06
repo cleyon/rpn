@@ -70,7 +70,7 @@
   : end_game
     | diff |
     @cash @initial_stake - !diff
-    @diff 0 >= if
+    ?cr  @diff 0 >= if
       ."After my initial " @.initial_stake ."zorkmid loan, "
       @diff 0 > if
         ."you leave with " @.diff ."zorkmids."

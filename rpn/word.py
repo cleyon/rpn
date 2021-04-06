@@ -103,7 +103,7 @@ def w_number_in(name):
             dbg(name, 1, "#in: '{}'".format(x))
         except EOFError:
             throw(X_EOF, name)
-        finally:
+        else:
             rpn.globl.sharpout.obj = rpn.type.Integer(0)
 
     newlexer = rpn.globl.lexer.clone()
@@ -328,9 +328,9 @@ def w_percent(name):
         rate = float(x.value)
         r = base * rate / 100.0
         if type(x) is rpn.type.Integer and type(y) is rpn.type.Integer and r.is_integer():
-            result = rpn.type.Integer(r)
+            result = rpn.type.Integer(int(r))
         else:
-            result = rpn.type.Float(r)
+            result = rpn.type.Float(float(r))
         result.label = "%"
     else:
         rpn.globl.param_stack.push(y)
@@ -362,9 +362,9 @@ def w_percent_ch(name):
         new = float(x.value)
         r = (new - old) * 100.0 / old
         if type(x) is rpn.type.Integer and type(y) is rpn.type.Integer and r.is_integer():
-            result = rpn.type.Integer(r)
+            result = rpn.type.Integer(int(r))
         else:
-            result = rpn.type.Float(r)
+            result = rpn.type.Float(float(r))
         result.label = "%ch"
     else:
         rpn.globl.param_stack.push(y)
@@ -379,7 +379,6 @@ def w_percent_ch(name):
 Percent of total.  Total cannot be zero.
 
 DEFINITION:
-
          amount
 %Total = ------ * 100
          total""")
@@ -397,9 +396,9 @@ def w_percent_t(name):
         amount = float(x.value)
         r = amount * 100.0 / total
         if type(x) is rpn.type.Integer and type(y) is rpn.type.Integer and r.is_integer():
-            result = rpn.type.Integer(r)
+            result = rpn.type.Integer(int(r))
         else:
-            result = rpn.type.Float(r)
+            result = rpn.type.Float(float(r))
         result.label = "%t"
     else:
         rpn.globl.param_stack.push(y)
@@ -921,9 +920,9 @@ def w_slash(name):
          or type(y) is rpn.type.Rational and type(x) is rpn.type.Float:
         r = float(y.value) / float(x.value)
         if type(x) is rpn.type.Integer and type(y) is rpn.type.Integer and r.is_integer():
-            result = rpn.type.Integer(r)
+            result = rpn.type.Integer(int(r))
         else:
-            result = rpn.type.Float(r)
+            result = rpn.type.Float(float(r))
     elif    type(x) is rpn.type.Complex and type(y) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex] \
          or type(y) is rpn.type.Complex and type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex]:
         result = rpn.type.Complex.from_complex(complex(y.value) / complex(x.value))
@@ -1404,6 +1403,35 @@ def w_query_dup(name):
         throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
     if not x.zerop():
         rpn.globl.eval_string("dup")
+
+
+@defword(name='?flags', print_x=rpn.globl.PX_IO, hidden=True, doc="")
+def w_info_flags(name):         # pylint: disable=unused-argument
+    print("""\
+Flags are a global resource of 56 values which can be either TRUE or FALSE.
+Flags are numbered from 0 to 55.  They can be set, cleared, or tested with
+sf, cf, fs?, and fc?.  The state of a flag can be toggled with tf.
+The state of flags 0..7 can be toggled into and out of the top stack
+element with x<>f.  Flags 0..29 can be changed by the user, while flags
+30..55 are read-only.
+
+Certain flags have special meanings:
+ 8 : TVM_CONTINUOUS   Set: Continuous compounding Clear: Discrete compounding
+ 9 : TVM_BEGIN_MODE   Set: Begin (annuity due)    Clear: End (ordinary annuity)
+17 : EQUAL_ISCLOSE    Set: = uses isclose()       Clear: = means hard equality
+18 : SHOW_PROMPT      Set: Show command prompt    Clear: do not show prompt
+19 : SHOW_X           Set: Show X at prompt       Clear: do not show X
+20 : DEBUG_ENABLED
+21 : PRINTER_ENABLED  (not implemented)
+28 : DECIMAL_POINT    (not implemented) Set: 123,456.123  (US)      Clear: 123.456,123  (Europe)
+29 : DIGIT_GROUPING   (not implemented) Set: 1,234,567.01           Clear: 1234567.01
+
+39 : DISP_RESERVED    Reserved for future display options
+40 : DISP_FIX         40 & 41 Set: STD
+41 : DISP_ENG         40 & 41 Clear: SCI
+42 : GRAD
+43 : RAD
+55 : PRINTER_EXISTS   (not implemented)""")
 
 
 @defword(name='?key', print_x=rpn.globl.PX_IO, doc="""\
@@ -2813,7 +2841,12 @@ def w_epoch(name):              # pylint: disable=unused-argument
 
 @defword(name='erf', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
 erf   ( x -- erf[x] )
-Error function.""")
+Error function.
+
+DEFINITION:
+         Integral(-x, x, exp(-t^2), dt)
+erf(x) = ------------------------------
+                    sqrt(PI)""")
 def w_erf(name):
     x = rpn.globl.param_stack.pop()
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
@@ -3310,6 +3343,10 @@ EXAMPLE:
 
         # XXX There are probably error conditions/exceptions I need to catch
         def func(x):
+            if type(x) is np.ndarray and x.ndim == 1 and x.size == 1:
+                x = rpn.globl.to_python_class(x[0])
+            else:
+                raise FatalErr("{}: func: x is not ndarray".format(name))
             rpn.globl.param_stack.push(rpn.type.Float(x))
             rpn.globl.eval_string(func_to_solve)
             return rpn.globl.param_stack.pop().value
@@ -3347,9 +3384,9 @@ def w_gamma(name):
             rpn.globl.param_stack.push(x)
             throw(X_FP_INVALID_ARG, name, "X cannot be a non-positive integer")
         if type(x) is rpn.type.Integer:
-            result = rpn.type.Integer(r)
+            result = rpn.type.Integer(int(r))
         else:
-            result = rpn.type.Float(r)
+            result = rpn.type.Float(float(r))
     elif type(x) is rpn.type.Complex:
         if not rpn.globl.have_module('scipy'):
             rpn.globl.param_stack.push(x)
@@ -3912,9 +3949,9 @@ def w_lg(name):
        or type(x) is rpn.type.Rational and x.value > 0:
         r = math.log2(float(x.value))
         if type(x) is rpn.type.Integer and r.is_integer():
-            result = rpn.type.Integer(r)
+            result = rpn.type.Integer(int(r))
         else:
-            result = rpn.type.Float(r)
+            result = rpn.type.Float(float(r))
     elif    type(x) is rpn.type.Complex \
          or type(x) is rpn.type.Integer  and x.value < 0 \
          or type(x) is rpn.type.Float    and x.value < 0.0 \
@@ -4018,9 +4055,9 @@ def w_log(name):
        or type(x) is rpn.type.Rational and x.value > 0:
         r = math.log10(float(x.value))
         if type(x) is rpn.type.Integer and r.is_integer():
-            result = rpn.type.Integer(r)
+            result = rpn.type.Integer(int(r))
         else:
-            result = rpn.type.Float(r)
+            result = rpn.type.Float(float(r))
     elif    type(x) is rpn.type.Complex \
          or type(x) is rpn.type.Integer  and x.value < 0 \
          or type(x) is rpn.type.Float    and x.value < 0.0 \
@@ -4411,7 +4448,6 @@ item, and want to compute the original purchase cost, simply change the
 sign of the markup percentage.
 
 DEFINITION:
-
         purch_cost
 Price = ----------
             markup
@@ -4925,7 +4961,7 @@ def w_rnd(name):
 
     if type(y) in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
         r = round(float(y.value), places)
-        result = rpn.type.Integer(r) if places == 0 else rpn.type.Float(r)
+        result = rpn.type.Integer(int(r)) if places == 0 else rpn.type.Float(r)
     elif type(y) is rpn.type.Complex:
         new_real = round(float(y.real()), places)
         new_imag = round(float(y.imag()), places)
@@ -5200,7 +5236,6 @@ DEFINITION:
            sin x
 sinc(x) = -------
              x
-
 sinc(0) == 1""")
 def w_sinc(name):
     x = rpn.globl.param_stack.pop()
@@ -5373,20 +5408,23 @@ sqrt   ( x -- sqrt[x] )
 Square root.  Negative X returns a complex number.""")
 def w_sqrt(name):
     x = rpn.globl.param_stack.pop()
-    if type(x) is rpn.type.Integer and x.zerop():
-        result = rpn.type.Integer(0)
-    elif type(x) in [rpn.type.Float, rpn.type.Rational] and x.zerop():
-        result = rpn.type.Float(0.0)
-    elif type(x) is rpn.type.Complex and x.zerop():
-        result = rpn.type.Complex()
+    if x.zerop():
+        if type(x) is rpn.type.Integer:
+            result = rpn.type.Integer(0)
+        elif type(x) is rpn.type.Rational:
+            result = rpn.type.Rational(0, 0)
+        elif type(x) is rpn.type.Float:
+            result = rpn.type.Float(0.0)
+        elif type(x) is rpn.type.Complex:
+            result = rpn.type.Complex(0, 0)
     elif    type(x) is rpn.type.Integer  and x.value > 0 \
          or type(x) is rpn.type.Float    and x.value > 0.0 \
          or type(x) is rpn.type.Rational and x.value > 0:
         r = math.sqrt(float(x.value))
         if type(x) is rpn.type.Integer and r.is_integer():
-            result = rpn.type.Integer(r)
+            result = rpn.type.Integer(int(r))
         else:
-            result = rpn.type.Float(r)
+            result = rpn.type.Float(float(r))
     elif    type(x) is rpn.type.Complex \
          or type(x) is rpn.type.Integer  and x.value < 0 \
          or type(x) is rpn.type.Float    and x.value < 0.0 \
@@ -5612,9 +5650,10 @@ def w_tanh(name):
 
 @defword(name='TAU', print_x=rpn.globl.PX_COMPUTE, doc="""\
 TAU   ( -- 6.28318... )
+Number of radians in a circle.
 
 DEFINITION:
-Number of radians in a circle.""")
+TAU = 2*PI""")
 def w_TAU(name):                # pylint: disable=unused-argument
     result = rpn.type.Float(rpn.globl.TAU)
     result.uexpr = rpn.globl.uexpr["r"]
@@ -6572,7 +6611,7 @@ def comb_helper(n, r):
         n -= 1
         result /= j
         j += 1
-    return result
+    return int(result)
 
 
 def equal_helper(x, y):

@@ -119,7 +119,6 @@ def t_RATIONAL(t):
 
 def t_FLOAT(t):
     r'[-+]?((\d+(\.\d*[eE][-+]?\d+|[eE][-+]?\d+|\.\d*))|(\d*(\.\d+[eE][-+]?\d+|[eE][-+]?\d+|\.\d+)))(_[^ \t\n]+)?'
-    #t.value = str(float(t.value))
     t.type = 'FLOAT'
     return t
 
@@ -139,8 +138,7 @@ def t_ASCII(t):
 # Note a little Python magic: int(xxx, 0) will guess base and parse "0x", etc.
 # On the whole, the benefits outweigh the drawbacks.
 def t_INTEGER(t):
-    r'[-+]?((((0x)|(0X))[0-9a-fA-F]+)|(((0o)|(0O))[0-7]+)|(((0b)|(0B))[0-1]+)|(\d+))(_[^ \t\n]+)?'
-    #t.value = str(int(t.value, 0))
+    r'[-+]?((0[xX][0-9a-fA-F]+)|(0[oO][0-7]+)|(0[bB][0-1]+)|(\d+))(_[^ \t\n]+)?'
     t.type = 'INTEGER'
     return t
 
