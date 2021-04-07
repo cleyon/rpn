@@ -30,6 +30,7 @@ debug_levels = {
     "Word#__init__"             : 0,
     "ascii"                     : 0,
     "catch"                     : 0,
+    "constant"                  : 2,
     "cross"                     : 0,
    #"d0"                        : -1,
    #"d1"                        : 1,
@@ -64,7 +65,7 @@ debug_levels = {
     "p_variable"                : 0,
     "parse"                     : 0,
     "prompt"                    : 0,
-    "scope"                     : 0,
+    "scope"                     : 3,
     "show"                      : 0,
     "to_rpn_class"              : 0,
     "token"                     : 0,
@@ -72,6 +73,7 @@ debug_levels = {
     "tvm"                       : 0,
     "unit"                      : 0,
     "unit#parse"                : 0,
+    "variable"                  : 1,
 }
 
 

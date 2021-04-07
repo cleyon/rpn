@@ -281,6 +281,9 @@ class Scope:
         dbg("show", 3, "{}: {} is '{}'".format(whoami(), self.name, s))
         return s
 
+    def addr(self):
+        return hex(id(self))
+
     def __str__(self):
         s = ""
         if len(self.vnames()) > 0:
@@ -292,9 +295,9 @@ class Scope:
         return s
 
     def __repr__(self):
-        s = "Scope['{}'={}".format(self.name, hex(id(self)))
+        s = f"Scope['{self.name}'={self.addr()}"
         if len(self.variables()) > 0:
-            s += ", Vars={}".format([str(x) for x in self.variables().values()])
+            s += f", Vars={[str(x) for x in self.variables().values()]}"
         else:
             s += ", Vars=[]"
         s += "]"
@@ -776,6 +779,9 @@ class Variable:
     def readonly(self):
         return self._readonly
 
+    def addr(self):
+        return hex(id(self))
+
     def pre_hooks(self):
         return self._pre_hooks
 
@@ -786,7 +792,7 @@ class Variable:
         return str(self.name)
 
     def __repr__(self):
-        return "Variable[{},addr={},value={}]".format(self.name, hex(id(self)), repr(self.obj))
+        return f"Variable['{self.name}'={self.addr()},value={repr(self.obj)}]"
 
 
 #############################################################################

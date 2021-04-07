@@ -60,7 +60,7 @@ class defword():
 
     def __call__(self, f):
         def wrapped_f(name, **kwargs): # pylint: disable=unused-argument
-            #print("Decorator args: {}".format(self._kwargs))
+            #print(f"Decorator args: {self._kwargs}")
             f(name)
             if "print_x" in self._kwargs and \
                self._kwargs["print_x"] is not None:
@@ -100,7 +100,7 @@ def w_number_in(name):
     while len(x) == 0:
         try:
             x = input()
-            dbg(name, 1, "#in: '{}'".format(x))
+            dbg(name, 1, f"#in: '{x}'")
         except EOFError:
             throw(X_EOF, name)
         else:
@@ -115,7 +115,7 @@ def w_number_in(name):
     elif tok.type == 'FLOAT':
         rpn.globl.param_stack.push(rpn.type.Float(float(tok.value)))
     else:
-        throw(X_SYNTAX, name, "Could not parse '{}'".format(x))
+        throw(X_SYNTAX, name, f"Could not parse '{x}'")
 
 
 @defword(name='$.', str_args=1, print_x=rpn.globl.PX_IO, doc="""\
@@ -140,7 +140,7 @@ def w_dollar_in(name):
     while len(x) == 0:
         try:
             x = input()
-            dbg(name, 1, "$in: '{}'".format(x))
+            dbg(name, 1, f"$in: '{x}'")
         except EOFError:
             throw(X_EOF, name)
         finally:
@@ -235,7 +235,7 @@ def w_dollar_throw(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     if x.value == 0:
         rpn.globl.param_stack.push(x)
         throw(X_INVALID_ARG, name, "X cannot be zero")
@@ -243,7 +243,7 @@ def w_dollar_throw(name):
     thrown_from = ""
     if not rpn.globl.colon_stack.empty():
         thrown_from = rpn.globl.colon_stack.top().name
-    dbg("catch", 1, "{}: Throwing {} from '{}'".format(name, x.value, thrown_from))
+    dbg("catch", 1, f"{name}: Throwing {x.value} from '{thrown_from}'")
     throw(x.value, thrown_from, message)
 
 
@@ -268,42 +268,42 @@ def w_dollar_ushow(name):
     # See if it's a real unit
     if ue is not None:
         unit = ue.unit
-        rpn.globl.lnwrite("\"{}\" refers to the unit '{}'".format(ustr, unit.name))
+        rpn.globl.lnwrite(f"\"{ustr}\" refers to the unit '{unit.name}'")
         if ue.prefix is not None:
-            rpn.globl.write(" with prefix '{}' (x10^{})".format(ue.prefix[0], ue.prefix[2]))
+            rpn.globl.write(f" with prefix '{ue.prefix[0]}' (x10^{ue.prefix[2]})")
         rpn.globl.writeln()
         if ue.unit.base_p:
-            rpn.globl.writeln('SI units: "{}" is a base unit'.format(unit.name))
+            rpn.globl.writeln(f'SI units: "{unit.name}" is a base unit')
         else:
-            defn = "{}".format(unit.factor())
+            defn = f"{unit.factor()}"
             e = unit.orig_exp
             if e is not None and e != 0:
-                defn += " * 10^{}".format(e)
-            defn += " {}".format(unit.deriv)
-            rpn.globl.writeln("Definition: {}".format(defn))
+                defn += f" * 10^{e}"
+            defn += f" {unit.deriv}"
+            rpn.globl.writeln(f"Definition: {defn}")
 
-            x = rpn.type.Integer.from_string("1_{}".format(ustr))
+            x = rpn.type.Integer.from_string(f"1_{ustr}")
             base_ue = x.uexpr.ubase()
             value = x.uexpr.base_factor() * (10 ** x.uexpr.exp())
             if base_ue.exp() != 0:
                 value *= (10 ** base_ue.exp())
-            rpn.globl.writeln("SI units: 1 {} = {} {}".format(unit.name, value, base_ue))
+            rpn.globl.writeln(f"SI units: 1 {unit.name} = {value} {base_ue}")
         cat = rpn.unit.Category.lookup_by_dim(ue.dim())
         if cat is not None:
-            rpn.globl.writeln("It is a measure of {}".format(cat.measure))
-        rpn.globl.writeln("It has dimensions = {}".format(ue.dim()))
+            rpn.globl.writeln(f"It is a measure of {cat.measure}")
+        rpn.globl.writeln(f"It has dimensions = {ue.dim()}")
         return
 
     # See if it's a valid combination of units
     ue = rpn.unit.try_parsing(ustr)
     if ue is not None:
-        rpn.globl.lnwriteln("\"{}\" is a unit expression".format(ustr))
+        rpn.globl.lnwriteln(f'"{ustr}" is a unit expression')
         base_ue = ue.ubase()
-        rpn.globl.writeln("SI units: {}".format(base_ue))
+        rpn.globl.writeln(f"SI units: {base_ue}")
         cat = rpn.unit.Category.lookup_by_dim(ue.dim())
         if cat is not None:
-            rpn.globl.writeln("It is a measure of {}".format(cat.measure))
-        rpn.globl.writeln("It has dimensions = {}".format(ue.dim()))
+            rpn.globl.writeln(f"It is a measure of {cat.measure}")
+        rpn.globl.writeln(f"It has dimensions = {ue.dim()}")
         return
 
     # Not valid
@@ -335,7 +335,7 @@ def w_percent(name):
     else:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
     rpn.globl.param_stack.push(y)
     rpn.globl.param_stack.push(result)
 
@@ -369,7 +369,7 @@ def w_percent_ch(name):
     else:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
     # The HP-32SII preserves the Y value (like %) but we do not
     rpn.globl.param_stack.push(result)
 
@@ -403,7 +403,7 @@ def w_percent_t(name):
     else:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
     # The HP-32SII preserves the Y value (like %) but we do not
     rpn.globl.param_stack.push(result)
 
@@ -446,14 +446,14 @@ def w_star(name):
         except ValueError:
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
-            throw(X_CONFORMABILITY, name, "Y={}, X={}".format(y,x))
+            throw(X_CONFORMABILITY, name, f"Y={y}, X={x}")
         dbg(name, 3, "{}: r={}, type(r)={}, r.dtype={}, r.shape={}, r.ndim={}" \
                      .format(name, type(r), r, r.dtype, r.shape, r.ndim))
         result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
     if x.has_uexpr_p() and not y.has_uexpr_p():
         result.uexpr = x.uexpr
@@ -477,7 +477,7 @@ def w_star_slash(name):
         rpn.globl.param_stack.push(z)
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {} {})".format(typename(z), typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(z)} {typename(y)} {typename(x)})")
     if z.zerop():
         rpn.globl.param_stack.push(z)
         rpn.globl.param_stack.push(y)
@@ -544,14 +544,14 @@ def w_plus(name):
         except ValueError:
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
-            throw(X_CONFORMABILITY, name, "Y={}, X={}".format(y,x))
+            throw(X_CONFORMABILITY, name, f"Y={y}, X={x}")
         dbg(name, 3, "{}: r={}, type(r)={}, r.dtype={}, r.shape={}, r.ndim={}" \
                      .format(name, type(r), r, r.dtype, r.shape, r.ndim))
         result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
     if x.has_uexpr_p():
         result.uexpr = x.uexpr
@@ -617,14 +617,14 @@ def w_minus(name):
         except ValueError:
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
-            throw(X_CONFORMABILITY, name, "Y={}, X={}".format(y,x))
+            throw(X_CONFORMABILITY, name, f"Y={y}, X={x}")
         dbg(name, 3, "{}: r={}, type(r)={}, r.dtype={}, r.shape={}, r.ndim={}" \
                      .format(name, type(r), r, r.dtype, r.shape, r.ndim))
         result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
     if x.has_uexpr_p():
         result.uexpr = x.uexpr
@@ -636,7 +636,7 @@ def w_minus(name):
 Print top stack value.  A space is also printed after the number,
 but no newline.  (If you need a newline, use cr.)""")
 def w_dot(name):                # pylint: disable=unused-argument
-    rpn.globl.write("{} ".format(str(rpn.globl.param_stack.pop())))
+    rpn.globl.write(f"{str(rpn.globl.param_stack.pop())} ")
 
 
 @defword(name='.!', hidden=True, print_x=rpn.globl.PX_IO, args=1)
@@ -665,7 +665,7 @@ Element-wise multiplication.""")
         if not x.same_composite_type_p(y):
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
-            throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+            throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
         if not x.same_shape_p(y):
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
@@ -687,7 +687,7 @@ Element-wise addition.""")
         if not x.same_composite_type_p(y):
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
-            throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+            throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
         if not x.same_shape_p(y):
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
@@ -709,7 +709,7 @@ Element-wise subtraction.""")
         if not x.same_composite_type_p(y):
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
-            throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+            throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
         if not x.same_shape_p(y):
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
@@ -731,7 +731,7 @@ Element-wise division.""")
         if not x.same_composite_type_p(y):
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
-            throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+            throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
         if not x.same_shape_p(y):
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
@@ -753,7 +753,7 @@ Element-wise exponentiation.""")
         if not x.same_composite_type_p(y):
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
-            throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+            throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
         if not x.same_shape_p(y):
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
@@ -775,8 +775,8 @@ def w_dot_all(name):            # pylint: disable=unused-argument
     out = rpn.globl.gfmt(x)
     more = ""
     if type(x) is rpn.type.Integer:
-        more += "  Hex={}".format(hex(x.value))
-        more += "  Oct={}".format(oct(x.value))
+        more += f"  Hex={hex(x.value)}"
+        more += f"  Oct={oct(x.value)}"
 
         ascii_char = ["NUL", "SOH", "STX", "ETX", "EOT", "ENQ", "ACK", "BEL",
                       "BS",  "HT",  "LF",  "VT",  "FF",  "CR",  "SO",  "SI",
@@ -817,9 +817,9 @@ def w_dot_bin(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
-    rpn.globl.write("{} ".format(bin(x.value)))
+    rpn.globl.write(f"{bin(x.value)} ")
 
 
 @defword(name='.hex', args=1, print_x=rpn.globl.PX_IO, doc="""\
@@ -829,9 +829,9 @@ def w_dot_hex(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
-    rpn.globl.write("{} ".format(hex(x.value)))
+    rpn.globl.write(f"{hex(x.value)} ")
 
 
 @defword(name='.oct', args=1, print_x=rpn.globl.PX_IO, doc="""\
@@ -841,9 +841,9 @@ def w_dot_oct(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
-    rpn.globl.write("{} ".format(oct(x.value)))
+    rpn.globl.write(f"{oct(x.value)} ")
 
 
 @defword(name='.r', args=2, print_x=rpn.globl.PX_IO, doc="""\
@@ -858,7 +858,7 @@ def w_dot_r(name):
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
     width = x.value
     if width < 0:
         rpn.globl.param_stack.push(y)
@@ -937,14 +937,14 @@ def w_slash(name):
         except ValueError:
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
-            throw(X_CONFORMABILITY, name, "Y={}, X={}".format(y,x))
+            throw(X_CONFORMABILITY, name, f"Y={y}, X={x}")
         dbg(name, 3, "{}: r={}, type(r)={}, r.dtype={}, r.shape={}, r.ndim={}" \
                      .format(name, type(r), r, r.dtype, r.shape, r.ndim))
         result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
     if x.has_uexpr_p() and not y.has_uexpr_p():
         result.uexpr = x.uexpr.invert()
@@ -966,7 +966,7 @@ def w_slash_mod(name):
     if type(x) is not rpn.type.Integer or type(y) is not rpn.type.Integer:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
     if x.zerop():
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
@@ -1009,7 +1009,7 @@ def w_less_than(name):
        or type(y) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
     if (x.has_uexpr_p() and not y.has_uexpr_p()) or \
        (y.has_uexpr_p() and not x.has_uexpr_p()):
         rpn.globl.param_stack.push(y)
@@ -1037,7 +1037,7 @@ def w_leftshift(name):
     if type(x) is not rpn.type.Integer or type(y) is not rpn.type.Integer:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
     if x.value < 0:
         rpn.globl.param_stack.push(y)
@@ -1058,7 +1058,7 @@ def w_less_than_or_equal(name):
        or type(y) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
     if (x.has_uexpr_p() and not y.has_uexpr_p()) or \
        (y.has_uexpr_p() and not x.has_uexpr_p()):
         rpn.globl.param_stack.push(y)
@@ -1104,7 +1104,7 @@ def w_not_equal(name):
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
         if reason == X_ARG_TYPE_MISMATCH:
-            throw(reason, name, "({} {})".format(typename(y), typename(x)))
+            throw(reason, name, f"({typename(y)} {typename(x)})")
         elif reason == X_UNSUPPORTED:
             throw(reason, name, "Matrix/Vector comparison requires 'numpy' library")
         else:
@@ -1140,7 +1140,7 @@ def w_equal(name):
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
         if reason == X_ARG_TYPE_MISMATCH:
-            throw(reason, name, "({} {})".format(typename(y), typename(x)))
+            throw(reason, name, f"({typename(y)} {typename(x)})")
         elif reason == X_UNSUPPORTED:
             throw(reason, name, "Matrix/Vector comparison requires 'numpy' library")
         else:
@@ -1160,7 +1160,7 @@ def w_greater_than(name):
        or type(y) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
     if (x.has_uexpr_p() and not y.has_uexpr_p()) or \
        (y.has_uexpr_p() and not x.has_uexpr_p()):
         rpn.globl.param_stack.push(y)
@@ -1190,7 +1190,7 @@ def w_greater_than_or_equal(name):
        or type(y) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
     if (x.has_uexpr_p() and not y.has_uexpr_p()) or \
        (y.has_uexpr_p() and not x.has_uexpr_p()):
         rpn.globl.param_stack.push(y)
@@ -1218,7 +1218,7 @@ def w_rightshift(name):
     if type(x) is not rpn.type.Integer or type(y) is not rpn.type.Integer:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
     if x.value < 0:
         rpn.globl.param_stack.push(y)
@@ -1238,7 +1238,7 @@ def w_to_c(name):
        or type(y) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
     rpn.globl.param_stack.push(rpn.type.Complex(float(x.value), float(y.value)))
 
 
@@ -1249,18 +1249,18 @@ def w_to_debug(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     level = x.value
     if level < 0 or level > 9:
         rpn.globl.param_stack.push(x)
-        throw(X_INVALID_ARG, name, "Level {} out of range (0..9 expected)".format(level))
+        throw(X_INVALID_ARG, name, f"Level {level} out of range (0..9 expected)")
     resource = rpn.globl.string_stack.pop()
     # I really want to crash on an unrecognized resource,
     # so let set_debug_level() do that...
     # if not resource.value in rpn.debug.debug_levels:
     #     rpn.globl.param_stack.push(x)
     #     rpn.globl.string_stack.push(resource)
-    #     throw(X_UNDEFINED_WORD, name, "Resource '{}' not recognized".format(resource.value))
+    #     throw(X_UNDEFINED_WORD, name, f"Resource '{resource.value}' not recognized")
     rpn.debug.set_debug_level(resource.value, level)
 
 
@@ -1299,10 +1299,10 @@ def w_to_reg(name):            # pylint: disable=unused-argument
     reg = rpn.util.RegisterSet()
     reg.register = rpn.globl.reg_stack.top().register.copy()
     reg.size     = size_var.obj.value
-    print("settings reg.size to {}".format(size_var.obj.value))
+    print(f"setting reg.size to {size_var.obj.value}")
     reg.sreg     = sreg_var.obj.value
     rpn.globl.reg_stack.push(reg)
-    print("Pushing reg set {}".format(reg))
+    print(f"Pushing reg set {reg}")
 
 
 @defword(name='>unit', args=1, str_args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
@@ -1329,7 +1329,7 @@ Create a 2-vector from the stack.""")
            or type(y) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float, rpn.type.Complex]:
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
-            throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+            throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
         l = rpn.util.List()
         l.append(y)
         l.append(x)
@@ -1400,7 +1400,7 @@ def w_query_dup(name):
     x = rpn.globl.param_stack.top()
     if type(x) not in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex]:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     if not x.zerop():
         rpn.globl.eval_string("dup")
 
@@ -1517,7 +1517,7 @@ def w_caret(name):
        or type(y) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float, rpn.type.Complex]:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
     try:
         r = pow(y.value, x.value)
@@ -1591,7 +1591,7 @@ def w_abs(name):
             raise FatalErr("{}: Cannot handle type {}".format(name, t))
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.param_stack.push(result)
 
 
@@ -1623,7 +1623,7 @@ def w_acos(name):
         result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.param_stack.push(result)
 
 
@@ -1657,7 +1657,7 @@ def w_acosh(name):
         result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.param_stack.push(result)
 
 
@@ -1680,7 +1680,7 @@ def w_alog(name):
     x = rpn.globl.param_stack.pop()
     if type(x) not in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex]:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     r = 10.0 ** x.value
     if type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         result = rpn.type.Float(r)
@@ -1698,7 +1698,7 @@ def w_logand(name):
     if type(x) is not rpn.type.Integer or type(y) is not rpn.type.Integer:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
     rpn.globl.param_stack.push(rpn.type.Integer(bool(x.value) and bool(y.value)))
 
@@ -1738,7 +1738,7 @@ def w_asin(name):
         result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.param_stack.push(result)
 
 
@@ -1772,7 +1772,7 @@ def w_asinh(name):
         result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.param_stack.push(result)
 
 
@@ -1805,7 +1805,7 @@ def w_atan(name):
         result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.param_stack.push(result)
 
 
@@ -1844,7 +1844,7 @@ def w_atan2(name):
     else:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
     rpn.globl.param_stack.push(result)
 
 
@@ -1878,7 +1878,7 @@ def w_atanh(name):
         result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.param_stack.push(result)
 
 
@@ -1943,7 +1943,7 @@ def w_bitand(name):
     if type(x) is not rpn.type.Integer or type(y) is not rpn.type.Integer:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
     rpn.globl.param_stack.push(rpn.type.Integer(y.value & x.value))
 
@@ -1955,7 +1955,7 @@ def w_bitnot(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     rpn.globl.param_stack.push(rpn.type.Integer(~ x.value))
 
@@ -1969,7 +1969,7 @@ def w_bitor(name):
     if type(x) is not rpn.type.Integer or type(y) is not rpn.type.Integer:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
     rpn.globl.param_stack.push(rpn.type.Integer(y.value | x.value))
 
@@ -1984,7 +1984,7 @@ def w_bitxor(name):
     if type(x) is not rpn.type.Integer or type(y) is not rpn.type.Integer:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
     rpn.globl.param_stack.push(rpn.type.Integer(y.value ^ x.value))
 
@@ -2003,7 +2003,7 @@ def w_c_from(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Complex:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.param_stack.push(rpn.type.Float(x.imag()))
     rpn.globl.param_stack.push(rpn.type.Float(x.real()))
 
@@ -2055,7 +2055,7 @@ def w_ceil(name):
         result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.param_stack.push(result)
 
 
@@ -2066,7 +2066,7 @@ def w_cf(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     flag = x.value
     if flag < rpn.flag.FLAG_MIN or flag >= rpn.flag.FLAG_MAX:
         rpn.globl.param_stack.push(x)
@@ -2084,7 +2084,7 @@ def w_chr(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.string_stack.push(rpn.type.String("{}".format(chr(x.value))))
 
 
@@ -2110,7 +2110,7 @@ def w_chs(name):
         result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.param_stack.push(result)
 
 
@@ -2222,7 +2222,7 @@ def w_comb(name):
     if type(x) is not rpn.type.Integer or type(y) is not rpn.type.Integer:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
     # Python 3.8 has math.comb()
     n = y.value
@@ -2296,7 +2296,7 @@ def w_cos(name):
         result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     rpn.globl.param_stack.push(result)
 
@@ -2323,7 +2323,7 @@ def w_cosh(name):
         result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.param_stack.push(result)
 
 
@@ -2334,7 +2334,7 @@ def w_cpf(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     n = x.value
     if n < 1 or n > 365:
         rpn.globl.param_stack.push(x)
@@ -2379,7 +2379,7 @@ Vector dot product.""")
         else:
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
-            throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+            throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
         rpn.globl.param_stack.push(result)
 
@@ -2391,7 +2391,7 @@ def w_d_to_jd(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Float:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     (valid, _, julian) = x.date_info() # middle value is dateobj
     if not valid:
@@ -2419,7 +2419,7 @@ def w_d_to_r(name):
 
     if type(x) not in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     if x.has_uexpr_p() and x.uexpr.dim() != rpn.unit.category["Null"].dim():
         if x.uexpr.dim() != rpn.unit.category["Angle"].dim():
@@ -2450,7 +2450,7 @@ def w_dateinfo(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Float:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.writeln("dateinfo: {}".format(x.date_info()))
 
 
@@ -2463,7 +2463,7 @@ def w_date_plus(name):
     if type(x) is not rpn.type.Integer or type(y) is not rpn.type.Float:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
     (valid, dateobj, julian) = y.date_info()
     if not valid:
@@ -2487,7 +2487,7 @@ def w_date_minus(name):
     if type(x) is not rpn.type.Integer or type(y) is not rpn.type.Float:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
     (valid, dateobj, julian) = y.date_info()
     if not valid:
@@ -2512,7 +2512,7 @@ def w_ddays(name):
     if type(x) is not rpn.type.Float or type(y) is not rpn.type.Float:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
     (valid, _, xjulian) = x.date_info() # middle value is dateobj
     if not valid:
@@ -2599,7 +2599,7 @@ def w_dim(name):
         result = rpn.type.Vector.from_rpn_List(l2) # [ rows cols ]
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.param_stack.push(result)
 
 
@@ -2652,7 +2652,7 @@ Vector dot product.""")
         else:
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
-            throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+            throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
         rpn.globl.param_stack.push(result)
 
@@ -2664,7 +2664,7 @@ def w_dow(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Float:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     (valid, dateobj, _) = x.date_info() # third value is julian
     if not valid:
@@ -2686,7 +2686,7 @@ def w_dow_dollar(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     dow = x.value
     if dow < 1 or dow > 7:
         rpn.globl.param_stack.push(x)
@@ -2710,11 +2710,11 @@ def w_dsp(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     if x.value < 0 or x.value >= rpn.globl.PRECISION_MAX:
         rpn.globl.param_stack.push(x)
-        throw(X_INVALID_ARG, name, "Precision '{}' out of range (0..{} expected)".format(x.value, rpn.globl.PRECISION_MAX - 1))
+        throw(X_INVALID_ARG, name, f"Precision '{x.value}' out of range (0..{rpn.globl.PRECISION_MAX - 1} expected)")
 
     rpn.globl.disp_stack.top().prec = x.value
 
@@ -2770,7 +2770,7 @@ def w_emit(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.write(chr(x.value))
 
 
@@ -2817,11 +2817,11 @@ def w_eng(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     if x.value < 0 or x.value >= rpn.globl.PRECISION_MAX:
         rpn.globl.param_stack.push(x)
-        throw(X_INVALID_ARG, name, "Precision '{}' out of range (0..{} expected)".format(x.value, rpn.globl.PRECISION_MAX - 1))
+        throw(X_INVALID_ARG, name, f"Precision '{x.value}' out of range (0..{rpn.globl.PRECISION_MAX - 1} expected)")
 
     rpn.globl.disp_stack.top().style = "eng"
     rpn.globl.disp_stack.top().prec = x.value
@@ -2864,7 +2864,7 @@ def w_erf(name):
         result = rpn.type.Complex.from_complex(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     result.label = "erf"
     rpn.globl.param_stack.push(result)
 
@@ -2892,7 +2892,7 @@ def w_erfc(name):
         result = rpn.type.Complex.from_complex(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     result.label = "erfc"
     rpn.globl.param_stack.push(result)
 
@@ -2910,7 +2910,7 @@ def w_eval(name):               # pylint: disable=unused-argument
         s.eval()
     else:
         rpn.globl.string_stack.push(s)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(s)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(s)})")
 
 
 @defword(name='exists?', str_args=1, print_x=rpn.globl.PX_PREDICATE, doc="""\
@@ -2951,12 +2951,12 @@ def w_exp(name):
     elif type(x) in [rpn.type.Vector, rpn.type.Matrix]:
         if not rpn.globl.have_module('numpy'):
             rpn.globl.param_stack.push(x)
-            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+            throw(X_UNSUPPORTED, name, f"Operation on {typename(x)} requires 'numpy' library")
         r = np.exp(x.value)
         result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.param_stack.push(result)
 
 
@@ -2972,12 +2972,12 @@ def w_exp_minus_1(name):
     elif type(x) in [rpn.type.Vector, rpn.type.Matrix]:
         if not rpn.globl.have_module('numpy'):
             rpn.globl.param_stack.push(x)
-            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+            throw(X_UNSUPPORTED, name, f"Operation on {typename(x)} requires 'numpy' library")
         r = np.expm1(x.value)
         result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.param_stack.push(result)
 
 
@@ -3057,7 +3057,7 @@ def w_fact(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     if x.value < 0:
         rpn.globl.param_stack.push(x)
         throw(X_FP_INVALID_ARG, name, "X cannot be negative")
@@ -3072,7 +3072,7 @@ def w_fc_query(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     flag = x.value
     if flag < rpn.flag.FLAG_MIN or flag >= rpn.flag.FLAG_MAX:
@@ -3089,7 +3089,7 @@ def w_fc_query_clear(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     flag = x.value
     if flag < rpn.flag.FLAG_MIN or flag >= rpn.flag.FLAG_MAX:
@@ -3108,7 +3108,7 @@ def w_fc_query_set(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     flag = x.value
     if flag < rpn.flag.FLAG_MIN or flag >= rpn.flag.FLAG_MAX:
@@ -3132,7 +3132,7 @@ def w_fib(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     if x.value < 0:
         rpn.globl.param_stack.push(x)
         throw(X_FP_INVALID_ARG, name, "X cannot be negative")
@@ -3147,7 +3147,7 @@ def w_fix(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     if x.value < 0 or x.value >= rpn.globl.PRECISION_MAX:
         rpn.globl.param_stack.push(x)
@@ -3176,7 +3176,7 @@ def w_floor(name):
         result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.param_stack.push(result)
 
 
@@ -3191,7 +3191,7 @@ def w_fmod(name):
        or type(y) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
     if x.zerop():
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
@@ -3230,7 +3230,7 @@ def w_frac(name):
         rpn.globl.param_stack.push(result)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
 
 @defword(name='fs?', print_x=rpn.globl.PX_PREDICATE, args=1, doc="""\
@@ -3240,7 +3240,7 @@ def w_fs_query(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     flag = x.value
     if flag < rpn.flag.FLAG_MIN or flag >= rpn.flag.FLAG_MAX:
@@ -3257,7 +3257,7 @@ def w_fs_query_clear(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     flag = x.value
     if flag < rpn.flag.FLAG_MIN or flag >= rpn.flag.FLAG_MAX:
@@ -3276,7 +3276,7 @@ def w_fs_query_set(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     flag = x.value
     if flag < rpn.flag.FLAG_MIN or flag >= rpn.flag.FLAG_MAX:
@@ -3338,7 +3338,7 @@ EXAMPLE:
         x = rpn.globl.param_stack.pop()
         if    type(x) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
             rpn.globl.param_stack.push(x)
-            throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+            throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
         init_guess = float(x.value)
 
         # XXX There are probably error conditions/exceptions I need to catch
@@ -3398,7 +3398,7 @@ def w_gamma(name):
         result = rpn.type.Complex.from_complex(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     result.label = "gamma"
     rpn.globl.param_stack.push(result)
 
@@ -3416,7 +3416,7 @@ def w_gcd(name):
        or type(y) is not rpn.type.Integer:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
     xval = x.value
     yval = y.value
@@ -3462,19 +3462,20 @@ def w_help(name):               # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
-@defword(name='hmean', print_x=rpn.globl.PX_COMPUTE, doc="""\
+if sys.version_info >= (3, 6):
+    @defword(name='hmean', print_x=rpn.globl.PX_COMPUTE, doc="""\
 hmean   ( -- hmean )
 Return the harmonic mean of the statistics data.""")
-def w_hmean(name):
-    if len(rpn.globl.stat_data) == 0:
-        throw(X_BAD_DATA, name, "No statistics data")
-    try:
-        m = statistics.harmonic_mean(rpn.globl.stat_data)
-    except statistics.StatisticsError as e:
-        throw(X_BAD_DATA, name, "{}".format(str(e)))
-    result = rpn.type.Float(m)
-    result.label = "hmean"
-    rpn.globl.param_stack.push(result)
+    def w_hmean(name):
+        if len(rpn.globl.stat_data) == 0:
+            throw(X_BAD_DATA, name, "No statistics data")
+        try:
+            m = statistics.harmonic_mean(rpn.globl.stat_data)
+        except statistics.StatisticsError as e:
+            throw(X_BAD_DATA, name, "{}".format(str(e)))
+        result = rpn.type.Float(m)
+        result.label = "hmean"
+        rpn.globl.param_stack.push(result)
 
 
 @defword(name='hms', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -3494,7 +3495,7 @@ def w_hms(name):
         result = rpn.type.Float("%d.%02d%02d" % (hours, minutes, seconds))
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     result.label = "HH.MMSS"
     rpn.globl.param_stack.push(result)
 
@@ -3509,7 +3510,7 @@ def w_hms_plus(name):
        or type(y) not in [rpn.type.Integer, rpn.type.Float]:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
     #ynegative = y.value < 0
     if type(y) is rpn.type.Integer:
@@ -3548,7 +3549,7 @@ def w_hms_minus(name):
        or type(y) not in [rpn.type.Integer, rpn.type.Float]:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
     if type(y) is rpn.type.Integer:
         (yvalid, yhh, ymm, yss, _) = rpn.type.Float(y.value).time_info()
@@ -3594,7 +3595,7 @@ def w_hr(name):
         result = rpn.type.Float(negative * hr)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     result.label = "HH.nnn"
     rpn.globl.param_stack.push(result)
 
@@ -3622,7 +3623,7 @@ def w_hypot(name):
     else:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
     rpn.globl.param_stack.push(result)
 
 
@@ -3662,7 +3663,7 @@ Create an NxN identity matrix.""")
             size = x.value[0]
         else:
             rpn.globl.param_stack.push(x)
-            throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+            throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
         result = rpn.type.Matrix.from_ndarray(np.identity(size, dtype=np.int64))
         rpn.globl.param_stack.push(result)
@@ -3727,7 +3728,7 @@ def w_int(name):
         result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.param_stack.push(result)
 
 
@@ -3765,7 +3766,7 @@ def w_inv(name):
         result = rpn.type.Matrix.from_ndarray(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     if x.has_uexpr_p():
         result.uexpr = x.uexpr.invert()
@@ -3797,7 +3798,7 @@ def w_jd_to_dollar(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     if x.value < 1 or x.value > datetime.date.max.toordinal():
         rpn.globl.param_stack.push(x)
@@ -3819,7 +3820,7 @@ def w_jd_to_d(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     if x.value < 1 or x.value > datetime.date.max.toordinal():
         rpn.globl.param_stack.push(x)
@@ -3843,7 +3844,7 @@ Implemented via scipy.special.jv(order, x)""")
            or type(y) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
-            throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+            throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
         order = float(y.value)
         xval = x.value
         r = scipy.special.jv(order, xval)
@@ -3911,7 +3912,7 @@ def w_lcm(name):
        or type(y) is not rpn.type.Integer:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
     xval = x.value
     yval = y.value
@@ -3965,7 +3966,7 @@ def w_lg(name):
         result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.param_stack.push(result)
 
 
@@ -3997,7 +3998,7 @@ def w_ln(name):
         result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.param_stack.push(result)
 
 
@@ -4024,7 +4025,7 @@ def w_ln_1_plus_x(name):
         result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.param_stack.push(result)
 
 
@@ -4071,7 +4072,7 @@ def w_log(name):
         result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.param_stack.push(result)
 
 
@@ -4104,7 +4105,7 @@ def w_max(name):
     else:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
 
 @defword(name='mean', print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -4151,7 +4152,7 @@ def w_min(name):
     else:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
 
 @defword(name='N', print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -4173,7 +4174,7 @@ def w_N(name):
 
     # n = ln[(C-FV)/(C+PV)] / ln(1+i)
     n = math.log((C - fv) / (C + pv)) / math.log1p(i)
-    dbg("tvm", 1, "n={}".format(n))
+    dbg("tvm", 1, f"n={n}")
 
     result = rpn.type.Float(n)
     result.label = "N"
@@ -4193,7 +4194,7 @@ def w_lognot(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     rpn.globl.param_stack.push(rpn.type.Integer(not bool(x.value)))
 
@@ -4227,7 +4228,7 @@ def w_logor(name):
     if type(x) is not rpn.type.Integer or type(y) is not rpn.type.Integer:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
     rpn.globl.param_stack.push(rpn.type.Integer(bool(x.value) or bool(y.value)))
 
@@ -4276,7 +4277,7 @@ def w_p_to_r(name):
         if type(y) not in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
-            throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+            throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
         r     = float(x.value)
         theta = rpn.globl.convert_mode_to_radians(float(y.value))
@@ -4286,7 +4287,7 @@ def w_p_to_r(name):
         rpn.globl.param_stack.push(rpn.type.Float(xval))
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
 
 @defword(name='perm', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -4303,7 +4304,7 @@ def w_perm(name):
     if type(y) is not rpn.type.Integer or type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
     # Python 3.8 has math.perm()
     n = y.value
@@ -4343,14 +4344,14 @@ def w_pick(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     if x.value == 0:
         return
     if x.value < 0 or x.value > rpn.globl.param_stack.size():
         msg = "Stack index out of range"
         if not rpn.globl.param_stack.empty():
-            msg += " (1..{} expected)".format(rpn.globl.param_stack.size())
+            msg += f" (1..{rpn.globl.param_stack.size()} expected)"
         rpn.globl.param_stack.push(x)
         throw(X_INVALID_MEMORY, name, msg)
 
@@ -4395,7 +4396,7 @@ def w_plot(name):
        or type(y) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
     func_to_plot = rpn.globl.string_stack.pop().value
     # XXX - look up func_to_plot, error if not defined
     x_high = float(x.value)
@@ -4431,7 +4432,7 @@ def w_PMT(name):
 
     # PMT = -[FV + PV(A+1)] / (A*B)
     pmt = -1.0 * ((FV + PV*(A+1.0)) / (A * B))
-    dbg("tvm", 1, "pmt={}".format(pmt))
+    dbg("tvm", 1, f"pmt={pmt}")
 
     result = rpn.type.Float(pmt)
     result.label = "PMT"
@@ -4460,7 +4461,7 @@ def w_price(name):              # pylint: disable=unused-argument
        or type(y) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
     markup     = float(y.value)
     purch_cost = float(x.value)
@@ -4477,7 +4478,7 @@ def w_prime_query(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     n = x.value
     if n < 0:
         rpn.globl.param_stack.push(x)
@@ -4565,7 +4566,7 @@ EXAMPLE: Integrate a bessel function jv(2.5, x) along the interval [0,4.5]:
            or type(y) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
-            throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+            throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
         lower = float(y.value)
         upper = float(x.value)
 
@@ -4584,26 +4585,27 @@ EXAMPLE: Integrate a bessel function jv(2.5, x) along the interval [0,4.5]:
         rpn.globl.param_stack.push(res_obj)
 
 
-@defword(name='quantile', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
+if sys.version_info >= (3, 8):
+    @defword(name='quantile', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
 quantile   ( n -- [quantiles] )
 Divide statistics data into n continuous intervals with equal probability.
 Returns a vector of n-1 cut points separating the intervals.
 Set n to 4 for quartiles, 10 for deciles.""")
-def w_quant(name):
-    x = rpn.globl.param_stack.pop()
-    if type(x) is not rpn.type.Integer:
-        rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
-    n = x.value
-    if len(rpn.globl.stat_data) <= n:
-        throw(X_BAD_DATA, name, "Insufficient statistics data ({} required)".format(n+1))
-    try:
-        quantiles = statistics.quantiles(rpn.globl.stat_data, n=n)
-    except statistics.StatisticsError as e:
-        throw(X_BAD_DATA, name, "{}".format(str(e)))
-    result = rpn.type.Vector.from_python_list(quantiles)
-    result.label = "quantile"
-    rpn.globl.param_stack.push(result)
+    def w_quant(name):
+        x = rpn.globl.param_stack.pop()
+        if type(x) is not rpn.type.Integer:
+            rpn.globl.param_stack.push(x)
+            throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
+        n = x.value
+        if len(rpn.globl.stat_data) <= n:
+            throw(X_BAD_DATA, name, "Insufficient statistics data ({} required)".format(n+1))
+        try:
+            quantiles = statistics.quantiles(rpn.globl.stat_data, n=n)
+        except statistics.StatisticsError as e:
+            throw(X_BAD_DATA, name, "{}".format(str(e)))
+        result = rpn.type.Vector.from_python_list(quantiles)
+        result.label = "quantile"
+        rpn.globl.param_stack.push(result)
 
 
 @defword(name='r->d', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
@@ -4622,7 +4624,7 @@ def w_r_to_d(name):
 
     if type(x) not in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     if x.has_uexpr_p() and x.uexpr.dim() != rpn.unit.category["Null"].dim():
         if x.uexpr.dim() != rpn.unit.category["Angle"].dim():
@@ -4660,7 +4662,7 @@ def w_r_to_p(name):
         if type(y) not in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
             rpn.globl.param_stack.push(y)
             rpn.globl.param_stack.push(x)
-            throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+            throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
         theta = math.atan2(y.value, x.value)
         theta_obj = rpn.type.Float(rpn.globl.convert_radians_to_mode(theta))
@@ -4675,7 +4677,7 @@ def w_r_to_p(name):
         rpn.globl.param_stack.push(r_obj)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
 
 @defword(name='r.s', print_x=rpn.globl.PX_IO, doc="""\
@@ -4734,7 +4736,7 @@ def w_randint(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     if x.value < 1:
         rpn.globl.param_stack.push(x)
@@ -4751,7 +4753,7 @@ def w_rcl(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     reg = x.value
     (valid, size) = rpn.globl.register_valid_p(reg)
     if not valid:
@@ -4912,7 +4914,7 @@ def w_rms(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Vector:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     n = x.size()
     if n == 0:
@@ -4951,7 +4953,7 @@ def w_rnd(name):
                           rpn.type.Complex, rpn.type.Vector, rpn.type.Matrix]:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
     places = x.value
     if places < 0 or places > rpn.globl.PRECISION_MAX:
         rpn.globl.param_stack.push(y)
@@ -4986,7 +4988,7 @@ def w_roll(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     if x.value == 0:
         return
@@ -5007,7 +5009,7 @@ def w_s_plus(name):
     x = rpn.globl.param_stack.pop()
     if type(x) not in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     val = float(x.value)
     rpn.globl.stat_data.append(val)
@@ -5021,7 +5023,7 @@ def w_sci(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     if x.value < 0 or x.value >= rpn.globl.PRECISION_MAX:
         rpn.globl.param_stack.push(x)
@@ -5049,7 +5051,7 @@ def w_sf(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     flag = x.value
     if flag < rpn.flag.FLAG_MIN or flag >= rpn.flag.FLAG_MAX:
         rpn.globl.param_stack.push(x)
@@ -5189,7 +5191,7 @@ def w_sign(name):
         result = rpn.type.Integer(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.param_stack.push(result)
 
 
@@ -5222,7 +5224,7 @@ def w_sin(name):
         result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     rpn.globl.param_stack.push(result)
 
@@ -5241,7 +5243,7 @@ def w_sinc(name):
     x = rpn.globl.param_stack.pop()
     if type(x) not in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex]:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     if type(x) is rpn.type.Complex:
         if x.zerop():
             r = complex(1.0, 0.0)
@@ -5281,7 +5283,7 @@ def w_sinh(name):
         result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.param_stack.push(result)
 
 
@@ -5292,7 +5294,7 @@ def w_size(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     new_size = x.value
     if new_size < rpn.globl.SIZE_MIN or new_size > rpn.globl.SIZE_MAX:
         rpn.globl.param_stack.push(x)
@@ -5337,7 +5339,7 @@ def w_sleep(name):
     x = rpn.globl.param_stack.pop()
     if type(x) not in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational]:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     sleep_time = float(x.value)
     time.sleep(sleep_time)
 
@@ -5396,7 +5398,7 @@ def w_sq(name):
         result = rpn.type.Complex.from_complex(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     if x.has_uexpr_p():
         result.uexpr = x.uexpr.raise_to_power(2)
@@ -5432,7 +5434,7 @@ def w_sqrt(name):
         result = rpn.type.Complex.from_complex(cmath.sqrt(complex(x.value)))
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.param_stack.push(result)
 
 
@@ -5443,7 +5445,7 @@ def w_srand(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     random.seed(x.value)
 
@@ -5483,7 +5485,7 @@ def w_sto(name):
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
     reg = x.value
     (valid, size) = rpn.globl.register_valid_p(reg)
     if not valid:
@@ -5506,7 +5508,7 @@ def w_stoI(name):               # pylint: disable=unused-argument
         rpn.globl.reg_stack.top().register['I'] = rpn.type.Integer(int(x.value))
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
 
 @defword(name='stoi', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
@@ -5619,7 +5621,7 @@ def w_tan(name):
         result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
     rpn.globl.param_stack.push(result)
 
@@ -5644,7 +5646,7 @@ def w_tanh(name):
         result = rpn.globl.to_rpn_class(r)
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.param_stack.push(result)
 
 
@@ -5668,7 +5670,7 @@ def w_tf(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     flag = x.value
     if flag < rpn.flag.FLAG_MIN or flag >= rpn.flag.FLAG_MAX:
         rpn.globl.param_stack.push(x)
@@ -5698,7 +5700,7 @@ def w_throw(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     if x.value == 0:
         rpn.globl.param_stack.push(x)
         throw(X_INVALID_ARG, name, "X cannot be zero")
@@ -5736,7 +5738,7 @@ def w_timeinfo(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Float:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     rpn.globl.writeln("timeinfo: {}".format(x.time_info()))
 
 
@@ -5753,7 +5755,7 @@ if rpn.globl.have_module('numpy'):
             return
         if type(x) is not rpn.type.Matrix:
             rpn.globl.param_stack.push(x)
-            throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+            throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
         result = rpn.type.Matrix.from_ndarray(x.value.T)
         rpn.globl.param_stack.push(result)
 
@@ -5836,12 +5838,12 @@ def w_ufact(name):
         rpn.globl.string_stack.push(ustr)
         throw(X_INVALID_UNIT, name, ustr.value)
 
-    print("{}: X ={}".format(name, repr(x.uexpr)))
-    print("{}: ue={}".format(name, repr(ue)))
+    print(f"{name}: X ={repr(x.uexpr)}")
+    print(f"{name}: ue={repr(ue)}")
     new_ue = rpn.unit.UExpr()
-    print("{}: new_ue={}".format(name, repr(new_ue)))
+    print(f"{name}: new_ue={repr(new_ue)}")
     new_dim = [ adim - bdim  for adim, bdim in zip(x.uexpr.dim(), ue.dim()) ]
-    print("{}: new_dim={}".format(name, repr(new_dim)))
+    print(f"{name}: new_dim={repr(new_dim)}")
 
 
 @defword(name='undef', print_x=rpn.globl.PX_CONFIG, doc="""\
@@ -5938,7 +5940,7 @@ Decompose a vector into stack elements.""")
         x = rpn.globl.param_stack.pop()
         if type(x) is not rpn.type.Vector:
             rpn.globl.param_stack.push(x)
-            throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+            throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
         for elem in x.value:
             rpn.globl.param_stack.push(rpn.globl.to_rpn_class(elem))
 
@@ -6047,7 +6049,7 @@ EXAMPLE:
         x = rpn.globl.param_stack.pop()
         if type(x) is not rpn.type.Integer:
             rpn.globl.param_stack.push(x)
-            throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+            throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
         size = x.value
         if size < 1 or size > rpn.globl.MATRIX_MAX:
@@ -6112,7 +6114,7 @@ def w_x_exchange_f(name):
     x = rpn.globl.param_stack.pop()
     if type(x) is not rpn.type.Integer:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
     xval = x.value
     if xval < 0 or xval > 255:
         rpn.globl.param_stack.push(x)
@@ -6141,7 +6143,7 @@ def w_x_exchange_I(name):       # pylint: disable=unused-argument
         rpn.globl.reg_stack.top().register['I'] = rpn.type.Integer(int(x.value))
     else:
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
 
 
 @defword(name='x<>i', args=1, print_x=rpn.globl.PX_CONFIG, doc="""\
@@ -6527,7 +6529,7 @@ def w_logxor(name):
     if type(x) is not rpn.type.Integer or type(y) is not rpn.type.Integer:
         rpn.globl.param_stack.push(y)
         rpn.globl.param_stack.push(x)
-        throw(X_ARG_TYPE_MISMATCH, name, "({} {})".format(typename(y), typename(x)))
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(y)} {typename(x)})")
 
     rpn.globl.param_stack.push(rpn.type.Integer(bool(x.value) != bool(y.value)))
 
@@ -6540,7 +6542,7 @@ if rpn.globl.have_module('numpy'):
         x = rpn.globl.param_stack.pop()
         if type(x) is not rpn.type.Vector:
             rpn.globl.param_stack.push(x)
-            throw(X_ARG_TYPE_MISMATCH, name, "({})".format(typename(x)))
+            throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
         xs = x.size()
 
         if xs == 1:
