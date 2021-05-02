@@ -12,17 +12,16 @@ Move disks 1..n from tower 1 to tower 2, using 3 as spare."
   : move_group_of_disks
     | in:disk in:source in:dest in:spare |
 
-    \ If this is the smallest disk, just move it directly
     @disk 1 = if
-      @disk @source @dest move_one_disk
-    else
-      \ Move N-1 disks from source to spare
-      @disk 1 - @source @spare @dest    recurse
-
-      \ Move last disk onto dest
+      \ If this is the last/single disk, move it directly
       @disk     @source @dest           move_one_disk
-
-      \ Move previous N-1 disks from spare onto dest
+    else
+      \ To move a pile of disks:
+      \ 1. Move N-1 disks from source to spare
+      \ 2. Move last disk onto dest
+      \ 3. Move previous N-1 disks from spare onto dest
+      @disk 1 - @source @spare @dest    recurse
+      @disk     @source @dest           move_one_disk
       @disk 1 - @spare  @dest  @source  recurse
     then
   ;
