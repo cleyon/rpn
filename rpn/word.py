@@ -207,6 +207,15 @@ def w_dollar_drop(name):        # pylint: disable=unused-argument
     rpn.globl.string_stack.pop()
 
 
+@defword(name='$dup', str_args=1, print_x=False, doc="""\
+$dup   ( -- )  [ S -- S S ]
+Duplicate top of string stack.""")
+def w_dollar_dup(name):         # pylint: disable=unused-argument
+    s = rpn.globl.string_stack.pop()
+    rpn.globl.string_stack.push(s)
+    rpn.globl.string_stack.push(s)
+
+
 @defword(name='$len', str_args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
 $len   ( -- n )
 Length of top element of string stack.""")

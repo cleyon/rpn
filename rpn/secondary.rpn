@@ -193,6 +193,22 @@ Remainder."
   @x 0 = if  @y @x "X cannot be zero" X_FP_DIVISION_BY_ZERO $throw then
   @y @x /mod  drop ;
 
+: iplot         doc:"iplot   ( -- ) [ FN -- ]
+Interactively call PLOT.  Repeat with different xlow,xhigh
+until xlow==xhigh.
+
+See also: plot"
+  | xlow xhigh |
+
+  begin
+    "Enter X lower value: " prompt !xlow
+    "Enter X upper value: " prompt !xhigh
+    @xlow @xhigh - 0 = if  leave then
+    @xlow @xhigh $dup plot
+  again
+  $drop
+  ;
+
 : ushow         doc:"ushow   ( x_uexpr -- x_uexpr )
 Show unit expression."
   | in:x |
