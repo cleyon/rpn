@@ -13,6 +13,16 @@ fib(n) = fib(n-1) + fib(n-2)"
   then
 ;
 
+\ This slightly different version uses a named input parameter
+: fib2
+  | in:n |
+  @n 2 < if
+    @n
+  else
+    @n 2 - recurse  @n 1 - recurse  +
+  then
+;
+
 
 \ rfact uses an inout: local variable
 : rfact
