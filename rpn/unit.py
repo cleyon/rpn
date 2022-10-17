@@ -1,10 +1,10 @@
-import re
+'''RPN Units'''
 
 import ply.lex  as lex
 import ply.yacc as yacc
 
 from   rpn.debug     import dbg, whoami
-from   rpn.exception import *
+from   rpn.exception import *   # pylint: disable=wildcard-import
 import rpn.globl
 
 
@@ -23,7 +23,7 @@ t_RPAREN   = r'\)'
 t_SLASH    = r'/'
 
 def t_UNIT(t):
-    r'[a-zA-Z$1Å]+'
+    r'[a-zA-Z$1ÅΩ]+'
     return t
 
 def t_error(t):
@@ -50,6 +50,7 @@ it's simply a CompositeUnit "m/s^2".'''
     def __init__(self, measure_name, dimension):
         self.measure = measure_name
         self._dim = dimension
+        self.base_unit = None
 
     def dim(self):
         return self._dim
@@ -62,95 +63,120 @@ it's simply a CompositeUnit "m/s^2".'''
 
     @classmethod
     def lookup_by_dim(cls, dimension):
+        me = whoami()
         if type(dimension) is not list:
-            raise FatalErr("{}: dimension is not a List".format(whoami()))
+            raise FatalErr("{}: dimension is not a List".format(me))
         if len(dimension) != dim_size:
-            raise FatalErr("{}: len(dimension) != {}".format(whoami(), dim_size))
+            raise FatalErr("{}: len(dimension) != {}".format(me, dim_size))
 
         my_cats = list(filter(lambda c: list(c.dim()) == dimension, category.values()))
         if len(my_cats) == 0:
             return None
-        elif len(my_cats) == 1:
+        if len(my_cats) == 1:
             return my_cats[0]
-        else:
-            raise FatalErr("{}: More than one category matched dimension {}".format(whoami(), dimension))
+        raise FatalErr("{}: More than one category matched dimension {}".format(me, dimension))
 
 def defcategory(measure_name, dimension):
     cat = Category(measure_name, dimension)
     category[measure_name] = cat
     return cat
 
+def deriv_category(measure_name, uexpr):
+    defcategory(measure_name, uexpr.dim())
+
 
 def define_categories():
     #                    kg  m   A   s   cd  sr  mol r   K   $
     defcategory("Null", [0,  0,  0,  0,  0,  0,  0,  0,  0,  0])
 
-    category_name = ["Mass", "Length", "Current", "Time", "Luminous intensity",
-                     "Solid angle", "Amount", "Angle", "Temperature", "Money" ]
+    category_name = ["Mass", "Length", "Current", "Time", "LuminousIntensity",
+                     "SolidAngle", "Amount", "Angle", "Temperature", "Money" ]
     for x in range(dim_size):
         unit_dim = [ item for sbl in [ [0]*x, [1], [0]*(dim_size-1-x) ]
                      for item in sbl ]
         defcategory(category_name[x], unit_dim)
     # -------------------------------------------------------------------------
-    defcategory("Area",                UPow(category["Length"], 2).dim())
-    defcategory("Charge",              UProd(category["Current"], category["Time"]).dim())
-    defcategory("Equivalent dose",     UQuot(UPow(category["Length"], 2),
-                                             UPow(category["Time"], 2)).dim())
-    defcategory("Force",               UQuot(UProd(category["Mass"], category["Length"]),
-                                             UPow(category["Time"], 2)).dim())
-    defcategory("Frequency",           UQuot(UNull(), category["Time"]).dim())
-    defcategory("Linear density",      UQuot(category["Mass"],
-                                             category["Length"]).dim())
-    defcategory("Luminous flux",       UProd(category["Luminous intensity"], category["Solid angle"]).dim())
-    defcategory("Speed",               UQuot(category["Length"],
-                                             category["Time"]).dim())
-    defcategory("Volume",              UPow(category["Length"], 3).dim())
+    deriv_category("Area",                UPow(category["Length"], 2))
+    deriv_category("Charge",              UProd(category["Current"], category["Time"]))
+    deriv_category("Equivalent dose",     UQuot(UPow(category["Length"], 2),
+                                                UPow(category["Time"], 2)))
+    deriv_category("Force",               UQuot(UProd(category["Mass"], category["Length"]),
+                                                UPow(category["Time"], 2)))
+    deriv_category("Frequency",           UQuot(UNull(), category["Time"]))
+    deriv_category("Linear density",      UQuot(category["Mass"],
+                                                category["Length"]))
+    deriv_category("Luminous flux",       UProd(category["LuminousIntensity"], category["SolidAngle"]))
+    deriv_category("Speed",               UQuot(category["Length"],
+                                                category["Time"]))
+    deriv_category("Volume",              UPow(category["Length"], 3))
     # -------------------------------------------------------------------------
-    defcategory("Acceleration",        UQuot(category["Speed"],
-                                             category["Time"]).dim())
-    defcategory("Density",             UQuot(category["Mass"],
-                                             category["Volume"]).dim())
-    defcategory("Dynamic viscosity",   UQuot(UProd(category["Force"], category["Time"]),
-                                             category["Area"]).dim())
-    defcategory("Electric field",      UQuot(category["Force"],
-                                             category["Charge"]).dim())
-    defcategory("Energy",              UProd(category["Force"], category["Length"]).dim())
-    defcategory("Exposure",            UQuot(category["Charge"],
-                                             category["Mass"]).dim())
-    defcategory("Illuminance",         UQuot(category["Luminous flux"],
-                                             category["Area"]).dim())
-    defcategory("Luminance",           UQuot(category["Luminous intensity"],
-                                             category["Area"]).dim())
-    defcategory("Luminous energy",     UProd(category["Luminous flux"], category["Time"]).dim())
-    defcategory("Magnetic field",      UQuot(category["Mass"],                  # aka Magnetic induction
-                                             UProd(category["Charge"], category["Time"])).dim())
-    defcategory("Pressure",            UQuot(category["Force"],                 # aka Stress
-                                             category["Area"]).dim())
+    deriv_category("Acceleration",        UQuot(category["Speed"],
+                                                category["Time"]))
+    deriv_category("Density",             UQuot(category["Mass"],
+                                                category["Volume"]))
+    deriv_category("Dynamic viscosity",   UQuot(UProd(category["Force"], category["Time"]),
+                                                category["Area"]))
+    deriv_category("Electric field",      UQuot(category["Force"],
+                                                category["Charge"]))
+    deriv_category("Energy",              UProd(category["Force"], category["Length"]))
+    deriv_category("Exposure",            UQuot(category["Charge"],
+                                                category["Mass"]))
+    deriv_category("Grammage",            UQuot(category["Mass"],       # e.g., paper
+                                                category["Area"]))
+    deriv_category("Illuminance",         UQuot(category["Luminous flux"],
+                                                category["Area"]))
+    deriv_category("Luminance",           UQuot(category["LuminousIntensity"],
+                                                category["Area"]))
+    deriv_category("Luminous energy",     UProd(category["Luminous flux"], category["Time"]))
+    deriv_category("Magnetic induction",  UQuot(category["Mass"],       # aka Magnetic fild
+                                                UProd(category["Charge"], category["Time"])))
+    deriv_category("Pressure",            UQuot(category["Force"],      # aka Stress
+                                                category["Area"]))
     # -------------------------------------------------------------------------
-    defcategory("Kinematic viscosity", UQuot(category["Dynamic viscosity"],
-                                             category["Density"]).dim())
-    defcategory("Magnetic flux",       UProd(category["Magnetic field"], category["Area"]).dim())
-    defcategory("Power",               UQuot(category["Energy"],
-                                             category["Time"]).dim())
+    deriv_category("Kinematic viscosity", UQuot(category["Dynamic viscosity"],
+                                                category["Density"]))
+    deriv_category("Magnetic flux",       UProd(category["Magnetic induction"], category["Area"]))
+    deriv_category("Power",               UQuot(category["Energy"],
+                                                category["Time"]))
     # -------------------------------------------------------------------------
-    defcategory("Electric potential",  UQuot(category["Power"],
-                                             category["Current"]).dim())
-    defcategory("Inductance",          UQuot(category["Magnetic flux"],
-                                             category["Current"]).dim())
-    defcategory("Magnetic reluctance", UQuot(category["Current"],
-                                             category["Magnetic flux"]).dim())
+    deriv_category("Electric potential",  UQuot(category["Power"],
+                                                category["Current"]))
+    deriv_category("Inductance",          UQuot(category["Magnetic flux"],
+                                                category["Current"]))
+    deriv_category("Magnetic reluctance", UQuot(category["Current"],
+                                                category["Magnetic flux"]))
     # -------------------------------------------------------------------------
-    defcategory("Capacitance",         UQuot(category["Charge"],
-                                             category["Electric potential"]).dim())
-    defcategory("Conductance",         UQuot(category["Current"],
-                                             category["Electric potential"]).dim())
-    defcategory("Elastance",           UQuot(category["Electric potential"],
-                                             category["Charge"]).dim())
-    defcategory("Resistance",          UQuot(category["Electric potential"],
-                                             category["Current"]).dim())
+    deriv_category("Capacitance",         UQuot(category["Charge"],
+                                                category["Electric potential"]))
+    deriv_category("Conductance",         UQuot(category["Current"],
+                                                category["Electric potential"]))
+    deriv_category("Elastance",           UQuot(category["Electric potential"],
+                                                category["Charge"]))
+    deriv_category("Resistance",          UQuot(category["Electric potential"],
+                                                category["Current"]))
     # -------------------------------------------------------------------------
-    defcategory("Restivity",           UProd(category["Resistance"], category["Length"]).dim()) # Preece
+    deriv_category("Restivity",           UProd(category["Resistance"], category["Length"])) # Preece
     # -------------------------------------------------------------------------
+
+
+
+def pp_dim(dim):
+    if dim is None or dim == []:
+        return "Invalid dimensions!"
+
+    if dim == [0,  0,  0,  0,  0,  0,  0,  0,  0,  0]:
+        return "(Dimensionless)"
+
+    ds = []
+    for x in range(dim_size):
+        if dim[x] != 0:
+            unit_dim = [ item for sbl in [ [0]*x, [1], [0]*(dim_size-1-x) ]
+                         for item in sbl ]
+            s = str(Category.lookup_by_dim(unit_dim))
+            if dim[x] != 1:
+                s += f"^{dim[x]}"
+            ds.append(s)
+    return " ".join(ds)
 
 
 
@@ -171,7 +197,7 @@ There are attributes for unit and prefix, but these are not necessary for
 use in the general case -- they are only populated by specific searches,
 and are often None.'''
     def __init__(self):
-        self._dim = category["Null"].dim()
+        self.dim(category["Null"].dim())
         self._exp = 0
         self._base_factor = None
         self.ustr = ""
@@ -191,6 +217,7 @@ and are often None.'''
 
     def ubase(self):
         '''Return a new UExpr equivalent to self but in base units.'''
+        me = whoami()
         numer = []
         denom = []
         for x in range(dim_size):
@@ -198,17 +225,19 @@ and are often None.'''
                 continue
             unit_dim = [ item for sbl in [ [0]*x, [1], [0]*(dim_size-1-x) ]
                            for item in sbl ]
+            # Silence pylint "W0640: Cell variable unit_dim defined in loop (cell-var-from-loop)"
+            # pylint: disable=cell-var-from-loop
             unit_match_list = list(filter(lambda unit: unit.dim() == unit_dim and \
                                                        unit.base_p, units.values()))
             if len(unit_match_list) == 0 or len(unit_match_list) > 1:
-                raise FatalErr("{}: Found {} unit matches for dim {}: {}".format(whoami(), len(unit_match_list), unit_dim, unit_match_list))
+                raise FatalErr("{}: Found {} unit matches for dim {}: {}".format(me, len(unit_match_list), unit_dim, unit_match_list))
             base_unit = unit_match_list[0]
-            dbg("unit", 2, "{}: base unit for dimension x is {}".format(whoami(), base_unit))
+            dbg("unit", 2, "{}: base unit for dimension x is {}".format(me, base_unit))
             abbr = base_unit.abbrev
             pwr = self._dim[x]
-            if base_unit.name == "gram":
-                abbr = "kg"
-                self._exp -= 3 * (abs(pwr) + 1)
+            # if base_unit.name == "gram":
+            #     abbr = "kg"
+            #     self._exp -= 3 * (abs(pwr) + 1)
             if pwr > 1 or pwr < -1:
                 abbr += "^" + str(abs(pwr))
             if pwr > 0:
@@ -224,12 +253,14 @@ and are often None.'''
             s += "/" + "*".join(denom)
         ue = try_parsing(s)
         if ue is None:
-            raise FatalErr("UExpr#ubase: Could not parse base unit string '{}'".format(s, repr(self)))
+            raise FatalErr("{}: Could not parse base unit string '{}'".format(me, s))
 
-        dbg("unit", 1, "{}: Returning {}".format(whoami(), ue))
+        dbg("unit", 1, "{}: Returning {}".format(me, ue))
         return ue
 
-    def dim(self):
+    def dim(self, new_dim=None):
+        if new_dim is not None:
+            self._dim = new_dim
         return self._dim
 
     # XXX - This should be calculated once (on demand) then cached
@@ -240,10 +271,14 @@ and are often None.'''
             dr.pop()
         return dr
 
-    def exp(self):
+    def exp(self, new_exp=None):
+        if new_exp is not None:
+            self._exp = new_exp
         return self._exp
 
-    def base_factor(self):
+    def base_factor(self, new_base_factor=None):
+        if new_base_factor is not None:
+            self._base_factor = new_base_factor
         return self._base_factor
 
     def raise_to_power(self, p):
@@ -276,13 +311,13 @@ class UNull:
         return "1"
     def __repr__(self):
         return "UNull[]"
-    def dim(self):
+    def dim(self):              # pylint: disable=no-self-use
         return category["Null"].dim()
-    def exp(self):
+    def exp(self):              # pylint: disable=no-self-use
         return 0
-    def base_factor(self):
+    def base_factor(self):      # pylint: disable=no-self-use
         return 1
-    def raise_to_power(self, p):
+    def raise_to_power(self, _):
         return self
     def invert(self):
         return self
@@ -293,18 +328,17 @@ class UQuot:
     def __new__(cls, numer, denom):
         if isinstance(denom, UNull):
             return numer
-        elif isinstance(denom, UQuot):
+        if isinstance(denom, UQuot):
             return UProd(numer, denom.invert())
-        elif isinstance(numer, UQuot):
+        if isinstance(numer, UQuot):
             numer.denom = UProd(numer.denom, denom)
             return numer
-        elif numer == denom:
+        if numer == denom:
             return None
-        else:
-            obj = object.__new__(cls)
-            obj.numer = numer
-            obj.denom = denom
-            return obj
+        obj = object.__new__(cls)
+        obj.numer = numer
+        obj.denom = denom
+        return obj
     def __str__(self):
         return str(self.numer) + "/" + str(self.denom)
     def dim(self):
@@ -323,31 +357,29 @@ class UQuot:
     def invert(self):
         if isinstance(self.numer, UNull):
             return self.denom
-        else:
-            return UQuot(self.denom, self.numer)
+        return UQuot(self.denom, self.numer)
 
 class UProd:
     def __new__(cls, lhs, rhs):
         if isinstance(lhs, UNull):
             return rhs
-        elif isinstance(rhs, UNull):
+        if isinstance(rhs, UNull):
             return lhs
-        elif isinstance(lhs, UQuot) and isinstance(rhs, UExpr):
+        if isinstance(lhs, UQuot) and isinstance(rhs, UExpr):
             lhs.numer = UProd(lhs.numer, rhs)
             return lhs
-        elif isinstance(lhs, UExpr) and isinstance(rhs, UQuot):
+        if isinstance(lhs, UExpr) and isinstance(rhs, UQuot):
             rhs.numer = UProd(lhs, rhs.numer)
             return rhs
-        elif isinstance(lhs, UQuot) and isinstance(rhs, UQuot):
+        if isinstance(lhs, UQuot) and isinstance(rhs, UQuot):
             return UQuot(UProd(lhs.numer, rhs.numer),
                          UProd(lhs.denom, rhs.denom))
-        elif lhs == rhs:
+        if lhs == rhs:
             return UPow(lhs, 2)
-        else:
-            obj = object.__new__(cls)
-            obj.lhs = lhs
-            obj.rhs = rhs
-            return obj
+        obj = object.__new__(cls)
+        obj.lhs = lhs
+        obj.rhs = rhs
+        return obj
     def __str__(self):
         return str(self.lhs) + "*" + str(self.rhs)
     def __repr__(self):
@@ -370,30 +402,30 @@ class UPow:
     def __new__(cls, mantissa, power):
         if int(power) == 0:
             return UNull()
-        elif int(power) == 1:
+        if int(power) == 1:
             return mantissa
-        elif isinstance(mantissa, UPow):
+        if isinstance(mantissa, UPow):
             mantissa.power *= int(power)
             return mantissa
-        elif isinstance(mantissa, UExpr) or isinstance(mantissa, Category):
+        if isinstance(mantissa, (UExpr, Category)):
             obj = object.__new__(cls)
             obj.mantissa = mantissa
             obj.power = int(power)
             return obj
-        elif isinstance(mantissa, UQuot):
+        if isinstance(mantissa, UQuot):
             return UQuot(UPow(mantissa.numer, power), UPow(mantissa.denom, power))
-        elif isinstance(mantissa, UProd):
+        if isinstance(mantissa, UProd):
             return UProd(UPow(mantissa.lhs, power), UPow(mantissa.rhs, power))
-        elif isinstance(mantissa, UParen):
+        if isinstance(mantissa, UParen):
             return UParen(UPow(mantissa.inner, power))
-        elif isinstance(mantissa, UNull):
+        if isinstance(mantissa, UNull):
             return UNull()
-        else:
-            print("UPow fell through -- should not happen")
-            obj = object.__new__(cls)
-            obj.mantissa = UParen(mantissa)
-            obj.power = int(power)
-            return obj
+
+        print("UPow fell through -- should not happen")
+        obj = object.__new__(cls)
+        obj.mantissa = UParen(mantissa)
+        obj.power = int(power)
+        return obj
     def __str__(self):
         return str(self.mantissa) + "^" + str(self.power)
     def __repr__(self):
@@ -413,12 +445,11 @@ class UPow:
 
 class UParen:
     def __new__(cls, inner):
-        if isinstance(inner, UExpr) or isinstance(inner, UNull):
+        if isinstance(inner, (UExpr, UNull)):
             return inner
-        else:
-            obj = object.__new__(cls)
-            obj.inner = inner
-            return obj
+        obj = object.__new__(cls)
+        obj.inner = inner
+        return obj
     def __str__(self):
         return "(" + str(self.inner) + ")"
     def __repr__(self):
@@ -462,9 +493,9 @@ expecting 'hours', but this returns hectoradians.'''
     for u in units.values():
         if u.name == text:
             ue = UExpr()
-            ue._dim = u.dim()
-            ue._exp = u.exp()
-            ue._base_factor = u.u_base_factor()
+            ue.dim(u.dim())
+            ue.exp(u.exp())
+            ue.base_factor(u.base_factor())
             ue.unit = u
             return ue
 
@@ -476,9 +507,9 @@ expecting 'hours', but this returns hectoradians.'''
                     continue
                 if text[:len(p[i])] == p[i] and text[len(p[i]):] == u.name:
                     ue = UExpr()
-                    ue._dim = u.dim()
-                    ue._exp = u.exp() + p[2]
-                    ue._base_factor = u.u_base_factor()
+                    ue.dim(u.dim())
+                    ue.exp(u.exp() + p[2])
+                    ue.base_factor(u.base_factor())
                     ue.unit = u
                     ue.prefix = p
                     return ue
@@ -489,9 +520,9 @@ expecting 'hours', but this returns hectoradians.'''
             continue
         if u.abbrev == text:
             ue = UExpr()
-            ue._dim = u.dim()
-            ue._exp = u.exp()
-            ue._base_factor = u.u_base_factor()
+            ue.dim(u.dim())
+            ue.exp(u.exp())
+            ue.base_factor(u.base_factor())
             ue.unit = u
             return ue
 
@@ -505,9 +536,9 @@ expecting 'hours', but this returns hectoradians.'''
                 continue
             if text[:len(p[1])] == p[1] and text[len(p[1]):] == u.abbrev:
                 ue = UExpr()
-                ue._dim = u.dim()
-                ue._exp = u.exp() + p[2]
-                ue._base_factor = u.u_base_factor()
+                ue.dim(u.dim())
+                ue.exp(u.exp() + p[2])
+                ue.base_factor(u.base_factor())
                 ue.unit = u
                 ue.prefix = p
                 return ue
@@ -518,9 +549,9 @@ expecting 'hours', but this returns hectoradians.'''
             continue
         if text in u.syn:
             ue = UExpr()
-            ue._dim = u.dim()
-            ue._exp = u.exp()
-            ue._base_factor = u.u_base_factor()
+            ue.dim(u.dim())
+            ue.exp(u.exp())
+            ue.base_factor(u.base_factor())
             ue.unit = u
             return ue
 
@@ -535,9 +566,9 @@ expecting 'hours', but this returns hectoradians.'''
                         continue
                     if text[:len(p[i])] == p[i] and text[len(p[i]):] == syn:
                         ue = UExpr()
-                        ue._dim = u.dim()
-                        ue._exp = u.exp() + p[2]
-                        ue._base_factor = u.u_base_factor()
+                        ue.dim(u.dim())
+                        ue.exp(u.exp() + p[2])
+                        ue.base_factor(u.base_factor())
                         ue.unit = u
                         ue.prefix = p
                         return ue
@@ -593,6 +624,7 @@ uparser = yacc.yacc(start='uquotient', errorlog=yacc.NullLogger())
 
 def try_parsing(text):
     '''Returns an UExpr object, or None if error'''
+    me = whoami()
     try:
         result = uparser.parse(text, lexer=ulexer)
     except RuntimeErr as e:
@@ -600,7 +632,7 @@ def try_parsing(text):
             result = None
         else:
             raise
-    dbg("unit#parse", 1, "{}: result={}".format(whoami(), result))
+    dbg("unit#parse", 1, "{}: result={}".format(me, result))
     return result
 
 
@@ -619,13 +651,13 @@ prefix_list = [
     ("tera" , "T", +12),
     ("giga" , "G",  +9),
     ("mega" , "M",  +6),
-    ("kilo" , "k",  +3), # 7
+    ("kilo" , "k",  +3), # offset 7
     ("hecto", "h",  +2),
-    ("deka" , "da", +1),
+    ("deka" , "da", +1), # Some use non-standard "D"
     ("deci" , "d",  -1),
     ("centi", "c",  -2),
     ("milli", "m",  -3),
-    ("micro", "u",  -6), # non-standard
+    ("micro", "u",  -6), # "u" non-standard
     ("nano" , "n",  -9),
     ("pico" , "p", -12),
     ("femto", "f", -15),
@@ -661,7 +693,7 @@ class Unit:
         self.base_p = False
         self.deriv = None
         self._dim = None
-        self._orig_exp = None
+        self.orig_exp = None
         self._exp = None
         self._factor = 1
         self.hidden = False
@@ -678,10 +710,11 @@ class Unit:
                 raise FatalErr("Could not construct unit '{}'; category '{}' not valid".format(name, c))
             self._dim = category[c].dim()
             self.base_p = True
+            category[c].base_unit = self
             del kwargs["category"]
 
         if "exp" in kwargs:
-            self._orig_exp = kwargs["exp"]
+            self.orig_exp = kwargs["exp"]
             self._exp = kwargs["exp"]
             del kwargs["exp"]
 
@@ -734,11 +767,13 @@ class Unit:
         # Store in the unit dictionary
         units[name] = self
 
-    def u_base_factor(self):
+    def factor(self):
+        return self._factor
+
+    def base_factor(self):
         if self.base_p:
-            return self._factor
-        else:
-            return self._factor * self.deriv.base_factor()
+            return self.factor()
+        return self.factor() * self.deriv.base_factor()
 
     def dim(self):
         return self._dim
@@ -746,12 +781,9 @@ class Unit:
     def exp(self):
         return self._exp
 
-    def base_factor(self):
-        return self._base_factor
-
     def __repr__(self):
         return "Unit[{},base_factor={},factor={},exp={},dim={}]" \
-            .format(self.name, self.u_base_factor(), self._factor, self.exp(), self.dim())
+            .format(self.name, self.base_factor(), self.factor(), self.exp(), self.dim())
 
     def __str__(self):
         return self.abbrev if self.abbrev is not None else self.name
@@ -772,19 +804,19 @@ def define_units():
     # '50 10_m /  =>  5_1/m'.  This also allows the user to enter a unit object
     # like '50_1' which has a UExpr of no dimensions.  Not sure if that's useful
     # or if it should be disallowed....
-    null_unit = Unit("1", category="Null", hidden=True)
+    null_unit = Unit("1", category="Null", hidden=True) # pylint: disable=unused-variable
 
-    base_units = [
-        Unit("ampere",    category="Current",            abbrev="A",   syn=["amperes", "amp", "amps"]),
-        Unit("candela",   category="Luminous intensity", abbrev="cd",  syn=["candelas"]),
-        Unit("dollar",    category="Money",              abbrev="$",   syn=["USD"]),
-        Unit("gram",      category="Mass",               abbrev="g",   syn=["grams", "gramme", "grammes"]),
-        Unit("kelvin",    category="Temperature",        abbrev="K",   syn=["degK"]),
-        Unit("meter",     category="Length",             abbrev="m",   syn=["meters", "metre", "metres"]),
-        Unit("mole",      category="Amount",             abbrev="mol", syn=["moles", "mols"]),
-        Unit("radian",    category="Angle",              abbrev="r",   syn=["radians"]), # NB - NOT "rad", that's a separate unit
-        Unit("second",    category="Time",               abbrev="s",   syn=["seconds", "sec", "secs"]),
-        Unit("steradian", category="Solid angle",        abbrev="sr",  syn=["steradians"]),
+    base_units = [              # pylint: disable=unused-variable
+        Unit("ampere",    category="Current",           abbrev="A",   syn=["amperes", "amp", "amps"]),
+        Unit("candela",   category="LuminousIntensity", abbrev="cd",  syn=["candelas"]), # Light produced by a standard candle
+        Unit("dollar",    category="Money",             abbrev="$",   syn=["USD"]),
+        Unit("gram",      category="Mass",              abbrev="g",   syn=["grams", "gramme", "grammes"]),
+        Unit("kelvin",    category="Temperature",       abbrev="K",   syn=["degK"]),
+        Unit("meter",     category="Length",            abbrev="m",   syn=["meters", "metre", "metres"]),
+        Unit("mole",      category="Amount",            abbrev="mol", syn=["moles", "mols"]),
+        Unit("radian",    category="Angle",             abbrev="r",   syn=["radians"]), # NOT "rad", that's a radition unit
+        Unit("second",    category="Time",              abbrev="s",   syn=["seconds", "sec", "secs"]),
+        Unit("steradian", category="SolidAngle",        abbrev="sr",  syn=["steradians"]),
     ]
 
 
@@ -793,10 +825,10 @@ def define_units():
     #       D E R I V E D   U N I T S
     #
     #############################################################################
-    derived_units = [
+    derived_units = [           # pylint: disable=unused-variable
         # Length
-        Unit("inch",    factor=   2.54, units="cm",     abbrev="in", syn=["inches", "ins"]),
-        Unit("point",   factor= 1/72,   units="inch",                syn=["points"], hidden=True),
+        Unit("inch",    factor=   2.54, units="cm",      abbrev="in", syn=["inches", "ins"]),
+        Unit("point",   factor= 1/72,   units="inch",                syn=["points"], hidden=True), # abbrev "pt" means "pints"
         Unit("mil",     exp=-3,         units="inch",                syn=["mils"]),
         Unit("foot",    factor=  12,    units="inch",   abbrev="ft", syn=["feet"]),
         Unit("yard",    factor=   3,    units="foot",   abbrev="yd", syn=["yards"]),
@@ -807,19 +839,19 @@ def define_units():
         Unit("link",    exp=-2,         units="chain",               syn=["links"]),
         Unit("nauticalmile", factor=1852, units="meter", abbrev="nmi"),
         Unit("fathom",  factor=6,       units="feet",   abbrev="fath", syn=["fathoms"]),
-        Unit("micron",  exp=-6,         units="m",      abbrev="mu", syn=["microns"]),
+        Unit("micron",  exp=-6,         units="m",      abbrev="mu", syn=["microns"]), # micrometer
         Unit("angstrom", exp=-10,       units="m",      abbrev="Å", syn=["ang", "angstroms"]),
         Unit("fermi",   exp=-15,        units="m"), # Nuclear radii is 1--10 fermis
         Unit("surveyfoot", factor=0.304800609601, units="meter", hidden=True),
-        Unit("astronomicalunit", factor=1.49597870691, exp=11, units="meter", abbrev="au"),
-        Unit("lightyear", factor=9.4607304725808, exp=15, units="meter", abbrev="lyr"),
+        Unit("astronomicalunit", factor=1.49597870700, exp=11, units="meter", abbrev="au"), # exact value defined in 2012
+        Unit("lightyear", factor=9.4607304725800, exp=15, units="meter", abbrev="ly"),
         Unit("parsec",  factor=648000/rpn.globl.PI, units="au", abbrev="pc", syn=["parsecs"]),
 
         # Time
         Unit("minute",    factor=  60,      units="second", abbrev="min", syn=["minutes"]), # Not "m", that's meters
         Unit("hour",      factor=  60,      units="minute", abbrev="h",   syn=["hours", "hr", "hrs"]),
         Unit("day",       factor=  24,      units="hour",   abbrev="d",   syn=["days"]),
-        Unit("week",      factor=   7,      units="day",                  syn=["weeks"]),
+        Unit("week",      factor=   7,      units="day",    abbrev="wk",  syn=["weeks"]),
         Unit("fortnight", factor=   2,      units="week",                 syn=["fortnights"], hidden=True),
         Unit("year",      factor=31556925.9747, units="seconds", abbrev="yr", syn=["years"]), # Tropical year = 365.242198781 day
         Unit("month",     factor=1/12,      units="year",                 syn=["months"], hidden=True),
@@ -877,7 +909,7 @@ def define_units():
         Unit("scruple",   factor=20,         units="grain",              syn=["scruples"]),
         Unit("carat",     factor=2, exp=-1,  units="g",     abbrev="ct", syn=["carats", "karat", "karats"]),
         Unit("ton",       factor=2, exp=3,   units="lb",                 syn=["tons", "shortton", "shorttons"]),
-        Unit("tonne",     exp=3,             units="kg",    abbrev="t",  syn=["tonnes"]),
+        Unit("tonne",     exp=3,             units="kg",    abbrev="t",  syn=["tonnes", "metricton", "metrictons"]),
 
         Unit("dalton", factor=1.660539066605, exp=-27, units="kg", abbrev="Da", syn=["U"]), # Unified atomic mass, = 1/12 mass of Carbon 12
 
@@ -885,6 +917,9 @@ def define_units():
         Unit("pennyweight", factor=24, units="grain", hidden=True),
         Unit("troyounce",   factor=20, units="pennyweight", abbrev="ozt"),
         Unit("troypound",   factor=12, units="troyounce",   abbrev="lbt"),
+
+        # Grammage
+        Unit("gsm", units="g/m^2"),  # Non-standard
 
         # Force
         Unit('newton',        units="kg*m/s^2",    abbrev="N", syn=["newtons"]),
@@ -904,17 +939,20 @@ def define_units():
         Unit("erg",                                  units="dyne*cm",                 syn=["ergs"]),
         Unit("footpound",                            units="foot*lbf", abbrev="ftlb", syn=["footpounds"]),
         Unit("electronvolt", factor=1.602176634e-19, units="J",        abbrev="eV",   syn=["electronvolts"]),
-        Unit("btu",          factor=1055.05585262,   units="J",        abbrev="Btu",  syn=["Btus"]),
+        Unit("btu",          factor=1055.05585262,   units="J",                       syn=["btus"]), # british thermal unit
         Unit("calorie",      factor=4.1868,          units="J",        abbrev="cal",  syn=["cals"]),
         Unit("therm",        exp=5,                  units="btu",                     syn=["therms"]),
         Unit("gallongasoline", factor=114100,        units="btu",                     syn=["galgas"], hidden=True),
 
         # Power
         Unit('watt',      units="J/s", abbrev="W", syn=["watts"]),
-        ## "Mechanical" horsepower is 33,000 foot-pounds of work per minute, which = 745.69987 W
+        ## "Mechanical" horsepower ::= 33,000 foot-pounds of work per minute = 745.69987 W
         Unit("horsepower", factor=33, exp=3, units="footpound/minute", abbrev="hp"),
-        ## "Metric" horsepower is 75 m kgf/s, which = 735.49875 W
+        ## "Metric" horsepower ::= 75 m kgf/s = 735.49875 W
         Unit("metrichorsepower", factor=75, units="m*kgf/s", abbrev="mhp"),
+
+        # Energy (part 2)
+        Unit("watthour",                             units="W*h",      abbrev="Wh",   syn=["watthours"]), # More commonly seen as "kilowatt-hour" on electricity bills
 
         # Pressure
         Unit("pascal",   abbrev="Pa",  units="N/m^2", syn=["pascals"]),
@@ -932,28 +970,37 @@ def define_units():
         Unit("curie",    abbrev="Ci",  factor=3.7, exp=10, units="becquerel", syn=["curies"]),
 
         # Luminous flux
+        # Light power, the total amount of light produced by a light
+        # source.  Luminous flux as a measurement is different than
+        # radiant flux because luminous flux measures only the
+        # electromagnetic waves that the human eye can see while radiant
+        # flux measures all electromagnetic waves emitted by a source.
         Unit("lumen",    abbrev="lm",  units="cd*sr", syn=["lumens"]),
 
         # Illuminance
+        # Light incident on a surface area
         Unit("lux",        abbrev="lx", units="lumen/m^2"),
         Unit("footcandle", abbrev="fc", units="lumen/ft^2"),
         Unit("phot",       abbrev="ph", units="lumen/cm^2"),
 
         # Luminance
+        # Light per unit area emitted in a specific direction (visible to eye)
         Unit("nit",                                                 units="cd/m^2", syn=["nits"]), # from Latin "nitere" = to shine
         Unit("lambert",     abbrev="lam",  factor=rpn.globl.INV_PI, units="cd/cm^2", syn=["lamberts"]),
         Unit("footlabmert", abbrev="flam", factor=rpn.globl.INV_PI, units="cd/ft^2", syn=["footlamberts"]),
         Unit("stilb",       abbrev="sb",                            units="cd/cm^2"),
 
-        # Radiation, loosely
-        Unit("sievert",  abbrev="Sv",  units="J/kg",        syn=["sierverts"]), # Equivalent dose
-        Unit("gray",     abbrev="Gy",  units="J/kg",        syn=["grays"]),     #  " "
-        Unit("rad",      exp=2,        units="erg/g",          syn=["rads"]),
-        Unit("roentgen", abbrev="R",   factor=2.58, exp=-4, units="A*s/kg", syn=["roentgens"]), # Exposure
-        Unit("rem",      exp=-2,       units="sievert"), # rem == Roentgen equivalent man
+        # Charge
+        # see also Faraday constant "Fdy" defined in science.rpn
+        Unit("coulomb",  abbrev="C",                 units="A*s",     syn=["coulombs"]),
+        Unit("amperehour",             factor=3600,  units="coulomb", syn=["amperehours", "amphour", "amphours"]),
 
-        # Conductance
-        Unit("siemens",  abbrev="S",   units="A^2*s^3/kg*m^2", syn=["mho"]),
+        # Radiation, loosely
+        Unit("sievert",  abbrev="Sv",  units="J/kg",        syn=["sieverts"]), # Equivalent dose
+        Unit("gray",     abbrev="Gy",  units="J/kg",        syn=["grays"]),    # Equivalent dose
+        Unit("rad",      exp=2,        units="erg/g",       syn=["rads"]),
+        Unit("roentgen", abbrev="R",   factor=2.58, exp=-4, units="C/kg", syn=["roentgens"]), # Exposure
+        Unit("rem",      exp=-2,       units="sievert"),    # rem == Roentgen equivalent man
 
         # Angle
         Unit("degree",    abbrev="deg",    factor=rpn.globl.RAD_PER_DEG,  units="radians", syn=["degrees"]),
@@ -961,26 +1008,37 @@ def define_units():
         Unit("arcsecond", abbrev="arcsec", factor=1/60,                   units="arcmin",  syn=["arcseconds"]),
         Unit("gradian",   abbrev="grad",   factor=rpn.globl.RAD_PER_GRAD, units="radians", syn=["gradians"]),
 
-        # Charge
-        Unit("coulomb",  abbrev="C",                 units="A*s", syn=["coulombs"]),
-        Unit("faraday",  abbrev="Fdy", factor=96487, units="A*s", syn=["faradays"]),
-        Unit("amperehour", factor=3600, units="coulomb", syn=["amperehours", "amphour", "amphours"]),
+        # Electric potential
+        Unit("volt",     abbrev="V",   units="W/A", syn=["volts"]),
 
         # Magnetic flux
-        Unit("weber",    abbrev="Wb",         units="kg*m^2/A*s^2", syn=["webers"]),
-        Unit("maxwell",  abbrev="Mx", exp=-8, units="weber",        syn=["maxwells"]),
+        Unit("weber",    abbrev="Wb",         units="V*s",   syn=["webers"]),
+        Unit("maxwell",  abbrev="Mx", exp=-8, units="weber", syn=["maxwells"]),
 
         # Magnetic induction (field)
-        Unit("tesla",    abbrev="T",   units="kg/A*s^2"),
+        Unit("tesla",    abbrev="T",   units="Wb/m^2"),
         Unit("gauss",    exp=-4,       units="tesla"), # G?
 
-        # Others
-        Unit("farad",    abbrev="F",   units="s^4*A^2/kg*m^2", syn=["farads"]),    # Capacitance
-        Unit("henry",    abbrev="H",   units="kg*m^2/A^2*s^2", syn=["henries"]),   # Inductance
-        Unit("ohm",                    units="kg*m^2/A^2*s^3", syn=["ohms"]),      # Resistance
-        Unit("poise",    abbrev="P",   exp=-1, units="Pa*s"),                      # Dynamic viscosity
-        Unit("stokes",   abbrev="St",  exp=-4, units="m^2/s"),                     # Kinematic viscosity
-        Unit("volt",     abbrev="V",   units="kg*m^2/A*s^3",   syn=["volts"]),     # Electric potential
+        # Conductance
+        Unit("siemens",  abbrev="S",   units="A/V", syn=["mho"]),
+
+        # Inductance
+        Unit("henry",    abbrev="H",   units="Wb/A", syn=["henries"]),
+
+        # Capacitance
+        Unit("farad",    abbrev="F",   units="C/V", syn=["farads"]),
+
+        # Resistance
+        Unit("ohm",                    units="V/A", abbrev="Ω", syn=["ohms"]),
+
+        # Dynamic viscosity
+        Unit("poise",    abbrev="P",   exp=-1, units="Pa*s"),
+
+        # Kinematic viscosity
+        Unit("stokes",   abbrev="St",  exp=-4, units="m^2/s"),
+
+        # Spectral flux density
+        Unit("Jansky", abbrev="Jy", exp=-26, units="W/m^2*Hz"),
 
         # Temperature
 '''

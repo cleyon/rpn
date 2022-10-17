@@ -16,7 +16,7 @@ except ModuleNotFoundError:
     sys.exit(1)
 
 from   rpn.debug     import dbg, whoami, typename
-from   rpn.exception import *
+from   rpn.exception import *   # pylint: disable=wildcard-import
 import rpn.globl
 
 
@@ -38,9 +38,10 @@ class Executable:
 #############################################################################
 class AbortQuote(Executable):
     def __init__(self, val):
+        me = whoami()
         self.name = 'abort"'
         if len(val) < 7 or val[0:6] != 'abort"' or val[-1] != '"':
-            raise FatalErr("{}: Malformed string: '{}'".format(whoami(), val))
+            raise FatalErr("{}: Malformed string: '{}'".format(me, val))
         self._str = val[6:-1]
 
     def stringval(self):
@@ -305,25 +306,27 @@ class CaseClause(Executable):
 #############################################################################
 class Catch(Executable):
     def __init__(self, word, scope):
+        me = whoami()
         self.name = 'catch'
         if type(word) is not rpn.util.Word:
-            raise FatalErr("{}: Word {} is not an rpn.util.Word".format(whoami(), repr(word)))
+            raise FatalErr("{}: Word {} is not an rpn.util.Word".format(me, repr(word)))
         if type(scope) is not rpn.util.Scope:
-            raise FatalErr("{}: Scope {} is not an rpn.util.Scope".format(whoami(), repr(scope)))
-        dbg("catch", 1, "{}: Catch({})".format(whoami(), word))
+            raise FatalErr("{}: Scope {} is not an rpn.util.Scope".format(me, repr(scope)))
+        dbg("catch", 1, "{}: Catch({})".format(me, word))
         self._word = word
         self._scope = scope
 
     def __call__(self, name):
+        me = whoami()
         dbg("trace", 1, "trace({})".format(repr(self)))
-        dbg("catch", 1, "Calling {}: word={}, scope={}".format(whoami(), repr(self._word), repr(self._scope)))
+        dbg("catch", 1, "Calling {}: word={}, scope={}".format(me, repr(self._word), repr(self._scope)))
         try:
             rpn.globl.execute(self._word)
         except RuntimeErr as err_catch:
-            dbg("catch", 1, "{}: Caught a throw, e={}".format(whoami(), str(err_catch)))
+            dbg("catch", 1, "{}: Caught a throw, e={}".format(me, str(err_catch)))
             rpn.globl.param_stack.push(rpn.type.Integer(int(err_catch.code)))
         else:
-            dbg("catch", 1, "{}: Nothing caught, finishing normally".format(whoami()))
+            dbg("catch", 1, "{}: Nothing caught, finishing normally".format(me))
             rpn.globl.param_stack.push(rpn.type.Integer(0))
 
     def __str__(self):
@@ -480,9 +483,10 @@ class DoPlusLoop(Executable):
 #############################################################################
 class DotQuote(Executable):
     def __init__(self, val):
+        me = whoami()
         self.name = '."'
         if len(val) < 3 or val[0:2] != '."' or val[-1] != '"':
-            raise FatalErr("{}: Malformed string: '{}'".format(whoami(), val))
+            raise FatalErr("{}: Malformed string: '{}'".format(me, val))
         self._str = val[2:-1]
 
     def stringval(self):
@@ -597,11 +601,12 @@ the right thing with empty stack (uses zero)."""
 #############################################################################
 class Forget(Executable):
     def __init__(self, word, scope):
+        me = whoami()
         self.name = 'forget'
         if type(word) is not rpn.util.Word:
-            raise FatalErr("{}: {} is not a Word".format(whoami(), repr(word)))
+            raise FatalErr("{}: {} is not a Word".format(me, repr(word)))
         if type(scope) is not rpn.util.Scope:
-            raise FatalErr("{}: {} is not a Scope".format(whoami(), repr(scope)))
+            raise FatalErr("{}: {} is not a Scope".format(me, repr(scope)))
         self._word = word
         self._scope = scope
 
@@ -653,9 +658,10 @@ class Help(Executable):
 #############################################################################
 class Hide(Executable):
     def __init__(self, word):
+        me = whoami()
         self.name = 'hide'
         if type(word) is not rpn.util.Word:
-            raise FatalErr("{}: {} is not a Word".format(whoami(), repr(word)))
+            raise FatalErr("{}: {} is not a Word".format(me, repr(word)))
         self._word = word
 
     def __call__(self, name):
@@ -723,9 +729,10 @@ class IfElse(Executable):
 #############################################################################
 class Recurse(Executable):
     def __init__(self, target=None):
+        me = whoami()
         self.name = 'recurse'
         if target is not None and type(target) is not rpn.util.Word:
-            raise FatalErr("{}: Target '{}' is not an rpn.util.Word".format(whoami(), repr(target)))
+            raise FatalErr("{}: Target '{}' is not an rpn.util.Word".format(me, repr(target)))
         self._target = target
 
     def __call__(self, name):
@@ -738,10 +745,11 @@ class Recurse(Executable):
         return self._target
 
     def patch_recurse(self, new_word):
+        me = whoami()
         if self.target() is None:
             self._target = new_word
         else:
-            raise FatalErr("{}: Invoked on already patched Recurse object".format(whoami()))
+            raise FatalErr("{}: Invoked on already patched Recurse object".format(me))
 
     def __str__(self):
         return "recurse"
@@ -759,14 +767,15 @@ class Recurse(Executable):
 #############################################################################
 class Show(Executable):
     def __init__(self, word):
+        me = whoami()
         self.name = 'show'
         if type(word) is not rpn.util.Word:
-            raise FatalErr("{}: Word {} is not an rpn.util.Word".format(whoami(), repr(word)))
+            raise FatalErr("{}: Word {} is not an rpn.util.Word".format(me, repr(word)))
         self._word = word
 
     def __call__(self, name):
         dbg("trace", 1, "trace({})".format(repr(self)))
-        rpn.globl.writeln(self._word.as_definition())
+        rpn.globl.lnwriteln(self._word.as_definition())
 
     def __str__(self):
         return "show {}".format(self._word.name)
@@ -823,7 +832,7 @@ The TOS is consumed as normal."""
                 rpn.globl.lnwriteln(str(err_pre_hook_store))
                 return
 
-        if not stringp and self._modifier is not None:
+        if not stringp and self._modifier in ['+', '-', '*', '/']:
             rpn.globl.param_stack.push(cur_obj)
             rpn.flag.copy_flag(rpn.flag.F_SHOW_X, 54)
             rpn.globl.eval_string("swap")

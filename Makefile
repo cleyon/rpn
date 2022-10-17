@@ -20,6 +20,7 @@ unused_import=W0614
 #PYLINT_IGNORE=$(line_too_long),$(bad_whitespace),$(missing_function_docstring),$(invalid_name),$(missing_class_docstring),$(unidiomatic_typecheck),$(fixme),$(unused_import)
 PYLINT_IGNORE=$(line_too_long),$(bad_whitespace),$(missing_function_docstring),$(invalid_name),$(missing_class_docstring),$(unidiomatic_typecheck),$(too_many_boolean_expressions),$(too_many_statements),$(too_many_branches),$(too_many_return_statements),$(too_many_locals),$(too_few_public_methods),$(too_many_instance_attributes),$(fixme),$(unused_import)
 
+SAFE_EXTENSIONS=cmath,fcntl,math,termios
 DEJAGNU_GLOBAL_CONFIG=/dev/null
 
 all:
@@ -33,7 +34,7 @@ clean:
 	@-find . -type f -name parser.out  -exec rm -f  {} \;  >/dev/null 2>&1
 
 lint:
-	pylint -d $(PYLINT_IGNORE) rpn
+	pylint --extension-pkg-whitelist=$(SAFE_EXTENSIONS) -d $(PYLINT_IGNORE) rpn
 
 lintall:
 	pylint rpn

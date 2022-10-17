@@ -16,73 +16,70 @@ import traceback
 
 # Check if NumPy is available
 try:
-    import numpy as np                  # pylint: disable=import-error
+    import numpy as np          # pylint: disable=import-error
 except ImportError:
     pass
 
 # Check if SciPy is available
 try:
-    import scipy.integrate              # pylint: disable=import-error
-    import scipy.optimize               # pylint: disable=import-error
+    import scipy.integrate      # pylint: disable=import-error
+    import scipy.optimize       # pylint: disable=import-error
 except ModuleNotFoundError:
     pass
 
 # Check if Matplotlib is available
 try:
-    import matplotlib                   # pylint: disable=import-error
+    import matplotlib           # pylint: disable=import-error
 except ModuleNotFoundError:
     pass
 
 
 from   rpn.debug     import dbg, whoami
-from   rpn.exception import *
+from   rpn.exception import *   # pylint: disable=wildcard-import
 import rpn.flag
 import rpn.parser
 import rpn.util
 
 
-RPN_VERSION     = 15.8
+RPN_VERSION  = 15.8
 
-PX_COMPUTE              = True  # Arithmetic/Computed functions print their results
-PX_CONFIG               = None  # Stack manip, flags, modes, register, conversions, etc
-PX_CONTROL              = None  # Control structures (IF/THEN, DO/LOOP) have no effect
-PX_IO                   = False # I/O (.", .s, etc) disable printing
-PX_PREDICATE            = True  # Predicates.  (Was None, but I want to try seeing the values)
+DATE_RE       = re.compile(r'^(\d{1,2})\.(\d{2})(\d{4})$') # MM.DDYYYY
+INTEGER_RE    = re.compile(r'^\d+$')
+JULIAN_OFFSET = 1721424 # date.toordinal() returns 1 for 0001-01-01, so compensate
+MATRIX_MAX    = 999
+PRECISION_MAX = 16
+PX_COMPUTE    = True  # Arithmetic/Computed functions print their results
+PX_CONFIG     = None  # Stack manip, flags, modes, register, conversions, etc
+PX_CONTROL    = None  # Control structures (IF/THEN, DO/LOOP) have no effect
+PX_IO         = False # I/O (.", .s, etc) disable printing
+PX_PREDICATE  = True  # Predicates.  (Was None, but I want to try seeing the values)
+RATIONAL_RE   = re.compile(r'^(\d+)::(\d+)(_([a-zA-Z]+))?$')              # ddd::ddd
+SIZE_MIN      = 17
+SIZE_MAX      = 320   # R00..R319; further restricted by SIZE
+TIME_RE       = re.compile(r'^[-+]?(\d+)\.(\d{,2})(\d*)$') # HH.MMSSsss
 
-REG_SIZE_MIN            =  17
-REG_SIZE_MAX            = 100   # R00..R99; further restricted by SIZE
-
-disp_stack   = rpn.util.Stack("Display stack", 1)
-param_stack  = rpn.util.Stack("Parameter stack")
-parse_stack  = rpn.util.Stack("Parse stack")
-return_stack = rpn.util.Stack("Return stack")
-scope_stack  = rpn.util.Stack("Scope stack", 1)
-string_stack = rpn.util.Stack("String stack")
-colon_stack  = rpn.util.Stack("Colon stack")
-
-root_scope = rpn.util.Scope("ROOT")
-
-register          = dict()
-stat_data         = []
-interactive       = None
+colon_stack       = rpn.util.Stack("Colon stack")
 default_protected = True
+disp_stack        = rpn.util.Stack("Display stack", 1)
 got_interrupt     = False
+interactive       = None
 lexer             = None
+param_stack       = rpn.util.Stack("Parameter stack")
+parse_stack       = rpn.util.Stack("Parse stack")
+reg_stack         = rpn.util.Stack("Register stack", 1)
+return_stack      = rpn.util.Stack("Return stack")
+root_scope        = rpn.util.Scope("ROOT")
+rpn_parser        = None
+scope_stack       = rpn.util.Stack("Scope stack", 1)
 scr_cols          = None
 scr_rows          = None
 sharpout          = None
 sigint_detected   = False
-rpn_parser        = None
+stat_data         = []
+string_stack      = rpn.util.Stack("String stack")
 uexpr             = dict()
 
 
-DATE_RE                 = re.compile(r'^(\d{1,2})\.(\d{2})(\d{4})$') # MM.DDYYYY
-INTEGER_RE              = re.compile(r'^\d+$')
-JULIAN_OFFSET           = 1721424 # date.toordinal() returns 1 for 0001-01-01, so compensate
-PRECISION_MAX           =  16
-MATRIX_MAX              = 999
-RATIONAL_RE             = re.compile(r'^(\d+)::(\d+)(_([a-zA-Z]+))?$')              # ddd::ddd
-TIME_RE                 = re.compile(r'^[-+]?(\d+)\.(\d{,2})(\d*)$') # HH.MMSSsss
 
 # DEG_PER_RAD  = 360 / TAU
 # E            = Base of natural logarithms = exp(1.0)
@@ -127,6 +124,7 @@ def bool_to_int(condition):
 
 
 def convert_mode_to_radians(x, force_mode=None):
+    me = whoami()
     mode = force_mode if force_mode is not None else angle_mode_letter()
     if mode == "r":
         return x
@@ -134,10 +132,11 @@ def convert_mode_to_radians(x, force_mode=None):
         return x / DEG_PER_RAD
     if mode == "g":
         return x / GRAD_PER_RAD
-    raise FatalErr("{}: Bad angle_mode '{}'".format(whoami(), mode))
+    raise FatalErr("{}: Bad angle_mode '{}'".format(me, mode))
 
 
 def convert_radians_to_mode(r, force_mode=None):
+    me = whoami()
     mode = force_mode if force_mode is not None else angle_mode_letter()
     if mode == "r":
         return r
@@ -145,20 +144,22 @@ def convert_radians_to_mode(r, force_mode=None):
         return r * DEG_PER_RAD
     if mode == "g":
         return r * GRAD_PER_RAD
-    raise FatalErr("{}: Bad angle_mode '{}'".format(whoami(), mode))
+    raise FatalErr("{}: Bad angle_mode '{}'".format(me, mode))
 
 
 def defvar(name, value, **kwargs):
+    me = whoami()
     if type(name) is not str:
         raise FatalErr("defvar: name '{}' is not a string ".format(name))
     root_scope.add_vname(rpn.util.VName(name))
     var = rpn.util.Variable(name, value, **kwargs)
-    dbg(whoami(), 1, "{}: Creating variable {} at address {} in {}".format(whoami(), name, hex(id(var)), repr(root_scope)))
+    dbg(me, 1, "{}: Creating variable {} at address {} in {}".format(me, name, hex(id(var)), repr(root_scope)))
     root_scope.define_variable(name, var)
     return var
 
 
 def eval_string(s):
+    me = whoami()
     dbg("eval_string", 1, "eval_string('{}')".format(s))
     scope_stack_size = scope_stack.size()
     rpn.parser.initialize_lexer()
@@ -169,7 +170,7 @@ def eval_string(s):
         if str(e) != 'EOF':
             rpn.globl.lnwriteln("Parse error: {}".format(str(e)))
     except RuntimeErr as e:
-        dbg(whoami(), 1, "{}: Caught RuntimeErr, code={}".format(whoami(), e.code))
+        dbg(me, 1, "{}: Caught RuntimeErr, code={}".format(me, e.code))
         if e.code >= 0:
             raise
         if e.code == X_ABORT or \
@@ -187,6 +188,8 @@ def eval_string(s):
                 lnwriteln("eval_string: " + str(e))
             else:
                 lnwriteln(str(e))
+            # Don't print X if we caught a runtime error
+            rpn.flag.clear_flag(rpn.flag.F_SHOW_X)
     else:
         if result is not None:
             dbg("eval_string", 1, "result={}".format(result))
@@ -198,11 +201,12 @@ def eval_string(s):
 
 
 def execute(executable):
-    dbg(whoami(), 1, "execute: {}/{}".format(type(executable), executable))
+    me = whoami()
+    dbg(me, 1, "execute: {}/{}".format(type(executable), executable))
     try:
         try:
             if type(executable) is rpn.util.Word and executable.typ == "colon":
-                dbg(whoami(), 2, ">>>>  {}  <<<<".format(executable.name))
+                dbg(me, 2, ">>>>  {}  <<<<".format(executable.name))
                 rpn.globl.colon_stack.push(executable)
             executable.__call__(executable.name)
         finally:
@@ -215,10 +219,9 @@ def execute(executable):
             rpn.globl.lnwriteln(throw_code_text[X_INTERRUPT])
             rpn.globl.sigint_detected = False
             raise
-        elif err_execute.code == X_EXIT:
+        if err_execute.code == X_EXIT:
             return
-        else:
-            raise
+        raise
 
 # I should really just use __format__() correctly
 def gfmt(x):
@@ -305,44 +308,47 @@ def separate_decorations(ident):
 
 
 def lookup_variable(name, how_many=1):
+    me = whoami()
     for (_, scope) in scope_stack.items_top_to_bottom():
-        dbg(whoami(), 1, "{}: Looking for variable {} in {}...".format(whoami(), name, scope.name))
-        dbg(whoami(), 3, "{} has variables: {}".format(scope.name, scope.variables()))
+        dbg(me, 1, "{}: Looking for variable {} in {}...".format(me, name, scope.name))
+        dbg(me, 3, "{} has variables: {}".format(scope.name, scope.variables()))
         var = scope.variable(name)
         if var is None:
             continue
         how_many -= 1
         if how_many > 0:
             continue
-        dbg(whoami(), 2, "{}: Found variable {} in {}: {}".format(whoami(), name, repr(scope), repr(var)))
+        dbg(me, 2, "{}: Found variable {} in {}: {}".format(me, name, repr(scope), repr(var)))
         return (var, scope)
-    dbg(whoami(), 2, "{}: Variable {} not found".format(whoami(), name))
+    dbg(me, 2, "{}: Variable {} not found".format(me, name))
     #traceback.print_stack(file=sys.stderr)
     return (None, None)
 
 
 def lookup_vname(ident):
+    me = whoami()
     if type(ident) is not str:
         raise FatalErr("lookup_vname: ident '{}' is not a string".format(ident))
     for (_, scope) in scope_stack.items_top_to_bottom():
-        dbg(whoami(), 1, "{}: Looking for vname {} in {}...".format(whoami(), ident, repr(scope)))
-        dbg(whoami(), 3, "{} has vnames: {}".format(scope, scope.vnames()))
+        dbg(me, 1, "{}: Looking for vname {} in {}...".format(me, ident, repr(scope)))
+        dbg(me, 3, "{} has vnames: {}".format(scope, scope.vnames()))
         if scope.has_vname_named(ident):
-            dbg(whoami(), 2, "{}: Found vname {} in {}".format(whoami(), ident, repr(scope)))
+            dbg(me, 2, "{}: Found vname {} in {}".format(me, ident, repr(scope)))
             return (scope.vname(ident), scope)
-    dbg(whoami(), 2, "{}: VName {} not found".format(whoami(), ident))
+    dbg(me, 2, "{}: VName {} not found".format(me, ident))
     return (None, None)
 
 
 def lookup_word(name):
+    me = whoami()
     for (_, scope) in scope_stack.items_top_to_bottom():
-        dbg(whoami(), 1, "{}: Looking for word {} in {}...".format(whoami(), name, scope))
-        dbg(whoami(), 3, "{} has words: {}".format(scope, scope.words))
+        dbg(me, 1, "{}: Looking for word {} in {}...".format(me, name, scope))
+        dbg(me, 3, "{} has words: {}".format(scope, scope.words))
         word = scope.word(name)
         if word is not None and not word.smudge():
-            dbg(whoami(), 2, "{}: Found word {} in {}: {}".format(whoami(), name, scope, word))
+            dbg(me, 2, "{}: Found word {} in {}: {}".format(me, name, scope, word))
             return (word, scope)
-    dbg(whoami(), 2, "{}: Word {} not found".format(whoami(), name))
+    dbg(me, 2, "{}: Word {} not found".format(me, name))
     return (None, None)
 
 
@@ -369,8 +375,7 @@ def pop_scope(why):
         if e.code == X_STACK_UNDERFLOW:
             traceback.print_stack(file=sys.stderr)
             raise FatalErr("Attempting to pop Root scope!") from e
-        else:
-            raise
+        raise
 
     dbg("scope", 2, "Pop  {} due to {}".format(repr(scope), why))
     #dbg("scope", 1, "Pop  {}".format(repr(scope)))
@@ -384,6 +389,17 @@ def push_scope(scope, why):
     rpn.globl.scope_stack.push(scope)
 
 
+def register_valid_p(reg):
+    me = whoami()
+    if not isinstance(reg, int):
+        raise FatalErr("{}: Attempting to validate non-integer register {}".format(me, reg))
+    (sizevar, _) = rpn.globl.lookup_variable("SIZE")
+    size = sizevar.obj.value
+    if 0 <= reg < size:
+        return (True, size)
+    return (False, size)
+
+
 def update_screen_size():
     tty_rows = 0
     tty_columns = 0
@@ -391,6 +407,8 @@ def update_screen_size():
         stty_size = subprocess.check_output(['stty', 'size']).decode().split()
         if len(stty_size) == 2:
             tty_rows, tty_columns = stty_size
+            tty_rows = int(tty_rows)
+            tty_columns = int(tty_columns)
 
     #rpn.globl.lnwriteln("{} x {}".format(tty_rows, tty_columns))
     if int(tty_columns) == 0:
@@ -404,6 +422,7 @@ def update_screen_size():
 
 
 def to_python_class(n):
+    me = whoami()
     t = type(n)
     if t is np.int64:
         return int(n)
@@ -411,20 +430,30 @@ def to_python_class(n):
         return float(n)
     if t is np.complex128:
         return complex(n)
-    raise FatalErr("{}: Cannot handle type {}".format(whoami(), t))
+    raise FatalErr("{}: Cannot handle type {}".format(me, t))
 
 
 def to_rpn_class(n):
+    me = whoami()
     t = type(n)
-    if t in [int, np.int64]:
+    dbg(me, 1, "{}: n={}, type={}".format(me, n, t))
+    if t is int:
         return rpn.type.Integer(n)
+    if t is np.int64 and n.ndim == 0:
+        return rpn.type.Integer(int(n))
     if t in [float, np.float64]:
-        return rpn.type.Float(n)
+        return rpn.type.Float(float(n))
     if t is Fraction:
         return rpn.type.Rational.from_Fraction(n)
     if t in [complex, np.complex128]:
         return rpn.type.Complex.from_complex(n)
-    raise FatalErr("{}: Cannot handle type {}".format(whoami(), t))
+    if t is np.ndarray:
+        if n.ndim == 1:
+            return rpn.type.Vector.from_ndarray(n)
+        if n.ndim == 2:
+            return rpn.type.Matrix.from_ndarray(n)
+        raise FatalErr("{}: Found ndarray but ndim={} not in [1,2]".format(me, n.dim))
+    raise FatalErr("{}: Cannot handle type {}".format(me, t))
 
 
 def show_version_info():

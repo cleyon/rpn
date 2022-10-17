@@ -44,20 +44,10 @@
 '''
 
 import copy
-from   fractions import Fraction
 import datetime
-
-T_INTEGER   = 0
-T_RATIONAL  = 1
-T_FLOAT     = 2
-T_COMPLEX   = 3
-T_VECTOR    = 4
-T_MATRIX    = 5
-T_STRING    = 6
-T_LIST      = 7         # Not implemented yet
-T_SYMBOL    = 8
-T_HAS_UNIT  = 1 << 4
-T_HAS_LABEL = 1 << 5
+from   fractions import Fraction
+import numbers
+import traceback
 
 # Check if NumPy is available
 try:
@@ -79,14 +69,28 @@ except ImportError:
 #     pass
 
 from   rpn.debug     import dbg, typename, whoami
-from   rpn.exception import *
+from   rpn.exception import *   # pylint: disable=wildcard-import
 import rpn.exe
 import rpn.globl
 import rpn.unit
 
 
+T_INTEGER   = 0
+T_RATIONAL  = 1
+T_FLOAT     = 2
+T_COMPLEX   = 3
+T_VECTOR    = 4
+T_MATRIX    = 5
+T_STRING    = 6
+T_LIST      = 7         # Not implemented yet
+T_SYMBOL    = 8
+T_HAS_UNIT  = 1 << 4
+T_HAS_LABEL = 1 << 5
+
+
 class Stackable(rpn.exe.Executable):
     def __init__(self):
+        self.name   = None
         self._value = None
         self._label = None
         self._type  = None
@@ -122,19 +126,18 @@ class Stackable(rpn.exe.Executable):
         rpn.globl.param_stack.push(self)
 
     def uexpr_convert(self, new_ustr, name=""):
+        me = whoami()
         if not self.has_uexpr_p():
-            raise FatalErr("{}: No uexpr - caller should have checked".format(whoami()))
+            raise FatalErr("{}: No uexpr - caller should have checked".format(me))
         ue = rpn.unit.try_parsing(new_ustr)
         if ue is None:
             throw(X_INVALID_UNIT, name, new_ustr)
         if not rpn.unit.units_conform(self.uexpr, ue):
             throw(X_CONFORMABILITY, name, '"{}", "{}"'.format(self.uexpr, ue))
         if type(self) in [rpn.type.Integer, rpn.type.Rational, rpn.type.Float]:
-            new_obj = rpn.type.Float()
-            new_obj.value = float(self.value)
+            new_obj = rpn.type.Float(float(self.value))
         elif type(self) is rpn.type.Complex:
-            new_obj = rpn.type.Complex()
-            new_obj.value = self.value
+            new_obj = rpn.type.Complex(self.value)
         else:
             throw(X_ARG_TYPE_MISMATCH, name, "{} does not support units".format(typename(self)))
 
@@ -147,16 +150,48 @@ class Stackable(rpn.exe.Executable):
         return new_obj
 
     def ubase_convert(self, name=""):
+        me = whoami()
         if not self.has_uexpr_p():
-            raise FatalErr("{}: No uexpr - caller should have checked".format(whoami()))
+            raise FatalErr("{}: No uexpr - caller should have checked".format(me))
         base_ustr = str(self.uexpr.ubase())
         new_obj = self.uexpr_convert(base_ustr, name)
         return new_obj
 
+    def instfmt(self):          # pylint: disable=no-self-use
+        me = whoami()
+        raise FatalErr("{}: Subclass responsibility".format(me))
+
+    def scalar_p(self):         # pylint: disable=no-self-use
+        return type(self) in [rpn.type.Integer, rpn.type.Rational,
+                              rpn.type.Float, rpn.type.Complex]
+
+    def same_composite_type_p(self, other):
+        return type(self)   in [rpn.type.Vector, rpn.type.Matrix] and \
+               type(other)  in [rpn.type.Vector, rpn.type.Matrix] and \
+               type(self) is type(other)
+
+    def same_shape_p(self, other):
+        me = whoami()
+        if not self.same_composite_type_p(other):
+            return False
+        if type(self) is rpn.type.Vector:
+            return self.size() == other.size()
+        if type(self) is rpn.type.Matrix:
+            return self.nrows() == other.nrows() and \
+                   self.ncols() == other.ncols()
+        raise FatalErr("{}: Fell through ({})".format(me, self))
+
+    def as_definition(self):
+        me = whoami()
+        s = str(self)
+        dbg("show", 3, "{}: '{}'".format(me, s))
+        return s
+
     def __str__(self):
+        me = whoami()
         s = self.instfmt()
         if self.has_uexpr_p():
-            #print("{}: self.uexpr={}".format(whoami(), repr(self.uexpr)))
+            #print("{}: self.uexpr={}".format(me, repr(self.uexpr)))
             s += "_{}".format(str(self.uexpr))
         if self.label is not None:
             s += " \\ {}".format(self.label)
@@ -178,7 +213,11 @@ class Stackable(rpn.exe.Executable):
 #
 #############################################################################
 class Complex(Stackable):
-    def __init__(self, real=0.0, imag=0.0):
+    def __init__(self, real, imag):
+        if not isinstance(real, numbers.Number) or \
+           not isinstance(imag, numbers.Number):
+            traceback.print_stack()
+            raise FatalErr("Complex values '{},{}' are not Number".format(type(real), type(imag)))
         super().__init__()
         self.name   = "Complex"
         self._type  = T_COMPLEX
@@ -219,15 +258,19 @@ class Complex(Stackable):
 #
 #############################################################################
 class Float(Stackable):
-    def __init__(self, val=0.0, uexpr=None):
+    def __init__(self, val, uexpr=None):
+        if not isinstance(val, (float, np.float64)):
+            traceback.print_stack()
+            raise FatalErr("Float value '{}' is not a float, it's a {}".format(val, type(val)))
         super().__init__()
         self.name   = "Float"
         self._type  = T_FLOAT
         self._value = float(val)
-        self._uexpr  = uexpr
+        self._uexpr = uexpr
 
     @classmethod
     def from_string(cls, s):
+        ue = None
         if "_" in s:
             try:
                 (val, ustr) = s.split("_")
@@ -237,9 +280,10 @@ class Float(Stackable):
             ue = rpn.unit.try_parsing(ustr)
             if ue is None:
                 throw(X_INVALID_UNIT, "Float#from_string", ustr)
-            return cls(val, ue)
-        else:
-            return cls(s, None)
+            s = val
+
+        val = float(s)
+        return cls(val, ue)
 
     @property
     def value(self):
@@ -309,14 +353,18 @@ Failure:  (False, None, None, None, None)"""
 #############################################################################
 class Integer(Stackable):
     def __init__(self, val, uexpr=None):
+        if not isinstance(val, int):
+            traceback.print_stack()
+            raise FatalErr("Integer value '{}' is not an int, it's a {}".format(val, type(val)))
         super().__init__()
         self.name   = "Integer"
         self._type  = T_INTEGER
         self._value = int(val)
-        self._uexpr  = uexpr
+        self._uexpr = uexpr
 
     @classmethod
     def from_string(cls, s):
+        ue = None
         if "_" in s:
             try:
                 (val, ustr) = s.split("_")
@@ -326,9 +374,10 @@ class Integer(Stackable):
             ue = rpn.unit.try_parsing(ustr)
             if ue is None:
                 throw(X_INVALID_UNIT, "Integer#from_string", ustr)
-            return cls(val, ue)
-        else:
-            return cls(s, None)
+            s = val
+
+        val = int(s, 0)
+        return cls(val, ue)
 
     @property
     def value(self):
@@ -353,35 +402,32 @@ class Integer(Stackable):
 #
 #############################################################################
 class Matrix(Stackable):
-    def __init__(self, vals):
+    def __init__(self):
         if not rpn.globl.have_module('numpy'):
             throw(X_UNSUPPORTED, "", "Matrices require 'numpy' library")
         super().__init__()
         self.name = "Matrix"
         self._type = T_MATRIX
-        #rpn.globl.lnwriteln("{}: vals={}".format(whoami(), repr(vals)))
-        self._nrows = len(vals)
-        cols = -1
-        vecs = []
-        for x in vals.items():
-            #rpn.globl.lnwriteln("x={}".format(repr(x)))
-            vecs.append(x.value)
-            if cols == -1:
-                cols = x.size()
-            else:
-                if x.size() != cols:
-                    throw(X_SYNTAX, "", "Matrix columns not consistent")
-        self._ncols = cols
-        #rpn.globl.lnwriteln("{} rows x {} columns".format(self.nrows(), self.ncols()))
-        #print("vecs", vecs)
-        self.value = np.array(vecs)
-        #print("val",repr(self.value))
+        self._uexpr = None
+        self._value = None
+        self._nrows = None
+        self._ncols = None
 
     @classmethod
-    def from_numpy(cls, x):
-        obj = cls(rpn.util.List())
+    def from_ndarray(cls, x):
+        if x.ndim != 2:
+            throw(X_INVALID_ARG, "Matrix.from_ndarray", "ndim is {}, expected 2".format(x.ndim))
+        obj = cls()
         obj._nrows, obj._ncols = x.shape
         obj.value = x
+        return obj
+
+    @classmethod
+    def from_rpn_List(cls, x):
+        me = whoami()
+        dbg(me, 1, "{}: x={}".format(me, x))
+        obj = cls()
+        obj.value = np.array([elem.value for elem in x.listval()])
         return obj
 
     @property
@@ -413,11 +459,15 @@ class Matrix(Stackable):
 #
 #############################################################################
 class Rational(Stackable):
-    def __init__(self, num=0, denom=1, uexpr=None):
+    def __init__(self, num, denom, uexpr=None):
+        if type(num) is not int or type(denom) is not int:
+            traceback.print_stack()
+            raise FatalErr("Rational values '{}::{}' are not integer".format(type(num), type(denom)))
+
         super().__init__()
         self.name  = "Rational"
         self._type = T_RATIONAL
-        self.value = Fraction(int(num), int(denom))
+        self.value = Fraction(num, denom)
         self._uexpr = uexpr
 
     @classmethod
@@ -528,24 +578,26 @@ class Symbol(rpn.exe.Executable):
         return self._type
 
     def __call__(self, name):
+        me = whoami()
         dbg("trace", 1, "trace({})".format(repr(self)))
-        dbg(whoami(), 3, "{}: (parse_time) orig scope stack\n{}".format(whoami(), repr(rpn.globl.scope_stack)))
+        dbg(me, 3, "{}: (parse_time) orig scope stack\n{}".format(me, repr(rpn.globl.scope_stack)))
         copy_scope_stack = copy.deepcopy(rpn.globl.scope_stack)
-        dbg(whoami(), 3, "{}: (parse_time) copy scope stack\n{}".format(whoami(), repr(copy_scope_stack)))
+        dbg(me, 3, "{}: (parse_time) copy scope stack\n{}".format(me, repr(copy_scope_stack)))
         self._scope_stack = copy_scope_stack
         rpn.globl.string_stack.push(self)
 
     def eval(self):
+        me = whoami()
         dbg("trace", 1, "trace({})".format(repr(self)))
-        dbg(whoami(), 1, "{}: name={}, word={}".format(whoami(), self._name, self._word))
+        dbg(me, 1, "{}: name={}, word={}".format(me, self._name, self._word))
         if self._scope_stack is None:
-            raise FatalErr("{}: Symbol {} has no scope stack".format(whoami(), str(self)))
+            raise FatalErr("{}: Symbol {} has no scope stack".format(me, str(self)))
 
         try:
             old_scope_stack = rpn.globl.scope_stack
-            dbg(whoami(), 3, "{}: (eval time) old scope stack\n{}".format(whoami(), repr(old_scope_stack)))
+            dbg(me, 3, "{}: (eval time) old scope stack\n{}".format(me, repr(old_scope_stack)))
             rpn.globl.scope_stack = self._scope_stack
-            dbg(whoami(), 3, "{}: (eval time) new scope stack\n{}".format(whoami(), repr(rpn.globl.scope_stack)))
+            dbg(me, 3, "{}: (eval time) new scope stack\n{}".format(me, repr(rpn.globl.scope_stack)))
             self._word.__call__(self._name)
         finally:
             rpn.globl.scope_stack = old_scope_stack
@@ -563,23 +615,37 @@ class Symbol(rpn.exe.Executable):
 #
 #############################################################################
 class Vector(Stackable):
-    def __init__(self, vals):
+    def __init__(self):
         if not rpn.globl.have_module('numpy'):
             throw(X_UNSUPPORTED, "", "Vectors require 'numpy' library")
         super().__init__()
         self.name = "Vector"
         self._type = T_VECTOR
         self._uexpr = None
-        if type(vals) is not rpn.util.List:
-            raise FatalErr("{}: {} is not a List".format(whoami(), repr(vals)))
-        self.value = np.array([elem.value for elem in vals.listval()])
+        self._value = None
 
     @classmethod
-    def from_numpy(cls, x):
-        #print("rpn.type.Vector.from_numpy: x={}, type={}".format(x, type(x)))
-        obj = cls(rpn.util.List())
-        # print("from_numpy: {}".format(repr(obj)))
+    def from_ndarray(cls, x):
+        if x.ndim != 1:
+            throw(X_INVALID_ARG, "Vector.from_ndarray", "ndim is {}, expected 1".format(x.ndim))
+        obj = cls()
         obj.value = x
+        return obj
+
+    @classmethod
+    def from_python_list(cls, x):
+        me = whoami()
+        dbg(me, 1, "{}: x={}".format(me, x))
+        obj = cls()
+        obj.value = np.array(x)
+        return obj
+
+    @classmethod
+    def from_rpn_List(cls, x):
+        me = whoami()
+        dbg(me, 1, "{}: x={}".format(me, x))
+        obj = cls()
+        obj.value = np.array([elem.value for elem in x.listval()])
         return obj
 
     @property
@@ -597,7 +663,14 @@ class Vector(Stackable):
         return False
 
     def size(self):
-        return self.value.size
+        me = whoami()
+        if type(self.value) is np.ndarray:
+            shape = self.value.shape
+            return shape[0]
+        if type(self.value) is rpn.util.List:
+            #print("{}: size={}".format(me, len(self.value)))
+            return len(self.value)
+        raise FatalErr("{}: Fell through ({})".format(me, self))
 
     def instfmt(self):
         if self.size() == 0:

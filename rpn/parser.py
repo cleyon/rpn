@@ -10,7 +10,7 @@ import re
 import sys
 
 from   rpn.debug import dbg, whoami
-from   rpn.exception import *
+from   rpn.exception import *   # pylint: disable=wildcard-import
 import rpn.exe
 import rpn.globl
 import rpn.util
@@ -119,7 +119,6 @@ def t_RATIONAL(t):
 
 def t_FLOAT(t):
     r'[-+]?((\d+(\.\d*[eE][-+]?\d+|[eE][-+]?\d+|\.\d*))|(\d*(\.\d+[eE][-+]?\d+|[eE][-+]?\d+|\.\d+)))(_[^ \t\n]+)?'
-    #t.value = str(float(t.value))
     t.type = 'FLOAT'
     return t
 
@@ -139,8 +138,7 @@ def t_ASCII(t):
 # Note a little Python magic: int(xxx, 0) will guess base and parse "0x", etc.
 # On the whole, the benefits outweigh the drawbacks.
 def t_INTEGER(t):
-    r'[-+]?((((0x)|(0X))[0-9a-fA-F]+)|(((0o)|(0O))[0-7]+)|(((0b)|(0B))[0-1]+)|(\d+))(_[^ \t\n]+)?'
-    #t.value = str(int(t.value, 0))
+    r'[-+]?((0[xX][0-9a-fA-F]+)|(0[oO][0-7]+)|(0[bB][0-1]+)|(\d+))(_[^ \t\n]+)?'
     t.type = 'INTEGER'
     return t
 
@@ -324,12 +322,13 @@ def p_case_scope_pop(p):                # pylint: disable=unused-argument
 
 def p_catch(p):
     '''catch : CATCH IDENTIFIER'''
+    me = whoami()
     name = p[2]
     (word, scope) = rpn.globl.lookup_word(name)
     if word is None:
         rpn.globl.lnwriteln("catch: Word '{}' not found".format(name))
         raise SyntaxError
-    dbg("catch", 1, "{}: Creating Catch obj for {}".format(whoami(), word))
+    dbg("catch", 1, "{}: Creating Catch obj for {}".format(me, word))
     p[0] = rpn.exe.Catch(word, scope)
 
 def p_cmd(p):                           # pylint: disable=unused-argument
@@ -342,14 +341,15 @@ def p_colon(p):
 
 def p_colon_define_word(p):
     '''colon_define_word : empty'''
+    me = whoami()
     identifier = p[-4]
     doc_str    = p[-3]
     sequence   = p[-2]
-    dbg("p_colon_define_word", 2, "{}: identifier={}  doc_str={}  sequence={}".format(whoami(), identifier, repr(doc_str), repr(sequence)))
+    dbg("p_colon_define_word", 2, "{}: identifier={}  doc_str={}  sequence={}".format(me, identifier, repr(doc_str), repr(sequence)))
     kwargs = dict()
     if doc_str is not None:
         if len(doc_str) < 6 or doc_str[0:5] != 'doc:"' or doc_str[-1] != '"':
-            raise FatalErr("{}: Malformed doc_str: '{}'".format(whoami(), doc_str))
+            raise FatalErr("{}: Malformed doc_str: '{}'".format(me, doc_str))
         doc_str = doc_str[5:-1]
         kwargs['doc'] = doc_str
 
@@ -361,7 +361,7 @@ def p_colon_define_word(p):
     # p_sequence() has already popped the scope for this word, so
     # creating it now in rpn.globl.scope_stack.top() will be correct.
     new_word = rpn.util.Word(identifier, "colon", sequence, **kwargs)
-    dbg("p_colon_define_word", 1, "{}: Defining word {}={} in scope {}".format(whoami(), identifier, repr(new_word), repr(rpn.globl.scope_stack.top())))
+    dbg("p_colon_define_word", 1, "{}: Defining word {}={} in scope {}".format(me, identifier, repr(new_word), repr(rpn.globl.scope_stack.top())))
     sequence.patch_recurse(new_word)
     rpn.globl.scope_stack.top().define_word(identifier, new_word)
     p[0] = new_word
@@ -377,6 +377,7 @@ def p_complex(p):
 
 def p_constant(p):
     '''constant : CONSTANT IDENTIFIER'''
+    me = whoami()
     ident = p[2]
     #print("p_constant {}".format(ident))
     if not rpn.util.Variable.name_valid_p(ident):
@@ -390,7 +391,7 @@ def p_constant(p):
         rpn.globl.lnwriteln("CONSTANT: '{}' redefined".format(ident))
         raise SyntaxError
     var = rpn.util.Variable(ident, None, constant=True)
-    #print("{}: Creating variable {} at address {} in {}".format(whoami(), ident, hex(id(var)), repr(scope)))
+    #print("{}: Creating variable {} at address {} in {}".format(me, ident, hex(id(var)), repr(scope)))
     rpn.globl.scope_stack.top().add_vname(rpn.util.VName(ident))
     rpn.globl.scope_stack.top().define_variable(ident, var)
     p[0] = rpn.exe.Constant(var)
@@ -458,6 +459,7 @@ def p_executable(p):
 def p_executable_list(p):
     '''executable_list : empty
                        | executable executable_list'''
+    me = whoami()
     if len(p) == 2:
         p[0] = rpn.util.List()
     elif len(p) == 3:
@@ -465,7 +467,7 @@ def p_executable_list(p):
             p[0] = p[2]
         else:
             p[0] = rpn.util.List(p[1], p[2])
-    dbg(whoami(), 1, "{}: Returning {}".format(whoami(), p[0]))
+    dbg(me, 1, "{}: Returning {}".format(me, p[0]))
 
 def p_execute(p):
     '''execute : empty'''
@@ -477,6 +479,7 @@ def p_execute(p):
 
 def p_fetch_var(p):
     '''fetch_var : AT_SIGN IDENTIFIER'''
+    me = whoami()
     ident = p[2]
     if ident[0] in ['+', '-', '*', '/', '?', '$', '.']:
         modifier = ident[0]
@@ -486,7 +489,7 @@ def p_fetch_var(p):
     if not rpn.util.Variable.name_valid_p(ident):
         rpn.globl.writeln("@: Variable name '{}' not valid".format(ident))
         raise SyntaxError
-    dbg(whoami(), 1, "{}: Looking up {}".format(whoami(), ident))
+    dbg(me, 1, "{}: Looking up {}".format(me, ident))
     (vname, _) = rpn.globl.lookup_vname(ident)
     if vname is None:
         rpn.globl.writeln("@: Variable '{}' not found".format(ident))
@@ -586,6 +589,7 @@ def p_integer(p):
 def p_locals(p):
     '''locals : empty
               | VBAR identifier_list VBAR'''
+    me = whoami()
     scope_name = None
     idx = -1
     while scope_name is None:
@@ -599,11 +603,11 @@ def p_locals(p):
         elif p[idx] == ':':
             scope_name = p[idx + 1]
         else:
-            dbg(whoami(), 3, "p_locals: Not sure about {}".format(p[idx]))
+            dbg(me, 3, "p_locals: Not sure about {}".format(p[idx]))
             # scope_name = "locals"
             idx -= 1
     scope = rpn.util.Scope(scope_name)
-    dbg(whoami(), 1, "{}: Creating new scope {}".format(whoami(), repr(scope)))
+    dbg(me, 1, "{}: Creating new scope {}".format(me, repr(scope)))
 
     if len(p) == 4:
         for i in p[2].items():
@@ -612,27 +616,26 @@ def p_locals(p):
             (decoration, ident) = rpn.globl.separate_decorations(i)
             vname = rpn.util.VName(ident)
             if decoration == 'in':
-                dbg(whoami(), 3, "{} is an IN variable".format(ident))
+                dbg(me, 3, "{} is an IN variable".format(ident))
                 vname.in_p = True
             elif decoration == 'out':
-                dbg(whoami(), 3, "{} is an OUT variable".format(ident))
+                dbg(me, 3, "{} is an OUT variable".format(ident))
                 vname.out_p = True
             elif decoration == 'inout':
-                dbg(whoami(), 3, "{} is an INOUT variable".format(ident))
+                dbg(me, 3, "{} is an INOUT variable".format(ident))
                 vname.in_p = True
                 vname.out_p = True
 
-            dbg(whoami(), 2, "{}: Adding vname '{}'".format(whoami(), vname))
+            dbg(me, 2, "{}: Adding vname '{}'".format(me, vname))
             scope.add_vname(vname)
     rpn.globl.push_scope(scope, "New sequence (locals={})".format(scope.vnames()))
     p[0] = scope
 
 def p_matrix(p):
     '''matrix : OPEN_BRACKET vector_list CLOSE_BRACKET'''
-    if rpn.globl.have_module('numpy'):
-        p[0] = rpn.type.Matrix(p[2])
-    else:
+    if not rpn.globl.have_module('numpy'):
         raise ParseErr("Matrices require 'numpy' library")
+    p[0] = rpn.type.Matrix.from_rpn_List(p[2])
 
 def p_number(p):
     '''number : real
@@ -687,8 +690,9 @@ def p_show(p):
 
 def p_store_var(p):
     '''store_var : EXCLAM IDENTIFIER'''
+    me = whoami()
     ident = p[2]
-    if ident[0] in ['+', '-', '*', '/', '$']:
+    if ident[0] in ['+', '-', '*', '/', '?', '$']:
         modifier = ident[0]
         ident = ident[1:]
     else:
@@ -696,29 +700,37 @@ def p_store_var(p):
     if not rpn.util.Variable.name_valid_p(ident):
         rpn.globl.lnwriteln("!: Variable name '{}' not valid".format(ident))
         raise SyntaxError
-    dbg(whoami(), 1, "{}: Looking up {}".format(whoami(), ident))
+    dbg(me, 1, "{}: Looking up {}".format(me, ident))
     (vname, _) = rpn.globl.lookup_vname(ident)
     if vname is None:
-        rpn.globl.lnwriteln("!: Variable '{}' not found".format(ident))
-        raise SyntaxError
+        if modifier != '?':
+            rpn.globl.lnwriteln("!: Variable '{}' not found".format(ident))
+            raise SyntaxError
+        # Create variable on the fly
+        var = rpn.util.Variable(ident)
+        dbg(me, 1, "{}: Creating variable {} at address {} in {}".format(me, ident, hex(id(var)), repr(rpn.globl.scope_stack.top())))
+        rpn.globl.scope_stack.top().add_vname(rpn.util.VName(ident))
+        rpn.globl.scope_stack.top().define_variable(ident, var)
     p[0] = rpn.exe.StoreVar(ident, modifier)
 
 def p_string(p):
     '''string : STRING'''
+    me = whoami()
     s = p[1]
     if len(s) < 2 or s[0] != '"' or s[-1] != '"':
-        raise FatalErr("{}: Malformed string: '{}'".format(whoami(), s))
+        raise FatalErr("{}: Malformed string: '{}'".format(me, s))
     p[0] = rpn.type.String(s[1:-1])
 
 def p_symbol(p):
     '''symbol : SYMBOL'''
+    me = whoami()
     s = p[1]
     if len(s) < 2 or s[0] != "'" or s[-1] != "'":
-        raise FatalErr("{}: Malformed symbol: '{}'".format(whoami(), s))
+        raise FatalErr("{}: Malformed symbol: '{}'".format(me, s))
     name = s[1:-1]
     (word, _) = rpn.globl.lookup_word(name)
     if word is None:
-        rpn.globl.lnwriteln("{}: Word '{}' not found".format(whoami(), name))
+        rpn.globl.lnwriteln("{}: Word '{}' not found".format(me, name))
         raise SyntaxError
     p[0] = rpn.type.Symbol(name, word)
 
@@ -754,6 +766,7 @@ def p_undef(p):
 
 def p_variable(p):
     '''variable :  VARIABLE IDENTIFIER'''
+    me = whoami()
     ident = p[2]
     if not rpn.util.Variable.name_valid_p(ident):
         rpn.globl.lnwriteln("VARIABLE: '{}' is not valid".format(ident))
@@ -766,21 +779,21 @@ def p_variable(p):
         rpn.globl.lnwriteln("VARIABLE: '{}' redefined".format(ident))
         raise SyntaxError
     var = rpn.util.Variable(ident)
-    dbg(whoami(), 1, "{}: Creating variable {} at address {} in {}".format(whoami(), ident, hex(id(var)), repr(rpn.globl.scope_stack.top())))
+    dbg(me, 1, "{}: Creating variable {} at address {} in {}".format(me, ident, hex(id(var)), repr(rpn.globl.scope_stack.top())))
     rpn.globl.scope_stack.top().add_vname(rpn.util.VName(ident))
     rpn.globl.scope_stack.top().define_variable(ident, var)
 
 def p_vector(p):
     '''vector : OPEN_BRACKET number_list CLOSE_BRACKET'''
-    if rpn.globl.have_module('numpy'):
-        p[0] = rpn.type.Vector(p[2])
-    else:
+    if not rpn.globl.have_module('numpy'):
         raise ParseErr("Vectors require 'numpy' library")
+    p[0] = rpn.type.Vector.from_rpn_List(p[2])
 
 def p_vector_list(p):
     '''vector_list : vector
                    | vector vector_list'''
-    #rpn.globl.lnwriteln("{}: len={}".format(whoami(), len(p)))
+    me = whoami()
+    #rpn.globl.lnwriteln("{}: len={}".format(me, len(p)))
     if len(p) == 2:
         p[0] = rpn.util.List(p[1])
     elif len(p) == 3:

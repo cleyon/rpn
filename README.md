@@ -10,7 +10,7 @@ sudo python3 setup.py install
 
 ## Requirements
 
-- Python 3
+- Python 3.6
 
 - PLY
 
@@ -22,15 +22,23 @@ pip3 install --user ply
 
 - NumPy
 
+NumPy is used for vector and matrix support.
+rpn will still function without NumPy installed.
+
 ``` shell
 pip3 install --user numpy
 ```
 
 - SciPy
 
+SciPy is used for a some additional functions (root solving, integration, etc).
+It is optional, and rpn will still function without it installed.
+
 ``` shell
 pip3 install --user scipy
 ```
+
+## Not used (yet)
 
 - Matplotlib
 

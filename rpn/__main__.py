@@ -6,6 +6,7 @@
 #############################################################################
 '''
 
+#import cProfile
 import inspect
 import os
 import sys
@@ -18,6 +19,8 @@ def main(argv):
     try:
         if app.initialize(rpndir, argv):
             app.main_loop()
+            ####  OR  ####
+            # cProfile.run('app.main_loop()')
     except exception.EndProgram:
         pass
     except exception.FatalErr as e:

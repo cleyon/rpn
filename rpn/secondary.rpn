@@ -159,7 +159,7 @@ Display N space characters."
 
 \ #############################################################################
 \ #
-\ #     M O D E S  &  M I S C   F U N C T I O N S
+\ #     M O D E S   &   M I S C   F U N C T I O N S
 \ #
 \ #############################################################################
 : beg           doc:"beg   ( -- )
@@ -182,6 +182,10 @@ Test if angular mode is gradians."
 : rad?          doc:"rad?   ( -- bool )
 Test if angular mode is radians."
   F_GRAD fc?  F_RAD fs?  and ;
+
+: size?         doc:"size?   ( -- size )
+Return register size."
+  @SIZE  ;
 
 : mod           doc:"mod   ( y x -- remainder )
 Remainder."

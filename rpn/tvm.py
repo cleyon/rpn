@@ -10,6 +10,7 @@
 
 import math
 from   rpn.debug import dbg, whoami
+from   rpn.exception import *   # pylint: disable=wildcard-import
 import rpn.flag
 
 N   = None
@@ -122,10 +123,11 @@ def int_eff_to_nom(int_eff):
 
 
 def i_helper():
+    me = whoami()
     if not rpn.tvm.INT.defined():
         return None
     i_e = int_nom_to_eff(rpn.tvm.INT.obj.value)
-    dbg("tvm", 3, "{}: i_e={}".format(whoami(), i_e))
+    dbg("tvm", 3, "{}: i_e={}".format(me, i_e))
     return i_e / 100.0
 
 
@@ -136,6 +138,7 @@ def X_helper():
 
 def A_helper():
     # A = (1+i)^n - 1
+    me = whoami()
     if not rpn.tvm.N.defined():
         return None
     n = rpn.tvm.N.obj.value
@@ -143,23 +146,25 @@ def A_helper():
     if i is None:
         return None
     A = math.expm1(n * math.log1p(i))
-    dbg("tvm", 3, "{}: A={}".format(whoami(), A))
+    dbg("tvm", 3, "{}: A={}".format(me, A))
     return A
 
 
 def B_helper():
     # B = (1+iX)/i
+    me = whoami()
     i = i_helper()
     if i is None:
         return None
     X = X_helper()
     B = (1.0 + i*X) / i
-    dbg("tvm", 3, "{}: B={}".format(whoami(), B))
+    dbg("tvm", 3, "{}: B={}".format(me, B))
     return B
 
 
 def C_helper():
     # C = PMT * B
+    me = whoami()
     if not rpn.tvm.PMT.defined():
         return None
     pmt = rpn.tvm.PMT.obj.value
@@ -167,5 +172,5 @@ def C_helper():
     if B is None:
         return None
     C = pmt * B
-    dbg("tvm", 3, "{}: C={}".format(whoami(), C))
+    dbg("tvm", 3, "{}: C={}".format(me, C))
     return C

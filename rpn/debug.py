@@ -16,6 +16,10 @@ debug_enabled = False
 debug_levels = {
     "#in"                       : 0,
     "$in"                       : 0,
+    "*"                         : 3,
+    "+"                         : 3,
+    "-"                         : 3,
+    "/"                         : 3,
     "DoLoop#__call__"           : 0,
     "List#__call__"             : 0,
     "Scope#define_variable"     : 0,
@@ -26,6 +30,8 @@ debug_levels = {
     "Word#__init__"             : 0,
     "ascii"                     : 0,
     "catch"                     : 0,
+    "constant"                  : 2,
+    "cross"                     : 0,
    #"d0"                        : -1,
    #"d1"                        : 1,
    #"d2"                        : 2,
@@ -39,6 +45,8 @@ debug_levels = {
     "defvar"                    : 0,
     "eval_string"               : 0,
     "execute"                   : 0,
+    "from_python_list"          : 0,    # Vector
+    "from_rpn_List"             : 0,    # Vector
     "from_string"               : 0,
     "have_module"               : 0,
     "hide"                      : 0,
@@ -57,13 +65,15 @@ debug_levels = {
     "p_variable"                : 0,
     "parse"                     : 0,
     "prompt"                    : 0,
-    "scope"                     : 0,
+    "scope"                     : 3,
     "show"                      : 0,
+    "to_rpn_class"              : 0,
     "token"                     : 0,
     "trace"                     : 0,
     "tvm"                       : 0,
     "unit"                      : 0,
     "unit#parse"                : 0,
+    "variable"                  : 1,
 }
 
 
@@ -90,8 +100,6 @@ def set_debug_level(resource, level=1):
         traceback.print_stack(file=sys.stderr)
         sys.exit(1)             # Harsh!
 
-    if level < 0 or level > 9:
-        raise FatalErr("set_debug_level: Level {} out of range (0..9 expected)".format(level))
     debug_levels[resource] = level
 
 

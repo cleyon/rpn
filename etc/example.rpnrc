@@ -1,10 +1,12 @@
 \ Convenient abbreviations
 : c     clst  ;         hide c
-: $c    $clst ;         hide c
+: $c    $clst ;         hide $c
 : d     drop  ;         hide d
-: $d    $drop ;         hide d
+: $d    $drop ;         hide $d
 : pi    PI    ;         hide pi
 : s     swap  ;         hide s
+: xroot inv ^ ;
+
 
 \ Example of word definition
 : dice

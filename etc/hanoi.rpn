@@ -1,0 +1,38 @@
+: hanoi         doc:"hanoi   ( n -- )
+Solve Towers of Hanoi puzzle with recursion.
+Move disks 1..n from tower 1 to tower 2, using 3 as spare."
+
+  | in:n printp |
+  0 !printp
+
+  : move_one_disk
+    | in:disk in:source in:dest |
+    @printp if
+      ."Move disk " @.disk ."from " @.source ."to " @.dest cr
+    then
+  ;
+
+  : move_group_of_disks
+    | in:disk in:source in:dest in:spare |
+
+    @disk 1 = if
+      \ If this is the last/single disk, move it directly
+      @disk     @source @dest           move_one_disk
+    else
+      \ To move a pile of disks:
+      \ 1. Move N-1 disks from source to spare
+      \ 2. Move last disk onto dest
+      \ 3. Move previous N-1 disks from spare onto dest
+      @disk 1 - @source @spare @dest    recurse
+      @disk     @source @dest           move_one_disk
+      @disk 1 - @spare  @dest  @source  recurse
+    then
+  ;
+
+  \ Move N disks from tower 1 to tower 2 using tower 3 as a spare
+  @n 0 > if
+    @n 1 2 3  move_group_of_disks
+  else
+    ."Number of disks must be positive" cr
+  then
+;

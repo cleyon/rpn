@@ -13,25 +13,25 @@ import signal
 import sys
 
 try:
-    import numpy as np                  # pylint: disable=import-error
+    import numpy as np          # pylint: disable=import-error
 except ImportError:
     pass
 
 # Check if SciPy is available
 try:
-    import scipy.integrate              # pylint: disable=import-error
-    import scipy.optimize               # pylint: disable=import-error
+    import scipy.integrate      # pylint: disable=import-error
+    import scipy.optimize       # pylint: disable=import-error
 except ModuleNotFoundError:
     pass
 
 # # Check if Matplotlib is available
 # try:
-#     import matplotlib                   # pylint: disable=import-error
+#     import matplotlib           # pylint: disable=import-error
 # except ModuleNotFoundError:
 #     pass
 
 from   rpn.debug     import dbg, typename
-from   rpn.exception import *
+from   rpn.exception import *   # pylint: disable=wildcard-import
 import rpn.flag
 import rpn.globl
 import rpn.tvm
@@ -69,6 +69,10 @@ def initialize(rpndir, argv):
     random.seed()
     rpn.globl.push_scope(rpn.globl.root_scope, "Root scope")
     rpn.globl.disp_stack.push(rpn.util.DisplayConfig())
+    reg_set = rpn.util.RegisterSet()
+    reg_set.size = 17           # R00..R16
+    reg_set.sreg = 11
+    rpn.globl.reg_stack.push(reg_set)
     rpn.word.w_std('std')
     rpn.unit.define_units()
     define_variables()
@@ -81,6 +85,7 @@ def initialize(rpndir, argv):
 
     # Set initial conditions
     rpn.globl.eval_string("clreg clflag clfin")
+    rpn.flag.set_flag(rpn.flag.F_EQUAL_ISCLOSE)
     rpn.flag.set_flag(rpn.flag.F_SHOW_PROMPT)
 
     # Define built-in secondary (protected) words
@@ -106,7 +111,8 @@ def initialize(rpndir, argv):
 
     # Hopefully load the user's init file
     if load_init_file:
-        init_file = os.path.expanduser("~/.rpnrc")
+        rpnrc_env = os.environ.get("RPNRC")
+        init_file = rpnrc_env if rpnrc_env is not None else os.path.expanduser("~/.rpnrc")
         if os.path.isfile(init_file):
             (rpnrc, _) = rpn.globl.lookup_variable('RPNRC')
             rpnrc.obj = rpn.type.String(init_file)
@@ -172,6 +178,8 @@ def define_variables():
                                   pre_hooks=[pre_require_int_or_float],
                                   post_hooks=[post_label_with_identifier],
                                   doc="Present Value")
+    rpn.globl.defvar("PYTHON_VER", rpn.type.String(".".join(map(str, sys.version_info[0:3]))),
+                     readonly=True, noshadow=True)
     rpn.globl.scr_rows = rpn.globl.defvar('ROWS', rpn.type.Integer(0),
                                           pre_hooks=[pre_require_int, pre_require_positive])
     rpn.globl.defvar('RPNRC', rpn.type.String(""),
@@ -181,12 +189,13 @@ def define_variables():
     if rpn.globl.have_module('scipy'):
         rpn.globl.defvar('SCIPY_VER', rpn.type.String(scipy.__version__),
                          readonly=True)
-    rpn.globl.defvar('SIZE', rpn.type.Integer(20),
-                     noshadow=True,
-                     pre_hooks=[pre_validate_size_arg],
-                     post_hooks=[post_clear_newly_unveiled_registers])
-    rpn.globl.defvar('Sreg', rpn.type.Integer(11),
-                     pre_hooks=[pre_validate_Sreg_arg])
+    rpn.globl.defvar('SIZE', rpn.type.Integer(rpn.globl.reg_stack.top().size),
+                     noshadow=True, readonly=True,
+                     # pre_hooks=[pre_validate_size_arg],
+                     # post_hooks=[post_clear_newly_unveiled_registers]
+                    )
+    rpn.globl.defvar('SREG', rpn.type.Integer(rpn.globl.reg_stack.top().sreg),
+                     pre_hooks=[pre_validate_sreg_arg])
     rpn.globl.defvar('VER', rpn.type.Float(rpn.globl.RPN_VERSION),
                      readonly=True, noshadow=True)
 
@@ -247,7 +256,7 @@ def load_file(filename):
     try:
         with open(fn, "r") as file:
             contents = file.read()
-    except PermissionError as e:
+    except PermissionError:
         throw(X_FILE_IO, "load", "Cannot open file '{}'".format(fn))
     else:
         dbg("load_file", 3, "load_file({})='{}'".format(fn, contents))
@@ -549,33 +558,33 @@ def pre_require_non_negative(identifier, _cur, new):
     if new.value < 0:
         throw(X_INVALID_ARG, "!{}".format(identifier), "Must be non-negative")
 
-def pre_validate_Sreg_arg(identifier, _cur, new):
+def pre_validate_sreg_arg(identifier, _cur, new):
     if type(new) is not rpn.type.Integer:
         throw(X_ARG_TYPE_MISMATCH, "!{}".format(identifier), "({})".format(typename(new)))
-    new_Sreg = new.value
-    (reg_size, _) = rpn.globl.lookup_variable("SIZE")
-    if new_Sreg < 0 or new_Sreg > reg_size.obj.value - 6:
-        throw(X_INVALID_ARG, "!{}".format(identifier), "Sreg {} out of range (0..{} expected); check SIZE".format(new_Sreg, reg_size.obj.value - 6))
+    new_sreg = new.value
+    (size_var, _) = rpn.globl.lookup_variable("SIZE")
+    if new_sreg < 0 or new_sreg > size_var.obj.value - 6:
+        throw(X_INVALID_ARG, "!{}".format(identifier), "SREG {} out of range (0..{} expected); check SIZE".format(new_sreg, size_var.obj.value - 6))
 
-def pre_validate_size_arg(identifier, _cur, new):
-    if type(new) is not rpn.type.Integer:
-        throw(X_ARG_TYPE_MISMATCH, "!{}".format(identifier), "({})".format(typename(new)))
-    new_size = new.value
-    if new_size < rpn.globl.REG_SIZE_MIN or new_size > rpn.globl.REG_SIZE_MAX:
-        throw(X_INVALID_ARG, "!{}".format(identifier), "Size {} out of range ({}..{} expected)".format(new_size, rpn.globl.REG_SIZE_MIN, rpn.globl.REG_SIZE_MAX))
-    (reg_Sreg, _) = rpn.globl.lookup_variable("Sreg")
-    if new_size < reg_Sreg.obj.value + 6:
-        throw(X_INVALID_ARG, "!{}".format(identifier), "Size {} too small for Sreg ({})".format(new_size, reg_Sreg.obj.value))
+# def pre_validate_size_arg(identifier, _cur, new):
+#     if type(new) is not rpn.type.Integer:
+#         throw(X_ARG_TYPE_MISMATCH, "!{}".format(identifier), "({})".format(typename(new)))
+#     new_size = new.value
+#     if new_size < rpn.globl.SIZE_MIN or new_size > rpn.globl.SIZE_MAX:
+#         throw(X_INVALID_ARG, "!{}".format(identifier), "Size {} out of range ({}..{} expected)".format(new_size, rpn.globl.SIZE_MIN, rpn.globl.SIZE_MAX))
+#     (sreg_var, _) = rpn.globl.lookup_variable("SREG")
+#     if new_size < sreg_var.obj.value + 6:
+#         throw(X_INVALID_ARG, "!{}".format(identifier), "SIZE {} too small for SREG ({})".format(new_size, sreg_var.obj.value))
 
-def post_clear_newly_unveiled_registers(_identifier, old, cur):
-    old_size = old.value
-    cur_size = cur.value
-    # If we're increasing the number of registers, zero out the newly
-    # available ones.  It is not really necessary to do this when
-    # decreasing, because those registers will no longer be accessible.
-    if cur_size > old_size:
-        for r in range(cur_size - old_size):
-            rpn.globl.register[old_size + r] = rpn.type.Float(0.0)
+# def post_clear_newly_unveiled_registers(_identifier, old, cur):
+#     old_size = old.value
+#     cur_size = cur.value
+#     # If we're increasing the number of registers, zero out the newly
+#     # available ones.  It is not really necessary to do this when
+#     # decreasing, because those registers will no longer be accessible.
+#     if cur_size > old_size:
+#         for r in range(cur_size - old_size):
+#             rpn.globl.reg_stack.top().register[old_size + r] = rpn.type.Float(0.0)
 
 def post_label_with_identifier(identifier, _old, cur):
     cur.label = identifier

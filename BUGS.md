@@ -13,3 +13,7 @@
   variable foo
   undef foo
   @foo
+
+- Mass units are funky.
+  : 1_g ubase .
+  : 9.999999999e-10_kg     ???
