@@ -2,11 +2,14 @@
 Solve Towers of Hanoi puzzle with recursion.
 Move disks 1..n from tower 1 to tower 2, using 3 as spare."
 
-  | in:n |
+  | in:n printp |
+  0 !printp
 
   : move_one_disk
     | in:disk in:source in:dest |
-    ."Move disk " @.disk ."from " @.source ."to " @.dest cr
+    @printp if
+      ."Move disk " @.disk ."from " @.source ."to " @.dest cr
+    then
   ;
 
   : move_group_of_disks

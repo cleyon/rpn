@@ -57,8 +57,9 @@ class DisplayConfig:
 
     @style.setter
     def style(self, new_style):
+        me = whoami()
         if new_style not in ["std", "fix", "sci", "eng"]:
-            raise FatalErr("{}: Invalid display style '{}'".format(whoami(), new_style))
+            raise FatalErr("{}: Invalid display style '{}'".format(me, new_style))
         self._style = new_style
 
     @property
@@ -67,6 +68,7 @@ class DisplayConfig:
 
     @prec.setter
     def prec(self, new_prec):
+        me = whoami()
         if new_prec is None:
             self._prec = new_prec
             for bit in range(4):
@@ -74,7 +76,7 @@ class DisplayConfig:
             return
 
         if new_prec < 0 or new_prec >= rpn.globl.PRECISION_MAX:
-            raise FatalErr("{}: Invalid display precision '{}' (0..{} expected)".format(whoami(), new_prec, rpn.globl.PRECISION_MAX - 1))
+            raise FatalErr("{}: Invalid display precision '{}' (0..{} expected)".format(me, new_prec, rpn.globl.PRECISION_MAX - 1))
         self._prec = new_prec
         for bit in range(4):
             if new_prec & 1<<bit != 0:
@@ -127,6 +129,7 @@ class DisplayConfig:
         return mant_sign + num_str + "e" + exp_sign + exp_str
 
     def dcfmt(self, x):
+        me = whoami()
         if type(x) is int:
             return str(x)
 
@@ -146,7 +149,7 @@ class DisplayConfig:
         if type(x) is rpn.type.Vector:
             return "{}".format(x.value)
 
-        raise FatalErr("{}: Cannot handle type '{}' for object {}".format(whoami(), typename(x), x))
+        raise FatalErr("{}: Cannot handle type '{}' for object {}".format(me, typename(x), x))
 
 
 #############################################################################
@@ -181,12 +184,13 @@ class List:
         self._list.append(item)
 
     def __call__(self, name):
+        me = whoami()
         dbg("trace", 2, "trace({})".format(repr(self)))
         for item in self.listval():
-            dbg(whoami(), 3, "{}: {}/{}.__call__()".format(whoami(), type(item), item))
+            dbg(me, 3, "{}: {}/{}.__call__()".format(me, type(item), item))
             try:
                 if type(item) is Word and item.typ == "colon":
-                    dbg(whoami(), 2, ">>>>  {}  <<<<".format(item.name))
+                    dbg(me, 2, ">>>>  {}  <<<<".format(item.name))
                     rpn.globl.colon_stack.push(item)
                 item.__call__(item.name)
             finally:
@@ -205,8 +209,9 @@ class List:
         return len(self.listval())
 
     def as_definition(self):
+        me = whoami()
         s = " ".join([item.as_definition() for item in self.listval()])
-        dbg("show", 3, "{}: '{}'".format(whoami(), s))
+        dbg("show", 3, "{}: '{}'".format(me, s))
         return s
 
     def __str__(self):
@@ -271,6 +276,7 @@ class Scope:
         self._vnames = []
 
     def as_definition(self):
+        me = whoami()
         s = ""
         if len(self.vnames()) > 0:
             s += "|" + " ".join([x.decorated() for x in self.vnames()]) + "|"
@@ -278,7 +284,7 @@ class Scope:
                 s += " "
         if len(self.words()) > 0:
             s += " ".join([w.as_definition() for w in self.words().values()])
-        dbg("show", 3, "{}: {} is '{}'".format(whoami(), self.name, s))
+        dbg("show", 3, "{}: {} is '{}'".format(me, self.name, s))
         return s
 
     def addr(self):
@@ -316,8 +322,9 @@ class Scope:
         return self._words.get(identifier)
 
     def define_word(self, identifier, word):
+        me = whoami()
         if type(word) is not rpn.util.Word:
-            raise FatalErr("{}: '{}' is not a Word".format(whoami(), identifier))
+            raise FatalErr("{}: '{}' is not a Word".format(me, identifier))
 
         if rpn.globl.default_protected:
             if (word.doc() is None or len(word.doc()) == 0) and not word.hidden:
@@ -345,9 +352,10 @@ class Scope:
         return self._variables.get(identifier)
 
     def define_variable(self, identifier, var):
+        me = whoami()
         if type(var) is not Variable:
-            raise FatalErr("{}: '{}' is not a Variable".format(whoami(), identifier))
-        dbg(whoami(), 1, "{}: Setting variable '{}' to {} in {}".format(whoami(), identifier, repr(var), repr(self)))
+            raise FatalErr("{}: '{}' is not a Variable".format(me, identifier))
+        dbg(me, 1, "{}: Setting variable '{}' to {} in {}".format(me, identifier, repr(var), repr(self)))
         self._variables[identifier] = var
 
     def delete_variable(self, identifier):
@@ -379,12 +387,14 @@ class Scope:
 #############################################################################
 class Sequence:
     def __init__(self, scope_template, exe_list):
+        me = whoami()
         self.name = "Sequence"
         self._scope_template = scope_template
         self._exe_list       = exe_list
-        dbg(whoami(), 1, "{}: scope_template={}, exe_list={}".format(whoami(), repr(scope_template), repr(exe_list)))
+        dbg(me, 1, "{}: scope_template={}, exe_list={}".format(me, repr(scope_template), repr(exe_list)))
 
     def __call__(self, name):
+        me = whoami()
         dbg("trace", 2, "trace({})".format(repr(self)))
 
         # Build a runtime scope populated with actual Variables.
@@ -411,10 +421,10 @@ class Sequence:
         in_vars.reverse()
         for v in in_vars:
             obj = rpn.globl.param_stack.pop()
-            dbg(whoami(), 1, "{}: Setting {} to {}".format(whoami(), v, obj.value))
+            dbg(me, 1, "{}: Setting {} to {}".format(me, v, obj.value))
             scope.variable(v).obj = obj
 
-        dbg(whoami(), 1, "{}: seq={}".format(whoami(), repr(self.seq())))
+        dbg(me, 1, "{}: seq={}".format(me, repr(self.seq())))
         pushed_scope = False
 
         try:
@@ -427,7 +437,7 @@ class Sequence:
             for vname in out_vnames:
                 var = scope.variable(vname.ident)
                 if var is None:
-                    raise FatalErr("{}: {}: Variable '{}' has vanished!".format(whoami(), self.scope_template().name, vname.ident))
+                    raise FatalErr("{}: {}: Variable '{}' has vanished!".format(me, self.scope_template().name, vname.ident))
                 if not var.defined():
                     # Undo any previous param_stack pushes if we come across an out variable that's not defined
                     for _ in range(param_stack_pushes):
@@ -435,7 +445,7 @@ class Sequence:
                     if rpn.globl.sigint_detected:
                         throw(X_INTERRUPT, self.scope_template().name)
                     throw(X_UNDEFINED_VARIABLE, self.scope_template().name, "Variable '{}' was never set".format(vname.ident))
-                dbg(whoami(), 3, "{} is {}".format(vname.ident, repr(var.obj)))
+                dbg(me, 3, "{} is {}".format(vname.ident, repr(var.obj)))
                 rpn.globl.param_stack.push(var.obj)
                 param_stack_pushes += 1
             if pushed_scope:
@@ -452,17 +462,19 @@ class Sequence:
         return self._exe_list
 
     def as_definition(self):
+        me = whoami()
         s = "{}{}{}".format(self.scope_template().as_definition(), #scope_str,
                             " " if len(str(self.scope_template())) > 0 and \
                                    len(self.seq()) > 0 \
                             else "",
                             str(self.seq()))
-        dbg("show", 3, "{}: '{}'".format(whoami(), s))
+        dbg("show", 3, "{}: '{}'".format(me, s))
         return s
 
     def __str__(self):
+        me = whoami()
         scope_str = str(self.scope_template())
-        # print("{}: scope_template={}".format(whoami(), repr(self.scope_template())))
+        # print("{}: scope_template={}".format(me, repr(self.scope_template())))
         s = "{}{}{}".format(scope_str,
                             " " if len(scope_str) > 0 and len(self.seq()) > 0 else "",
                             str(self.seq()))
@@ -496,8 +508,9 @@ class Stack:
         return self._name
 
     def clear(self):
+        me = whoami()
         if self._min_size > 0:
-            throw(X_STACK_UNDERFLOW, whoami(), "{} has min size={}".format(self.name(), self._min_size))
+            throw(X_STACK_UNDERFLOW, me, "{} has min size={}".format(self.name(), self._min_size))
         self._stack = []
         self._nitems = 0
 
@@ -508,30 +521,33 @@ class Stack:
         return self.size() == 0
 
     def push(self, item):
+        me = whoami()
         if self.size() == self._max_size:
-            throw(X_STACK_OVERFLOW, whoami(), "{} exceeded max size={} when attempting to push {}".format(self.name(), self._max_size, item))
+            throw(X_STACK_OVERFLOW, me, "{} exceeded max size={} when attempting to push {}".format(self.name(), self._max_size, item))
         self._nitems += 1
         self._stack.append(item)
 
     def pop(self):
+        me = whoami()
         if self.empty():
-            raise FatalErr("{}: {}: Empty stack".format(whoami(), self.name()))
+            raise FatalErr("{}: {}: Empty stack".format(me, self.name()))
         if self.size() == self._min_size:
-            throw(X_STACK_UNDERFLOW, whoami(), "{} has min size={}".format(self.name(), self._min_size))
+            throw(X_STACK_UNDERFLOW, me, "{} has min size={}".format(self.name(), self._min_size))
         self._nitems -= 1
         return self._stack.pop()
 
     def pick(self, n):
         '''n will be 1-based, so handle appropriately.'''
-
+        me = whoami()
         if n < 1 or n > self.size():
-            raise FatalErr("{}: {}: Bad index".format(whoami(), self.name()))
+            raise FatalErr("{}: {}: Bad index".format(me, self.name()))
         return self._stack[self.size() - n]
 
     def roll(self, n):
         '''n will be 1-based, so handle appropriately.'''
+        me = whoami()
         if n < 1 or n > self.size():
-            raise FatalErr("{}: {}: Bad index".format(whoami(), self.name()))
+            raise FatalErr("{}: {}: Bad index".format(me, self.name()))
         # Prevent stack underflow in unlucky situations.  Temporarily
         # increase the stack minimum size, because we're just going to
         # push an item back again to restore the situation.
@@ -542,8 +558,9 @@ class Stack:
         self.push(item)
 
     def top(self):
+        me = whoami()
         if self.empty():
-            raise FatalErr("{}: {}: Empty stack".format(whoami(), self.name()))
+            raise FatalErr("{}: {}: Empty stack".format(me, self.name()))
         return self._stack[self.size() - 1]
 
     def items_bottom_to_top(self):
@@ -841,13 +858,14 @@ class Word:
         self._str_args  = 0
         self.typ        = typ   # "python" or "colon"
 
+        me = whoami()
         my_print_x = None
 
         if name is None or len(name) == 0:
             raise FatalErr("Invalid word name '{}'".format(name))
         if defn is None:
             raise FatalErr("{}: defn is None".format(name))
-        #dbg(whoami(), 3, "defn is {}".format(type(defn)))
+        #dbg(me, 3, "defn is {}".format(type(defn)))
 
         # `args' is the number of numeric arguments that must be present
         # on the parameter stack.
@@ -915,7 +933,8 @@ class Word:
         kwargs["print_x"] = my_print_x
 
     def __call_immed__(self, arg):
-        #print("{}: arg={}".format(whoami(), repr(arg)))
+        me = whoami()
+        #print("{}: arg={}".format(me, repr(arg)))
         self._defn.__call__(arg)
 
     def __call__(self, name):
@@ -965,6 +984,7 @@ class Word:
         self._smudge = new_smudge
 
     def as_definition(self):
+        me = whoami()
         s = None
         if typename(self._defn) == 'function':
             s = str(self)
@@ -973,8 +993,8 @@ class Word:
                                      'doc:"{}"\n'.format(self.doc()) if self.doc() is not None and len(self.doc()) > 0 else "",
                                      self._defn.as_definition())
         if s is None:
-            raise FatalErr("{}: Unhandled type {}".format(whoami(), type(self._defn)))
-        dbg("show", 3, "{}: {} is '{}'".format(whoami(), self.name, s))
+            raise FatalErr("{}: Unhandled type {}".format(me, type(self._defn)))
+        dbg("show", 3, "{}: {} is '{}'".format(me, self.name, s))
         return s
 
     def __str__(self):

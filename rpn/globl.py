@@ -124,6 +124,7 @@ def bool_to_int(condition):
 
 
 def convert_mode_to_radians(x, force_mode=None):
+    me = whoami()
     mode = force_mode if force_mode is not None else angle_mode_letter()
     if mode == "r":
         return x
@@ -131,10 +132,11 @@ def convert_mode_to_radians(x, force_mode=None):
         return x / DEG_PER_RAD
     if mode == "g":
         return x / GRAD_PER_RAD
-    raise FatalErr("{}: Bad angle_mode '{}'".format(whoami(), mode))
+    raise FatalErr("{}: Bad angle_mode '{}'".format(me, mode))
 
 
 def convert_radians_to_mode(r, force_mode=None):
+    me = whoami()
     mode = force_mode if force_mode is not None else angle_mode_letter()
     if mode == "r":
         return r
@@ -142,20 +144,22 @@ def convert_radians_to_mode(r, force_mode=None):
         return r * DEG_PER_RAD
     if mode == "g":
         return r * GRAD_PER_RAD
-    raise FatalErr("{}: Bad angle_mode '{}'".format(whoami(), mode))
+    raise FatalErr("{}: Bad angle_mode '{}'".format(me, mode))
 
 
 def defvar(name, value, **kwargs):
+    me = whoami()
     if type(name) is not str:
         raise FatalErr("defvar: name '{}' is not a string ".format(name))
     root_scope.add_vname(rpn.util.VName(name))
     var = rpn.util.Variable(name, value, **kwargs)
-    dbg(whoami(), 1, "{}: Creating variable {} at address {} in {}".format(whoami(), name, hex(id(var)), repr(root_scope)))
+    dbg(me, 1, "{}: Creating variable {} at address {} in {}".format(me, name, hex(id(var)), repr(root_scope)))
     root_scope.define_variable(name, var)
     return var
 
 
 def eval_string(s):
+    me = whoami()
     dbg("eval_string", 1, "eval_string('{}')".format(s))
     scope_stack_size = scope_stack.size()
     rpn.parser.initialize_lexer()
@@ -166,7 +170,7 @@ def eval_string(s):
         if str(e) != 'EOF':
             rpn.globl.lnwriteln("Parse error: {}".format(str(e)))
     except RuntimeErr as e:
-        dbg(whoami(), 1, "{}: Caught RuntimeErr, code={}".format(whoami(), e.code))
+        dbg(me, 1, "{}: Caught RuntimeErr, code={}".format(me, e.code))
         if e.code >= 0:
             raise
         if e.code == X_ABORT or \
@@ -197,11 +201,12 @@ def eval_string(s):
 
 
 def execute(executable):
-    dbg(whoami(), 1, "execute: {}/{}".format(type(executable), executable))
+    me = whoami()
+    dbg(me, 1, "execute: {}/{}".format(type(executable), executable))
     try:
         try:
             if type(executable) is rpn.util.Word and executable.typ == "colon":
-                dbg(whoami(), 2, ">>>>  {}  <<<<".format(executable.name))
+                dbg(me, 2, ">>>>  {}  <<<<".format(executable.name))
                 rpn.globl.colon_stack.push(executable)
             executable.__call__(executable.name)
         finally:
@@ -303,44 +308,47 @@ def separate_decorations(ident):
 
 
 def lookup_variable(name, how_many=1):
+    me = whoami()
     for (_, scope) in scope_stack.items_top_to_bottom():
-        dbg(whoami(), 1, "{}: Looking for variable {} in {}...".format(whoami(), name, scope.name))
-        dbg(whoami(), 3, "{} has variables: {}".format(scope.name, scope.variables()))
+        dbg(me, 1, "{}: Looking for variable {} in {}...".format(me, name, scope.name))
+        dbg(me, 3, "{} has variables: {}".format(scope.name, scope.variables()))
         var = scope.variable(name)
         if var is None:
             continue
         how_many -= 1
         if how_many > 0:
             continue
-        dbg(whoami(), 2, "{}: Found variable {} in {}: {}".format(whoami(), name, repr(scope), repr(var)))
+        dbg(me, 2, "{}: Found variable {} in {}: {}".format(me, name, repr(scope), repr(var)))
         return (var, scope)
-    dbg(whoami(), 2, "{}: Variable {} not found".format(whoami(), name))
+    dbg(me, 2, "{}: Variable {} not found".format(me, name))
     #traceback.print_stack(file=sys.stderr)
     return (None, None)
 
 
 def lookup_vname(ident):
+    me = whoami()
     if type(ident) is not str:
         raise FatalErr("lookup_vname: ident '{}' is not a string".format(ident))
     for (_, scope) in scope_stack.items_top_to_bottom():
-        dbg(whoami(), 1, "{}: Looking for vname {} in {}...".format(whoami(), ident, repr(scope)))
-        dbg(whoami(), 3, "{} has vnames: {}".format(scope, scope.vnames()))
+        dbg(me, 1, "{}: Looking for vname {} in {}...".format(me, ident, repr(scope)))
+        dbg(me, 3, "{} has vnames: {}".format(scope, scope.vnames()))
         if scope.has_vname_named(ident):
-            dbg(whoami(), 2, "{}: Found vname {} in {}".format(whoami(), ident, repr(scope)))
+            dbg(me, 2, "{}: Found vname {} in {}".format(me, ident, repr(scope)))
             return (scope.vname(ident), scope)
-    dbg(whoami(), 2, "{}: VName {} not found".format(whoami(), ident))
+    dbg(me, 2, "{}: VName {} not found".format(me, ident))
     return (None, None)
 
 
 def lookup_word(name):
+    me = whoami()
     for (_, scope) in scope_stack.items_top_to_bottom():
-        dbg(whoami(), 1, "{}: Looking for word {} in {}...".format(whoami(), name, scope))
-        dbg(whoami(), 3, "{} has words: {}".format(scope, scope.words))
+        dbg(me, 1, "{}: Looking for word {} in {}...".format(me, name, scope))
+        dbg(me, 3, "{} has words: {}".format(scope, scope.words))
         word = scope.word(name)
         if word is not None and not word.smudge():
-            dbg(whoami(), 2, "{}: Found word {} in {}: {}".format(whoami(), name, scope, word))
+            dbg(me, 2, "{}: Found word {} in {}: {}".format(me, name, scope, word))
             return (word, scope)
-    dbg(whoami(), 2, "{}: Word {} not found".format(whoami(), name))
+    dbg(me, 2, "{}: Word {} not found".format(me, name))
     return (None, None)
 
 
@@ -382,8 +390,9 @@ def push_scope(scope, why):
 
 
 def register_valid_p(reg):
+    me = whoami()
     if not isinstance(reg, int):
-        raise FatalErr("{}: Attempting to validate non-integer register {}".format(whoami(), reg))
+        raise FatalErr("{}: Attempting to validate non-integer register {}".format(me, reg))
     (sizevar, _) = rpn.globl.lookup_variable("SIZE")
     size = sizevar.obj.value
     if 0 <= reg < size:
@@ -413,6 +422,7 @@ def update_screen_size():
 
 
 def to_python_class(n):
+    me = whoami()
     t = type(n)
     if t is np.int64:
         return int(n)
@@ -420,12 +430,13 @@ def to_python_class(n):
         return float(n)
     if t is np.complex128:
         return complex(n)
-    raise FatalErr("{}: Cannot handle type {}".format(whoami(), t))
+    raise FatalErr("{}: Cannot handle type {}".format(me, t))
 
 
 def to_rpn_class(n):
+    me = whoami()
     t = type(n)
-    dbg(whoami(), 1, "{}: n={}, type={}".format(whoami(), n, t))
+    dbg(me, 1, "{}: n={}, type={}".format(me, n, t))
     if t is int:
         return rpn.type.Integer(n)
     if t is np.int64 and n.ndim == 0:
@@ -441,8 +452,8 @@ def to_rpn_class(n):
             return rpn.type.Vector.from_ndarray(n)
         if n.ndim == 2:
             return rpn.type.Matrix.from_ndarray(n)
-        raise FatalErr("{}: Found ndarray but ndim={} not in [1,2]".format(whoami(), n.dim))
-    raise FatalErr("{}: Cannot handle type {}".format(whoami(), t))
+        raise FatalErr("{}: Found ndarray but ndim={} not in [1,2]".format(me, n.dim))
+    raise FatalErr("{}: Cannot handle type {}".format(me, t))
 
 
 def show_version_info():

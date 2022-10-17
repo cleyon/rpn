@@ -270,10 +270,10 @@ def w_dollar_ushow(name):
         unit = ue.unit
         rpn.globl.lnwrite(f"\"{ustr}\" refers to the unit '{unit.name}'")
         if ue.prefix is not None:
-            rpn.globl.write(f" with prefix '{ue.prefix[0]}' (x10^{ue.prefix[2]})")
+            rpn.globl.write(f" with prefix '{ue.prefix[0]}' (10^{ue.prefix[2]})")
         rpn.globl.writeln()
         if ue.unit.base_p:
-            rpn.globl.writeln(f'SI units: "{unit.name}" is a base unit')
+            rpn.globl.writeln(f'SI units: {unit.name} is a base unit')
         else:
             defn = f"{unit.factor()}"
             e = unit.orig_exp
@@ -291,7 +291,7 @@ def w_dollar_ushow(name):
         cat = rpn.unit.Category.lookup_by_dim(ue.dim())
         if cat is not None:
             rpn.globl.writeln(f"It is a measure of {cat.measure}")
-        rpn.globl.writeln(f"It has dimensions = {ue.dim()}")
+        rpn.globl.writeln(f"Dimensions: '{rpn.unit.pp_dim(ue.dim())}'")
         return
 
     # See if it's a valid combination of units
@@ -303,7 +303,7 @@ def w_dollar_ushow(name):
         cat = rpn.unit.Category.lookup_by_dim(ue.dim())
         if cat is not None:
             rpn.globl.writeln(f"It is a measure of {cat.measure}")
-        rpn.globl.writeln(f"It has dimensions = {ue.dim()}")
+        rpn.globl.writeln(f"Dimensions: '{rpn.unit.pp_dim(ue.dim())}'")
         return
 
     # Not valid
@@ -5726,7 +5726,7 @@ time!   ( -- HH.MMSS )
 High precision clock time.""")
 def w_time_bang(name):          # pylint: disable=unused-argument
     t = datetime.datetime.now().strftime("%H.%M%S%f")
-    result = rpn.type.Float(t)
+    result = rpn.type.Float(float(t))
     result.label = "HH.MMSS"
     rpn.globl.param_stack.push(result)
 

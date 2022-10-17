@@ -47,9 +47,9 @@ expect {
 }
 
 set test unit_convert_8
-send ">disp 3 eng 66_Glyr \"lyr\" convert . disp>\n"
+send ">disp 3 eng 66_Gly \"ly\" convert . disp>\n"
 expect {
-    -ex "66.0e+09_lyr"    { exp_continue }
+    -ex "66.0e+09_ly"    { exp_continue }
     -re ".*$prompt"    { pass "$test" }
 }
 

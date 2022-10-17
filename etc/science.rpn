@@ -1,30 +1,76 @@
 \ Primary physical constants
-299792458_m/s             "Speed of light in vacuum" >label constant c
-1.602176634e-19_C         "Charge on electron" >label       constant e
-9.1093837015e-31_kg       "Mass of electron" >label         constant Me
-6.6742867e-11_m^3/kg*s^2  "Universal gravitation"  >label   constant G
-9.80665_m/s^2             "Earth gravity" >label            constant g
-6.62607015e-34_J*s        "Planck constant" >label          constant h
-1.38064852e-23_J/K        "Boltzmann constant" >label       constant k
-5.9722e24_kg              "Mass of earth" >label            constant Mearth
-1.98847e30_kg             "Mass of sun" >label              constant Msol
-4_N/A^2 PI * 1e7 /        "Magnetic constant" >label        constant mu0 \ Vacuum permeability
+299792458_m/s             "Speed of light in vacuum" >label constant c \ exact value per definition
+1.602176634e-19_C         "Charge on electron" >label       constant e \ exact value per 2019 SI units
 6.02214076e23_mol^-1      "Avogadro constant" >label        constant NA
-6373e3_m                  "Radius of earth" >label          constant Rearth \ R_equater=6378 km, R_pole=6356 km
-                                                                            \ This value is consistent with g=9.806
-6.957e8_m                 "Radius of sun" >label            constant Rsol
+6.6742867e-11_m^3/kg*s^2  "Universal gravitation"  >label   constant G
+9.80665_m/s^2             "Earth gravity" >label            constant ga
+6.62607015e-34_J*s        "Planck constant" >label          constant h \ exact
+1.380649e-23_J/K          "Boltzmann constant" >label       constant k \ exact value per 2019 SI units
 10973731.568508_1/m       "Rydberg's constant" >label       constant Ryd
 22.710947e-3_m^3/mol      "Std volume of ideal gas" >label  constant V0
+4_N/A^2 PI * 1e7 /        "Magnetic constant" >label        constant mu0 \ Vacuum permeability
+9.1093837015e-31_kg       "Mass of electron" >label         constant Me
+1.883531627e-28_kg        "Mass of muon" >label             constant Mu
+1.67262192369e-27_kg      "Mass of proton" >label           constant Mp
+1.67492749804e-27_kg      "Mass of neutron" >label          constant Mn
 
-\ Secondary constants
-@mu0 @c sq * inv  "Electric constant" >label                  constant eps0 \ Vacuum permittivity
-@NA @e *          "Faraday constant" >label                   constant F
-@h TAU /          "Reduced Planck constant" >label            constant hbar
-@NA @k *          "Universal Gas constant" >label             constant R
-@mu0 @c *         "Characteristic impedance of vacuum" >label constant Z0
+1.98847e30_kg             "Mass of sun" >label              constant Msol
+6.957e8_m                 "Radius of sun" >label            constant Rsol
+5.9722e24_kg              "Mass of earth" >label            constant Mearth
+6.373e6_m                 "Radius of earth" >label          constant Rearth \ R_equater=6378 km, R_pole=6356 km
+                                                                            \ This value is consistent with g=9.806
 
-\ Tertiary constants
-4 PI * @eps0 * inv "Coulomb's constant" >label constant ke
+
+\
+\\      Secondary constants
+\
+"Electric constant"     \ Vacuum permittivity
+    @mu0 @c sq * inv
+    >label constant eps0
+
+"Faraday constant"      \ C/mol
+    @NA @e *
+    >label constant Fdy
+
+"Reduced Planck constant"
+    @h TAU /
+    >label constant hbar
+
+"Molar gas constant"    \ aka Ideal gas constant, as in PV = nRT
+    @NA @k *
+    >label constant R
+
+"Characteristic impedance of vacuum"
+    @mu0 @c *
+    >label constant Z0
+
+
+\
+\\      Tertiary constants
+\
+"Coulomb's constant"
+    4 PI * @eps0 * inv
+    >label constant ke
+
+"Fine structure constant"       \ Often labelled "alpha"
+    @e sq   \ divided by
+      4 PI * @eps0 * @hbar * @c * /
+    unit> $drop \ unitless constant
+    >label constant fsc
+
+
+\
+\\      Quaternary constants
+\
+"Thomson cross-section of electron"
+\ see https://en.wikipedia.org/wiki/Thomson_scattering
+    8 PI * 3 /
+      @fsc @hbar * @c *
+      @Me @c sq *
+      /  sq
+    *
+    >label constant sth
+\ Should be 6.6524587158e-29_m^2
 
 
 : F_grav
@@ -78,4 +124,26 @@ Assumptions: Black hole mass is one billion times that of the sun."
     bh_mass_factor |
   1e9 !bh_mass_factor
   @Msol @bh_mass_factor *  @m  @d  F_grav
+;
+
+
+: haversine
+  doc:"haversine  ( phi_1 lambda_1  phi_2 lambda_2 -- dist_km )
+Compute the distance between two locations on the earth's surface.
+PHI represents the latitude and LAMBDA represents the longitude."
+  | in:phi_1 in:lambda_1 in:phi_2 in:lambda_2 |
+    @phi_2 @phi_1 - 2 / sin sq
+    @phi_1 cos @phi_2 cos *  @lambda_2 @lambda_1 - 2 / sin sq  *
+  +
+  sqrt asin 
+  @Rearth 1000 / 2 *    \ Rearth is in meters, we want km
+  *
+;
+
+: htest
+  @Rearth 1000 / .
+
+  59.9 d->r    10.8 d->r
+  49.3 d->r  -123.1 d->r
+  haversine
 ;

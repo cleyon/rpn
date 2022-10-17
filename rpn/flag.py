@@ -35,57 +35,64 @@ flags_vec = 0
 
 
 def clear_flag(flag):
+    me = whoami()
     global flags_vec                    # pylint: disable=global-statement
     if flag < FLAG_MIN or flag >= FLAG_MAX:
-        raise FatalErr("{}: Flag {} out of range".format(whoami(), flag))
+        raise FatalErr("{}: Flag {} out of range".format(me, flag))
     if flag == F_DEBUG_ENABLED:
         rpn.debug.debug_enabled = False
     flags_vec &= ~(1<<flag)
 
 def set_flag(flag):
+    me = whoami()
     global flags_vec                    # pylint: disable=global-statement
     if flag < FLAG_MIN or flag >= FLAG_MAX:
-        raise FatalErr("{}: Flag {} out of range".format(whoami(), flag))
+        raise FatalErr("{}: Flag {} out of range".format(me, flag))
     if flag == F_DEBUG_ENABLED:
         rpn.debug.debug_enabled = True
     flags_vec |= (1<<flag)
 
 def to_flag(flag, new):
+    me = whoami()
     if flag < FLAG_MIN or flag >= FLAG_MAX:
-        raise FatalErr("{}: Flag {} out of range".format(whoami(), flag))
+        raise FatalErr("{}: Flag {} out of range".format(me, flag))
     if new is None:
-        raise FatalErr("{}: Flag {} cannot take value None".format(whoami(), flag))
+        raise FatalErr("{}: Flag {} cannot take value None".format(me, flag))
     if new is True or int(new) > 0:
         set_flag(flag)
     elif new is False or int(new) == 0:
         clear_flag(flag)
     else:
-        raise FatalErr("{}: Could not set flag {} to value {}".format(whoami(), flag, new))
+        raise FatalErr("{}: Could not set flag {} to value {}".format(me, flag, new))
 
 def toggle_flag(flag):
+    me = whoami()
     if flag < FLAG_MIN or flag >= FLAG_MAX:
-        raise FatalErr("{}: Flag {} out of range".format(whoami(), flag))
+        raise FatalErr("{}: Flag {} out of range".format(me, flag))
     if flag_set_p(flag):
         clear_flag(flag)
     else:
         set_flag(flag)
 
 def copy_flag(src_flag, dst_flag):
+    me = whoami()
     if src_flag < FLAG_MIN or src_flag >= FLAG_MAX:
-        raise FatalErr("{}: Flag {} out of range".format(whoami(), src_flag))
+        raise FatalErr("{}: Flag {} out of range".format(me, src_flag))
     if dst_flag < FLAG_MIN or dst_flag >= FLAG_MAX:
-        raise FatalErr("{}: Flag {} out of range".format(whoami(), dst_flag))
+        raise FatalErr("{}: Flag {} out of range".format(me, dst_flag))
     if flag_set_p(src_flag):
         set_flag(dst_flag)
     else:
         clear_flag(dst_flag)
 
 def flag_int_value(flag):
+    me = whoami()
     if flag < FLAG_MIN or flag >= FLAG_MAX:
-        raise FatalErr("{}: Flag {} out of range".format(whoami(), flag))
+        raise FatalErr("{}: Flag {} out of range".format(me, flag))
     return rpn.globl.bool_to_int(flag_set_p(flag))
 
 def flag_set_p(flag):
+    me = whoami()
     if flag < FLAG_MIN or flag >= FLAG_MAX:
-        raise FatalErr("{}: Flag {} out of range".format(whoami(), flag))
+        raise FatalErr("{}: Flag {} out of range".format(me, flag))
     return bool(flags_vec & 1<<flag != 0)

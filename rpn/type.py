@@ -126,8 +126,9 @@ class Stackable(rpn.exe.Executable):
         rpn.globl.param_stack.push(self)
 
     def uexpr_convert(self, new_ustr, name=""):
+        me = whoami()
         if not self.has_uexpr_p():
-            raise FatalErr("{}: No uexpr - caller should have checked".format(whoami()))
+            raise FatalErr("{}: No uexpr - caller should have checked".format(me))
         ue = rpn.unit.try_parsing(new_ustr)
         if ue is None:
             throw(X_INVALID_UNIT, name, new_ustr)
@@ -149,14 +150,16 @@ class Stackable(rpn.exe.Executable):
         return new_obj
 
     def ubase_convert(self, name=""):
+        me = whoami()
         if not self.has_uexpr_p():
-            raise FatalErr("{}: No uexpr - caller should have checked".format(whoami()))
+            raise FatalErr("{}: No uexpr - caller should have checked".format(me))
         base_ustr = str(self.uexpr.ubase())
         new_obj = self.uexpr_convert(base_ustr, name)
         return new_obj
 
     def instfmt(self):          # pylint: disable=no-self-use
-        raise FatalErr("{}: Subclass responsibility".format(whoami()))
+        me = whoami()
+        raise FatalErr("{}: Subclass responsibility".format(me))
 
     def scalar_p(self):         # pylint: disable=no-self-use
         return type(self) in [rpn.type.Integer, rpn.type.Rational,
@@ -168,6 +171,7 @@ class Stackable(rpn.exe.Executable):
                type(self) is type(other)
 
     def same_shape_p(self, other):
+        me = whoami()
         if not self.same_composite_type_p(other):
             return False
         if type(self) is rpn.type.Vector:
@@ -175,17 +179,19 @@ class Stackable(rpn.exe.Executable):
         if type(self) is rpn.type.Matrix:
             return self.nrows() == other.nrows() and \
                    self.ncols() == other.ncols()
-        raise FatalErr("{}: Fell through ({})".format(whoami(), self))
+        raise FatalErr("{}: Fell through ({})".format(me, self))
 
     def as_definition(self):
+        me = whoami()
         s = str(self)
-        dbg("show", 3, "{}: '{}'".format(whoami(), s))
+        dbg("show", 3, "{}: '{}'".format(me, s))
         return s
 
     def __str__(self):
+        me = whoami()
         s = self.instfmt()
         if self.has_uexpr_p():
-            #print("{}: self.uexpr={}".format(whoami(), repr(self.uexpr)))
+            #print("{}: self.uexpr={}".format(me, repr(self.uexpr)))
             s += "_{}".format(str(self.uexpr))
         if self.label is not None:
             s += " \\ {}".format(self.label)
@@ -418,7 +424,8 @@ class Matrix(Stackable):
 
     @classmethod
     def from_rpn_List(cls, x):
-        dbg(whoami(), 1, "{}: x={}".format(whoami(), x))
+        me = whoami()
+        dbg(me, 1, "{}: x={}".format(me, x))
         obj = cls()
         obj.value = np.array([elem.value for elem in x.listval()])
         return obj
@@ -571,24 +578,26 @@ class Symbol(rpn.exe.Executable):
         return self._type
 
     def __call__(self, name):
+        me = whoami()
         dbg("trace", 1, "trace({})".format(repr(self)))
-        dbg(whoami(), 3, "{}: (parse_time) orig scope stack\n{}".format(whoami(), repr(rpn.globl.scope_stack)))
+        dbg(me, 3, "{}: (parse_time) orig scope stack\n{}".format(me, repr(rpn.globl.scope_stack)))
         copy_scope_stack = copy.deepcopy(rpn.globl.scope_stack)
-        dbg(whoami(), 3, "{}: (parse_time) copy scope stack\n{}".format(whoami(), repr(copy_scope_stack)))
+        dbg(me, 3, "{}: (parse_time) copy scope stack\n{}".format(me, repr(copy_scope_stack)))
         self._scope_stack = copy_scope_stack
         rpn.globl.string_stack.push(self)
 
     def eval(self):
+        me = whoami()
         dbg("trace", 1, "trace({})".format(repr(self)))
-        dbg(whoami(), 1, "{}: name={}, word={}".format(whoami(), self._name, self._word))
+        dbg(me, 1, "{}: name={}, word={}".format(me, self._name, self._word))
         if self._scope_stack is None:
-            raise FatalErr("{}: Symbol {} has no scope stack".format(whoami(), str(self)))
+            raise FatalErr("{}: Symbol {} has no scope stack".format(me, str(self)))
 
         try:
             old_scope_stack = rpn.globl.scope_stack
-            dbg(whoami(), 3, "{}: (eval time) old scope stack\n{}".format(whoami(), repr(old_scope_stack)))
+            dbg(me, 3, "{}: (eval time) old scope stack\n{}".format(me, repr(old_scope_stack)))
             rpn.globl.scope_stack = self._scope_stack
-            dbg(whoami(), 3, "{}: (eval time) new scope stack\n{}".format(whoami(), repr(rpn.globl.scope_stack)))
+            dbg(me, 3, "{}: (eval time) new scope stack\n{}".format(me, repr(rpn.globl.scope_stack)))
             self._word.__call__(self._name)
         finally:
             rpn.globl.scope_stack = old_scope_stack
@@ -625,14 +634,16 @@ class Vector(Stackable):
 
     @classmethod
     def from_python_list(cls, x):
-        dbg(whoami(), 1, "{}: x={}".format(whoami(), x))
+        me = whoami()
+        dbg(me, 1, "{}: x={}".format(me, x))
         obj = cls()
         obj.value = np.array(x)
         return obj
 
     @classmethod
     def from_rpn_List(cls, x):
-        dbg(whoami(), 1, "{}: x={}".format(whoami(), x))
+        me = whoami()
+        dbg(me, 1, "{}: x={}".format(me, x))
         obj = cls()
         obj.value = np.array([elem.value for elem in x.listval()])
         return obj
@@ -652,13 +663,14 @@ class Vector(Stackable):
         return False
 
     def size(self):
+        me = whoami()
         if type(self.value) is np.ndarray:
             shape = self.value.shape
             return shape[0]
         if type(self.value) is rpn.util.List:
-            #print("{}: size={}".format(whoami(), len(self.value)))
+            #print("{}: size={}".format(me, len(self.value)))
             return len(self.value)
-        raise FatalErr("{}: Fell through ({})".format(whoami(), self))
+        raise FatalErr("{}: Fell through ({})".format(me, self))
 
     def instfmt(self):
         if self.size() == 0:
