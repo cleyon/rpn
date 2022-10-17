@@ -63,7 +63,7 @@ qv G"
   then
   !d
 
-  @G @m1 @m2 * *
+  @G @m1 * @m2 *
   @d sq /
   "N" >unit
 ;
@@ -72,10 +72,10 @@ qv G"
 : F_smbh
   doc:"Investigate gravitational forces approaching a super-massive black hole.
 
-Inputs: m=Your mass, d=distance to black hole
-Assumptions: Black hole mass is one billion times that of the sun."
-  | in:m in:d
+Inputs: my_mass=Your mass, dist=distance to black hole
+Assumptions: Black hole mass = one billion solar mass"
+  | in:my_mass in:dist
     bh_mass_factor |
   1e9 !bh_mass_factor
-  @Msol @bh_mass_factor *  @m  @d  F_grav
+  @Msol @bh_mass_factor *  @my_mass  @dist  F_grav
 ;
