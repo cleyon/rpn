@@ -34,6 +34,19 @@ DEFINITION:
 PHI = (1 + sqrt(5)) / 2"
   5 sqrt 1 + 2 / ;
 
+: RHO           doc:"RHO   ( -- 1.3247... )
+Plastic number.  See https://en.wikipedia.org/wiki/Plastic_number
+
+DEFINITION:
+The unique real solution to x^3 = x + 1."
+  | sqrt69 |
+  69 sqrt !sqrt69
+
+  9 @sqrt69 + 18 /  cbrt
+  9 @sqrt69 - 18 /  cbrt
+  +
+  ;
+
 : BL            doc:"BL   ( -- 32 )
 ASCII code for a space character."
   32    F_SHOW_X cf ;

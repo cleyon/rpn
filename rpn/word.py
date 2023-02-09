@@ -2047,6 +2047,43 @@ def w_catch(name):              # pylint: disable=unused-argument
     pass                        # Grammar rules handle this word
 
 
+@defword(name='cbrt', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
+Coming soon
+""")
+def w_cbrt(name):
+    x = rpn.globl.param_stack.pop()
+    if x.zerop():
+        if type(x) is rpn.type.Integer:
+            result = rpn.type.Integer(0)
+        elif type(x) is rpn.type.Rational:
+            result = rpn.type.Rational(0, 0)
+        elif type(x) is rpn.type.Float:
+            result = rpn.type.Float(0.0)
+        elif type(x) is rpn.type.Complex:
+            result = rpn.type.Complex(0, 0)
+    elif type(x) in [rpn.type.Integer, rpn.type.Float, rpn.type.Rational, rpn.type.Complex]:
+        if sys.version_info >= (3, 11):
+            r = math.cbrt(x.value)
+        else:
+            r = pow(x.value, 1/3)
+        if type(x) is rpn.type.Integer and r.is_integer():
+            result = rpn.type.Integer(int(r))
+        elif type(x) is rpn.type.Complex:
+            result = rpn.type.Complex.from_complex(r)
+        else:
+            result = rpn.type.Float(float(r))
+    elif type(x) in [rpn.type.Vector, rpn.type.Matrix]:
+        if not rpn.globl.have_module('numpy'):
+            rpn.globl.param_stack.push(x)
+            throw(X_UNSUPPORTED, name, "Operation on {} requires 'numpy' library".format(typename(x)))
+        r = np.cbrt(x.value)
+        result = rpn.globl.to_rpn_class(r)
+    else:
+        rpn.globl.param_stack.push(x)
+        throw(X_ARG_TYPE_MISMATCH, name, f"({typename(x)})")
+    rpn.globl.param_stack.push(result)
+
+
 @defword(name='ceil', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
 ceil   ( x -- ceil )
 Ceiling: smallest integer greater than or equal to X.""")
