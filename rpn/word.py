@@ -965,6 +965,8 @@ def w_slash(name):
     rpn.globl.param_stack.push(result)
 
 
+# FORTH:        : /mod  1 -rot */mod  ;
+# (but rpn doesn't have */mod)
 @defword(name='/mod', args=2, print_x=rpn.globl.PX_COMPUTE, doc="""\
 /mod   ( y x -- remainder quotient )
 Division quotient and remainder.  Divide integers Y by X, returning integer
