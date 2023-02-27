@@ -259,7 +259,8 @@ class Complex(Stackable):
 #############################################################################
 class Float(Stackable):
     def __init__(self, val, uexpr=None):
-        if not isinstance(val, (float, np.float64)):
+        if    (rpn.globl.have_module('numpy') and not isinstance(val, (float, np.float64))) \
+           or                                    (not isinstance(val, (float))):
             traceback.print_stack()
             raise FatalErr("Float value '{}' is not a float, it's a {}".format(val, type(val)))
         super().__init__()
