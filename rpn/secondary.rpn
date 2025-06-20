@@ -34,6 +34,17 @@ DEFINITION:
 PHI = (1 + sqrt(5)) / 2"
   5 sqrt 1 + 2 / ;
 
+: deltaS        doc:"deltaS   ( -- 2.414... )
+Silver ratio.  See https://en.wikipedia.org/wiki/Silver_ratio
+
+Two quantities are in the silver ratio if the ratio of the larger quantity
+to the smaller quantity is the same as the ratio of the sum of the smaller
+quantity plus twice the larger quantity to the larger quantity.
+
+DEFINITION:
+deltaS = 1 + sqrt(2)"
+  2 sqrt 1 + ;
+
 : RHO           doc:"RHO   ( -- 1.3247... )
 Plastic number.  See https://en.wikipedia.org/wiki/Plastic_number
 

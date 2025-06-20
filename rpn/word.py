@@ -2050,8 +2050,10 @@ def w_catch(name):              # pylint: disable=unused-argument
 
 
 @defword(name='cbrt', args=1, print_x=rpn.globl.PX_COMPUTE, doc="""\
-Coming soon
-""")
+cbrt   ( x -- x^[1/3] )
+Cube root.
+
+See also: sqrt""")
 def w_cbrt(name):
     x = rpn.globl.param_stack.pop()
     if x.zerop():
