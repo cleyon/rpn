@@ -1,3 +1,3 @@
 #!/bin/sh
 
-python3 -m rpn "$@"
+PYTHONPATH=/home/cleyon/repos/rpn python3 -m rpn "$@"
